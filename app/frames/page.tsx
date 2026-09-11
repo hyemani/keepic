@@ -58,7 +58,7 @@ export default function FramesPage() {
           {frameTypes.map((type) => (
             <div
               key={type.name}
-              className="overflow-hidden border border-[var(--color-hairline)] bg-white"
+              className="overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white"
             >
               <div className="aspect-[3/4] w-full overflow-hidden">
                 <img
