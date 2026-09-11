@@ -128,7 +128,7 @@ export default function PhotobookPage() {
                 <img
                   src={size.image}
                   alt={`${size.label} 사이즈 표지 예시`}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full scale-125 object-cover"
                 />
               </div>
               <div className="flex-1 pt-1">
