@@ -102,7 +102,7 @@ export default function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
 
       {/* sm 이상(태블릿·PC): 이미지 위에 왼쪽 정렬 문구를 얹는 방식 */}
       <div className="hidden sm:block">
-        <div className="relative overflow-hidden sm:aspect-[1672/941] sm:max-h-[720px]">
+        <div className="relative w-full overflow-hidden sm:aspect-[1672/941] sm:max-h-[720px]">
           {slides.map((slide, i) => (
             <img
               key={slide.image}
