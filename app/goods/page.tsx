@@ -59,7 +59,7 @@ export default function GoodsPage() {
               key={type.name}
               className="overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white"
             >
-              <div className="aspect-square w-full overflow-hidden">
+              <div className="aspect-[3/4] w-full overflow-hidden">
                 <img
                   src={type.image}
                   alt={type.alt}
@@ -92,7 +92,7 @@ export default function GoodsPage() {
           관리자
         </Link>
       </footer>
-      <StickyOrderBar />
+      <StickyOrderBar label="나만의 굿즈 제작 신청" />
     </main>
   );
 }

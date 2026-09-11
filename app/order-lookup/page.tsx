@@ -2,7 +2,6 @@
 import SiteHeader from "@/components/SiteHeader";
 
 import { useState, type ChangeEvent } from "react";
-import StickyOrderBar from "@/components/StickyOrderBar";
 import { supabase } from "@/lib/supabase";
 import {
   OrderStatus,
@@ -239,7 +238,7 @@ export default function OrderLookupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
+    <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
       <SiteHeader />
 
       <section className="mx-auto max-w-lg px-6 pb-24 pt-8 sm:px-10">
@@ -557,7 +556,6 @@ export default function OrderLookupPage() {
           </div>
         )}
       </section>
-      <StickyOrderBar />
     </main>
   );
 }

@@ -32,7 +32,7 @@ export default function SiteHeader() {
         </Link>
 
         {/* PC 메뉴 */}
-        <nav className="hidden items-center gap-8 text-sm sm:flex">
+        <nav className="hidden items-center gap-8 text-[15px] sm:flex">
           {primaryLinks.map((link) => (
             <Link
               key={link.href}
@@ -99,12 +99,12 @@ export default function SiteHeader() {
 
         {/* PC 우측 */}
         <div className="hidden items-center gap-5 sm:flex">
-          <Link href="/order-lookup" className="text-sm hover:text-[var(--color-sky)]">
+          <Link href="/order-lookup" className="text-[15px] hover:text-[var(--color-sky)]">
             나의 주문
           </Link>
           <Link
             href="/order"
-            className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+            className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-[15px] font-medium text-white transition hover:opacity-90"
           >
             제작 신청
           </Link>
@@ -112,23 +112,22 @@ export default function SiteHeader() {
 
         {/* 모바일: 나의 주문 + 전체 메뉴 */}
         <div className="flex items-center gap-4 sm:hidden">
-          <Link href="/order-lookup" className="text-xs text-[var(--color-charcoal)]/70">
+          <Link href="/order-lookup" className="text-[13px] text-[var(--color-charcoal)]/70">
             나의 주문
           </Link>
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
             aria-label="전체 메뉴 열기"
-            className="flex items-center gap-1 text-xs text-[var(--color-charcoal)]/70"
+            className="flex items-center text-[var(--color-charcoal)]/70"
           >
-            <span className="text-base leading-none">≡</span>
-            전체메뉴
+            <span className="text-xl leading-none">≡</span>
           </button>
         </div>
       </div>
 
       {/* 모바일 전용: 포토북 / 액자 / 나만의 굿즈 균등 배치 */}
-      <nav className="-mx-6 mt-5 grid grid-cols-3 border-t border-[var(--color-hairline)] px-4 pt-3 text-center text-[11px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
+      <nav className="-mx-6 mt-5 grid grid-cols-3 border-t border-[var(--color-hairline)] px-4 pt-3 text-center text-[12px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
         {primaryLinks.map((link) => (
           <Link
             key={link.href}

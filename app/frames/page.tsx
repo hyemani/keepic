@@ -59,7 +59,7 @@ export default function FramesPage() {
               key={type.name}
               className="overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white"
             >
-              <div className="aspect-square w-full overflow-hidden">
+              <div className="aspect-[3/4] w-full overflow-hidden">
                 <img
                   src={type.image}
                   alt={type.alt}
@@ -76,7 +76,7 @@ export default function FramesPage() {
           ))}
         </div>
 
-        <div className="mt-12">
+        <div className="mt-12 hidden sm:block">
           <Link
             href="/options?product=액자"
             className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
@@ -92,7 +92,7 @@ export default function FramesPage() {
           관리자
         </Link>
       </footer>
-      <StickyOrderBar />
+      <StickyOrderBar label="액자 제작 신청" />
     </main>
   );
 }
