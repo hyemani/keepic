@@ -123,7 +123,7 @@ export default function PhotobookPage() {
             >
               <div
                 style={{ width: size.px, height: size.px }}
-                className="shrink-0 overflow-hidden border border-[var(--color-hairline)] bg-white"
+                className="shrink-0 overflow-hidden bg-white"
               >
                 <img
                   src={size.image}
