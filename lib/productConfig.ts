@@ -17,15 +17,6 @@ export const productConfig = {
       { id: "large", label: "라지", detail: "25 x 25cm", aspect: "aspect-square" },
     ],
   },
-  "나만의 앨범": {
-    minPhotos: 5,
-    maxPhotos: 50,
-    sizes: [
-      { id: "small", label: "스몰", detail: "15 x 15cm", aspect: "aspect-square" },
-      { id: "medium", label: "미디엄", detail: "20 x 20cm", aspect: "aspect-square" },
-      { id: "large", label: "라지", detail: "25 x 25cm", aspect: "aspect-square" },
-    ],
-  },
 } as const;
 
 export type ProductName = keyof typeof productConfig;

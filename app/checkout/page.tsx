@@ -214,7 +214,7 @@ export default function CheckoutPage() {
               type="text"
               value={depositorName}
               onChange={(e) => setDepositorName(e.target.value)}
-              placeholder="실제 입금하시는 분 이름"
+              placeholder="실제 입금하시는 분 성함"
               className="mt-2 w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
             />
           </div>

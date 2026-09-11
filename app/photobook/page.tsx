@@ -1,4 +1,6 @@
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import StickyOrderBar from "@/components/StickyOrderBar";
 
 const coverExamples = [
   { src: "/photobook/covers/baby-1.png", alt: "베이비 표지 예시 1" },
@@ -24,39 +26,8 @@ const sizes = [
 
 export default function PhotobookPage() {
   return (
-    <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
-      <header className="mx-auto max-w-6xl px-6 py-8 sm:px-10">
-        <div className="flex items-center justify-between">
-        <Link href="/">
-          <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
-        </Link>
-        <div className="flex items-center gap-4 sm:gap-6">
-          <nav className="hidden gap-8 text-sm sm:flex">
-          <Link href="/photobook" className="text-[var(--color-sky)]">포토북</Link>
-          <Link href="/guide" className="hover:text-[var(--color-sky)]">제작 안내</Link>
-          <Link href="/cases" className="hover:text-[var(--color-sky)]">제작 사례</Link>
-          <Link href="/faq" className="hover:text-[var(--color-sky)]">자주 묻는 질문</Link>
-          <Link href="/order-lookup" className="hover:text-[var(--color-sky)]">나의 주문</Link>
-          </nav>
-          <Link
-            href="/order"
-            className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-xs font-medium text-white transition hover:opacity-90 sm:text-sm"
-          >
-            제작 신청
-          </Link>
-        </div>
-        </div>
-
-        {/* 모바일 전용: 항상 보이는 가로 메뉴 (균등 배치) */}
-        <nav className="-mx-6 mt-5 flex items-center justify-between border-t border-[var(--color-hairline)] px-4 pt-3 text-[11px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
-          <Link href="/photobook" className="hover:text-[var(--color-sky)]">포토북</Link>
-          <Link href="/guide" className="hover:text-[var(--color-sky)]">제작안내</Link>
-          <Link href="/cases" className="hover:text-[var(--color-sky)]">제작사례</Link>
-          <Link href="/faq" className="hover:text-[var(--color-sky)]">자주묻는질문</Link>
-          <Link href="/order-lookup" className="hover:text-[var(--color-sky)]">나의주문</Link>
-        </nav>
-
-      </header>
+    <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
+      <SiteHeader />
 
       {/* 첫 화면 */}
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pb-16 pt-8 sm:px-10 lg:grid-cols-2 lg:gap-16">
@@ -78,13 +49,7 @@ export default function PhotobookPage() {
             <br />
             완성된 포토북으로 만들어드려요.
           </p>
-          <div className="mt-10 flex items-center gap-6">
-            <Link
-              href="/order?product=포토북"
-              className="rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-            >
-              주문하기
-            </Link>
+          <div className="mt-10">
             <Link
               href="/guide"
               className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
@@ -205,7 +170,7 @@ export default function PhotobookPage() {
           나머지는 저희가 할게요
         </h2>
         <Link
-          href="/order?product=포토북"
+          href="/options?product=포토북"
           className="mt-8 inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
         >
           포토북 주문하기
@@ -218,6 +183,7 @@ export default function PhotobookPage() {
           관리자
         </Link>
       </footer>
+      <StickyOrderBar />
     </main>
   );
 }

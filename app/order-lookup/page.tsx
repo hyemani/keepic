@@ -1,7 +1,8 @@
 "use client";
+import SiteHeader from "@/components/SiteHeader";
 
 import { useState, type ChangeEvent } from "react";
-import Link from "next/link";
+import StickyOrderBar from "@/components/StickyOrderBar";
 import { supabase } from "@/lib/supabase";
 import {
   OrderStatus,
@@ -238,39 +239,8 @@ export default function OrderLookupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
-      <header className="mx-auto max-w-6xl px-6 py-8 sm:px-10">
-        <div className="flex items-center justify-between">
-        <Link href="/">
-          <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
-        </Link>
-        <div className="flex items-center gap-4 sm:gap-6">
-          <nav className="hidden gap-8 text-sm sm:flex">
-          <Link href="/photobook" className="hover:text-[var(--color-sky)]">포토북</Link>
-          <Link href="/guide" className="hover:text-[var(--color-sky)]">제작 안내</Link>
-          <Link href="/cases" className="hover:text-[var(--color-sky)]">제작 사례</Link>
-          <Link href="/faq" className="hover:text-[var(--color-sky)]">자주 묻는 질문</Link>
-          <Link href="/order-lookup" className="text-[var(--color-sky)]">나의 주문</Link>
-          </nav>
-          <Link
-            href="/order"
-            className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-xs font-medium text-white transition hover:opacity-90 sm:text-sm"
-          >
-            제작 신청
-          </Link>
-        </div>
-        </div>
-
-        {/* 모바일 전용: 항상 보이는 가로 메뉴 (균등 배치) */}
-        <nav className="-mx-6 mt-5 flex items-center justify-between border-t border-[var(--color-hairline)] px-4 pt-3 text-[11px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
-          <Link href="/photobook" className="hover:text-[var(--color-sky)]">포토북</Link>
-          <Link href="/guide" className="hover:text-[var(--color-sky)]">제작안내</Link>
-          <Link href="/cases" className="hover:text-[var(--color-sky)]">제작사례</Link>
-          <Link href="/faq" className="hover:text-[var(--color-sky)]">자주묻는질문</Link>
-          <Link href="/order-lookup" className="hover:text-[var(--color-sky)]">나의주문</Link>
-        </nav>
-
-      </header>
+    <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
+      <SiteHeader />
 
       <section className="mx-auto max-w-lg px-6 pb-24 pt-8 sm:px-10">
         <h1 className="text-3xl font-semibold sm:text-4xl">주문 조회</h1>
@@ -587,6 +557,7 @@ export default function OrderLookupPage() {
           </div>
         )}
       </section>
+      <StickyOrderBar />
     </main>
   );
 }

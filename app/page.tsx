@@ -1,6 +1,8 @@
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 import { Fragment } from "react";
 import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
+import StickyOrderBar from "@/components/StickyOrderBar";
 
 const heroSlides: HeroSlide[] = [
   {
@@ -70,7 +72,7 @@ const miniFaqs = [
   },
   {
     q: "사진은 몇 장 준비해야 하나요?",
-    a: "상품마다 달라요. 포토북은 최소 10장~최대 100장, 나만의 앨범은 최소 5장~최대 50장이에요.",
+    a: "상품마다 달라요. 포토북은 최소 10장~최대 100장, 액자는 1장이면 충분해요.",
   },
   {
     q: "완성되기 전에 미리 확인할 수 있나요?",
@@ -81,35 +83,7 @@ const miniFaqs = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
-      <header className="mx-auto max-w-7xl px-6 py-8 sm:px-10">
-        <div className="flex items-center justify-between">
-          <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
-          <div className="flex items-center gap-4 sm:gap-6">
-            <nav className="hidden gap-8 text-sm sm:flex">
-              <Link href="/photobook" className="hover:text-[var(--color-sky)]">포토북</Link>
-              <Link href="/guide" className="hover:text-[var(--color-sky)]">제작 안내</Link>
-              <Link href="/cases" className="hover:text-[var(--color-sky)]">제작 사례</Link>
-              <Link href="/faq" className="hover:text-[var(--color-sky)]">자주 묻는 질문</Link>
-              <Link href="/order-lookup" className="hover:text-[var(--color-sky)]">나의 주문</Link>
-            </nav>
-            <Link
-              href="/order"
-              className="hidden rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 sm:inline-block"
-            >
-              제작 신청
-            </Link>
-          </div>
-        </div>
-
-        {/* 모바일 전용: 항상 보이는 가로 메뉴 (균등 배치) */}
-        <nav className="-mx-6 mt-5 flex items-center justify-between border-t border-[var(--color-hairline)] px-4 pt-3 text-[11px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
-          <Link href="/photobook" className="hover:text-[var(--color-sky)]">포토북</Link>
-          <Link href="/guide" className="hover:text-[var(--color-sky)]">제작안내</Link>
-          <Link href="/cases" className="hover:text-[var(--color-sky)]">제작사례</Link>
-          <Link href="/faq" className="hover:text-[var(--color-sky)]">자주묻는질문</Link>
-          <Link href="/order-lookup" className="hover:text-[var(--color-sky)]">나의주문</Link>
-        </nav>
-      </header>
+      <SiteHeader />
 
       {/* 히어로 */}
       <HeroSlideshow slides={heroSlides} />
@@ -284,14 +258,7 @@ export default function Home() {
       </footer>
 
       {/* 모바일 전용: 스크롤해도 따라다니는 하단 고정 CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 px-6 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:hidden">
-        <Link
-          href="/order"
-          className="block w-full rounded-full bg-[var(--color-sky)] py-3.5 text-center text-sm font-medium text-white transition hover:opacity-90"
-        >
-          포토북 제작 신청
-        </Link>
-      </div>
+      <StickyOrderBar />
     </main>
   );
 }

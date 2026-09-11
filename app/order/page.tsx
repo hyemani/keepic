@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
 
 const products = [
   {
@@ -6,33 +7,31 @@ const products = [
     description: "사진 한 장, 벽에 걸어두는 순간",
     price: "19,000원부터",
     swatch: "bg-[var(--color-sky)]/20",
+    href: "/options?product=액자",
+    ready: true,
   },
   {
     name: "포토북",
     description: "여러 장의 사진을 한 권의 책으로",
     price: "29,000원부터",
     swatch: "bg-[var(--color-charcoal)]/10",
+    href: "/options?product=포토북",
+    ready: true,
   },
   {
-    name: "나만의 앨범",
-    description: "직접 꾸미는 나만의 사진첩",
-    price: "35,000원부터",
+    name: "나만의 굿즈",
+    description: "머그컵, 폰케이스 같은 사진 소품",
+    price: "준비 중",
     swatch: "bg-[var(--color-sky)]/30",
+    href: "/goods",
+    ready: false,
   },
 ];
 
 export default function OrderPage() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 sm:px-10">
-        <a href="/">
-          <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
-        </a>
-        <nav className="hidden gap-8 text-sm sm:flex">
-          <a href="#" className="hover:text-[var(--color-sky)]">만드는 과정</a>
-          <a href="#" className="hover:text-[var(--color-sky)]">상품</a>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <section className="mx-auto max-w-6xl px-6 pb-24 pt-8 sm:px-10">
         <h1 className="text-3xl font-semibold sm:text-4xl">
@@ -55,10 +54,10 @@ export default function OrderPage() {
               </p>
               <p className="mt-4 text-sm font-medium">{product.price}</p>
               <Link
-                href={`/options?product=${encodeURIComponent(product.name)}`}
+                href={product.href}
                 className="mt-6 rounded-full bg-[var(--color-sky)] py-3 text-center text-sm font-medium text-white transition hover:opacity-90"
               >
-                선택하기
+                {product.ready ? "선택하기" : "둘러보기"}
               </Link>
             </div>
           ))}
