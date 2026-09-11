@@ -145,7 +145,7 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { src: "/photobook/spreads-full/travel-collected-days.png", alt: "여행 포토북 전체 예시" },
             { src: "/photobook/spreads-full/baby-our-little-one.png", alt: "베이비 포토북 전체 예시" },
@@ -156,7 +156,7 @@ export default function Home() {
           ].map((img) => (
             <div
               key={img.src}
-              className="overflow-hidden border border-[var(--color-hairline)]"
+              className="overflow-hidden"
             >
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>

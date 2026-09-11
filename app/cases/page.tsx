@@ -89,9 +89,9 @@ export default function CasesPage() {
       <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
         <h2 className="text-xl font-semibold">한 권에 담아낸 소중한 순간들</h2>
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
           {bigSpreadExamples.map((img) => (
-            <div key={img.src} className="overflow-hidden border border-[var(--color-hairline)]">
+            <div key={img.src} className="overflow-hidden">
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
           ))}
@@ -101,9 +101,9 @@ export default function CasesPage() {
       <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
         <h2 className="text-xl font-semibold">아이의 하루, 성장 기록</h2>
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
           {babyCovers.map((img) => (
-            <div key={img.src} className="aspect-square overflow-hidden border border-[var(--color-hairline)]">
+            <div key={img.src} className="aspect-square overflow-hidden">
               <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
             </div>
           ))}
@@ -113,9 +113,9 @@ export default function CasesPage() {
       <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
         <h2 className="text-xl font-semibold">여행, 커플, 가족의 순간</h2>
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
           {travelCovers.map((img) => (
-            <div key={img.src} className="aspect-square overflow-hidden border border-[var(--color-hairline)]">
+            <div key={img.src} className="aspect-square overflow-hidden">
               <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
             </div>
           ))}
@@ -125,9 +125,9 @@ export default function CasesPage() {
       <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
         <h2 className="text-xl font-semibold">내지 펼침 예시</h2>
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2">
           {spreadExamples.map((img) => (
-            <div key={img.src} className="overflow-hidden border border-[var(--color-hairline)]">
+            <div key={img.src} className="overflow-hidden">
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
           ))}
