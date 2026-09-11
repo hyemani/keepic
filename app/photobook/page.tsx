@@ -20,9 +20,9 @@ const spreadExamples = [
 ];
 
 const sizes = [
-  { label: "S", detail: "20 x 20cm", px: 90, softPrice: 69000, hardPrice: 79000 },
-  { label: "M", detail: "25 x 25cm", px: 120, softPrice: 79000, hardPrice: 89000 },
-  { label: "L", detail: "30 x 30cm", px: 150, softPrice: 99000, hardPrice: 109000 },
+  { label: "S", detail: "20 x 20cm", px: 90, softPrice: 69000, hardPrice: 79000, image: "/photobook/covers/size-s-seaside-log.jpg" },
+  { label: "M", detail: "25 x 25cm", px: 120, softPrice: 79000, hardPrice: 89000, image: "/photobook/covers/size-m-little-hello.jpg" },
+  { label: "L", detail: "30 x 30cm", px: 150, softPrice: 99000, hardPrice: 109000, image: "/photobook/covers/size-l-together-days.jpg" },
 ];
 
 export default function PhotobookPage() {
@@ -123,8 +123,14 @@ export default function PhotobookPage() {
             >
               <div
                 style={{ width: size.px, height: size.px }}
-                className="shrink-0 border-2 border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-              />
+                className="shrink-0 overflow-hidden border border-[var(--color-hairline)] bg-white"
+              >
+                <img
+                  src={size.image}
+                  alt={`${size.label} 사이즈 표지 예시`}
+                  className="h-full w-full object-cover"
+                />
+              </div>
               <div className="flex-1 pt-1">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <p className="text-lg font-semibold">{size.label}</p>
