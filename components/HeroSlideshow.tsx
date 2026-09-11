@@ -74,23 +74,25 @@ export default function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
           </div>
         </div>
 
-        <div className="absolute inset-x-0 bottom-3 z-10 flex justify-center gap-1">
-          {slides.map((slide, i) => (
-            <button
-              key={slide.image}
-              type="button"
-              aria-label={`${i + 1}번째 이미지 보기`}
-              onClick={() => goTo(i)}
-              className="p-2.5"
-            >
-              <span
-                className={`block h-1.5 rounded-full transition-all ${
-                  i === index ? "w-5 bg-white" : "w-1.5 bg-white/50"
-                }`}
-              />
-            </button>
-          ))}
-        </div>
+      </div>
+
+      {/* 모바일 전용: 이미지 아래(문구와 분리된 자리)에 놓이는 점 인디케이터 */}
+      <div className="flex justify-center gap-1 bg-[var(--color-ivory)] pt-3 sm:hidden">
+        {slides.map((slide, i) => (
+          <button
+            key={slide.image}
+            type="button"
+            aria-label={`${i + 1}번째 이미지 보기`}
+            onClick={() => goTo(i)}
+            className="p-2.5"
+          >
+            <span
+              className={`block h-1.5 rounded-full transition-all ${
+                i === index ? "w-5 bg-[var(--color-sky)]" : "w-1.5 bg-[var(--color-charcoal)]/25"
+              }`}
+            />
+          </button>
+        ))}
       </div>
 
       {/* sm 이상(태블릿·PC): 이미지 위에 왼쪽 정렬 문구를 얹는 기존 방식 */}
