@@ -19,9 +19,9 @@ const spreadExamples = [
 ];
 
 const sizes = [
-  { label: "스몰", detail: "15 x 15cm", px: 90 },
-  { label: "미디엄", detail: "20 x 20cm", px: 120 },
-  { label: "라지", detail: "25 x 25cm", px: 150 },
+  { label: "S", detail: "20 x 20cm", px: 90 },
+  { label: "M", detail: "25 x 25cm", px: 120 },
+  { label: "L", detail: "30 x 30cm", px: 150 },
 ];
 
 export default function PhotobookPage() {
@@ -107,9 +107,9 @@ export default function PhotobookPage() {
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <h2 className="text-2xl font-semibold">사이즈</h2>
         <p className="mt-2 text-sm text-[var(--color-charcoal)]/60">
-          정사각형 3가지 사이즈 중에서 고르실 수 있어요.
+          정사각형 3가지 사이즈(S/M/L) 중에서 고르실 수 있어요.
           <br />
-          (임시 규격이에요, 인쇄업체 확인 후 최종 확정돼요)
+          (완성 규격 기준 임시 수치예요, 제작 파일 규격은 제작처 확인 후 별도 안내드려요)
         </p>
         <div className="mt-8 flex flex-wrap items-end gap-8">
           {sizes.map((size) => (
@@ -134,11 +134,14 @@ export default function PhotobookPage() {
         <h2 className="text-2xl font-semibold">기본 구성</h2>
         <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white">
           {[
-            { label: "사이즈", value: "스몰 15x15cm / 미디엄 20x20cm / 라지 25x25cm (임시 규격)" },
-            { label: "표지", value: "준비 중" },
-            { label: "페이지 수", value: "준비 중" },
-            { label: "권장 사진 수량", value: "준비 중" },
-            { label: "가격", value: "준비 중" },
+            { label: "사이즈", value: "S 20x20cm / M 25x25cm / L 30x30cm (완성 규격, 임시)" },
+            { label: "커버", value: "소프트커버 / 하드커버" },
+            { label: "제본", value: "레이플랫 제본 기본 포함" },
+            { label: "페이지 수", value: "기본 10장·20페이지 (2페이지 단위로 추가 가능)" },
+            {
+              label: "가격",
+              value: "소프트커버 69,000원부터 / 하드커버 79,000원부터 (임시 판매가, 배송비 별도)",
+            },
             { label: "제작 기간", value: "준비 중" },
           ].map((row, i) => (
             <div
@@ -152,7 +155,7 @@ export default function PhotobookPage() {
                 className={
                   row.value === "준비 중"
                     ? "text-[var(--color-charcoal)]/40"
-                    : "font-medium sm:text-right"
+                    : "break-keep font-medium sm:text-right"
                 }
               >
                 {row.value}
@@ -160,6 +163,10 @@ export default function PhotobookPage() {
             </div>
           ))}
         </div>
+        <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/40">
+          모두 임시 판매가예요. 특히 S 하드커버는 아직 실제 견적 확인 전이라 이후 조정될 수
+          있어요.
+        </p>
       </section>
 
       {/* 마지막 신청 영역 */}

@@ -33,7 +33,7 @@ const steps = [
   },
   {
     title: "최종 확정",
-    description: "시안을 확인하고 승인해주시면 제작이 시작돼요.",
+    description: "최종 시안을 확정해주시면 인쇄·제작을 진행합니다.",
   },
   {
     title: "인쇄 및 배송",

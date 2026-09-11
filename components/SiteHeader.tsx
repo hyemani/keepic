@@ -63,7 +63,7 @@ export default function SiteHeader() {
           >
             <button
               type="button"
-              onClick={() => setGuideOpen((v) => !v)}
+              onClick={() => setGuideOpen(true)}
               className="flex items-center gap-1 hover:text-[var(--color-sky)]"
             >
               이용 안내

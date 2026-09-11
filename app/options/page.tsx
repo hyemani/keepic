@@ -1,25 +1,288 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { productConfig, ProductName } from "@/lib/productConfig";
-import { photobookTypes, PhotobookSizeId } from "@/lib/photobookTypes";
+import {
+  photobookCovers,
+  photobookSizes,
+  coverCoatingOptions,
+  innerPaperOptions,
+  DEFAULT_COVER_COATING,
+  DEFAULT_INNER_PAPER,
+  BASE_PAGES,
+  MAX_PAGES,
+  MAX_PAGES_NOTE,
+  pageSurchargePerStep,
+  productionSpec,
+  calcEstimatedSpineWidthMm,
+  SPINE_REFERENCE_NOTE,
+  SPINE_CALCULATOR_REFERENCE_URL,
+  calcPagesLabel,
+  calcPhotobookPrice,
+  type PhotobookCoverId,
+  type PhotobookSizeId,
+  type CoverCoatingId,
+  type InnerPaperId,
+} from "@/lib/photobookPricing";
 
-function OptionsPageContent() {
-  const searchParams = useSearchParams();
-  const productName = (searchParams.get("product") ?? "포토북") as ProductName;
-  const config = productConfig[productName];
-
-  const [selectedSize, setSelectedSize] = useState<string>(config.sizes[1].id);
+function PhotobookOptions() {
+  const [cover, setCover] = useState<PhotobookCoverId>("soft");
+  const [size, setSize] = useState<PhotobookSizeId>("M");
+  const [coverCoating, setCoverCoating] = useState<CoverCoatingId>(DEFAULT_COVER_COATING);
+  const [innerPaper, setInnerPaper] = useState<InnerPaperId>(DEFAULT_INNER_PAPER);
+  const [pages, setPages] = useState(BASE_PAGES);
   const [quantity, setQuantity] = useState(1);
-  const [selectedType, setSelectedType] = useState<string>(
-    photobookTypes[0]?.id ?? ""
+  const [showSpec, setShowSpec] = useState(false);
+
+  const price = useMemo(
+    () => calcPhotobookPrice({ cover, size, pages, coverCoating, innerPaper }),
+    [cover, size, pages, coverCoating, innerPaper]
+  );
+  const selectedPaper = innerPaperOptions.find((o) => o.id === innerPaper)!;
+  const spineWidth = useMemo(
+    () => calcEstimatedSpineWidthMm(selectedPaper.weightG, pages),
+    [selectedPaper, pages]
   );
 
-  const isPhotobook = productName === "포토북";
-  const selectedTypeObj = photobookTypes.find((t) => t.id === selectedType);
-  const canProceed = !isPhotobook || selectedTypeObj?.isPurchasable === true;
+  const total = price.total * quantity;
+  const sizeInfo = photobookSizes.find((s) => s.id === size)!;
+
+  return (
+    <section className="mx-auto max-w-2xl px-6 pb-32 pt-8 sm:px-10">
+      <p className="text-sm text-[var(--color-charcoal)]/60">포토북</p>
+      <div className="mt-1 flex items-center gap-2">
+        <h1 className="text-3xl font-semibold sm:text-4xl">옵션을 선택해주세요</h1>
+      </div>
+      <span className="mt-3 inline-block rounded-full bg-[var(--color-charcoal)]/10 px-3 py-1 text-xs font-medium text-[var(--color-charcoal)]/70">
+        판매 준비 중 · 예상 가격
+      </span>
+      <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
+        아직 정식 판매 전이라 옵션 선택과 예상 가격만 확인하실 수 있어요. 실제 주문·결제는
+        준비되는 대로 열어드릴게요.
+      </p>
+
+      {/* 커버 */}
+      <h2 className="mt-12 text-lg font-semibold">커버</h2>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {photobookCovers.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCover(c.id)}
+            className={`rounded-xl border px-4 py-4 text-center transition ${
+              cover === c.id
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            <p className="font-medium">{c.name}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* 사이즈 */}
+      <h2 className="mt-10 text-lg font-semibold">사이즈</h2>
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        {photobookSizes.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setSize(s.id)}
+            className={`rounded-xl border px-4 py-4 text-center transition ${
+              size === s.id
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            <p className="font-medium">{s.label}</p>
+            <p className="mt-1 text-xs text-[var(--color-charcoal)]/60">{s.finishedSizeCm}</p>
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-[var(--color-charcoal)]/40">
+        완성 규격 기준(임시)이에요. 제작 파일 규격은 제작처 확인 후 별도 안내드려요.
+      </p>
+
+      {/* 표지 코팅 */}
+      <h2 className="mt-10 text-lg font-semibold">표지 코팅</h2>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {coverCoatingOptions.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setCoverCoating(o.id)}
+            className={`rounded-xl border px-4 py-4 text-left transition ${
+              coverCoating === o.id
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            <p className="font-medium">{o.name}</p>
+            <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
+              {o.description}
+            </p>
+          </button>
+        ))}
+      </div>
+
+      {/* 내지 용지 */}
+      <h2 className="mt-10 text-lg font-semibold">내지 용지</h2>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {innerPaperOptions.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setInnerPaper(o.id)}
+            className={`rounded-xl border px-4 py-4 text-left transition ${
+              innerPaper === o.id
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            <p className="font-medium">{o.name}</p>
+            <p className="mt-1 text-xs text-[var(--color-charcoal)]/50">{o.spec}</p>
+            <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
+              {o.description}
+            </p>
+          </button>
+        ))}
+      </div>
+
+      {/* 페이지 수 */}
+      <h2 className="mt-10 text-lg font-semibold">페이지 수</h2>
+      <div className="mt-4 flex items-center gap-4">
+        <button
+          onClick={() => setPages((prev) => Math.max(BASE_PAGES, prev - 2))}
+          className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-hairline)] text-lg"
+        >
+          −
+        </button>
+        <span className="min-w-[9rem] text-center text-lg font-medium">
+          {calcPagesLabel(pages)}
+        </span>
+        <button
+          onClick={() => setPages((prev) => Math.min(MAX_PAGES, prev + 2))}
+          className="h-10 w-10 shrink-0 rounded-full border border-[var(--color-hairline)] text-lg"
+        >
+          +
+        </button>
+      </div>
+      <p className="mt-2 break-keep text-xs text-[var(--color-charcoal)]/40">
+        기본 {calcPagesLabel(BASE_PAGES)} 포함, 2페이지 단위로 추가할 수 있어요. (
+        {pageSurchargePerStep[size].toLocaleString()}원 / 2페이지 추가) {MAX_PAGES_NOTE}
+      </p>
+
+      {/* 레이플랫 제본 안내 */}
+      <div className="mt-10 rounded-xl border border-[var(--color-hairline)] bg-white p-5">
+        <p className="font-medium">레이플랫 제본 (기본 포함)</p>
+        <p className="mt-1.5 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
+          {productionSpec.binding}
+        </p>
+      </div>
+
+      {/* 수량 */}
+      <h2 className="mt-10 text-lg font-semibold">수량</h2>
+      <div className="mt-4 flex items-center gap-4">
+        <button
+          onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+          className="h-10 w-10 rounded-full border border-[var(--color-hairline)] text-lg"
+        >
+          −
+        </button>
+        <span className="w-8 text-center text-lg font-medium">{quantity}</span>
+        <button
+          onClick={() => setQuantity((prev) => prev + 1)}
+          className="h-10 w-10 rounded-full border border-[var(--color-hairline)] text-lg"
+        >
+          +
+        </button>
+      </div>
+
+      {/* 가격 요약 */}
+      <div className="mt-10 rounded-2xl border border-[var(--color-hairline)] bg-white p-6">
+        <p className="text-sm font-medium text-[var(--color-charcoal)]/60">
+          {photobookCovers.find((c) => c.id === cover)?.name} · {sizeInfo.label}(
+          {sizeInfo.finishedSizeCm}) · {calcPagesLabel(pages)} · {quantity}권
+        </p>
+        <div className="mt-4 flex flex-col gap-2 text-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-[var(--color-charcoal)]/60">기본 판매가</p>
+            <p>{price.basePrice.toLocaleString()}원</p>
+          </div>
+          {price.pageSurcharge > 0 && (
+            <div className="flex items-center justify-between">
+              <p className="text-[var(--color-charcoal)]/60">페이지 추가금</p>
+              <p>+{price.pageSurcharge.toLocaleString()}원</p>
+            </div>
+          )}
+          {price.coatingSurcharge > 0 && (
+            <div className="flex items-center justify-between">
+              <p className="text-[var(--color-charcoal)]/60">표지 코팅 추가금</p>
+              <p>+{price.coatingSurcharge.toLocaleString()}원</p>
+            </div>
+          )}
+          {price.paperSurcharge > 0 && (
+            <div className="flex items-center justify-between">
+              <p className="text-[var(--color-charcoal)]/60">내지 용지 추가금</p>
+              <p>+{price.paperSurcharge.toLocaleString()}원</p>
+            </div>
+          )}
+          <div className="mt-2 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3 text-base font-semibold">
+            <p>예상 합계 ({quantity}권)</p>
+            <p>{total.toLocaleString()}원</p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-[var(--color-charcoal)]/40">
+          배송비 별도예요. 편집과 기본 수정 1회가 포함된 임시 판매가예요.
+        </p>
+      </div>
+
+      {/* 제작 사양 상세 */}
+      <button
+        type="button"
+        onClick={() => setShowSpec((v) => !v)}
+        className="mt-6 block text-sm text-[var(--color-charcoal)]/60 underline decoration-[var(--color-hairline)] underline-offset-4"
+      >
+        {showSpec ? "제작 사양 접기" : "제작 사양 자세히 보기"}
+      </button>
+      {showSpec && (
+        <div className="mt-3 flex flex-col gap-1.5 rounded-xl border border-[var(--color-hairline)] bg-white p-5 text-xs leading-relaxed text-[var(--color-charcoal)]/60">
+          <p>{productionSpec.softCoverPrint}</p>
+          <p>{productionSpec.hardCoverPrint}</p>
+          <p>내지 인쇄: 양면 컬러 인쇄 ({productionSpec.innerPrint.replace("내지 인쇄: ", "")})</p>
+          <p>
+            책등(세네카) 두께: 약 {spineWidth.minMm}~{spineWidth.maxMm}mm (참고용 예상치)
+          </p>
+          <p className="text-[var(--color-charcoal)]/40">
+            {SPINE_REFERENCE_NOTE}{" "}
+            <a
+              href={SPINE_CALCULATOR_REFERENCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              참고 계산기 열기
+            </a>
+          </p>
+        </div>
+      )}
+
+      <button
+        disabled
+        className="mt-12 block w-full cursor-not-allowed rounded-full bg-[var(--color-hairline)] px-8 py-4 text-center text-sm font-medium text-white/70 sm:inline-block sm:w-auto"
+      >
+        다음
+      </button>
+      <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
+        선택하신 옵션은 아직 가격이 확정되지 않아 주문할 수 없어요. 가격이 확정되면 주문
+        가능하게 열릴 예정이에요.
+      </p>
+    </section>
+  );
+}
+
+function OtherProductOptions({ productName }: { productName: ProductName }) {
+  const config = productConfig[productName];
+  const [selectedSize, setSelectedSize] = useState<string>(config.sizes[1].id);
+  const [quantity, setQuantity] = useState(1);
 
   const nextUrl =
     config.maxPhotos > 1
@@ -31,6 +294,61 @@ function OptionsPageContent() {
         )}&size=${selectedSize}&quantity=${quantity}`;
 
   return (
+    <section className="mx-auto max-w-2xl px-6 pb-24 pt-8 sm:px-10">
+      <p className="text-sm text-[var(--color-charcoal)]/60">{productName}</p>
+      <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">옵션을 선택해주세요</h1>
+
+      <h2 className="mt-12 text-lg font-semibold">사이즈</h2>
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        {config.sizes.map((size) => (
+          <button
+            key={size.id}
+            onClick={() => setSelectedSize(size.id)}
+            className={`rounded-xl border px-4 py-4 text-center transition ${
+              selectedSize === size.id
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            <p className="font-medium">{size.label}</p>
+            <p className="mt-1 text-xs text-[var(--color-charcoal)]/60">{size.detail}</p>
+          </button>
+        ))}
+      </div>
+
+      <h2 className="mt-10 text-lg font-semibold">수량</h2>
+      <div className="mt-4 flex items-center gap-4">
+        <button
+          onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+          className="h-10 w-10 rounded-full border border-[var(--color-hairline)] text-lg"
+        >
+          −
+        </button>
+        <span className="w-8 text-center text-lg font-medium">{quantity}</span>
+        <button
+          onClick={() => setQuantity((prev) => prev + 1)}
+          className="h-10 w-10 rounded-full border border-[var(--color-hairline)] text-lg"
+        >
+          +
+        </button>
+      </div>
+
+      <Link
+        href={nextUrl}
+        className="mt-12 inline-block rounded-full bg-[var(--color-charcoal)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
+      >
+        다음
+      </Link>
+    </section>
+  );
+}
+
+function OptionsPageContent() {
+  const searchParams = useSearchParams();
+  const productName = (searchParams.get("product") ?? "포토북") as ProductName;
+  const isPhotobook = productName === "포토북";
+
+  return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 sm:px-10">
         <a href="/">
@@ -38,112 +356,7 @@ function OptionsPageContent() {
         </a>
       </header>
 
-      <section className="mx-auto max-w-2xl px-6 pb-24 pt-8 sm:px-10">
-        <p className="text-sm text-[var(--color-charcoal)]/60">{productName}</p>
-        <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">
-          옵션을 선택해주세요
-        </h1>
-
-        {isPhotobook && (
-          <>
-            <h2 className="mt-12 text-lg font-semibold">종류</h2>
-            <div className="mt-4 flex flex-col gap-3">
-              {photobookTypes.map((type) => {
-                const price = type.prices[selectedSize as PhotobookSizeId];
-                return (
-                  <button
-                    key={type.id}
-                    onClick={() => setSelectedType(type.id)}
-                    className={`flex items-center justify-between rounded-xl border px-4 py-4 text-left transition ${
-                      selectedType === type.id
-                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-                        : "border-[var(--color-hairline)]"
-                    }`}
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {type.name}
-                        {!type.isPurchasable && (
-                          <span className="ml-2 rounded-full bg-[var(--color-charcoal)]/10 px-2 py-0.5 text-xs font-normal text-[var(--color-charcoal)]/60">
-                            준비 중
-                          </span>
-                        )}
-                      </p>
-                      {type.isTestPrice && (
-                        <p className="mt-1 text-xs text-[var(--color-charcoal)]/50">
-                          (테스트 가격이에요, 실제 판매가가 아니에요)
-                        </p>
-                      )}
-                    </div>
-                    <p className="font-medium">{price.toLocaleString()}원</p>
-                  </button>
-                );
-              })}
-            </div>
-            {!canProceed && (
-              <p className="mt-4 text-sm text-[var(--color-charcoal)]/60">
-                선택하신 종류는 아직 가격이 확정되지 않아 주문할 수 없어요. 가격이
-                확정되면 주문 가능하게 열릴 예정이에요.
-              </p>
-            )}
-          </>
-        )}
-
-        <h2 className="mt-12 text-lg font-semibold">사이즈</h2>
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {config.sizes.map((size) => (
-            <button
-              key={size.id}
-              onClick={() => setSelectedSize(size.id)}
-              className={`rounded-xl border px-4 py-4 text-center transition ${
-                selectedSize === size.id
-                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-                  : "border-[var(--color-hairline)]"
-              }`}
-            >
-              <p className="font-medium">{size.label}</p>
-              <p className="mt-1 text-xs text-[var(--color-charcoal)]/60">
-                {size.detail}
-              </p>
-            </button>
-          ))}
-        </div>
-
-        <h2 className="mt-10 text-lg font-semibold">수량</h2>
-        <div className="mt-4 flex items-center gap-4">
-          <button
-            onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-            className="h-10 w-10 rounded-full border border-[var(--color-hairline)] text-lg"
-          >
-            −
-          </button>
-          <span className="w-8 text-center text-lg font-medium">
-            {quantity}
-          </span>
-          <button
-            onClick={() => setQuantity((prev) => prev + 1)}
-            className="h-10 w-10 rounded-full border border-[var(--color-hairline)] text-lg"
-          >
-            +
-          </button>
-        </div>
-
-        {canProceed ? (
-          <Link
-            href={nextUrl}
-            className="mt-12 inline-block rounded-full bg-[var(--color-charcoal)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-          >
-            다음
-          </Link>
-        ) : (
-          <button
-            disabled
-            className="mt-12 inline-block cursor-not-allowed rounded-full bg-[var(--color-hairline)] px-8 py-4 text-sm font-medium text-white/70"
-          >
-            다음
-          </button>
-        )}
-      </section>
+      {isPhotobook ? <PhotobookOptions /> : <OtherProductOptions productName={productName} />}
     </main>
   );
 }
