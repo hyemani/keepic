@@ -59,7 +59,7 @@ export default function PhotobookPage() {
             </Link>
           </div>
         </div>
-        <div className="overflow-hidden border border-[var(--color-hairline)]">
+        <div className="overflow-hidden">
           <img
             src="/photobook/covers/collage-1.png"
             alt="Keepic 포토북 표지와 내지 예시"
@@ -78,7 +78,7 @@ export default function PhotobookPage() {
           {coverExamples.map((img) => (
             <div
               key={img.src}
-              className="overflow-hidden border border-[var(--color-hairline)]"
+              className="overflow-hidden"
             >
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
@@ -96,7 +96,7 @@ export default function PhotobookPage() {
           {spreadExamples.map((img) => (
             <div
               key={img.src}
-              className="overflow-hidden border border-[var(--color-hairline)]"
+              className="overflow-hidden"
             >
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
