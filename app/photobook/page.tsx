@@ -19,9 +19,9 @@ const spreadExamples = [
 ];
 
 const sizes = [
-  { label: "S", detail: "20 x 20cm", px: 90 },
-  { label: "M", detail: "25 x 25cm", px: 120 },
-  { label: "L", detail: "30 x 30cm", px: 150 },
+  { label: "S", detail: "20 x 20cm", px: 90, softPrice: 69000, hardPrice: 79000 },
+  { label: "M", detail: "25 x 25cm", px: 120, softPrice: 79000, hardPrice: 89000 },
+  { label: "L", detail: "30 x 30cm", px: 150, softPrice: 99000, hardPrice: 109000 },
 ];
 
 export default function PhotobookPage() {
@@ -103,45 +103,49 @@ export default function PhotobookPage() {
         </div>
       </section>
 
-      {/* 사이즈 비교 */}
+      {/* 사이즈 & 기본 구성 */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
-        <h2 className="text-2xl font-semibold">사이즈</h2>
-        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60">
+        <h2 className="text-2xl font-semibold">사이즈 & 기본 구성</h2>
+        <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
           정사각형 3가지 사이즈(S/M/L) 중에서 고르실 수 있어요.
           <br />
           (완성 규격 기준 임시 수치예요, 제작 파일 규격은 제작처 확인 후 별도 안내드려요)
         </p>
-        <div className="mt-8 flex flex-wrap items-end gap-8">
+
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
           {sizes.map((size) => (
-            <div key={size.label} className="flex flex-col items-center gap-3">
-              <div
-                style={{ width: size.px, height: size.px }}
-                className="rounded-md border-2 border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-              />
-              <div className="text-center">
-                <p className="font-medium">{size.label}</p>
-                <p className="text-xs text-[var(--color-charcoal)]/60">
-                  {size.detail}
-                </p>
+            <div
+              key={size.label}
+              className="rounded-2xl border border-[var(--color-hairline)] bg-white p-6"
+            >
+              <div className="flex items-center gap-4 sm:flex-col sm:gap-3">
+                <div
+                  style={{ width: size.px, height: size.px }}
+                  className="shrink-0 rounded-md border-2 border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                />
+                <div className="sm:text-center">
+                  <p className="text-lg font-semibold">{size.label}</p>
+                  <p className="text-xs text-[var(--color-charcoal)]/60">{size.detail}</p>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-4 text-sm sm:mt-6">
+                <div className="flex items-center justify-between">
+                  <p className="text-[var(--color-charcoal)]/60">소프트커버</p>
+                  <p className="font-medium">{size.softPrice.toLocaleString()}원부터</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[var(--color-charcoal)]/60">하드커버</p>
+                  <p className="font-medium">{size.hardPrice.toLocaleString()}원부터</p>
+                </div>
               </div>
             </div>
           ))}
         </div>
-      </section>
 
-      {/* 기본 구성 */}
-      <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
-        <h2 className="text-2xl font-semibold">기본 구성</h2>
-        <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white">
+        <div className="mt-8 overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white">
           {[
-            { label: "사이즈", value: "S 20x20cm / M 25x25cm / L 30x30cm (완성 규격, 임시)" },
-            { label: "커버", value: "소프트커버 / 하드커버" },
             { label: "제본", value: "레이플랫 제본 기본 포함" },
             { label: "페이지 수", value: "기본 10장·20페이지 (2페이지 단위로 추가 가능)" },
-            {
-              label: "가격",
-              value: "소프트커버 69,000원부터 / 하드커버 79,000원부터 (임시 판매가, 배송비 별도)",
-            },
             { label: "제작 기간", value: "준비 중" },
           ].map((row, i) => (
             <div
@@ -164,8 +168,8 @@ export default function PhotobookPage() {
           ))}
         </div>
         <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/40">
-          모두 임시 판매가예요. 특히 S 하드커버는 아직 실제 견적 확인 전이라 이후 조정될 수
-          있어요.
+          모두 임시 판매가이고 배송비 별도예요. 특히 S 하드커버는 아직 실제 견적 확인 전이라
+          이후 조정될 수 있어요.
         </p>
       </section>
 
