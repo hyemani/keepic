@@ -1,5 +1,39 @@
 import Link from "next/link";
 import { Fragment } from "react";
+import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
+
+const heroSlides: HeroSlide[] = [
+  {
+    image: "/hero/keepic-hero-2.png",
+    alt: "테이블 위에 펼쳐진 Keepic 포토북",
+    titleLines: ["사진 속 순간을,", "한 권의 추억으로."],
+    descLines: ["사진을 올려주시면 디자이너가 직접 편집해", "나만의 포토북으로 완성해드려요."],
+  },
+  {
+    image: "/hero/hero-slide-1.jpg",
+    alt: "원목 액자에 담긴 가족사진",
+    titleLines: ["좋아하는 순간을,", "가장 가까운 곳에."],
+    descLines: ["함께 웃던 날의 사진 한 장이", "매일 바라보는 풍경이 됩니다."],
+  },
+  {
+    image: "/hero/hero-slide-2.jpg",
+    alt: "위에서 내려다본 여행 포토북",
+    titleLines: ["다시 펼쳐보는,", "그날의 여행."],
+    descLines: ["낯선 풍경과 함께 웃던 순간까지", "사진을 따라 여행을 다시 만나요."],
+  },
+  {
+    image: "/hero/hero-slide-3.jpg",
+    alt: "반려견과 아기 사진이 담긴 아크릴 액자",
+    titleLines: ["오래 보고 싶은,", "사랑스러운 순간."],
+    descLines: ["작은 표정 하나까지 간직하고 싶어서,", "눈길이 닿는 곳에 두었어요."],
+  },
+  {
+    image: "/hero/hero-slide-4.jpg",
+    alt: "포토북을 포개 놓은 모습",
+    titleLines: ["쌓여 있던 사진이,", "우리의 이야기가 되도록."],
+    descLines: ["사진을 보내주시면 디자이너가 직접 편집해", "나만의 포토북으로 완성해드려요."],
+  },
+];
 
 const steps = [
   {
@@ -46,7 +80,7 @@ const miniFaqs = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
+    <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
       <header className="mx-auto max-w-7xl px-6 py-8 sm:px-10">
         <div className="flex items-center justify-between">
           <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
@@ -60,102 +94,25 @@ export default function Home() {
             </nav>
             <Link
               href="/order"
-              className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-xs font-medium text-white transition hover:opacity-90 sm:text-sm"
+              className="hidden rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 sm:inline-block"
             >
               제작 신청
             </Link>
           </div>
         </div>
 
-        {/* 모바일 전용: 항상 보이는 가로 메뉴 */}
-        <nav className="-mx-6 mt-5 flex gap-6 overflow-x-auto whitespace-nowrap px-6 text-sm sm:hidden [&::-webkit-scrollbar]:hidden">
-          <Link href="/photobook" className="shrink-0 text-[var(--color-charcoal)]/80 hover:text-[var(--color-sky)]">포토북</Link>
-          <Link href="/guide" className="shrink-0 text-[var(--color-charcoal)]/80 hover:text-[var(--color-sky)]">제작 안내</Link>
-          <Link href="/cases" className="shrink-0 text-[var(--color-charcoal)]/80 hover:text-[var(--color-sky)]">제작 사례</Link>
-          <Link href="/faq" className="shrink-0 text-[var(--color-charcoal)]/80 hover:text-[var(--color-sky)]">자주 묻는 질문</Link>
-          <Link href="/order-lookup" className="shrink-0 text-[var(--color-charcoal)]/80 hover:text-[var(--color-sky)]">나의 주문</Link>
+        {/* 모바일 전용: 항상 보이는 가로 메뉴 (균등 배치) */}
+        <nav className="-mx-6 mt-5 flex items-center justify-between border-t border-[var(--color-hairline)] px-4 pt-3 text-[11px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
+          <Link href="/photobook" className="hover:text-[var(--color-sky)]">포토북</Link>
+          <Link href="/guide" className="hover:text-[var(--color-sky)]">제작안내</Link>
+          <Link href="/cases" className="hover:text-[var(--color-sky)]">제작사례</Link>
+          <Link href="/faq" className="hover:text-[var(--color-sky)]">자주묻는질문</Link>
+          <Link href="/order-lookup" className="hover:text-[var(--color-sky)]">나의주문</Link>
         </nav>
       </header>
 
       {/* 히어로 */}
-      <section className="relative">
-        {/* 모바일 전용: 이미지를 화면 끝까지 꽉 채우고, 하단에 어두운 그라데이션 스크림을 깔아 그 위에 문구를 얹는 스타일 */}
-        <div className="relative h-[500px] w-full overflow-hidden sm:hidden">
-          <img
-            src="/hero/keepic-hero-2.png"
-            alt="테이블 위에 펼쳐진 Keepic 포토북"
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/75 from-0% via-black/25 via-45% to-transparent to-75%" />
-          <div className="absolute inset-x-0 bottom-0 px-6 pb-8 pt-20">
-            <h1 className="break-keep text-3xl font-semibold leading-tight text-white">
-              사진 속 순간을,
-              <br />
-              한 권의 추억으로.
-            </h1>
-            <p className="mt-3 break-keep text-sm leading-relaxed text-white/85">
-              사진을 올려주시면 디자이너가 직접 편집해
-              <br />
-              나만의 포토북으로 완성해드려요.
-            </p>
-            <div className="mt-5 flex items-center gap-4">
-              <Link
-                href="/order"
-                className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-xs font-medium text-white transition hover:opacity-90"
-              >
-                포토북 제작 신청
-              </Link>
-              <a
-                href="#samples"
-                className="text-xs text-white underline decoration-white/50 underline-offset-4 hover:text-white/80"
-              >
-                디자인 샘플 보기
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* sm 이상(태블릿·PC): 이미지 위에 왼쪽 정렬 문구를 얹는 기존 방식 */}
-        <div className="relative hidden overflow-hidden sm:block sm:h-[380px] md:h-[430px] lg:h-[500px] xl:h-[560px]">
-          <img
-            src="/hero/keepic-hero-2.png"
-            alt="테이블 위에 펼쳐진 Keepic 포토북"
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-ivory)] from-10% via-[var(--color-ivory)]/70 via-30% to-transparent to-55%" />
-        </div>
-
-        <div className="absolute inset-0 hidden items-center sm:flex">
-          <div className="mx-auto w-full max-w-7xl px-6 sm:px-10">
-            <div className="max-w-md">
-              <h1 className="break-keep text-4xl font-semibold leading-tight lg:text-5xl xl:text-6xl">
-                사진 속 순간을,
-                <br />
-                한 권의 추억으로.
-              </h1>
-              <p className="mt-6 max-w-sm break-keep text-lg leading-relaxed text-[var(--color-charcoal)]/80">
-                사진을 올려주시면 디자이너가 직접 편집해
-                <br />
-                나만의 포토북으로 완성해드려요.
-              </p>
-              <div className="mt-10 flex items-center gap-6">
-                <Link
-                  href="/order"
-                  className="rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-                >
-                  포토북 제작 신청
-                </Link>
-                <a
-                  href="#samples"
-                  className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
-                >
-                  디자인 샘플 보기
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HeroSlideshow slides={heroSlides} />
 
       {/* 이용 과정 3단계 */}
       <section className="mx-auto max-w-[1100px] px-6 pb-20 pt-20 sm:px-10">
@@ -200,7 +157,9 @@ export default function Home() {
           <div>
             <p className="text-sm font-medium text-[var(--color-sky)]">디자인 샘플</p>
             <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">
-              표지부터 내지까지, 취향을 담은 포토북
+              표지부터 내지까지,
+              <br className="sm:hidden" />
+              {" "}취향을 담은 포토북
             </h2>
           </div>
           <Link
@@ -323,6 +282,16 @@ export default function Home() {
           관리자
         </Link>
       </footer>
+
+      {/* 모바일 전용: 스크롤해도 따라다니는 하단 고정 CTA */}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 px-6 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur sm:hidden">
+        <Link
+          href="/order"
+          className="block w-full rounded-full bg-[var(--color-sky)] py-3.5 text-center text-sm font-medium text-white transition hover:opacity-90"
+        >
+          포토북 제작 신청
+        </Link>
+      </div>
     </main>
   );
 }
