@@ -152,7 +152,7 @@ export default function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
                 <div className="mt-8 flex items-center gap-6">
                   <Link
                     href="/order"
-                    className="rounded-full bg-[var(--color-sky)] px-7 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                    className="bg-[var(--color-sky)] px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
                   >
                     포토북 제작 신청
                   </Link>
