@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import StickyOrderBar from "@/components/StickyOrderBar";
+import SiteFooter from "@/components/SiteFooter";
 
 const babyCovers = [
   { src: "/photobook/covers/baby-1.png", alt: "베이비 표지 예시 1" },
@@ -90,7 +91,7 @@ export default function CasesPage() {
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {bigSpreadExamples.map((img) => (
-            <div key={img.src} className="overflow-hidden rounded-xl border border-[var(--color-hairline)]">
+            <div key={img.src} className="overflow-hidden border border-[var(--color-hairline)]">
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
           ))}
@@ -102,7 +103,7 @@ export default function CasesPage() {
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {babyCovers.map((img) => (
-            <div key={img.src} className="aspect-square overflow-hidden rounded-xl border border-[var(--color-hairline)]">
+            <div key={img.src} className="aspect-square overflow-hidden border border-[var(--color-hairline)]">
               <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
             </div>
           ))}
@@ -114,7 +115,7 @@ export default function CasesPage() {
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {travelCovers.map((img) => (
-            <div key={img.src} className="aspect-square overflow-hidden rounded-xl border border-[var(--color-hairline)]">
+            <div key={img.src} className="aspect-square overflow-hidden border border-[var(--color-hairline)]">
               <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
             </div>
           ))}
@@ -126,7 +127,7 @@ export default function CasesPage() {
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {spreadExamples.map((img) => (
-            <div key={img.src} className="overflow-hidden rounded-xl border border-[var(--color-hairline)]">
+            <div key={img.src} className="overflow-hidden border border-[var(--color-hairline)]">
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
           ))}
@@ -147,12 +148,7 @@ export default function CasesPage() {
         </div>
       </section>
 
-      <footer className="border-t border-[var(--color-hairline)] px-6 py-8 text-center text-xs text-[var(--color-charcoal)]/50 sm:px-10">
-        <p>Operated by HM38° CREATIVE STUDIO</p>
-        <Link href="/login" className="mt-2 inline-block hover:text-[var(--color-sky)]">
-          관리자
-        </Link>
-      </footer>
+      <SiteFooter />
       <StickyOrderBar />
     </main>
   );

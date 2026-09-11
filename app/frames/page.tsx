@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import StickyOrderBar from "@/components/StickyOrderBar";
+import SiteFooter from "@/components/SiteFooter";
 
 const frameTypes = [
   {
@@ -57,7 +58,7 @@ export default function FramesPage() {
           {frameTypes.map((type) => (
             <div
               key={type.name}
-              className="overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white"
+              className="overflow-hidden border border-[var(--color-hairline)] bg-white"
             >
               <div className="aspect-[3/4] w-full overflow-hidden">
                 <img
@@ -86,12 +87,7 @@ export default function FramesPage() {
         </div>
       </section>
 
-      <footer className="border-t border-[var(--color-hairline)] px-6 py-8 text-center text-xs text-[var(--color-charcoal)]/50 sm:px-10">
-        <p>Operated by HM38° CREATIVE STUDIO</p>
-        <Link href="/login" className="mt-2 inline-block hover:text-[var(--color-sky)]">
-          관리자
-        </Link>
-      </footer>
+      <SiteFooter />
       <StickyOrderBar label="액자 제작 신청" />
     </main>
   );

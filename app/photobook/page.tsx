@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import StickyOrderBar from "@/components/StickyOrderBar";
+import SiteFooter from "@/components/SiteFooter";
 
 const coverExamples = [
   { src: "/photobook/covers/baby-1.png", alt: "베이비 표지 예시 1" },
@@ -58,7 +59,7 @@ export default function PhotobookPage() {
             </Link>
           </div>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-[var(--color-hairline)]">
+        <div className="overflow-hidden border border-[var(--color-hairline)]">
           <img
             src="/photobook/covers/collage-1.png"
             alt="Keepic 포토북 표지와 내지 예시"
@@ -77,7 +78,7 @@ export default function PhotobookPage() {
           {coverExamples.map((img) => (
             <div
               key={img.src}
-              className="overflow-hidden rounded-xl border border-[var(--color-hairline)]"
+              className="overflow-hidden border border-[var(--color-hairline)]"
             >
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
@@ -95,7 +96,7 @@ export default function PhotobookPage() {
           {spreadExamples.map((img) => (
             <div
               key={img.src}
-              className="overflow-hidden rounded-xl border border-[var(--color-hairline)]"
+              className="overflow-hidden border border-[var(--color-hairline)]"
             >
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
@@ -112,46 +113,53 @@ export default function PhotobookPage() {
           (완성 규격 기준 임시 수치예요, 제작 파일 규격은 제작처 확인 후 별도 안내드려요)
         </p>
 
-        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-10">
-          {sizes.map((size) => (
-            <div key={size.label} className="flex h-full flex-col">
-              <div className="flex items-center gap-4 sm:flex-col sm:gap-3">
-                <div
-                  style={{ width: size.px, height: size.px }}
-                  className="shrink-0 rounded-md border-2 border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-                />
-                <div className="sm:text-center">
+        <div className="mt-8 flex flex-col gap-8">
+          {sizes.map((size, i) => (
+            <div
+              key={size.label}
+              className={`flex items-start gap-6 pb-8 ${
+                i !== sizes.length - 1 ? "border-b border-[var(--color-hairline)]" : ""
+              }`}
+            >
+              <div
+                style={{ width: size.px, height: size.px }}
+                className="shrink-0 border-2 border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+              />
+              <div className="flex-1 pt-1">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <p className="text-lg font-semibold">{size.label}</p>
                   <p className="text-xs text-[var(--color-charcoal)]/60">{size.detail}</p>
                 </div>
-              </div>
-              <div className="mt-5 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-4 text-sm sm:mt-auto">
-                <div className="flex items-center justify-between">
-                  <p className="text-[var(--color-charcoal)]/60">소프트커버</p>
-                  <p className="font-medium">{size.softPrice.toLocaleString()}원부터</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-[var(--color-charcoal)]/60">하드커버</p>
-                  <p className="font-medium">{size.hardPrice.toLocaleString()}원부터</p>
+                <div className="mt-4 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:gap-8">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--color-charcoal)]/60">소프트커버</span>
+                    <span className="font-medium">{size.softPrice.toLocaleString()}원부터</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--color-charcoal)]/60">하드커버</span>
+                    <span className="font-medium">{size.hardPrice.toLocaleString()}원부터</span>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="mt-10 flex flex-col gap-3 text-sm">
-          <p>
-            <span className="text-[var(--color-charcoal)]/60">제본 · </span>
-            <span className="font-medium">레이플랫 제본 기본 포함</span>
-          </p>
-          <p>
-            <span className="text-[var(--color-charcoal)]/60">페이지 수 · </span>
-            <span className="font-medium">기본 10장·20페이지 (2페이지 단위로 추가 가능)</span>
-          </p>
-          <p>
-            <span className="text-[var(--color-charcoal)]/60">제작 기간 · </span>
-            <span className="text-[var(--color-charcoal)]/40">준비 중</span>
-          </p>
+        <div className="mt-10 border border-[var(--color-hairline)] bg-white px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-col gap-3 text-sm">
+            <p>
+              <span className="text-[var(--color-charcoal)]/60">제본 · </span>
+              <span className="font-medium">레이플랫 제본 기본 포함</span>
+            </p>
+            <p>
+              <span className="text-[var(--color-charcoal)]/60">페이지 수 · </span>
+              <span className="font-medium">기본 10장·20페이지 (2페이지 단위로 추가 가능)</span>
+            </p>
+            <p>
+              <span className="text-[var(--color-charcoal)]/60">제작 기간 · </span>
+              <span className="text-[var(--color-charcoal)]/40">준비 중</span>
+            </p>
+          </div>
         </div>
         <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/40">
           모두 임시 판매가이고 배송비 별도예요. 특히 S 하드커버는 아직 실제 견적 확인 전이라
@@ -174,12 +182,7 @@ export default function PhotobookPage() {
         </Link>
       </section>
 
-      <footer className="border-t border-[var(--color-hairline)] px-6 py-8 text-center text-xs text-[var(--color-charcoal)]/50 sm:px-10">
-        <p>Operated by HM38° CREATIVE STUDIO</p>
-        <Link href="/login" className="mt-2 inline-block hover:text-[var(--color-sky)]">
-          관리자
-        </Link>
-      </footer>
+      <SiteFooter />
       <StickyOrderBar />
     </main>
   );

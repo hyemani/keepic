@@ -707,7 +707,7 @@ function UploadPageContent() {
               {photos.map((photo, index) => (
                 <div
                   key={index}
-                  className="group relative aspect-square overflow-hidden rounded-lg border border-[var(--color-hairline)]"
+                  className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
                 >
                   <img src={photo.url} alt={`선택한 사진 ${index + 1}`} className="h-full w-full object-cover" />
                   {isLowRes(photo, requiredMinPx / 2) && (

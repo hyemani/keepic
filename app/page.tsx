@@ -3,6 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 import { Fragment } from "react";
 import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
 import StickyOrderBar from "@/components/StickyOrderBar";
+import SiteFooter from "@/components/SiteFooter";
 
 const heroSlides: HeroSlide[] = [
   {
@@ -93,7 +94,7 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-6">
           {steps.map((step) => (
             <div key={step.n} className="flex items-center gap-5 sm:block">
-              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-[var(--color-sky)]/10 to-[var(--color-ivory)] shadow-[0_10px_30px_-10px_rgba(45,55,72,0.2)] sm:aspect-square sm:h-auto sm:w-full sm:rounded-3xl">
+              <div className="relative h-24 w-24 shrink-0 overflow-hidden bg-gradient-to-br from-[var(--color-sky)]/10 to-[var(--color-ivory)] shadow-[0_10px_30px_-10px_rgba(45,55,72,0.2)] sm:aspect-square sm:h-auto sm:w-full">
                 {step.img ? (
                   <img
                     src={step.img}
@@ -155,7 +156,7 @@ export default function Home() {
           ].map((img) => (
             <div
               key={img.src}
-              className="overflow-hidden rounded-2xl border border-[var(--color-hairline)]"
+              className="overflow-hidden border border-[var(--color-hairline)]"
             >
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
             </div>
@@ -250,12 +251,7 @@ export default function Home() {
         </Link>
       </section>
 
-      <footer className="border-t border-[var(--color-hairline)] px-6 py-8 text-center text-xs text-[var(--color-charcoal)]/50 sm:px-10">
-        <p>Operated by HM38° CREATIVE STUDIO</p>
-        <Link href="/login" className="mt-2 inline-block hover:text-[var(--color-sky)]">
-          관리자
-        </Link>
-      </footer>
+      <SiteFooter />
 
       {/* 모바일 전용: 스크롤해도 따라다니는 하단 고정 CTA */}
       <StickyOrderBar />
