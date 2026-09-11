@@ -56,8 +56,13 @@ export default function PhotobookPage() {
             포토북으로 만들어드려요
           </h1>
           <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--color-charcoal)]/80">
-            사진을 직접 편집하실 필요 없어요. 사진만 골라 보내주시면 Keepic이
-            배치부터 디자인까지 맡아서 완성된 포토북으로 만들어드려요.
+            사진을 직접 편집하실 필요 없어요.
+            <br />
+            사진만 골라 보내주시면
+            <br />
+            Keepic이 배치부터 디자인까지 맡아서
+            <br />
+            완성된 포토북으로 만들어드려요.
           </p>
           <div className="mt-10 flex items-center gap-6">
             <Link
@@ -123,8 +128,9 @@ export default function PhotobookPage() {
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <h2 className="text-2xl font-semibold">사이즈</h2>
         <p className="mt-2 text-sm text-[var(--color-charcoal)]/60">
-          정사각형 3가지 사이즈 중에서 고르실 수 있어요. (임시 규격이에요,
-          인쇄업체 확인 후 최종 확정돼요)
+          정사각형 3가지 사이즈 중에서 고르실 수 있어요.
+          <br />
+          (임시 규격이에요, 인쇄업체 확인 후 최종 확정돼요)
         </p>
         <div className="mt-8 flex flex-wrap items-end gap-8">
           {sizes.map((size) => (
@@ -179,7 +185,11 @@ export default function PhotobookPage() {
 
       {/* 마지막 신청 영역 */}
       <section className="mx-auto max-w-6xl px-6 pb-24 pt-8 text-center sm:px-10">
-        <h2 className="text-2xl font-semibold">사진만 보내주세요, 나머지는 저희가 할게요</h2>
+        <h2 className="break-keep text-2xl font-semibold">
+          사진만 보내주세요,
+          <br />
+          나머지는 저희가 할게요
+        </h2>
         <Link
           href="/order?product=포토북"
           className="mt-8 inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
