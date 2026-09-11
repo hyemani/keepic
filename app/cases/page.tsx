@@ -49,7 +49,8 @@ const spreadExamples = [
 export default function CasesPage() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 sm:px-10">
+      <header className="mx-auto max-w-6xl px-6 py-8 sm:px-10">
+        <div className="flex items-center justify-between">
         <Link href="/">
           <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
         </Link>
@@ -68,6 +69,17 @@ export default function CasesPage() {
             제작 신청
           </Link>
         </div>
+        </div>
+
+        {/* 모바일 전용: 항상 보이는 가로 메뉴 (균등 배치) */}
+        <nav className="-mx-6 mt-5 flex items-center justify-between border-t border-[var(--color-hairline)] px-4 pt-3 text-[11px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
+          <Link href="/photobook" className="hover:text-[var(--color-sky)]">포토북</Link>
+          <Link href="/guide" className="hover:text-[var(--color-sky)]">제작안내</Link>
+          <Link href="/cases" className="hover:text-[var(--color-sky)]">제작사례</Link>
+          <Link href="/faq" className="hover:text-[var(--color-sky)]">자주묻는질문</Link>
+          <Link href="/order-lookup" className="hover:text-[var(--color-sky)]">나의주문</Link>
+        </nav>
+
       </header>
 
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">

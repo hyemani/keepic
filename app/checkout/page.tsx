@@ -131,7 +131,7 @@ export default function CheckoutPage() {
 
         <div className="mt-10 flex flex-col gap-6">
           <div>
-            <label className="text-sm font-medium">받는 분 이름</label>
+            <label className="text-sm font-medium">받는 분 성함</label>
             <input
               type="text"
               value={name}
