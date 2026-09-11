@@ -124,7 +124,7 @@ export default function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
                     i === index ? "opacity-100" : "pointer-events-none opacity-0"
                   }`}
                 >
-                  <h1 className="break-keep text-4xl font-semibold leading-tight lg:text-5xl xl:text-6xl">
+                  <h1 className="break-keep text-3xl font-semibold leading-tight lg:text-4xl xl:text-5xl">
                     {slide.titleLines.map((line, li) => (
                       <span key={li}>
                         {line}
@@ -132,7 +132,7 @@ export default function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
                       </span>
                     ))}
                   </h1>
-                  <p className="mt-6 max-w-sm break-keep text-lg leading-relaxed text-[var(--color-charcoal)]/80">
+                  <p className="mt-4 max-w-sm break-keep text-base leading-relaxed text-[var(--color-charcoal)]/80 lg:text-lg">
                     {slide.descLines.map((line, li) => (
                       <span key={li}>
                         {line}
@@ -144,7 +144,7 @@ export default function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
               ))}
             </div>
 
-            <div className="mt-10 flex items-center gap-6">
+            <div className="mt-8 flex items-center gap-6">
               <Link
                 href="/order"
                 className="rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
@@ -158,28 +158,29 @@ export default function HeroSlideshow({ slides }: { slides: HeroSlide[] }) {
                 디자인 샘플 보기
               </a>
             </div>
-
-            <div className="mt-8 flex gap-1">
-              {slides.map((slide, i) => (
-                <button
-                  key={slide.image}
-                  type="button"
-                  aria-label={`${i + 1}번째 이미지 보기`}
-                  onClick={() => goTo(i)}
-                  className="p-2.5"
-                >
-                  <span
-                    className={`block h-1.5 rounded-full transition-all ${
-                      i === index
-                        ? "w-5 bg-[var(--color-sky)]"
-                        : "w-1.5 bg-[var(--color-charcoal)]/20"
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
           </div>
         </div>
+      </div>
+
+      {/* sm 이상: 이미지 하단 중앙에 놓이는 점 인디케이터 */}
+      <div className="absolute inset-x-0 bottom-6 hidden justify-center gap-1 sm:flex">
+        {slides.map((slide, i) => (
+          <button
+            key={slide.image}
+            type="button"
+            aria-label={`${i + 1}번째 이미지 보기`}
+            onClick={() => goTo(i)}
+            className="p-2.5"
+          >
+            <span
+              className={`block h-1.5 rounded-full transition-all ${
+                i === index
+                  ? "w-5 bg-[var(--color-sky)]"
+                  : "w-1.5 bg-[var(--color-charcoal)]/30"
+              }`}
+            />
+          </button>
+        ))}
       </div>
     </section>
   );
