@@ -77,10 +77,14 @@ export default function CasesPage() {
           <br />
           만들어드려요
         </h1>
-        <p className="mt-4 max-w-lg text-base leading-relaxed text-[var(--color-charcoal)]/70">
-          아래 이미지는 실제 고객님의 사진이 아닌, Keepic이 준비한 디자인 예시예요.
+        <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
+          아래 이미지는 실제 고객님의 사진이 아닌,
           <br />
-          아이의 하루를 담은 앨범부터 여행·커플 사진까지, 다양한 주제로 제작할 수 있어요.
+          Keepic이 준비한 디자인 예시예요.
+          <br />
+          아이의 하루를 담은 앨범부터 여행·커플 사진까지,
+          <br />
+          다양한 주제로 제작할 수 있어요.
         </p>
       </section>
 
@@ -132,7 +136,11 @@ export default function CasesPage() {
         </div>
 
         <div className="mt-12 rounded-2xl bg-[var(--color-sky)]/10 p-8 text-center">
-          <p className="text-lg font-medium">고객님의 사진으로 만든 사례는 후기가 쌓이는 대로 추가할게요.</p>
+          <p className="break-keep text-lg font-medium">
+            고객님의 사진으로 만든 사례는
+            <br />
+            후기가 쌓이는 대로 추가할게요.
+          </p>
           <Link
             href="/order"
             className="mt-6 inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"

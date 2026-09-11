@@ -68,12 +68,16 @@ export default function GuidePage() {
         <h1 className="mt-2 text-4xl font-semibold leading-tight sm:text-5xl">
           이렇게 만들어드려요
         </h1>
-        <p className="mt-6 max-w-lg text-base leading-relaxed text-[var(--color-charcoal)]/80">
-          Keepic은 디자이너가 직접 편집해드리는 포토북 서비스예요.
+        <p className="mt-6 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/80">
+          Keepic은 디자이너가 직접 편집해드리는
+          <br />
+          포토북 서비스예요.
           <br />
           사진과 원하시는 내용을 보내주시면,
           <br />
-          사진 배치부터 전체 디자인까지 맡아서 완성해드려요.
+          사진 배치부터 전체 디자인까지
+          <br />
+          맡아서 완성해드려요.
         </p>
 
         <div className="mt-16 flex flex-col">
@@ -89,7 +93,7 @@ export default function GuidePage() {
               </div>
               <div className="pb-10">
                 <h2 className="text-lg font-semibold">{step.title}</h2>
-                <p className="mt-1.5 max-w-md text-sm leading-relaxed text-[var(--color-charcoal)]/70">
+                <p className="mt-1.5 max-w-md break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
                   {step.description}
                 </p>
               </div>

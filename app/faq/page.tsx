@@ -92,7 +92,7 @@ export default function FaqPage() {
                   +
                 </span>
               </summary>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--color-charcoal)]/70">
+              <p className="mt-3 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
                 {item.a}
               </p>
             </details>

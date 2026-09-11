@@ -262,8 +262,10 @@ export default function OrderLookupPage() {
 
       <section className="mx-auto max-w-lg px-6 pb-24 pt-8 sm:px-10">
         <h1 className="text-3xl font-semibold sm:text-4xl">주문 조회</h1>
-        <p className="mt-3 text-sm text-[var(--color-charcoal)]/70">
-          주문하실 때 입력하신 받는 분 이름과 전화번호를 입력해주세요.
+        <p className="mt-3 break-keep text-sm text-[var(--color-charcoal)]/70">
+          주문하실 때 입력하신 받는 분 이름과
+          <br />
+          전화번호를 입력해주세요.
         </p>
 
         <div className="mt-8 flex flex-col gap-4">
@@ -542,7 +544,7 @@ export default function OrderLookupPage() {
 
                       {order.status === "pending_payment" && (
                         <div className="mt-4">
-                          <p className="text-xs text-[var(--color-charcoal)]/60">
+                          <p className="break-keep text-xs text-[var(--color-charcoal)]/60">
                             입금 확인 및 사진·요청사항 접수가 완료되면 시안 작업이
                             시작됩니다.
                           </p>
@@ -566,7 +568,7 @@ export default function OrderLookupPage() {
                 })}
               </div>
             ) : (
-              <p className="text-sm text-[var(--color-charcoal)]/60">
+              <p className="break-keep text-sm text-[var(--color-charcoal)]/60">
                 일치하는 주문이 없어요. 이름과 전화번호를 다시 확인해주세요.
               </p>
             )}
