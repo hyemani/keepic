@@ -112,12 +112,9 @@ export default function PhotobookPage() {
           (완성 규격 기준 임시 수치예요, 제작 파일 규격은 제작처 확인 후 별도 안내드려요)
         </p>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-10">
           {sizes.map((size) => (
-            <div
-              key={size.label}
-              className="rounded-2xl border border-[var(--color-hairline)] bg-white p-6"
-            >
+            <div key={size.label} className="flex h-full flex-col">
               <div className="flex items-center gap-4 sm:flex-col sm:gap-3">
                 <div
                   style={{ width: size.px, height: size.px }}
@@ -128,7 +125,7 @@ export default function PhotobookPage() {
                   <p className="text-xs text-[var(--color-charcoal)]/60">{size.detail}</p>
                 </div>
               </div>
-              <div className="mt-5 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-4 text-sm sm:mt-6">
+              <div className="mt-5 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-4 text-sm sm:mt-auto">
                 <div className="flex items-center justify-between">
                   <p className="text-[var(--color-charcoal)]/60">소프트커버</p>
                   <p className="font-medium">{size.softPrice.toLocaleString()}원부터</p>
@@ -142,30 +139,19 @@ export default function PhotobookPage() {
           ))}
         </div>
 
-        <div className="mt-8 overflow-hidden rounded-2xl border border-[var(--color-hairline)] bg-white">
-          {[
-            { label: "제본", value: "레이플랫 제본 기본 포함" },
-            { label: "페이지 수", value: "기본 10장·20페이지 (2페이지 단위로 추가 가능)" },
-            { label: "제작 기간", value: "준비 중" },
-          ].map((row, i) => (
-            <div
-              key={row.label}
-              className={`flex flex-col gap-1 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${
-                i !== 0 ? "border-t border-[var(--color-hairline)]" : ""
-              }`}
-            >
-              <p className="shrink-0 whitespace-nowrap text-[var(--color-charcoal)]/60">{row.label}</p>
-              <p
-                className={
-                  row.value === "준비 중"
-                    ? "text-[var(--color-charcoal)]/40"
-                    : "break-keep font-medium sm:text-right"
-                }
-              >
-                {row.value}
-              </p>
-            </div>
-          ))}
+        <div className="mt-10 flex flex-col gap-3 text-sm">
+          <p>
+            <span className="text-[var(--color-charcoal)]/60">제본 · </span>
+            <span className="font-medium">레이플랫 제본 기본 포함</span>
+          </p>
+          <p>
+            <span className="text-[var(--color-charcoal)]/60">페이지 수 · </span>
+            <span className="font-medium">기본 10장·20페이지 (2페이지 단위로 추가 가능)</span>
+          </p>
+          <p>
+            <span className="text-[var(--color-charcoal)]/60">제작 기간 · </span>
+            <span className="text-[var(--color-charcoal)]/40">준비 중</span>
+          </p>
         </div>
         <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/40">
           모두 임시 판매가이고 배송비 별도예요. 특히 S 하드커버는 아직 실제 견적 확인 전이라
