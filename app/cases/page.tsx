@@ -89,7 +89,7 @@ export default function CasesPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
-        <h2 className="text-xl font-semibold">펼치면 이런 느낌이에요</h2>
+        <h2 className="text-xl font-semibold">한 권에 담아낸 소중한 순간들</h2>
         <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {bigSpreadExamples.map((img) => (
