@@ -856,7 +856,7 @@ function UploadPageContent() {
 
         {photos.length === 1 && isLowRes(photos[0], requiredMinPx) && (
           <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-            이 사진은 인쇄 기준으로 해상도가 낮아요. 액자로 인쇄하면 흐릿하게 나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
+            이 사진은 인쇄 기준으로 해상도가 낮아요. 이대로 인쇄하면 흐릿하게 나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
           </p>
         )}
 
@@ -864,7 +864,13 @@ function UploadPageContent() {
           <div className="mt-12">
             <h2 className="text-lg font-semibold">미리보기</h2>
             <div className="mt-4 inline-block bg-white p-6 shadow-sm">
-              <div className={`${selectedSizeInfo.aspect} w-64 border-8 border-[var(--color-charcoal)] p-3`}>
+              <div
+                className={`${selectedSizeInfo.aspect} w-64 p-3 ${
+                  productName === "액자"
+                    ? "border-8 border-[var(--color-charcoal)]"
+                    : "rounded-[2rem] border-2 border-[var(--color-charcoal)]/40"
+                }`}
+              >
                 <PhotoCell
                   photo={photos[0]}
                   requiredMinPx={requiredMinPx}

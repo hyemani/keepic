@@ -1,3 +1,22 @@
+import { phoneBrands, phoneModelsByBrand, caseMaterials } from "./phoneCaseModels";
+
+function buildPhoneCaseSizes() {
+  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  for (const material of caseMaterials) {
+    for (const brand of phoneBrands) {
+      for (const model of phoneModelsByBrand[brand.id]) {
+        list.push({
+          id: `${material.id}-${brand.id}-${model}`,
+          label: `${brand.label} ${model} · ${material.label}`,
+          detail: `${brand.label} · ${material.label} · ${material.price.toLocaleString()}원`,
+          aspect: "aspect-[75/163]",
+        });
+      }
+    }
+  }
+  return list;
+}
+
 export const productConfig = {
   "액자": {
     minPhotos: 1,
@@ -17,6 +36,12 @@ export const productConfig = {
       { id: "M", label: "M", detail: "25 x 25cm", aspect: "aspect-square" },
       { id: "L", label: "L", detail: "30 x 30cm", aspect: "aspect-square" },
     ],
+  },
+  "폰케이스": {
+    minPhotos: 1,
+    maxPhotos: 1,
+    // 브랜드 × 자재종류 × 기종 조합을 사이즈 목록으로 관리합니다. lib/phoneCaseModels.ts에서 관리합니다.
+    sizes: buildPhoneCaseSizes(),
   },
 } as const;
 

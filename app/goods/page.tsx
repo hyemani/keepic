@@ -21,6 +21,7 @@ const goodsTypes = [
     desc: "늘 곁에 두는 휴대폰에 담는 사진",
     image: "/goods/goods-phonecase.jpg",
     alt: "커플 사진이 담긴 폰케이스",
+    href: "/goods/phone-case",
   },
   {
     name: "토트백",
@@ -55,32 +56,44 @@ export default function GoodsPage() {
         </p>
 
         <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          {goodsTypes.map((type) => (
-            <div
-              key={type.name}
-              className="overflow-hidden border border-[var(--color-hairline)] bg-white"
-            >
-              <div className="aspect-[3/4] w-full overflow-hidden">
-                <img
-                  src={type.image}
-                  alt={type.alt}
-                  className="h-full w-full object-cover"
-                />
+          {goodsTypes.map((type) => {
+            const card = (
+              <div className="overflow-hidden border border-[var(--color-hairline)] bg-white">
+                <div className="aspect-[3/4] w-full overflow-hidden">
+                  <img
+                    src={type.image}
+                    alt={type.alt}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="p-5">
+                  <p className="font-medium">{type.name}</p>
+                  <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
+                    {type.desc}
+                  </p>
+                  {type.href && (
+                    <p className="mt-2 text-xs font-medium text-[var(--color-sky)]">
+                      지금 주문 가능 →
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="p-5">
-                <p className="font-medium">{type.name}</p>
-                <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
-                  {type.desc}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+
+            return type.href ? (
+              <Link key={type.name} href={type.href} className="block">
+                {card}
+              </Link>
+            ) : (
+              <div key={type.name}>{card}</div>
+            );
+          })}
         </div>
 
-        <div className="mt-12 rounded-2xl border border-dashed border-[var(--color-hairline)] bg-white px-8 py-10 text-center">
-          <p className="font-medium">주문은 조금만 기다려주세요</p>
+        <div className="mt-12 border border-dashed border-[var(--color-hairline)] bg-white px-8 py-10 text-center">
+          <p className="font-medium">폰케이스는 지금 바로 주문하실 수 있어요</p>
           <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
-            사이즈, 재질, 가격을 확정하는 대로
+            나머지 굿즈도 사이즈, 재질, 가격을 확정하는 대로
             <br />
             바로 주문하실 수 있게 열어드릴게요.
           </p>
