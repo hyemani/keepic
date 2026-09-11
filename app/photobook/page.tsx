@@ -53,7 +53,9 @@ export default function PhotobookPage() {
           <h1 className="mt-2 text-4xl font-semibold leading-tight sm:text-5xl">
             사진을 보내주시면,
             <br />
-            포토북으로 만들어드려요
+            포토북으로
+            <br className="sm:hidden" />
+            {" "}만들어드려요
           </h1>
           <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--color-charcoal)]/80">
             사진을 직접 편집하실 필요 없어요.
@@ -164,16 +166,16 @@ export default function PhotobookPage() {
           ].map((row, i) => (
             <div
               key={row.label}
-              className={`flex items-center justify-between px-5 py-4 text-sm ${
+              className={`flex flex-col gap-1 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${
                 i !== 0 ? "border-t border-[var(--color-hairline)]" : ""
               }`}
             >
-              <p className="text-[var(--color-charcoal)]/60">{row.label}</p>
+              <p className="shrink-0 whitespace-nowrap text-[var(--color-charcoal)]/60">{row.label}</p>
               <p
                 className={
                   row.value === "준비 중"
                     ? "text-[var(--color-charcoal)]/40"
-                    : "font-medium"
+                    : "font-medium sm:text-right"
                 }
               >
                 {row.value}
