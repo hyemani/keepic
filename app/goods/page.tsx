@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import StickyOrderBar from "@/components/StickyOrderBar";
 
 const goodsTypes = [
   {
@@ -126,6 +127,7 @@ export default function GoodsPage() {
       </section>
 
       <SiteFooter />
+      <StickyOrderBar label="추억을 일상에 담기" />
     </main>
   );
 }
