@@ -5,12 +5,6 @@ import SiteFooter from "@/components/SiteFooter";
 
 const goodsTypes = [
   {
-    name: "키링",
-    desc: "가방에 매달아두는 작은 사진 소품",
-    image: "/goods/goods-keyring.jpg",
-    alt: "반려견 사진이 담긴 아크릴 키링",
-  },
-  {
     name: "머그",
     desc: "매일 쓰는 컵에 담는 사진",
     image: "/goods/mug/main-1.jpg",
@@ -39,10 +33,17 @@ const goodsTypes = [
     href: "/goods/ecobag",
   },
   {
-    name: "포토 마그넷",
-    desc: "냉장고에 붙여두는 작은 사진",
-    image: "/goods/goods-magnet.jpg",
-    alt: "아이·반려견·여행 사진이 담긴 포토 마그넷",
+    name: "캘린더",
+    desc: "매달 바뀌는 탁상용 캘린더",
+    image: "",
+    alt: "사진이 담긴 탁상용 캘린더",
+    href: "/goods/calendar",
+  },
+  {
+    name: "패브릭포스터",
+    desc: "패브릭 원단에 담는 사진",
+    image: "",
+    alt: "사진이 담긴 패브릭 포스터",
   },
 ];
 
@@ -59,7 +60,7 @@ export default function GoodsPage() {
           나만의 소품.
         </h1>
         <p className="mt-6 max-w-md break-keep text-base leading-relaxed text-[var(--color-charcoal)]/80">
-          키링, 머그, 폰케이스, 텀블러, 토트백, 포토 마그넷까지
+          머그, 폰케이스, 텀블러, 에코백, 캘린더, 패브릭포스터까지
           <br />
           다양한 굿즈로 만나보실 수 있어요.
         </p>
@@ -68,12 +69,18 @@ export default function GoodsPage() {
           {goodsTypes.map((type) => {
             const card = (
               <div className="overflow-hidden border border-[var(--color-hairline)] bg-white">
-                <div className="aspect-[3/4] w-full overflow-hidden">
-                  <img
-                    src={type.image}
-                    alt={type.alt}
-                    className="h-full w-full object-cover"
-                  />
+                <div className="aspect-[3/4] w-full overflow-hidden bg-[var(--color-hairline)]/20">
+                  {type.image ? (
+                    <img
+                      src={type.image}
+                      alt={type.alt}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-[var(--color-charcoal)]/40">
+                      이미지 준비중
+                    </div>
+                  )}
                 </div>
                 <div className="p-5">
                   <p className="font-medium">{type.name}</p>
@@ -100,7 +107,7 @@ export default function GoodsPage() {
         </div>
 
         <div className="mt-12 border border-dashed border-[var(--color-hairline)] bg-white px-8 py-10 text-center">
-          <p className="font-medium">폰케이스, 텀블러, 에코백, 머그는 지금 바로 주문하실 수 있어요</p>
+          <p className="font-medium">폰케이스, 텀블러, 에코백, 머그, 캘린더는 지금 바로 주문하실 수 있어요</p>
           <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
             나머지 굿즈도 사이즈, 재질, 가격을 확정하는 대로
             <br />

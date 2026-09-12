@@ -2,6 +2,7 @@ import { phoneBrands, phoneModelsByBrand, caseTypes, coatings } from "./phoneCas
 import { tumblerTypes } from "./tumblerModels";
 import { ecobagShapes, ecobagFabrics, ecobagAddons } from "./ecobagModels";
 import { mugTypes } from "./mugModels";
+import { calendarShapes, ringColors, standColors } from "./calendarModels";
 
 function buildPhoneCaseSizes() {
   const list: { id: string; label: string; detail: string; aspect: string }[] = [];
@@ -94,6 +95,23 @@ function buildMugSizes() {
   return list;
 }
 
+function buildCalendarSizes() {
+  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  for (const shape of calendarShapes) {
+    for (const ring of ringColors) {
+      for (const stand of standColors) {
+        list.push({
+          id: `${shape.id}-${ring.id}-${stand.id}`,
+          label: `${shape.label} · ${ring.label} · ${stand.label}`,
+          detail: `${shape.detail} · 트윈링 ${ring.label} · 삼각대 ${stand.label}`,
+          aspect: "aspect-square",
+        });
+      }
+    }
+  }
+  return list;
+}
+
 export const productConfig = {
   "액자": {
     minPhotos: 1,
@@ -137,6 +155,14 @@ export const productConfig = {
     maxPhotos: 1,
     // 종류 × 색상(아이스 변색 컵만 해당) 조합을 사이즈 목록으로 관리합니다. lib/mugModels.ts에서 관리합니다.
     sizes: buildMugSizes(),
+  },
+  "캘린더": {
+    // 아직 가격·이미지가 확정되지 않은 준비중 상품이에요. minPhotos/maxPhotos는
+    // 12달 분량 사진을 가정한 임시값이고, 실제 구성이 정해지면 조정해주세요.
+    minPhotos: 1,
+    maxPhotos: 12,
+    // 모양 × 트윈링 컬러 × 삼각대 색상 조합을 사이즈 목록으로 관리합니다. lib/calendarModels.ts에서 관리합니다.
+    sizes: buildCalendarSizes(),
   },
 } as const;
 
