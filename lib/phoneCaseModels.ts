@@ -51,7 +51,30 @@ export const phoneModelsByBrand: Record<PhoneBrandId, string[]> = {
 
 export type CaseMaterialId = "normal" | "magsafe";
 
-export const caseMaterials: { id: CaseMaterialId; label: string; price: number }[] = [
-  { id: "normal", label: "일반케이스", price: 23000 },
-  { id: "magsafe", label: "맥세이프케이스", price: 28000 },
+export type CaseTypeId = "premium" | "standard";
+
+export const caseTypes: {
+  id: CaseTypeId;
+  label: string;
+  productLabel: string;
+  materials: { id: CaseMaterialId; label: string; price: number }[];
+}[] = [
+  {
+    id: "premium",
+    label: "프리미엄",
+    productLabel: "투명 젤하드케이스 프리미엄",
+    materials: [
+      { id: "normal", label: "일반케이스", price: 23000 },
+      { id: "magsafe", label: "맥세이프케이스", price: 28000 },
+    ],
+  },
+  {
+    id: "standard",
+    label: "일반",
+    productLabel: "일반 케이스",
+    materials: [
+      { id: "normal", label: "일반케이스", price: 29000 },
+      { id: "magsafe", label: "맥세이프케이스", price: 34000 },
+    ],
+  },
 ];

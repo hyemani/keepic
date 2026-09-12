@@ -1,16 +1,18 @@
-import { phoneBrands, phoneModelsByBrand, caseMaterials } from "./phoneCaseModels";
+import { phoneBrands, phoneModelsByBrand, caseTypes } from "./phoneCaseModels";
 
 function buildPhoneCaseSizes() {
   const list: { id: string; label: string; detail: string; aspect: string }[] = [];
-  for (const material of caseMaterials) {
-    for (const brand of phoneBrands) {
-      for (const model of phoneModelsByBrand[brand.id]) {
-        list.push({
-          id: `${material.id}-${brand.id}-${model}`,
-          label: `${brand.label} ${model} · ${material.label}`,
-          detail: `${brand.label} · ${material.label} · ${material.price.toLocaleString()}원`,
-          aspect: "aspect-[75/163]",
-        });
+  for (const caseType of caseTypes) {
+    for (const material of caseType.materials) {
+      for (const brand of phoneBrands) {
+        for (const model of phoneModelsByBrand[brand.id]) {
+          list.push({
+            id: `${caseType.id}-${material.id}-${brand.id}-${model}`,
+            label: `${brand.label} ${model} · ${caseType.label} · ${material.label}`,
+            detail: `${caseType.productLabel} · ${brand.label} · ${material.label} · ${material.price.toLocaleString()}원`,
+            aspect: "aspect-[75/163]",
+          });
+        }
       }
     }
   }

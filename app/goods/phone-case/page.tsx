@@ -7,9 +7,10 @@ import SiteFooter from "@/components/SiteFooter";
 import {
   phoneBrands,
   phoneModelsByBrand,
-  caseMaterials,
+  caseTypes,
   PhoneBrandId,
   CaseMaterialId,
+  CaseTypeId,
 } from "@/lib/phoneCaseModels";
 
 const PRODUCT_NAME = "폰케이스";
@@ -22,6 +23,8 @@ const galleryImages = [
 ];
 
 function OptionsForm({
+  caseType,
+  setCaseType,
   brand,
   setBrand,
   material,
@@ -31,6 +34,8 @@ function OptionsForm({
   quantity,
   setQuantity,
 }: {
+  caseType: CaseTypeId;
+  setCaseType: (t: CaseTypeId) => void;
   brand: PhoneBrandId;
   setBrand: (b: PhoneBrandId) => void;
   material: CaseMaterialId;
@@ -41,9 +46,30 @@ function OptionsForm({
   setQuantity: (fn: (prev: number) => number) => void;
 }) {
   const models = phoneModelsByBrand[brand];
+  const selectedCaseType = caseTypes.find((t) => t.id === caseType)!;
 
   return (
     <div className="flex flex-col gap-8">
+      <div>
+        <h2 className="text-sm font-medium">케이스 종류</h2>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {caseTypes.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setCaseType(t.id)}
+              className={`border px-4 py-3 text-sm font-medium transition ${
+                caseType === t.id
+                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div>
         <h2 className="text-sm font-medium">브랜드</h2>
         <div className="mt-3 grid grid-cols-2 gap-3">
@@ -70,7 +96,7 @@ function OptionsForm({
       <div>
         <h2 className="text-sm font-medium">자재 종류</h2>
         <div className="mt-3 grid grid-cols-2 gap-3">
-          {caseMaterials.map((m) => (
+          {selectedCaseType.materials.map((m) => (
             <button
               key={m.id}
               type="button"
@@ -131,18 +157,31 @@ function OptionsForm({
 
 export default function PhoneCasePage() {
   const [activeImage, setActiveImage] = useState(0);
+  const [caseType, setCaseTypeState] = useState<CaseTypeId>("premium");
   const [brand, setBrand] = useState<PhoneBrandId>("apple");
   const [material, setMaterial] = useState<CaseMaterialId>("normal");
   const [model, setModel] = useState(phoneModelsByBrand.apple[0]);
   const [quantity, setQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const selectedMaterial = caseMaterials.find((m) => m.id === material)!;
+  const selectedCaseType = caseTypes.find((t) => t.id === caseType)!;
+  const selectedMaterial =
+    selectedCaseType.materials.find((m) => m.id === material) ??
+    selectedCaseType.materials[0];
   const totalPrice = selectedMaterial.price * quantity;
 
+  // 케이스 종류를 바꾸면 그 종류에 있는 자재로 다시 맞춰줘요.
+  function setCaseType(next: CaseTypeId) {
+    setCaseTypeState(next);
+    const nextType = caseTypes.find((t) => t.id === next)!;
+    if (!nextType.materials.some((m) => m.id === material)) {
+      setMaterial(nextType.materials[0].id);
+    }
+  }
+
   const sizeId = useMemo(
-    () => `${material}-${brand}-${model}`,
-    [material, brand, model]
+    () => `${caseType}-${material}-${brand}-${model}`,
+    [caseType, material, brand, model]
   );
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
@@ -159,7 +198,7 @@ export default function PhoneCasePage() {
             <div className="aspect-[3/4] w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
                 src={galleryImages[activeImage]}
-                alt="투명 젤하드케이스 프리미엄"
+                alt="투명 젤하드케이스"
                 className="h-full w-full object-cover"
               />
             </div>
@@ -195,7 +234,7 @@ export default function PhoneCasePage() {
           <div>
             <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
             <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
-              투명 젤하드케이스 프리미엄
+              {selectedCaseType.productLabel}
             </h1>
             <p className="mt-3 text-2xl font-semibold">
               {totalPrice.toLocaleString()}원
@@ -206,6 +245,8 @@ export default function PhoneCasePage() {
 
             <div className="mt-8 hidden sm:block">
               <OptionsForm
+                caseType={caseType}
+                setCaseType={setCaseType}
                 brand={brand}
                 setBrand={setBrand}
                 material={material}
@@ -280,6 +321,8 @@ export default function PhoneCasePage() {
 
             <div className="mt-6">
               <OptionsForm
+                caseType={caseType}
+                setCaseType={setCaseType}
                 brand={brand}
                 setBrand={setBrand}
                 material={material}
