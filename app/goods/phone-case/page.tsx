@@ -8,9 +8,11 @@ import {
   phoneBrands,
   phoneModelsByBrand,
   caseTypes,
+  coatings,
   PhoneBrandId,
   CaseMaterialId,
   CaseTypeId,
+  CoatingId,
 } from "@/lib/phoneCaseModels";
 
 const PRODUCT_NAME = "폰케이스";
@@ -29,6 +31,8 @@ function OptionsForm({
   setBrand,
   material,
   setMaterial,
+  coating,
+  setCoating,
   model,
   setModel,
   quantity,
@@ -40,6 +44,8 @@ function OptionsForm({
   setBrand: (b: PhoneBrandId) => void;
   material: CaseMaterialId;
   setMaterial: (m: CaseMaterialId) => void;
+  coating: CoatingId;
+  setCoating: (c: CoatingId) => void;
   model: string;
   setModel: (m: string) => void;
   quantity: number;
@@ -117,6 +123,26 @@ function OptionsForm({
       </div>
 
       <div>
+        <h2 className="text-sm font-medium">코팅</h2>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {coatings.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setCoating(c.id)}
+              className={`border px-4 py-3 text-sm font-medium transition ${
+                coating === c.id
+                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
         <h2 className="text-sm font-medium">기종</h2>
         <select
           value={model}
@@ -160,6 +186,7 @@ export default function PhoneCasePage() {
   const [caseType, setCaseTypeState] = useState<CaseTypeId>("premium");
   const [brand, setBrand] = useState<PhoneBrandId>("apple");
   const [material, setMaterial] = useState<CaseMaterialId>("normal");
+  const [coating, setCoating] = useState<CoatingId>("matte");
   const [model, setModel] = useState(phoneModelsByBrand.apple[0]);
   const [quantity, setQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -180,8 +207,8 @@ export default function PhoneCasePage() {
   }
 
   const sizeId = useMemo(
-    () => `${caseType}-${material}-${brand}-${model}`,
-    [caseType, material, brand, model]
+    () => `${caseType}-${material}-${coating}-${brand}-${model}`,
+    [caseType, material, coating, brand, model]
   );
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
@@ -251,6 +278,8 @@ export default function PhoneCasePage() {
                 setBrand={setBrand}
                 material={material}
                 setMaterial={setMaterial}
+                coating={coating}
+                setCoating={setCoating}
                 model={model}
                 setModel={setModel}
                 quantity={quantity}
@@ -327,6 +356,8 @@ export default function PhoneCasePage() {
                 setBrand={setBrand}
                 material={material}
                 setMaterial={setMaterial}
+                coating={coating}
+                setCoating={setCoating}
                 model={model}
                 setModel={setModel}
                 quantity={quantity}
