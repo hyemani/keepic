@@ -14,6 +14,7 @@ import {
   CaseTypeId,
   CoatingId,
 } from "@/lib/phoneCaseModels";
+import { addToCart } from "@/lib/cart";
 
 const PRODUCT_NAME = "폰케이스";
 // 실제 제작 예시 사진이 더 모이면 galleryImages 배열에 추가해주세요. 현재는 1장뿐이라 임시로 반복 배치했어요.
@@ -207,7 +208,18 @@ export default function PhoneCasePage() {
     }
   }
 
+  const selectedBrand = phoneBrands.find((b) => b.id === brand)!;
+  const selectedCoating = coatings.find((c) => c.id === coating)!;
+  const sizeLabel = `${selectedBrand.label} ${model} · ${selectedCaseType.label} · ${selectedMaterial.label} · ${selectedCoating.label}`;
+
   function handleAddToCart() {
+    addToCart({
+      productName: PRODUCT_NAME,
+      sizeId,
+      sizeLabel,
+      unitPrice: selectedMaterial.price,
+      quantity,
+    });
     setCartNotice(true);
     setTimeout(() => setCartNotice(false), 2000);
   }

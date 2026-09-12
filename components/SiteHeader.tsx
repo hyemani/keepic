@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import CartBadge from "./CartBadge";
 
 const KAKAO_URL = "https://pf.kakao.com/_FpGfX";
 
@@ -102,6 +103,7 @@ export default function SiteHeader() {
           <Link href="/order-lookup" className="text-[15px] hover:text-[var(--color-sky)]">
             나의 주문
           </Link>
+          <CartBadge className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]" />
           <Link
             href="/order"
             className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-[15px] font-medium text-white transition hover:opacity-90"
@@ -110,11 +112,12 @@ export default function SiteHeader() {
           </Link>
         </div>
 
-        {/* 모바일: 나의 주문 + 전체 메뉴 */}
+        {/* 모바일: 나의 주문 + 장바구니 + 전체 메뉴 */}
         <div className="flex items-center gap-4 sm:hidden">
           <Link href="/order-lookup" className="text-[13px] text-[var(--color-charcoal)]/70">
             나의 주문
           </Link>
+          <CartBadge className="text-[var(--color-charcoal)]/70" />
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -175,6 +178,13 @@ export default function SiteHeader() {
             </nav>
 
             <div className="mt-10 flex flex-col gap-3">
+              <Link
+                href="/cart"
+                onClick={() => setMenuOpen(false)}
+                className="rounded-full border border-[var(--color-hairline)] py-3.5 text-center text-sm font-medium"
+              >
+                장바구니
+              </Link>
               <Link
                 href="/order-lookup"
                 onClick={() => setMenuOpen(false)}
