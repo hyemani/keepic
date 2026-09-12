@@ -6,12 +6,17 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import {
   calendarShapes,
+  calendarPapers,
   ringColors,
   standColors,
+  calendarOrderNotes,
   CalendarShapeId,
+  CalendarPaperId,
   RingColorId,
   StandColorId,
-  CALENDAR_BASE_PRICE,
+  CALENDAR_MIN_PAGES,
+  CALENDAR_MAX_PAGES,
+  CALENDAR_DEFAULT_PAGES,
 } from "@/lib/calendarModels";
 import { addToCart } from "@/lib/cart";
 
@@ -19,14 +24,22 @@ const PRODUCT_NAME = "캘린더";
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
+const PAGE_OPTIONS = Array.from(
+  { length: CALENDAR_MAX_PAGES - CALENDAR_MIN_PAGES + 1 },
+  (_, i) => CALENDAR_MIN_PAGES + i
+);
 
 function OptionsForm({
   shape,
   setShape,
+  paper,
+  setPaper,
   ringColor,
   setRingColor,
   standColor,
   setStandColor,
+  pageCount,
+  setPageCount,
   startYear,
   setStartYear,
   startMonth,
@@ -38,10 +51,14 @@ function OptionsForm({
 }: {
   shape: CalendarShapeId;
   setShape: (s: CalendarShapeId) => void;
+  paper: CalendarPaperId;
+  setPaper: (p: CalendarPaperId) => void;
   ringColor: RingColorId;
   setRingColor: (c: RingColorId) => void;
   standColor: StandColorId;
   setStandColor: (c: StandColorId) => void;
+  pageCount: number;
+  setPageCount: (n: number) => void;
   startYear: number;
   setStartYear: (y: number) => void;
   startMonth: number;
@@ -51,36 +68,64 @@ function OptionsForm({
   quantity: number;
   setQuantity: (fn: (prev: number) => number) => void;
 }) {
+  const selectedPaper = calendarPapers.find((p) => p.id === paper)!;
+
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h2 className="text-sm font-medium">모양</h2>
+        <h2 className="text-sm font-medium">사이즈</h2>
         <div className="mt-3 grid grid-cols-4 gap-3">
           {calendarShapes.map((s) => (
             <button
               key={s.id}
               type="button"
               onClick={() => setShape(s.id)}
-              className={`border px-3 py-3 text-center text-sm font-medium transition ${
+              className={`relative border px-3 py-3 text-center transition ${
                 shape === s.id
                   ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
                   : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70"
               }`}
             >
-              {s.label}
+              {s.badge && (
+                <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[var(--color-sky)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {s.badge}
+                </span>
+              )}
+              <p className="text-sm font-medium">{s.label}</p>
+              <p className="mt-0.5 text-[11px] text-[var(--color-charcoal)]/50">
+                {s.sizeLabel}
+              </p>
             </button>
           ))}
         </div>
         <p className="mt-2 break-keep text-xs text-[var(--color-charcoal)]/50">
-          {calendarShapes.find((s) => s.id === shape)?.detail}
+          {calendarShapes.find((s) => s.id === shape)?.prices[paper].toLocaleString()}원
+          부터 시작해요. (선택한 용지 기준)
         </p>
       </div>
 
       <div>
         <h2 className="text-sm font-medium">용지</h2>
-        <div className="mt-3 border border-[var(--color-hairline)] bg-white px-4 py-4 text-xs leading-relaxed text-[var(--color-charcoal)]/70">
-          <p>랑데뷰울트라화이트 · 240g</p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {calendarPapers.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPaper(p.id)}
+              className={`border px-4 py-3 text-left transition ${
+                paper === p.id
+                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                  : "border-[var(--color-hairline)]"
+              }`}
+            >
+              <p className="text-sm font-medium">{p.label}</p>
+              <p className="text-xs text-[var(--color-charcoal)]/50">{p.weight}</p>
+            </button>
+          ))}
         </div>
+        <p className="mt-2 break-keep text-xs leading-relaxed text-[var(--color-charcoal)]/50">
+          {selectedPaper.desc}
+        </p>
       </div>
 
       <div>
@@ -124,7 +169,7 @@ function OptionsForm({
         </div>
 
         <p className="mt-4 text-xs font-medium text-[var(--color-charcoal)]/70">
-          삼각대 색상
+          삼각 스탠드 색상
         </p>
         <div className="mt-2 grid grid-cols-3 gap-2">
           {standColors.map((c) => (
@@ -142,6 +187,27 @@ function OptionsForm({
             </button>
           ))}
         </div>
+        <p className="mt-2 break-keep text-xs text-[var(--color-charcoal)]/50">
+          스탠드 하단에 약 20mm의 여유 공간이 있어, 스티커나 라벨을 자유롭게 붙일 수 있어요.
+        </p>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-medium">페이지 수</h2>
+        <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
+          최소 13장부터 최대 24장까지 구성할 수 있어요.
+        </p>
+        <select
+          value={pageCount}
+          onChange={(e) => setPageCount(Number(e.target.value))}
+          className="mt-3 w-full border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+        >
+          {PAGE_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n}장
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>
@@ -206,14 +272,25 @@ function OptionsForm({
           </button>
         </div>
       </div>
+
+      <div>
+        <h2 className="text-sm font-medium">사진 업로드 전 확인해주세요</h2>
+        <ul className="mt-3 flex flex-col gap-1.5 border border-[var(--color-hairline)] bg-white px-4 py-4 text-xs leading-relaxed text-[var(--color-charcoal)]/70">
+          {calendarOrderNotes.map((line, i) => (
+            <li key={i}>· {line}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
 
 export default function CalendarPage() {
-  const [shape, setShape] = useState<CalendarShapeId>("wide");
+  const [shape, setShape] = useState<CalendarShapeId>("large");
+  const [paper, setPaper] = useState<CalendarPaperId>("rendezvous");
   const [ringColor, setRingColor] = useState<RingColorId>("black");
   const [standColor, setStandColor] = useState<StandColorId>("ivory");
+  const [pageCount, setPageCount] = useState(CALENDAR_DEFAULT_PAGES);
   const [startYear, setStartYear] = useState(2026);
   const [startMonth, setStartMonth] = useState(1);
   const [orderTitle, setOrderTitle] = useState("");
@@ -222,21 +299,23 @@ export default function CalendarPage() {
   const [cartNotice, setCartNotice] = useState(false);
 
   const selectedShape = calendarShapes.find((s) => s.id === shape)!;
-  const unitPrice = CALENDAR_BASE_PRICE;
+  const unitPrice = selectedShape.prices[paper];
   const totalPrice = unitPrice * quantity;
 
   const sizeId = useMemo(
-    () => `${shape}-${ringColor}-${standColor}`,
-    [shape, ringColor, standColor]
+    () => `${shape}-${paper}-${ringColor}-${standColor}`,
+    [shape, paper, ringColor, standColor]
   );
   const sizeLabel = `${selectedShape.label} · ${
-    ringColors.find((c) => c.id === ringColor)?.label
-  } · ${standColors.find((c) => c.id === standColor)?.label}`;
+    calendarPapers.find((p) => p.id === paper)?.label
+  } · ${ringColors.find((c) => c.id === ringColor)?.label} · ${
+    standColors.find((c) => c.id === standColor)?.label
+  }`;
 
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
   )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${unitPrice}&note=${encodeURIComponent(
-    `${orderTitle} / 시작 ${startYear}년 ${startMonth}월`
+    `${orderTitle} / 시작 ${startYear}년 ${startMonth}월 / ${pageCount}장`
   )}`;
 
   function handleAddToCart() {
@@ -257,30 +336,24 @@ export default function CalendarPage() {
 
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-14">
-          {/* 이미지: 아직 실제 사진이 없어서 1:1 자리만 잡아뒀어요 */}
+          {/* 이미지: 아직 실제 사진이 없어서 1:1 자리만 잡아뒀어요. 사진이 준비되면
+              네 사이즈를 한꺼번에 보여주기보다, Large 또는 Small 한 컷을 메인으로 걸고
+              아래 사이즈 비교 섹션에서 나머지를 보여주는 구성을 추천해요. */}
           <div>
             <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 border border-dashed border-[var(--color-hairline)] bg-[var(--color-hairline)]/10 text-[var(--color-charcoal)]/40">
               <span className="text-sm">이미지 준비중</span>
-              <span className="text-xs">1:1 사이즈</span>
+              <span className="text-xs">1:1 사이즈 · {selectedShape.label} 기준</span>
             </div>
 
-            {/* 모바일: 이미지 바로 아래에 이름·가격·모양·설명을 바로 보여줘요 */}
+            {/* 모바일: 이미지 바로 아래에 이름·가격·사이즈·설명을 바로 보여줘요 */}
             <div className="mt-4 sm:hidden">
               <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
-              <h1 className="mt-2 text-2xl font-semibold">디자인 탁상용 캘린더</h1>
+              <h1 className="mt-2 text-2xl font-semibold">Keepic 커스텀 탁상 캘린더</h1>
               <p className="mt-3 text-2xl font-semibold">
-                {unitPrice > 0 ? (
-                  <>
-                    {totalPrice.toLocaleString()}원
-                    <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
-                      ({unitPrice.toLocaleString()}원 × {quantity}개)
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-base font-normal text-[var(--color-charcoal)]/50">
-                    가격 준비중
-                  </span>
-                )}
+                {totalPrice.toLocaleString()}원
+                <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
+                  ({unitPrice.toLocaleString()}원 × {quantity}개)
+                </span>
               </p>
 
               <div className="mt-4 grid grid-cols-4 gap-2">
@@ -296,21 +369,71 @@ export default function CalendarPage() {
                     }`}
                   >
                     {s.label}
+                    {s.badge && (
+                      <span className="ml-1 text-[10px] text-[var(--color-sky)]">
+                        {s.badge}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
 
               <p className="mt-4 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
-                트윙링 제본 탁상용 캘린더예요. 모양·트윈링 컬러·삼각대 색상을 골라
-                나만의 캘린더를 만들어보세요.
+                좋아하는 사진으로 만드는 나만의 탁상 캘린더예요. 가족, 아이, 반려동물,
+                여행처럼 기억하고 싶은 순간을 매달 꺼내볼 수 있도록 담아보세요.
               </p>
             </div>
 
             <div className="mt-8 hidden sm:block">
               <p className="break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
-                트윙링 제본 탁상용 캘린더예요. 모양·트윈링 컬러·삼각대 색상을 골라
-                나만의 캘린더를 만들어보세요.
+                좋아하는 사진으로 만드는 나만의 탁상 캘린더예요. 가족, 아이, 반려동물,
+                여행처럼 기억하고 싶은 순간을 매달 꺼내볼 수 있도록 담아보세요.
               </p>
+            </div>
+
+            {/* 사이즈 비교: 사진 없이도 네 사이즈를 한눈에 비교할 수 있도록 표로 정리했어요 */}
+            <div className="mt-10 border-t border-[var(--color-hairline)] pt-8">
+              <p className="text-sm font-medium">사이즈 비교</p>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[420px] border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-[var(--color-hairline)] text-[var(--color-charcoal)]/50">
+                      <th className="py-2 pr-3 font-medium">사이즈</th>
+                      <th className="py-2 pr-3 font-medium">완성 사이즈</th>
+                      <th className="py-2 pr-3 font-medium">
+                        {calendarPapers[0].label}
+                      </th>
+                      <th className="py-2 font-medium">{calendarPapers[1].label}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {calendarShapes.map((s) => (
+                      <tr
+                        key={s.id}
+                        className="border-b border-[var(--color-hairline)]/60"
+                      >
+                        <td className="py-2.5 pr-3 font-medium">
+                          {s.label}
+                          {s.badge && (
+                            <span className="ml-1.5 bg-[var(--color-sky)]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-sky)]">
+                              {s.badge}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3 text-[var(--color-charcoal)]/70">
+                          {s.sizeLabel}
+                        </td>
+                        <td className="py-2.5 pr-3 text-[var(--color-charcoal)]/70">
+                          {s.prices.rendezvous.toLocaleString()}원
+                        </td>
+                        <td className="py-2.5 text-[var(--color-charcoal)]/70">
+                          {s.prices.luster.toLocaleString()}원
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -318,20 +441,12 @@ export default function CalendarPage() {
           <div>
             <div className="hidden sm:block">
               <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
-              <h1 className="mt-2 text-3xl font-semibold">디자인 탁상용 캘린더</h1>
+              <h1 className="mt-2 text-3xl font-semibold">Keepic 커스텀 탁상 캘린더</h1>
               <p className="mt-3 text-2xl font-semibold">
-                {unitPrice > 0 ? (
-                  <>
-                    {totalPrice.toLocaleString()}원
-                    <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
-                      ({unitPrice.toLocaleString()}원 × {quantity}개)
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-base font-normal text-[var(--color-charcoal)]/50">
-                    가격 준비중
-                  </span>
-                )}
+                {totalPrice.toLocaleString()}원
+                <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
+                  ({unitPrice.toLocaleString()}원 × {quantity}개)
+                </span>
               </p>
             </div>
 
@@ -339,10 +454,14 @@ export default function CalendarPage() {
               <OptionsForm
                 shape={shape}
                 setShape={setShape}
+                paper={paper}
+                setPaper={setPaper}
                 ringColor={ringColor}
                 setRingColor={setRingColor}
                 standColor={standColor}
                 setStandColor={setStandColor}
+                pageCount={pageCount}
+                setPageCount={setPageCount}
                 startYear={startYear}
                 setStartYear={setStartYear}
                 startMonth={startMonth}
@@ -358,20 +477,12 @@ export default function CalendarPage() {
                   청구금액
                 </span>
                 <div className="text-right">
-                  {unitPrice > 0 ? (
-                    <>
-                      <span className="mr-2 text-sm text-[var(--color-charcoal)]/50">
-                        개당 {unitPrice.toLocaleString()}원
-                      </span>
-                      <span className="text-xl font-semibold">
-                        {totalPrice.toLocaleString()}원
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-sm text-[var(--color-charcoal)]/50">
-                      가격 준비중
-                    </span>
-                  )}
+                  <span className="mr-2 text-sm text-[var(--color-charcoal)]/50">
+                    개당 {unitPrice.toLocaleString()}원
+                  </span>
+                  <span className="text-xl font-semibold">
+                    {totalPrice.toLocaleString()}원
+                  </span>
                 </div>
               </div>
 
@@ -396,7 +507,7 @@ export default function CalendarPage() {
                 </p>
               )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-                아직 준비중인 상품이에요. 이미지와 가격이 확정되는 대로 바로 주문하실 수 있게 열어드릴게요.
+                다음 단계에서 요청사항과 참고 사진(선택)을 다시 확인할 수 있어요. 5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
           </div>
@@ -408,9 +519,7 @@ export default function CalendarPage() {
       {/* 모바일 전용: 하단 고정 바 → 탭하면 옵션 선택 팝업이 아래에서 열림 */}
       <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t border-[var(--color-hairline)] bg-white px-6 py-4 sm:hidden">
         <div>
-          <p className="text-lg font-semibold">
-            {unitPrice > 0 ? `${totalPrice.toLocaleString()}원` : "가격 준비중"}
-          </p>
+          <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
           <p className="text-xs text-[var(--color-charcoal)]/50">{quantity}개</p>
         </div>
         <button
@@ -448,10 +557,14 @@ export default function CalendarPage() {
               <OptionsForm
                 shape={shape}
                 setShape={setShape}
+                paper={paper}
+                setPaper={setPaper}
                 ringColor={ringColor}
                 setRingColor={setRingColor}
                 standColor={standColor}
                 setStandColor={setStandColor}
+                pageCount={pageCount}
+                setPageCount={setPageCount}
                 startYear={startYear}
                 setStartYear={setStartYear}
                 startMonth={startMonth}
@@ -464,9 +577,7 @@ export default function CalendarPage() {
             </div>
 
             <div className="mt-8 flex items-center justify-between border-t border-[var(--color-hairline)] pt-5">
-              <p className="text-lg font-semibold">
-                {unitPrice > 0 ? `${totalPrice.toLocaleString()}원` : "가격 준비중"}
-              </p>
+              <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
               <Link
                 href={nextUrl}
                 className="bg-[var(--color-sky)] px-8 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"

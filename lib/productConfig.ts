@@ -2,7 +2,7 @@ import { phoneBrands, phoneModelsByBrand, caseTypes, coatings } from "./phoneCas
 import { tumblerTypes } from "./tumblerModels";
 import { ecobagShapes, ecobagFabrics, ecobagAddons } from "./ecobagModels";
 import { mugTypes } from "./mugModels";
-import { calendarShapes, ringColors, standColors } from "./calendarModels";
+import { calendarShapes, calendarPapers, ringColors, standColors } from "./calendarModels";
 
 function buildPhoneCaseSizes() {
   const list: { id: string; label: string; detail: string; aspect: string }[] = [];
@@ -98,14 +98,16 @@ function buildMugSizes() {
 function buildCalendarSizes() {
   const list: { id: string; label: string; detail: string; aspect: string }[] = [];
   for (const shape of calendarShapes) {
-    for (const ring of ringColors) {
-      for (const stand of standColors) {
-        list.push({
-          id: `${shape.id}-${ring.id}-${stand.id}`,
-          label: `${shape.label} · ${ring.label} · ${stand.label}`,
-          detail: `${shape.detail} · 트윈링 ${ring.label} · 삼각대 ${stand.label}`,
-          aspect: "aspect-square",
-        });
+    for (const paper of calendarPapers) {
+      for (const ring of ringColors) {
+        for (const stand of standColors) {
+          list.push({
+            id: `${shape.id}-${paper.id}-${ring.id}-${stand.id}`,
+            label: `${shape.label} · ${paper.label} · ${ring.label} · ${stand.label}`,
+            detail: `${shape.sizeLabel} · ${paper.label} ${paper.weight} · 트윈링 ${ring.label} · 삼각대 ${stand.label}`,
+            aspect: "aspect-square",
+          });
+        }
       }
     }
   }
