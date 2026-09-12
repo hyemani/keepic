@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import SiteHeader from "@/components/SiteHeader";
+import Link from "next/link";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
 
@@ -193,9 +194,9 @@ export default function CasesPage() {
           <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
             <h2 className="text-xl font-semibold">한 권에 담아낸 소중한 순간들</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-            <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {bigSpreadExamples.map((img) => (
-                <div key={img.src} className="overflow-hidden">
+                <div key={img.src} className="overflow-hidden rounded-xl">
                   <img src={img.src} alt={img.alt} className="w-full object-cover" />
                 </div>
               ))}
@@ -205,9 +206,9 @@ export default function CasesPage() {
           <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
             <h2 className="text-xl font-semibold">아이의 하루, 성장 기록</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-            <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {babyCovers.map((img) => (
-                <div key={img.src} className="aspect-square overflow-hidden">
+                <div key={img.src} className="aspect-square overflow-hidden rounded-xl">
                   <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
                 </div>
               ))}
@@ -217,9 +218,9 @@ export default function CasesPage() {
           <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
             <h2 className="text-xl font-semibold">여행, 커플, 가족의 순간</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-            <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {travelCovers.map((img) => (
-                <div key={img.src} className="aspect-square overflow-hidden">
+                <div key={img.src} className="aspect-square overflow-hidden rounded-xl">
                   <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
                 </div>
               ))}
@@ -229,21 +230,14 @@ export default function CasesPage() {
           <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
             <h2 className="text-xl font-semibold">내지 펼침 예시</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-            <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {spreadExamples.map((img) => (
-                <div key={img.src} className="overflow-hidden">
+                <div key={img.src} className="overflow-hidden rounded-xl">
                   <img src={img.src} alt={img.alt} className="w-full object-cover" />
                 </div>
               ))}
             </div>
 
-            <div className="mt-12 rounded-2xl bg-[var(--color-sky)]/10 p-8 text-center">
-              <p className="break-keep text-lg font-medium">
-                고객님의 사진으로 만든 사례는
-                <br />
-                후기가 쌓이는 대로 추가할게요.
-              </p>
-            </div>
           </section>
         </>
       ) : (
@@ -275,6 +269,15 @@ export default function CasesPage() {
 
         </section>
       )}
+
+      <section className="mx-auto hidden max-w-6xl px-6 pb-16 sm:block sm:px-10">
+        <Link
+          href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
+          className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
+        >
+          {tab === "photobook" ? "추억을 한 권에 담기" : "추억을 일상에 담기"}
+        </Link>
+      </section>
 
       <SiteFooter />
       <StickyOrderBar
