@@ -29,7 +29,6 @@ const galleryImagesByShape: Record<EcobagShapeId, string[]> = {
     "/goods/ecobag/gallery-5.jpg",
   ],
   vertical: [
-    "/goods/ecobag/gallery-v-2.jpg",
     "/goods/ecobag/gallery-v-1.jpg",
     "/goods/ecobag/gallery-v-3.jpg",
     "/goods/ecobag/gallery-v-4.jpg",
