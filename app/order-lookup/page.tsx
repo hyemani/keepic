@@ -556,7 +556,7 @@ export default function OrderLookupPage() {
                       )}
                       {(order.status === "in_production" ||
                         order.status === "shipped") && (
-                        <p className="mt-4 text-xs text-[var(--color-charcoal)]/50">
+                        <p className="mt-4 text-xs text-[var(--color-charcoal)]/50 break-keep">
                           취소가 필요하시면 문의해주세요.
                         </p>
                       )}

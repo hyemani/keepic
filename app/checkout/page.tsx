@@ -113,7 +113,15 @@ export default function CheckoutPage() {
         strategy="afterInteractive"
       />
 
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 sm:px-10">
+      <header className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-8 sm:px-10">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="뒤로가기"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+        >
+          ←
+        </button>
         <a href="/">
           <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
         </a>
@@ -213,7 +221,7 @@ export default function CheckoutPage() {
 
         <div className="mt-10 rounded-2xl border border-[var(--color-hairline)] bg-white p-6">
           <h2 className="text-lg font-semibold">입금 안내</h2>
-          <p className="mt-3 text-sm leading-relaxed text-[var(--color-charcoal)]/70">
+          <p className="mt-3 text-sm leading-relaxed text-[var(--color-charcoal)]/70 break-keep">
             아래 계좌로 입금해주시면, 확인 후 제작을 시작해요.
           </p>
 

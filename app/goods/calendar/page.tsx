@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import {
@@ -19,6 +19,10 @@ import {
   CALENDAR_DEFAULT_PAGES,
 } from "@/lib/calendarModels";
 import { addToCart } from "@/lib/cart";
+import { productConfig } from "@/lib/productConfig";
+import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
+import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
+import PhotoPickerField from "@/components/PhotoPickerField";
 
 const PRODUCT_NAME = "캘린더";
 
@@ -85,6 +89,10 @@ function OptionsForm({
   setRequestNote,
   quantity,
   setQuantity,
+  photos,
+  setPhotos,
+  requiredMinPx,
+  maxPhotos,
 }: {
   shape: CalendarShapeId;
   setShape: (s: CalendarShapeId) => void;
@@ -106,6 +114,10 @@ function OptionsForm({
   setRequestNote: (v: string) => void;
   quantity: number;
   setQuantity: (fn: (prev: number) => number) => void;
+  photos: GoodsPhoto[];
+  setPhotos: (photos: GoodsPhoto[]) => void;
+  requiredMinPx: number;
+  maxPhotos: number;
 }) {
   const selectedPaper = calendarPapers.find((p) => p.id === paper)!;
 
@@ -291,6 +303,15 @@ function OptionsForm({
         />
       </div>
 
+      <PhotoPickerField
+        photos={photos}
+        onPhotosChange={setPhotos}
+        minPhotos={1}
+        maxPhotos={maxPhotos}
+        requiredMinPx={requiredMinPx}
+        hint="캘린더에 넣을 사진을 골라주세요. 달마다 넣고 싶은 사진을 순서에 상관없이 최대 12장까지 올릴 수 있어요."
+      />
+
       <div>
         <h2 className="text-sm font-medium">요청사항</h2>
         <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
@@ -340,6 +361,9 @@ function OptionsForm({
 }
 
 export default function CalendarPage() {
+  const router = useRouter();
+  const [photos, setPhotos] = useState<GoodsPhoto[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [shape, setShape] = useState<CalendarShapeId>("large");
   const [paper, setPaper] = useState<CalendarPaperId>("rendezvous");
   const [ringColor, setRingColor] = useState<RingColorId>("black");
@@ -388,11 +412,30 @@ export default function CalendarPage() {
   // 함께 전달하고, 요청사항(note)만 다음 단계에서 자유롭게 다시 고칠 수 있게 해요.
   const colorNote = `${orderTitle} / 시작 ${startYear}년 ${startMonth}월 / ${pageCount}장`;
 
-  const nextUrl = `/upload?product=${encodeURIComponent(
-    PRODUCT_NAME
-  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${unitPrice}&note=${encodeURIComponent(
-    requestNote
-  )}&colorNote=${encodeURIComponent(colorNote)}`;
+  const goodsConfig = productConfig["캘린더"];
+  const sizeInfo = goodsConfig.sizes.find((s) => s.id === sizeId);
+  const requiredMinPx = calcRequiredMinPx(sizeInfo?.detail ?? "");
+
+  async function handleSubmit() {
+    if (photos.length < goodsConfig.minPhotos) {
+      alert(`사진을 최소 ${goodsConfig.minPhotos}장 이상 선택해주세요.`);
+      return;
+    }
+    setIsSaving(true);
+    const result = await saveGoodsDraftAndGoToCheckout({
+      router,
+      productName: PRODUCT_NAME,
+      sizeId,
+      sizeLabel,
+      sizeDetail: sizeInfo?.detail ?? "",
+      quantity,
+      unitPrice,
+      photos,
+      note: requestNote,
+      colorNote,
+    });
+    if (!result.ok) setIsSaving(false);
+  }
 
   function handleAddToCart() {
     addToCart({
@@ -568,6 +611,10 @@ export default function CalendarPage() {
                 setRequestNote={setRequestNote}
                 quantity={quantity}
                 setQuantity={setQuantity}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                maxPhotos={goodsConfig.maxPhotos}
               />
 
               <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
@@ -592,12 +639,18 @@ export default function CalendarPage() {
                 >
                   장바구니
                 </button>
-                <Link
-                  href={nextUrl}
-                  className="flex-1 bg-[var(--color-sky)] px-6 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSaving}
+                  className={`flex-1 px-6 py-4 text-center text-sm font-medium text-white transition ${
+                    isSaving
+                      ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                      : "bg-[var(--color-sky)] hover:opacity-90"
+                  }`}
                 >
-                  제작 신청하기
-                </Link>
+                  {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+                </button>
               </div>
               {cartNotice && (
                 <p className="mt-2 text-right text-xs text-[var(--color-sky)]">
@@ -605,7 +658,7 @@ export default function CalendarPage() {
                 </p>
               )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-                다음 단계에서 요청사항과 참고 사진(선택)을 다시 확인할 수 있어요. 5만원 이상 구매 시 배송비가 무료예요.
+                5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
           </div>
@@ -673,17 +726,27 @@ export default function CalendarPage() {
                 setRequestNote={setRequestNote}
                 quantity={quantity}
                 setQuantity={setQuantity}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                maxPhotos={goodsConfig.maxPhotos}
               />
             </div>
 
             <div className="mt-8 flex items-center justify-between border-t border-[var(--color-hairline)] pt-5">
               <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
-              <Link
-                href={nextUrl}
-                className="bg-[var(--color-sky)] px-8 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSaving}
+                className={`px-8 py-4 text-center text-sm font-medium text-white transition ${
+                  isSaving
+                    ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                    : "bg-[var(--color-sky)] hover:opacity-90"
+                }`}
               >
-                제작 신청하기
-              </Link>
+                {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+              </button>
             </div>
           </div>
         </div>

@@ -391,7 +391,7 @@ export default function AdminPage() {
                 </span>
               </div>
               {selectedOrder.status === "pending_payment" && (
-                <p className="mt-2 text-xs text-[var(--color-charcoal)]/50">
+                <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
                   입금 확인 후(상태를 &quot;제작중&quot;으로 바꾼 뒤) 시안을 올릴 수 있어요.
                 </p>
               )}

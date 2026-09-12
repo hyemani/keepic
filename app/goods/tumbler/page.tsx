@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { tumblerTypes, TumblerTypeId } from "@/lib/tumblerModels";
 import { addToCart } from "@/lib/cart";
+import { productConfig } from "@/lib/productConfig";
+import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
+import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
+import PhotoPickerField from "@/components/PhotoPickerField";
 
 const PRODUCT_NAME = "텀블러";
 
@@ -18,6 +22,10 @@ function OptionsForm({
   setQuantity,
   requestNote,
   setRequestNote,
+  photos,
+  setPhotos,
+  requiredMinPx,
+  photoAspect,
 }: {
   typeId: TumblerTypeId;
   setTypeId: (t: TumblerTypeId) => void;
@@ -27,6 +35,10 @@ function OptionsForm({
   setQuantity: (fn: (prev: number) => number) => void;
   requestNote: string;
   setRequestNote: (v: string) => void;
+  photos: GoodsPhoto[];
+  setPhotos: (photos: GoodsPhoto[]) => void;
+  requiredMinPx: number;
+  photoAspect: string;
 }) {
   const selectedType = tumblerTypes.find((t) => t.id === typeId)!;
 
@@ -84,6 +96,17 @@ function OptionsForm({
         </div>
       </div>
 
+      <PhotoPickerField
+        photos={photos}
+        onPhotosChange={setPhotos}
+        minPhotos={0}
+        maxPhotos={1}
+        requiredMinPx={requiredMinPx}
+        aspect={photoAspect}
+        hint="각인 디자인에 참고할 사진이 있다면 선택해주세요. (선택)"
+        optional
+      />
+
       <div>
         <h2 className="text-sm font-medium">요청사항</h2>
         <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
@@ -124,6 +147,7 @@ function OptionsForm({
 }
 
 export default function TumblerPage() {
+  const router = useRouter();
   const [typeId, setTypeIdState] = useState<TumblerTypeId>("clip-vacuum");
   const [colorId, setColorId] = useState(tumblerTypes[0].colors[0].id);
   const [quantity, setQuantity] = useState(1);
@@ -133,6 +157,8 @@ export default function TumblerPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState(false);
   const [requestNote, setRequestNote] = useState("");
+  const [photos, setPhotos] = useState<GoodsPhoto[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const selectedType = tumblerTypes.find((t) => t.id === typeId)!;
   const selectedColor =
@@ -164,11 +190,10 @@ export default function TumblerPage() {
 
   const sizeId = useMemo(() => `${typeId}-${colorId}`, [typeId, colorId]);
   const sizeLabel = `${selectedType.label} · ${selectedColor.label}`;
-  const nextUrl = `/upload?product=${encodeURIComponent(
-    PRODUCT_NAME
-  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${
-    selectedType.price
-  }&note=${encodeURIComponent(requestNote)}`;
+
+  const sizeInfo = productConfig["텀블러"].sizes.find((s) => s.id === sizeId);
+  const requiredMinPx = calcRequiredMinPx(sizeInfo?.detail ?? "");
+  const photoAspect = sizeInfo?.aspect ?? "aspect-square";
 
   function handleAddToCart() {
     addToCart({
@@ -180,6 +205,26 @@ export default function TumblerPage() {
     });
     setCartNotice(true);
     setTimeout(() => setCartNotice(false), 2000);
+  }
+
+  async function handleSubmit() {
+    if (photos.length < 1 && requestNote.trim() === "") {
+      alert("각인 요청사항을 적어주시거나, 참고할 사진을 선택해주세요.");
+      return;
+    }
+    setIsSaving(true);
+    const result = await saveGoodsDraftAndGoToCheckout({
+      router,
+      productName: PRODUCT_NAME,
+      sizeId,
+      sizeLabel,
+      sizeDetail: sizeInfo?.detail ?? "",
+      quantity,
+      unitPrice: selectedType.price,
+      photos,
+      note: requestNote,
+    });
+    if (!result.ok) setIsSaving(false);
   }
 
   return (
@@ -305,6 +350,10 @@ export default function TumblerPage() {
                 setQuantity={setQuantity}
                 requestNote={requestNote}
                 setRequestNote={setRequestNote}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                photoAspect={photoAspect}
               />
 
               <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
@@ -329,12 +378,18 @@ export default function TumblerPage() {
                 >
                   장바구니
                 </button>
-                <Link
-                  href={nextUrl}
-                  className="flex-1 bg-[var(--color-sky)] px-6 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSaving}
+                  className={`flex-1 px-6 py-4 text-center text-sm font-medium text-white transition ${
+                    isSaving
+                      ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                      : "bg-[var(--color-sky)] hover:opacity-90"
+                  }`}
                 >
-                  제작 신청하기
-                </Link>
+                  {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+                </button>
               </div>
               {cartNotice && (
                 <p className="mt-2 text-right text-xs text-[var(--color-sky)]">
@@ -342,7 +397,9 @@ export default function TumblerPage() {
                 </p>
               )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-                다음 단계에서 요청사항과 참고 사진(선택)을 다시 확인할 수 있어요. 5만원 이상 구매 시 배송비가 무료예요.
+                제작 신청하기를 누르면 바로 배송정보 입력 화면으로 이동해요.
+                <br />
+                5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
           </div>
@@ -398,17 +455,27 @@ export default function TumblerPage() {
                 setQuantity={setQuantity}
                 requestNote={requestNote}
                 setRequestNote={setRequestNote}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                photoAspect={photoAspect}
               />
             </div>
 
-            <div className="mt-8 flex items-center justify-between border-t border-[var(--color-hairline)] pt-5">
+            <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-5">
               <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
-              <Link
-                href={nextUrl}
-                className="bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSaving}
+                className={`px-8 py-4 text-sm font-medium text-white transition ${
+                  isSaving
+                    ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                    : "bg-[var(--color-sky)] hover:opacity-90"
+                }`}
               >
-                제작 신청하기
-              </Link>
+                {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+              </button>
             </div>
           </div>
         </div>

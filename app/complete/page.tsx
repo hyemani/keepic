@@ -17,7 +17,7 @@ export default function CompletePage() {
         <br />
         주문 확인 연락을 곧 드릴게요.
       </p>
-      <p className="mt-4 max-w-sm text-sm text-[var(--color-charcoal)]/60">
+      <p className="mt-4 max-w-sm text-sm text-[var(--color-charcoal)]/60 break-keep">
         입금 확인 및 사진·요청사항 접수가 완료되면 시안 작업이 시작됩니다.
       </p>
 

@@ -99,7 +99,7 @@ function PhotobookOptions() {
           </button>
         ))}
       </div>
-      <p className="mt-2 text-xs text-[var(--color-charcoal)]/40">
+      <p className="mt-2 text-xs text-[var(--color-charcoal)]/40 break-keep">
         완성 규격 기준(임시)이에요. 제작 파일 규격은 제작처 확인 후 별도 안내드려요.
       </p>
 
@@ -230,7 +230,7 @@ function PhotobookOptions() {
             <p>{total.toLocaleString()}원</p>
           </div>
         </div>
-        <p className="mt-3 text-xs text-[var(--color-charcoal)]/40">
+        <p className="mt-3 text-xs text-[var(--color-charcoal)]/40 break-keep">
           배송비 별도예요. 편집과 기본 수정 1회가 포함된 임시 판매가예요.
         </p>
       </div>

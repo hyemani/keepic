@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import {
@@ -17,6 +17,10 @@ import {
   CaseColor,
 } from "@/lib/phoneCaseModels";
 import { addToCart } from "@/lib/cart";
+import { productConfig } from "@/lib/productConfig";
+import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
+import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
+import PhotoPickerField from "@/components/PhotoPickerField";
 
 const PRODUCT_NAME = "폰케이스";
 
@@ -55,6 +59,10 @@ function OptionsForm({
   setQuantity,
   requestNote,
   setRequestNote,
+  photos,
+  setPhotos,
+  requiredMinPx,
+  photoAspect,
 }: {
   caseType: CaseTypeId;
   setCaseType: (t: CaseTypeId) => void;
@@ -72,6 +80,10 @@ function OptionsForm({
   setQuantity: (fn: (prev: number) => number) => void;
   requestNote: string;
   setRequestNote: (v: string) => void;
+  photos: GoodsPhoto[];
+  setPhotos: (photos: GoodsPhoto[]) => void;
+  requiredMinPx: number;
+  photoAspect: string;
 }) {
   const models = phoneModelsByBrand[brand];
   const selectedCaseType = caseTypes.find((t) => t.id === caseType)!;
@@ -231,6 +243,16 @@ function OptionsForm({
         </select>
       </div>
 
+      <PhotoPickerField
+        photos={photos}
+        onPhotosChange={setPhotos}
+        minPhotos={1}
+        maxPhotos={1}
+        requiredMinPx={requiredMinPx}
+        aspect={photoAspect}
+        hint="케이스에 인쇄할 사진 1장을 선택해주세요."
+      />
+
       <div>
         <h2 className="text-sm font-medium">요청사항</h2>
         <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
@@ -270,6 +292,9 @@ function OptionsForm({
 }
 
 export default function PhoneCasePage() {
+  const router = useRouter();
+  const [photos, setPhotos] = useState<GoodsPhoto[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [orderedImages, setOrderedImages] = useState<string[]>(
     galleryImagesByCaseType.premium
   );
@@ -341,15 +366,33 @@ export default function PhoneCasePage() {
   // 하드케이스일 때는 고른 배경색상을 별도 메모(colorNote)로 함께 넘겨요.
   // (사이즈 아이디는 lib/productConfig.ts의 자동 생성 목록과 그대로 맞아야 해서 색상을 섞지 않고,
   //  고객이 다음 단계에서 요청사항을 고쳐도 배경색상 메모는 따로 안전하게 남아있어요.)
+  // 하드케이스일 때는 고른 배경색상을 별도 메모(colorNote)로 함께 넘겨요.
   const backgroundColorNote =
     caseType === "standard" ? `배경색상 · ${caseColor.label} (${caseColor.hex})` : "";
-  const nextUrl = `/upload?product=${encodeURIComponent(
-    PRODUCT_NAME
-  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${
-    selectedMaterial.price
-  }&note=${encodeURIComponent(requestNote)}&colorNote=${encodeURIComponent(
-    backgroundColorNote
-  )}`;
+  const sizeInfo = productConfig["폰케이스"].sizes.find((s) => s.id === sizeId);
+  const requiredMinPx = calcRequiredMinPx(sizeInfo?.detail ?? "");
+  const photoAspect = sizeInfo?.aspect ?? "aspect-[75/163]";
+
+  async function handleSubmit() {
+    if (photos.length < 1) {
+      alert("케이스에 인쇄할 사진을 선택해주세요.");
+      return;
+    }
+    setIsSaving(true);
+    const result = await saveGoodsDraftAndGoToCheckout({
+      router,
+      productName: PRODUCT_NAME,
+      sizeId,
+      sizeLabel,
+      sizeDetail: sizeInfo?.detail ?? "",
+      quantity,
+      unitPrice: selectedMaterial.price,
+      photos,
+      note: requestNote,
+      colorNote: backgroundColorNote,
+    });
+    if (!result.ok) setIsSaving(false);
+  }
 
   return (
     <main className="min-h-screen bg-white pb-24 text-[var(--color-charcoal)] sm:pb-0">
@@ -465,6 +508,10 @@ export default function PhoneCasePage() {
                 setQuantity={setQuantity}
                 requestNote={requestNote}
                 setRequestNote={setRequestNote}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                photoAspect={photoAspect}
               />
 
               <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
@@ -489,12 +536,18 @@ export default function PhoneCasePage() {
                 >
                   장바구니
                 </button>
-                <Link
-                  href={nextUrl}
-                  className="flex-1 bg-[var(--color-sky)] px-6 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSaving}
+                  className={`flex-1 px-6 py-4 text-center text-sm font-medium text-white transition ${
+                    isSaving
+                      ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                      : "bg-[var(--color-sky)] hover:opacity-90"
+                  }`}
                 >
-                  제작 신청하기
-                </Link>
+                  {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+                </button>
               </div>
               {cartNotice && (
                 <p className="mt-2 text-right text-xs text-[var(--color-sky)]">
@@ -502,7 +555,7 @@ export default function PhoneCasePage() {
                 </p>
               )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-                다음 단계에서 케이스에 담을 사진을 올려주세요. 5만원 이상 구매 시 배송비가 무료예요.
+                5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
 
@@ -567,17 +620,27 @@ export default function PhoneCasePage() {
                 setQuantity={setQuantity}
                 requestNote={requestNote}
                 setRequestNote={setRequestNote}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                photoAspect={photoAspect}
               />
             </div>
 
             <div className="mt-8 flex items-center justify-between border-t border-[var(--color-hairline)] pt-5">
               <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
-              <Link
-                href={nextUrl}
-                className="bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSaving}
+                className={`px-8 py-4 text-sm font-medium text-white transition ${
+                  isSaving
+                    ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                    : "bg-[var(--color-sky)] hover:opacity-90"
+                }`}
               >
-                제작 신청하기
-              </Link>
+                {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+              </button>
             </div>
           </div>
         </div>

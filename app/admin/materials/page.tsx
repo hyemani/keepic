@@ -80,7 +80,7 @@ export default function MaterialsPage() {
 
       <section className="mx-auto max-w-6xl px-6 pb-24 pt-8 sm:px-10">
         <h1 className="text-3xl font-semibold">원자재 재고</h1>
-        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60">
+        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60 break-keep">
           원자재를 쓰거나 새로 들여올 때마다 수량을 직접 고쳐주세요. 주문이 들어와도
           자동으로 줄어들지 않아요.
         </p>

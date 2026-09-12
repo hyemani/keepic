@@ -71,7 +71,7 @@ export default function PhotobookPage() {
       {/* 표지 예시 */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <h2 className="text-2xl font-semibold">표지 예시</h2>
-        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60">
+        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60 break-keep">
           디자인 예시예요. 실제 표지 종류는 주문 시 안내드려요.
         </p>
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -89,7 +89,7 @@ export default function PhotobookPage() {
       {/* 내지 예시 */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <h2 className="text-2xl font-semibold">내지 예시</h2>
-        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60">
+        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60 break-keep">
           사진과 문구를 이렇게 펼침면으로 배치해드려요. 디자인 예시예요.
         </p>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">

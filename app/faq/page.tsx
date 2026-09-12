@@ -83,7 +83,7 @@ export default function FaqPage() {
           ))}
         </div>
 
-        <p className="mt-10 text-sm text-[var(--color-charcoal)]/60">
+        <p className="mt-10 text-sm text-[var(--color-charcoal)]/60 break-keep">
           더 궁금하신 점이 있으시면 주문 후 요청사항으로 편하게 남겨주세요.
         </p>
       </section>

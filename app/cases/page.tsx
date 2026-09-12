@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import { useState } from "react";
 import SiteHeader from "@/components/SiteHeader";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
@@ -49,22 +51,69 @@ const spreadExamples = [
   { src: "/photobook/spreads/spread-10.png", alt: "내지 펼침 예시 10" },
 ];
 
+// "나만의 굿즈" 탭: 이미 제작해둔 굿즈 페이지의 제품 사진들을 모아서 보여줘요.
+const goodsCovers = [
+  { src: "/goods/mug/main-1.jpg", alt: "머그 예시 1" },
+  { src: "/goods/mug/glossy-1.jpg", alt: "머그 예시 2" },
+  { src: "/goods/mug/ice-color-1.jpg", alt: "머그 예시 3" },
+  { src: "/goods/mug/beer-can-1.jpg", alt: "머그 예시 4" },
+  { src: "/goods/phone-case/premium-1.jpg", alt: "폰케이스 예시 1" },
+  { src: "/goods/phone-case/premium-2.jpg", alt: "폰케이스 예시 2" },
+  { src: "/goods/phone-case/standard-blue.jpg", alt: "폰케이스 예시 3" },
+  { src: "/goods/phone-case/standard-pink.jpg", alt: "폰케이스 예시 4" },
+  { src: "/goods/tumbler/clip-black-1.jpg", alt: "텀블러 예시 1" },
+  { src: "/goods/tumbler/clip-black-2.jpg", alt: "텀블러 예시 2" },
+  { src: "/goods/tumbler/clip-black-3.jpg", alt: "텀블러 예시 3" },
+  { src: "/goods/tumbler/clip-colors.jpg", alt: "텀블러 예시 4" },
+  { src: "/goods/ecobag/gallery-1.jpg", alt: "에코백 예시 1" },
+  { src: "/goods/ecobag/gallery-2.jpg", alt: "에코백 예시 2" },
+  { src: "/goods/ecobag/gallery-v-1.jpg", alt: "에코백 예시 3" },
+  { src: "/goods/ecobag/gallery-v-2.jpg", alt: "에코백 예시 4" },
+  { src: "/goods/calendar/large-1.jpg", alt: "캘린더 예시 1" },
+  { src: "/goods/calendar/small-1.jpg", alt: "캘린더 예시 2" },
+  { src: "/goods/calendar/narrow-1.jpg", alt: "캘린더 예시 3" },
+  { src: "/goods/calendar/wide-1.jpg", alt: "캘린더 예시 4" },
+  { src: "/goods/fabric-poster/gallery-1.jpg", alt: "패브릭포스터 예시 1" },
+  { src: "/goods/fabric-poster/gallery-2.jpg", alt: "패브릭포스터 예시 2" },
+  { src: "/goods/fabric-poster/gallery-3.jpg", alt: "패브릭포스터 예시 3" },
+];
+
+type Tab = "photobook" | "goods";
+
 export default function CasesPage() {
+  const [tab, setTab] = useState<Tab>("photobook");
+
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
       <SiteHeader />
 
       <div className="mx-auto max-w-6xl px-6 pt-2 sm:px-10">
         <div className="inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] p-1 text-xs sm:text-sm">
-          <span className="rounded-full bg-[var(--color-sky)] px-4 py-2 font-medium text-white">
+          <button
+            type="button"
+            onClick={() => setTab("photobook")}
+            className={`rounded-full px-4 py-2 font-medium transition ${
+              tab === "photobook"
+                ? "bg-[var(--color-sky)] text-white"
+                : "text-[var(--color-charcoal)]/60"
+            }`}
+          >
             포토북
-          </span>
+          </button>
           <span className="cursor-not-allowed rounded-full px-4 py-2 text-[var(--color-charcoal)]/35">
             액자 (준비중)
           </span>
-          <span className="cursor-not-allowed rounded-full px-4 py-2 text-[var(--color-charcoal)]/35">
-            나만의 굿즈 (준비중)
-          </span>
+          <button
+            type="button"
+            onClick={() => setTab("goods")}
+            className={`rounded-full px-4 py-2 font-medium transition ${
+              tab === "goods"
+                ? "bg-[var(--color-sky)] text-white"
+                : "text-[var(--color-charcoal)]/60"
+            }`}
+          >
+            나만의 굿즈
+          </button>
         </div>
       </div>
 
@@ -75,78 +124,108 @@ export default function CasesPage() {
           <br />
           만들어드려요
         </h1>
-        <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
-          아래 이미지는 실제 고객님의 사진이 아닌,
-          <br />
-          Keepic이 준비한 디자인 예시예요.
-          <br />
-          아이의 하루를 담은 앨범부터 여행·커플 사진까지,
-          <br />
-          다양한 주제로 제작할 수 있어요.
-        </p>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
-        <h2 className="text-xl font-semibold">한 권에 담아낸 소중한 순간들</h2>
-        <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
-          {bigSpreadExamples.map((img) => (
-            <div key={img.src} className="overflow-hidden">
-              <img src={img.src} alt={img.alt} className="w-full object-cover" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
-        <h2 className="text-xl font-semibold">아이의 하루, 성장 기록</h2>
-        <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
-          {babyCovers.map((img) => (
-            <div key={img.src} className="aspect-square overflow-hidden">
-              <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
-        <h2 className="text-xl font-semibold">여행, 커플, 가족의 순간</h2>
-        <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
-          {travelCovers.map((img) => (
-            <div key={img.src} className="aspect-square overflow-hidden">
-              <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
-        <h2 className="text-xl font-semibold">내지 펼침 예시</h2>
-        <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-        <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2">
-          {spreadExamples.map((img) => (
-            <div key={img.src} className="overflow-hidden">
-              <img src={img.src} alt={img.alt} className="w-full object-cover" />
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-12 rounded-2xl bg-[var(--color-sky)]/10 p-8 text-center">
-          <p className="break-keep text-lg font-medium">
-            고객님의 사진으로 만든 사례는
+        {tab === "photobook" ? (
+          <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
+            아래 이미지는 실제 고객님의 사진이 아닌,
             <br />
-            후기가 쌓이는 대로 추가할게요.
+            Keepic이 준비한 디자인 예시예요.
+            <br />
+            아이의 하루를 담은 앨범부터 여행·커플 사진까지,
+            <br />
+            다양한 주제로 제작할 수 있어요.
           </p>
-          <Link
-            href="/order"
-            className="mt-6 inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-          >
-            제작 신청하기
-          </Link>
-        </div>
+        ) : (
+          <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
+            머그, 폰케이스, 텀블러, 에코백, 캘린더, 패브릭 포스터까지
+            <br />
+            좋아하는 사진으로 만들 수 있는 다양한 굿즈예요.
+            <br />
+            아래 이미지는 실제 제작된 제품 사진이며,
+            <br />
+            고객님의 사진으로도 이렇게 만들어드려요.
+          </p>
+        )}
       </section>
+
+      {tab === "photobook" ? (
+        <>
+          <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
+            <h2 className="text-xl font-semibold">한 권에 담아낸 소중한 순간들</h2>
+            <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
+            <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
+              {bigSpreadExamples.map((img) => (
+                <div key={img.src} className="overflow-hidden">
+                  <img src={img.src} alt={img.alt} className="w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
+            <h2 className="text-xl font-semibold">아이의 하루, 성장 기록</h2>
+            <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
+            <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
+              {babyCovers.map((img) => (
+                <div key={img.src} className="aspect-square overflow-hidden">
+                  <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
+            <h2 className="text-xl font-semibold">여행, 커플, 가족의 순간</h2>
+            <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
+            <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
+              {travelCovers.map((img) => (
+                <div key={img.src} className="aspect-square overflow-hidden">
+                  <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
+            <h2 className="text-xl font-semibold">내지 펼침 예시</h2>
+            <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
+            <div className="mt-6 grid grid-cols-1 gap-0 sm:grid-cols-2">
+              {spreadExamples.map((img) => (
+                <div key={img.src} className="overflow-hidden">
+                  <img src={img.src} alt={img.alt} className="w-full object-cover" />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-12 rounded-2xl bg-[var(--color-sky)]/10 p-8 text-center">
+              <p className="break-keep text-lg font-medium">
+                고객님의 사진으로 만든 사례는
+                <br />
+                후기가 쌓이는 대로 추가할게요.
+              </p>
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
+          <h2 className="break-keep text-xl font-semibold">나만의 굿즈, 이렇게 만들어드려요</h2>
+          <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">제품 예시</p>
+          <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
+            {goodsCovers.map((img) => (
+              <div key={img.src} className="aspect-square overflow-hidden">
+                <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-12 rounded-2xl bg-[var(--color-sky)]/10 p-8 text-center">
+            <p className="break-keep text-lg font-medium">
+              고객님의 사진으로 만든 사례는
+              <br />
+              후기가 쌓이는 대로 추가할게요.
+            </p>
+          </div>
+        </section>
+      )}
 
       <SiteFooter />
       <StickyOrderBar />

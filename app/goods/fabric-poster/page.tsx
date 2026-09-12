@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import {
@@ -20,6 +20,9 @@ import {
   FabricPosterEdgeId,
 } from "@/lib/fabricPosterModels";
 import { addToCart } from "@/lib/cart";
+import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
+import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
+import PhotoPickerField from "@/components/PhotoPickerField";
 
 const PRODUCT_NAME = "패브릭포스터";
 
@@ -36,6 +39,10 @@ function OptionsForm({
   setQuantity,
   requestNote,
   setRequestNote,
+  photos,
+  setPhotos,
+  requiredMinPx,
+  photoAspect,
 }: {
   sizeId: FabricPosterSizeId;
   setSizeId: (v: FabricPosterSizeId) => void;
@@ -49,6 +56,10 @@ function OptionsForm({
   setQuantity: (fn: (prev: number) => number) => void;
   requestNote: string;
   setRequestNote: (v: string) => void;
+  photos: GoodsPhoto[];
+  setPhotos: (photos: GoodsPhoto[]) => void;
+  requiredMinPx: number;
+  photoAspect: string;
 }) {
   const selectedEdge = fabricPosterEdgeOptions.find((e) => e.id === edgeId)!;
 
@@ -166,6 +177,16 @@ function OptionsForm({
         )}
       </div>
 
+      <PhotoPickerField
+        photos={photos}
+        onPhotosChange={setPhotos}
+        minPhotos={1}
+        maxPhotos={1}
+        requiredMinPx={requiredMinPx}
+        aspect={photoAspect}
+        hint="인쇄할 사진 1장을 선택해주세요. 선택한 규격 비율에 맞게 끌어서 위치를 조정할 수 있어요."
+      />
+
       <div>
         <h2 className="text-sm font-medium">요청사항</h2>
         <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
@@ -205,6 +226,7 @@ function OptionsForm({
 }
 
 export default function FabricPosterPage() {
+  const router = useRouter();
   const [sizeId, setSizeId] = useState<FabricPosterSizeId>(fabricPosterSizes[0].id);
   const [fabricId, setFabricId] = useState<FabricPosterFabricId>(fabricPosterFabrics[0].id);
   const [hangingId, setHangingId] = useState<FabricPosterHangingId>(FABRIC_POSTER_DEFAULT_HANGING);
@@ -214,6 +236,8 @@ export default function FabricPosterPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState(false);
   const [requestNote, setRequestNote] = useState("");
+  const [photos, setPhotos] = useState<GoodsPhoto[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const selectedSize = fabricPosterSizes.find((s) => s.id === sizeId)!;
   const selectedFabric = fabricPosterFabrics.find((f) => f.id === fabricId)!;
@@ -225,6 +249,11 @@ export default function FabricPosterPage() {
     [sizeId, fabricId, hangingId, edgeId]
   );
   const totalPrice = unitPrice * quantity;
+
+  // 사진 확대·저해상도 기준은 선택한 규격(mm)을 cm 문자열로 바꿔서 계산해요.
+  const sizeDetailCm = `${selectedSize.width / 10} x ${selectedSize.height / 10}`;
+  const requiredMinPx = calcRequiredMinPx(sizeDetailCm);
+  const photoAspect = selectedSize.aspect;
 
   function handleSelectImage(index: number) {
     setOrderedImages((prev) => {
@@ -239,11 +268,6 @@ export default function FabricPosterPage() {
     [sizeId, fabricId, hangingId, edgeId]
   );
   const sizeLabel = `${selectedSize.label} · ${selectedFabric.label} · ${selectedHanging.label} · ${selectedEdge.label}`;
-  const nextUrl = `/upload?product=${encodeURIComponent(
-    PRODUCT_NAME
-  )}&size=${encodeURIComponent(sizeCompositeId)}&quantity=${quantity}&unitPrice=${unitPrice}&note=${encodeURIComponent(
-    requestNote
-  )}`;
 
   function handleAddToCart() {
     addToCart({
@@ -255,6 +279,26 @@ export default function FabricPosterPage() {
     });
     setCartNotice(true);
     setTimeout(() => setCartNotice(false), 2000);
+  }
+
+  async function handleSubmit() {
+    if (photos.length < 1) {
+      alert("인쇄할 사진을 먼저 선택해주세요.");
+      return;
+    }
+    setIsSaving(true);
+    const result = await saveGoodsDraftAndGoToCheckout({
+      router,
+      productName: PRODUCT_NAME,
+      sizeId: sizeCompositeId,
+      sizeLabel,
+      sizeDetail: sizeDetailCm,
+      quantity,
+      unitPrice,
+      photos,
+      note: requestNote,
+    });
+    if (!result.ok) setIsSaving(false);
   }
 
   return (
@@ -297,15 +341,19 @@ export default function FabricPosterPage() {
                 </span>
               </p>
               <p className="mt-4 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
-                한 장의 사진으로 완성하는 나만의 패브릭 포스터예요. 원하는 규격과
-                원단, 설치 방식을 골라 나만의 공간에 걸어보세요.
+                한 장의 사진으로 완성하는 나만의 패브릭 포스터예요.
+                <br />
+                원하는 규격과 원단, 설치 방식을 골라
+                <br />
+                나만의 공간에 걸어보세요.
               </p>
             </div>
 
             <div className="mt-8 hidden sm:block">
               <p className="break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
-                한 장의 사진으로 완성하는 나만의 패브릭 포스터예요. 원하는 규격과
-                원단, 설치 방식을 골라 나만의 공간에 걸어보세요.
+                한 장의 사진으로 완성하는 나만의 패브릭 포스터예요.
+                <br />
+                원하는 규격과 원단, 설치 방식을 골라 나만의 공간에 걸어보세요.
               </p>
             </div>
           </div>
@@ -337,17 +385,21 @@ export default function FabricPosterPage() {
                 setQuantity={setQuantity}
                 requestNote={requestNote}
                 setRequestNote={setRequestNote}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                photoAspect={photoAspect}
               />
 
-              {/* 옵션별 추가금 · 합계를 주문 전에 확인할 수 있게 보여줘요 */}
+              {/* 옵션별 추가금 · 합계를 주문 전에 확인할 수 있게 보여줘요. 옵션명이 길어도 금액이 밀리지 않도록 줄바꿈을 허용해요. */}
               <div className="mt-8 border border-[var(--color-hairline)] bg-white px-4 py-4 text-xs leading-relaxed text-[var(--color-charcoal)]/70">
-                <div className="flex items-center justify-between">
-                  <span>규격 기본 판매가 ({selectedSize.label})</span>
-                  <span>{selectedSize.price.toLocaleString()}원</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="break-keep">규격 기본 판매가 ({selectedSize.label})</span>
+                  <span className="shrink-0">{selectedSize.price.toLocaleString()}원</span>
                 </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span>원단 차액 ({selectedFabric.label})</span>
-                  <span>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="break-keep">원단 차액 ({selectedFabric.label})</span>
+                  <span className="shrink-0">
                     {selectedFabric.priceDelta === 0
                       ? "0원"
                       : selectedFabric.priceDelta > 0
@@ -355,19 +407,19 @@ export default function FabricPosterPage() {
                         : `${selectedFabric.priceDelta.toLocaleString()}원`}
                   </span>
                 </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span>행잉 가공 ({selectedHanging.label})</span>
-                  <span>+{selectedHanging.price.toLocaleString()}원</span>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="break-keep">행잉 가공 ({selectedHanging.label})</span>
+                  <span className="shrink-0">+{selectedHanging.price.toLocaleString()}원</span>
                 </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span>테두리 가공 ({selectedEdge.label})</span>
-                  <span>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="break-keep">테두리 가공 ({selectedEdge.label})</span>
+                  <span className="shrink-0">
                     {selectedEdge.price === 0 ? "0원" : `+${selectedEdge.price.toLocaleString()}원`}
                   </span>
                 </div>
-                <div className="mt-3 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3 text-sm font-medium text-[var(--color-charcoal)]">
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--color-hairline)] pt-3 text-sm font-medium text-[var(--color-charcoal)]">
                   <span>1개당 판매가</span>
-                  <span>{unitPrice.toLocaleString()}원</span>
+                  <span className="shrink-0">{unitPrice.toLocaleString()}원</span>
                 </div>
               </div>
 
@@ -393,12 +445,18 @@ export default function FabricPosterPage() {
                 >
                   장바구니
                 </button>
-                <Link
-                  href={nextUrl}
-                  className="flex-1 bg-[var(--color-sky)] px-6 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSaving}
+                  className={`flex-1 px-6 py-4 text-center text-sm font-medium text-white transition ${
+                    isSaving
+                      ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                      : "bg-[var(--color-sky)] hover:opacity-90"
+                  }`}
                 >
-                  제작 신청하기
-                </Link>
+                  {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+                </button>
               </div>
               {cartNotice && (
                 <p className="mt-2 text-right text-xs text-[var(--color-sky)]">
@@ -406,7 +464,9 @@ export default function FabricPosterPage() {
                 </p>
               )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-                다음 단계에서 사진과 요청사항을 다시 확인할 수 있어요. 5만원 이상 구매 시 배송비가 무료예요.
+                제작 신청하기를 누르면 바로 배송정보 입력 화면으로 이동해요.
+                <br />
+                5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
           </div>
@@ -473,6 +533,10 @@ export default function FabricPosterPage() {
                 setQuantity={setQuantity}
                 requestNote={requestNote}
                 setRequestNote={setRequestNote}
+                photos={photos}
+                setPhotos={setPhotos}
+                requiredMinPx={requiredMinPx}
+                photoAspect={photoAspect}
               />
 
               {/* 모바일에서도 옵션명·금액이 잘리지 않게 세로로 나열해요 */}
@@ -508,14 +572,20 @@ export default function FabricPosterPage() {
               </div>
             </div>
 
-            <div className="mt-8 flex items-center justify-between border-t border-[var(--color-hairline)] pt-5">
+            <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-5">
               <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
-              <Link
-                href={nextUrl}
-                className="bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSaving}
+                className={`px-8 py-4 text-sm font-medium text-white transition ${
+                  isSaving
+                    ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                    : "bg-[var(--color-sky)] hover:opacity-90"
+                }`}
               >
-                제작 신청하기
-              </Link>
+                {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
+              </button>
             </div>
           </div>
         </div>

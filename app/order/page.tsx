@@ -38,7 +38,7 @@ export default function OrderPage() {
         <h1 className="text-3xl font-semibold sm:text-4xl">
           어떤 걸 만들어볼까요?
         </h1>
-        <p className="mt-3 text-[var(--color-charcoal)]/70">
+        <p className="mt-3 text-[var(--color-charcoal)]/70 break-keep">
           사진을 어떻게 남기고 싶은지 골라주세요.
         </p>
 

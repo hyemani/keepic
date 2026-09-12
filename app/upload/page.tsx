@@ -693,7 +693,15 @@ function UploadPageContent() {
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
-        <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 sm:px-10">
+        <header className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-8 sm:px-10">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="뒤로가기"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+          >
+            ←
+          </button>
           <a href="/">
             <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
           </a>
@@ -704,10 +712,10 @@ function UploadPageContent() {
             {productName} · {selectedSizeInfo.label} · {quantity}개 · {template.name}
           </p>
           <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">사진을 골라주세요</h1>
-          <p className="mt-3 text-[var(--color-charcoal)]/70">
+          <p className="mt-3 text-[var(--color-charcoal)]/70 break-keep">
             이 디자인은 정확히 사진 {requiredCount}장이 필요해요. (현재 {photos.length}장 선택됨)
           </p>
-          <p className="mt-2 text-xs text-[var(--color-charcoal)]/50">
+          <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
             각 페이지 왼쪽 위 배치 메뉴로 구성을 바꿀 수 있어요. 사진 오른쪽 위 "Aa" 버튼으로 그 캡션만의 서체·크기·색상·정렬·위치를 따로 정할 수 있어요.
           </p>
 
@@ -717,7 +725,7 @@ function UploadPageContent() {
           </label>
 
           {lowResCount > 0 && (
-            <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+            <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 break-keep">
               해상도가 낮은 사진이 {lowResCount}장 있어요. 인쇄 시 흐릿하게 나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
             </p>
           )}
@@ -856,7 +864,15 @@ function UploadPageContent() {
 
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 sm:px-10">
+      <header className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-8 sm:px-10">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="뒤로가기"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+        >
+          ←
+        </button>
         <a href="/">
           <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
         </a>
@@ -877,7 +893,7 @@ function UploadPageContent() {
 
         {hasNoteFeature && (
           <div className="mt-6 border border-[var(--color-hairline)] bg-white px-5 py-4">
-            <p className="text-xs font-medium text-[var(--color-charcoal)]/50">
+            <p className="text-xs font-medium text-[var(--color-charcoal)]/50 break-keep">
               앞에서 남기신 요청사항 · 수정하고 싶으면 바로 고칠 수 있어요
             </p>
             <textarea
@@ -896,7 +912,7 @@ function UploadPageContent() {
         </label>
 
         {photos.length === 1 && isLowRes(photos[0], requiredMinPx) && (
-          <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+          <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 break-keep">
             이 사진은 인쇄 기준으로 해상도가 낮아요. 이대로 인쇄하면 흐릿하게 나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
           </p>
         )}

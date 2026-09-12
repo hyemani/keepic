@@ -59,7 +59,7 @@ function TemplatePageContent() {
         <h1 className="text-3xl font-semibold sm:text-4xl">
           디자인을 골라주세요
         </h1>
-        <p className="mt-3 text-[var(--color-charcoal)]/70">
+        <p className="mt-3 text-[var(--color-charcoal)]/70 break-keep">
           10개의 펼침면(20페이지)으로 구성돼요. 사진은 나중에 각 칸에
           맞춰 넣으실 수 있어요.
         </p>
