@@ -10,6 +10,12 @@ import {
   PageTemplateId,
   SpreadDef,
 } from "@/lib/albumTemplates";
+import {
+  photobookCovers,
+  coverCoatingOptions,
+  innerPaperOptions,
+  calcPagesLabel,
+} from "@/lib/photobookPricing";
 
 type Photo = {
   url: string;
@@ -544,6 +550,11 @@ function UploadPageContent() {
   const quantity = searchParams.get("quantity") ?? "1";
   const templateId = searchParams.get("template") ?? "";
   const unitPrice = Number(searchParams.get("unitPrice") ?? "0");
+  // 포토북 옵션 선택 화면에서 넘어온 값이에요. 주문 내역(사이즈 라벨)에 함께 담아줘요.
+  const photobookCover = searchParams.get("cover") ?? "";
+  const photobookCoverCoating = searchParams.get("coverCoating") ?? "";
+  const photobookInnerPaper = searchParams.get("innerPaper") ?? "";
+  const photobookPages = searchParams.get("pages") ?? "";
   // 하드케이스 배경색상처럼 자동으로 붙는 메모는 고객이 고치지 못하게 별도로 갖고 있어요.
   const colorNote = searchParams.get("colorNote") ?? "";
   const hasNoteFeature =
@@ -558,6 +569,20 @@ function UploadPageContent() {
   const selectedSizeInfo = config.sizes.find((s) => s.id === sizeId) ?? config.sizes[1];
   const template = albumTemplates.find((t) => t.id === templateId);
   const requiredMinPx = calcRequiredMinPx(selectedSizeInfo.detail);
+
+  // 포토북은 사이즈 외에 커버·코팅·용지·페이지 수까지 정해야 해서,
+  // 주문 내역에 표시/저장되는 라벨에 그 선택 내용을 함께 담아줘요.
+  const isPhotobook = productName === "포토북";
+  const photobookOptionParts = isPhotobook
+    ? [
+        photobookCovers.find((c) => c.id === photobookCover)?.name,
+        coverCoatingOptions.find((o) => o.id === photobookCoverCoating)?.name,
+        innerPaperOptions.find((o) => o.id === photobookInnerPaper)?.name,
+        photobookPages ? calcPagesLabel(Number(photobookPages)) : undefined,
+      ].filter((v): v is string => !!v)
+    : [];
+  const displaySizeLabel = [selectedSizeInfo.label, ...photobookOptionParts].join(" · ");
+  const displaySizeDetail = [selectedSizeInfo.detail, ...photobookOptionParts].join(" · ");
 
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [customSpreads, setCustomSpreads] = useState<SpreadDef[]>(() =>
@@ -651,15 +676,15 @@ function UploadPageContent() {
       const draft = {
         productName,
         sizeId: selectedSizeInfo.id,
-        sizeLabel: selectedSizeInfo.label,
-        sizeDetail: selectedSizeInfo.detail,
+        sizeLabel: displaySizeLabel,
+        sizeDetail: displaySizeDetail,
         quantity,
         unitPrice,
         templateId: template?.id ?? null,
         photos: [...uploadedPhotos, ...notePhotos],
       };
 
-      sessionStorage.setItem("keepic_draft_order", JSON.stringify(draft));
+      sessionStorage.setItem("keepic_draft_order", JSON.stringify([draft]));
       router.push(nextUrl);
     } catch (err) {
       console.error(err);
@@ -709,7 +734,7 @@ function UploadPageContent() {
 
         <section className="mx-auto max-w-3xl px-6 pb-24 pt-8 sm:px-10">
           <p className="text-sm text-[var(--color-charcoal)]/60">
-            {productName} · {selectedSizeInfo.label} · {quantity}개 · {template.name}
+            {productName} · {displaySizeLabel} · {quantity}개 · {template.name}
           </p>
           <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">사진을 골라주세요</h1>
           <p className="mt-3 text-[var(--color-charcoal)]/70 break-keep">

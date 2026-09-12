@@ -89,7 +89,7 @@ export default function FaqPage() {
       </section>
 
       <SiteFooter />
-      <StickyOrderBar />
+      <StickyOrderBar label="추억을 담을 방법 고르기" />
     </main>
   );
 }

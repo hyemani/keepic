@@ -55,16 +55,7 @@ function PhotobookOptions() {
   return (
     <section className="mx-auto max-w-2xl px-6 pb-32 pt-8 sm:px-10">
       <p className="text-sm text-[var(--color-charcoal)]/60">포토북</p>
-      <div className="mt-1 flex items-center gap-2">
-        <h1 className="text-3xl font-semibold sm:text-4xl">옵션을 선택해주세요</h1>
-      </div>
-      <span className="mt-3 inline-block rounded-full bg-[var(--color-charcoal)]/10 px-3 py-1 text-xs font-medium text-[var(--color-charcoal)]/70">
-        판매 준비 중 · 예상 가격
-      </span>
-      <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
-        아직 정식 판매 전이라 옵션 선택과 예상 가격만 확인하실 수 있어요. 실제 주문·결제는
-        준비되는 대로 열어드릴게요.
-      </p>
+      <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">옵션을 선택해주세요</h1>
 
       {/* 커버 */}
       <h2 className="mt-12 text-lg font-semibold">커버</h2>
@@ -276,16 +267,14 @@ function PhotobookOptions() {
         </div>
       )}
 
-      <button
-        disabled
-        className="mt-12 block w-full cursor-not-allowed rounded-full bg-[var(--color-hairline)] px-8 py-4 text-center text-sm font-medium text-white/70 sm:inline-block sm:w-auto"
+      <Link
+        href={`/template?product=${encodeURIComponent(
+          "포토북"
+        )}&size=${size}&quantity=${quantity}&unitPrice=${price.total}&cover=${cover}&coverCoating=${coverCoating}&innerPaper=${innerPaper}&pages=${pages}`}
+        className="mt-12 block w-full rounded-full bg-[var(--color-sky)] px-8 py-4 text-center text-sm font-medium text-white transition hover:opacity-90 sm:inline-block sm:w-auto"
       >
         다음
-      </button>
-      <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-        선택하신 옵션은 아직 가격이 확정되지 않아 주문할 수 없어요. 가격이 확정되면 주문
-        가능하게 열릴 예정이에요.
-      </p>
+      </Link>
     </section>
   );
 }

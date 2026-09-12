@@ -22,7 +22,7 @@ const spreadExamples = [
 const sizes = [
   { label: "S", detail: "20 x 20cm", px: 90, softPrice: 69000, hardPrice: 79000, image: "/photobook/covers/size-s-seaside-log.jpg" },
   { label: "M", detail: "25 x 25cm", px: 120, softPrice: 79000, hardPrice: 89000, image: "/photobook/covers/size-m-little-hello.jpg" },
-  { label: "L", detail: "30 x 30cm", px: 150, softPrice: 99000, hardPrice: 109000, image: "/photobook/covers/size-l-together-days.jpg" },
+  { label: "L", detail: "30 x 30cm", px: 150, softPrice: 89000, hardPrice: 99000, image: "/photobook/covers/size-l-together-days.jpg" },
 ];
 
 export default function PhotobookPage() {
@@ -184,12 +184,12 @@ export default function PhotobookPage() {
           href="/options?product=포토북"
           className="mt-8 inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
         >
-          포토북 주문하기
+          추억을 한 권에 담기
         </Link>
       </section>
 
       <SiteFooter />
-      <StickyOrderBar />
+      <StickyOrderBar label="추억을 한 권에 담기" href="/options?product=포토북" />
     </main>
   );
 }

@@ -82,13 +82,13 @@ export default function FramesPage() {
             href="/options?product=액자"
             className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
           >
-            액자 제작 신청
+            좋아하는 순간을 걸어두기
           </Link>
         </div>
       </section>
 
       <SiteFooter />
-      <StickyOrderBar label="액자 제작 신청" />
+      <StickyOrderBar label="좋아하는 순간을 걸어두기" href="/options?product=액자" />
     </main>
   );
 }

@@ -46,6 +46,12 @@ function TemplatePageContent() {
   const product = searchParams.get("product") ?? "";
   const size = searchParams.get("size") ?? "";
   const quantity = searchParams.get("quantity") ?? "1";
+  // 포토북 옵션 선택 화면에서 넘어온 가격/옵션 정보예요. 그대로 다음 단계(/upload)로 이어서 넘겨줘요.
+  const unitPrice = searchParams.get("unitPrice") ?? "";
+  const cover = searchParams.get("cover") ?? "";
+  const coverCoating = searchParams.get("coverCoating") ?? "";
+  const innerPaper = searchParams.get("innerPaper") ?? "";
+  const pages = searchParams.get("pages") ?? "";
 
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -69,7 +75,7 @@ function TemplatePageContent() {
             const photoCount = getTemplatePhotoCount(template);
             const nextUrl = `/upload?product=${encodeURIComponent(
               product
-            )}&size=${size}&quantity=${quantity}&template=${template.id}`;
+            )}&size=${size}&quantity=${quantity}&template=${template.id}&unitPrice=${unitPrice}&cover=${cover}&coverCoating=${coverCoating}&innerPaper=${innerPaper}&pages=${pages}`;
 
             return (
               <div

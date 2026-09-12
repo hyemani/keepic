@@ -1,8 +1,7 @@
 // 포토북 가격/옵션 설정 (판매가 기준, 고객 화면에 노출되는 값)
 //
 // 이 파일은 나중에 자유롭게 수정하는 용도예요.
-// - 아래 숫자는 전부 "임시 판매가"예요. 실제 견적(원가) 확정 전까지는
-//   isSalesOpen을 true로 바꾸지 마세요.
+// - 아래 숫자는 전부 "임시 판매가"예요. 실제 견적(원가)이 바뀌면 여기 숫자를 업데이트해주세요.
 // - 완성 규격(finishedSizeCm)과 제작 파일 규격(productionFileSizeMm)은
 //   서로 다른 값이라 따로 관리해요. 제작 파일 규격은 아직 확인 전이라
 //   productionFileSizeMm을 임의로 채우지 않았어요 (제작처 확인 후 입력).
@@ -12,9 +11,9 @@ export type PhotobookSizeId = "S" | "M" | "L";
 export type CoverCoatingId = "matte" | "glossy";
 export type InnerPaperId = "glossy" | "luster";
 
-// 판매 준비 상태: 실제 원가/제작 사양이 확정되기 전까지는 false로 유지.
-// false인 동안에는 옵션 선택과 예상 가격 확인만 가능하고, 실제 주문(결제) 진행은 막혀요.
-export const isSalesOpen = false;
+// 판매 준비 상태: 실제 주문(결제)을 받을 수 있으면 true예요.
+// 아래 가격은 여전히 임시 판매가 기준이라, 원가가 크게 바뀌면 이 파일의 가격표를 다시 확인해주세요.
+export const isSalesOpen = true;
 
 export const photobookCovers: { id: PhotobookCoverId; name: string }[] = [
   { id: "soft", name: "소프트커버" },
@@ -39,8 +38,8 @@ export const photobookSizes: PhotobookSize[] = [
 
 // 커버 x 사이즈별 기본 판매가 (임시 판매가 — 특히 S 하드커버는 실제 견적 확인 전)
 export const photobookBasePrice: Record<PhotobookCoverId, Record<PhotobookSizeId, number>> = {
-  soft: { S: 69000, M: 79000, L: 99000 },
-  hard: { S: 79000, M: 89000, L: 109000 },
+  soft: { S: 69000, M: 79000, L: 89000 },
+  hard: { S: 79000, M: 89000, L: 99000 },
 };
 
 // 기본 페이지 수 / 내지 장수 (1장 = 2페이지)

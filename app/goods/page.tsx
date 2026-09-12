@@ -1,6 +1,5 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
-import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
 
 const goodsTypes = [
@@ -127,7 +126,6 @@ export default function GoodsPage() {
       </section>
 
       <SiteFooter />
-      <StickyOrderBar label="나만의 굿즈 만들기" />
     </main>
   );
 }

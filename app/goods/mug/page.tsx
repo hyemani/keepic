@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { mugTypes, MugTypeId } from "@/lib/mugModels";
-import { addToCart } from "@/lib/cart";
 import { productConfig } from "@/lib/productConfig";
 import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
-import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
+import { saveGoodsDraftAndGoToCheckout, saveGoodsDraftToCart } from "@/lib/orderDraft";
 import PhotoPickerField from "@/components/PhotoPickerField";
 import { getShippingFee } from "@/lib/shippingConfig";
 
@@ -161,6 +160,7 @@ export default function MugPage() {
   const [requestNote, setRequestNote] = useState("");
   const [photos, setPhotos] = useState<GoodsPhoto[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
   const selectedType = mugTypes.find((t) => t.id === typeId)!;
   const selectedColor =
@@ -202,16 +202,27 @@ export default function MugPage() {
   const requiredMinPx = calcRequiredMinPx(sizeInfo?.detail ?? "");
   const photoAspect = sizeInfo?.aspect ?? "aspect-square";
 
-  function handleAddToCart() {
-    addToCart({
+  async function handleAddToCart() {
+    if (photos.length < 1) {
+      alert("인쇄할 사진을 먼저 선택해주세요.");
+      return;
+    }
+    setIsAddingToCart(true);
+    const result = await saveGoodsDraftToCart({
       productName: PRODUCT_NAME,
       sizeId,
       sizeLabel,
-      unitPrice: selectedType.price,
+      sizeDetail: sizeInfo?.detail ?? "",
       quantity,
+      unitPrice: selectedType.price,
+      photos,
+      note: requestNote,
     });
-    setCartNotice(true);
-    setTimeout(() => setCartNotice(false), 2000);
+    setIsAddingToCart(false);
+    if (result.ok) {
+      setCartNotice(true);
+      setTimeout(() => setCartNotice(false), 2000);
+    }
   }
 
   async function handleSubmit() {
@@ -380,9 +391,14 @@ export default function MugPage() {
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="flex-1 border border-[var(--color-charcoal)]/30 px-6 py-4 text-sm font-medium transition hover:bg-[var(--color-hairline)]/20"
+                  disabled={isAddingToCart}
+                  className={`flex-1 border px-6 py-4 text-sm font-medium transition ${
+                    isAddingToCart
+                      ? "cursor-not-allowed border-[var(--color-hairline)] text-[var(--color-charcoal)]/40"
+                      : "border-[var(--color-charcoal)]/30 hover:bg-[var(--color-hairline)]/20"
+                  }`}
                 >
-                  장바구니
+                  {isAddingToCart ? "담는 중..." : "장바구니"}
                 </button>
                 <button
                   type="button"

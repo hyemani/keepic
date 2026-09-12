@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { supabase } from "@/lib/supabase";
 import { getShippingFee } from "@/lib/shippingConfig";
+import { removeManyFromCart } from "@/lib/cart";
 
-type DraftOrder = {
+type DraftOrderItem = {
   productName: string;
   sizeId: string;
   sizeLabel: string;
@@ -15,6 +16,9 @@ type DraftOrder = {
   unitPrice?: number;
   templateId: string | null;
   photos: Record<string, unknown>[];
+  // 장바구니에서 넘어온 항목이면 담겨있던 장바구니 항목 id예요. 주문이 끝나면 이 id로
+  // 장바구니에서만 지워요. (주문 테이블에는 저장하지 않아요.)
+  cartItemId?: string;
 };
 
 declare global {
@@ -32,7 +36,7 @@ export default function CheckoutPage() {
   const [addressDetail, setAddressDetail] = useState("");
   const [depositorName, setDepositorName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [draft, setDraft] = useState<DraftOrder | null>(null);
+  const [items, setItems] = useState<DraftOrderItem[] | null>(null);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("keepic_draft_order");
@@ -42,8 +46,16 @@ export default function CheckoutPage() {
       return;
     }
     try {
+      const parsed = JSON.parse(raw);
+      // 예전 버전(상품 1개짜리 객체)으로 남아있는 값도 함께 처리해줘요.
+      const asArray: DraftOrderItem[] = Array.isArray(parsed) ? parsed : [parsed];
+      if (asArray.length === 0) {
+        alert("먼저 상품을 선택하고 사진을 올려주세요.");
+        router.push("/order");
+        return;
+      }
       // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing draft order from sessionStorage into React state on first mount
-      setDraft(JSON.parse(raw));
+      setItems(asArray);
     } catch (err) {
       console.error(err);
       router.push("/order");
@@ -59,33 +71,50 @@ export default function CheckoutPage() {
     }).open();
   }
 
-  const subtotal = (draft?.unitPrice ?? 0) * Number(draft?.quantity ?? 0);
-  const shippingFee = getShippingFee(subtotal);
-  const realPhotoCount =
-    draft?.photos.filter((p) => typeof p.url === "string" && p.url).length ?? 0;
-  const noteEntry = draft?.photos.find(
-    (p) => typeof p.note === "string" && p.note
-  ) as { note: string } | undefined;
+  const goodsAmount =
+    items?.reduce((sum, item) => sum + (item.unitPrice ?? 0) * Number(item.quantity), 0) ?? 0;
+  const shippingFee = getShippingFee(goodsAmount);
+  const finalTotal = goodsAmount + shippingFee;
+  // 화면에 보이는 가격은 부가세 포함 금액이라, 최종금액을 기준으로 공급가액·부가세를 역산해요.
+  const supplyAmount = Math.round(finalTotal / 1.1);
+  const vatAmount = finalTotal - supplyAmount;
 
   async function handleSubmit() {
-    if (!draft) return;
+    if (!items || items.length === 0) return;
 
     setIsSubmitting(true);
 
-    const { error } = await supabase.from("orders").insert({
+    const rows = items.map((item, index) => ({
       recipient_name: name,
       phone: phone,
       zip_code: zipCode,
       road_address: roadAddress,
       address_detail: addressDetail,
       depositor_name: depositorName,
-      product_name: draft.productName,
-      size: draft.sizeLabel,
-      quantity: Number(draft.quantity),
-      template_id: draft.templateId,
-      photos: draft.photos,
-      shipping_fee: shippingFee,
-    });
+      product_name: item.productName,
+      size: item.sizeLabel,
+      quantity: Number(item.quantity),
+      template_id: item.templateId,
+      // 여러 상품을 한 번에 주문할 때는, 함께 접수된 다른 상품을 메모로 남겨서
+      // 나중에 주문 목록에서 같이 온 건이라는 걸 알아볼 수 있게 해요.
+      photos:
+        items.length > 1
+          ? [
+              ...item.photos,
+              {
+                url: "",
+                caption: "",
+                note: `[묶음주문 ${index + 1}/${items.length}] 함께 주문한 상품: ${items
+                  .map((i) => i.productName)
+                  .join(", ")}`,
+              },
+            ]
+          : item.photos,
+      // 배송비는 묶음 전체 기준으로 한 번만 계산되니, 중복 집계되지 않도록 첫 번째 상품에만 담아요.
+      shipping_fee: index === 0 ? shippingFee : 0,
+    }));
+
+    const { error } = await supabase.from("orders").insert(rows);
 
     setIsSubmitting(false);
 
@@ -93,6 +122,13 @@ export default function CheckoutPage() {
       alert("주문 접수 중 문제가 발생했어요. 다시 시도해주세요.");
       console.error(error);
       return;
+    }
+
+    const cartItemIds = items
+      .map((item) => item.cartItemId)
+      .filter((id): id is string => !!id);
+    if (cartItemIds.length > 0) {
+      removeManyFromCart(cartItemIds);
     }
 
     sessionStorage.removeItem("keepic_draft_order");
@@ -104,7 +140,7 @@ export default function CheckoutPage() {
     phone.trim() !== "" &&
     roadAddress.trim() !== "" &&
     depositorName.trim() !== "" &&
-    draft !== null;
+    items !== null;
 
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -132,32 +168,74 @@ export default function CheckoutPage() {
           어디로 보내드릴까요?
         </h1>
 
-        {draft && (
+        {items && items.length > 0 && (
           <div className="mt-6 rounded-2xl border border-[var(--color-hairline)] bg-white p-5 text-sm">
-            <p className="font-medium">
-              {draft.productName} · {draft.sizeLabel} · {draft.quantity}개
-            </p>
-            {realPhotoCount > 0 && (
-              <p className="mt-1 text-[var(--color-charcoal)]/60">
-                사진 {realPhotoCount}장
-              </p>
+            <div className="flex flex-col gap-4">
+              {items.map((item, index) => {
+                const realPhotoCount = item.photos.filter(
+                  (p) => typeof p.url === "string" && p.url
+                ).length;
+                const noteEntry = item.photos.find(
+                  (p) => typeof p.note === "string" && p.note
+                ) as { note: string } | undefined;
+
+                return (
+                  <div
+                    key={index}
+                    className={index > 0 ? "border-t border-[var(--color-hairline)] pt-4" : ""}
+                  >
+                    <p className="font-medium">
+                      {item.productName} · {item.sizeLabel} · {item.quantity}개
+                    </p>
+                    {realPhotoCount > 0 && (
+                      <p className="mt-1 text-[var(--color-charcoal)]/60">
+                        사진 {realPhotoCount}장
+                      </p>
+                    )}
+                    {noteEntry && (
+                      <p className="mt-1 break-keep text-[var(--color-charcoal)]/60">
+                        요청사항 · {noteEntry.note}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {goodsAmount > 0 && (
+              <>
+                <div className="mt-4 flex flex-col gap-1.5 border-t border-[var(--color-hairline)] pt-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[var(--color-charcoal)]/60">상품 금액</p>
+                    <p>{goodsAmount.toLocaleString()}원</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[var(--color-charcoal)]/60">배송비</p>
+                    <p>
+                      {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-1.5 border-t border-[var(--color-hairline)] pt-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[var(--color-charcoal)]/60">공급가액</p>
+                    <p>{supplyAmount.toLocaleString()}원</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[var(--color-charcoal)]/60">부가세</p>
+                    <p>{vatAmount.toLocaleString()}원</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3">
+                  <p className="font-medium">결제예정금액</p>
+                  <p className="text-base font-semibold">
+                    {finalTotal.toLocaleString()}원
+                  </p>
+                </div>
+              </>
             )}
-            {noteEntry && (
-              <p className="mt-1 break-keep text-[var(--color-charcoal)]/60">
-                요청사항 · {noteEntry.note}
-              </p>
-            )}
-            {subtotal > 0 && (
-              <p className="mt-1 text-[var(--color-charcoal)]/60">
-                상품 금액 {subtotal.toLocaleString()}원
-              </p>
-            )}
-            <p className="mt-1 text-[var(--color-charcoal)]/60">
-              배송비{" "}
-              {shippingFee === 0
-                ? "무료"
-                : `${shippingFee.toLocaleString()}원`}
-            </p>
           </div>
         )}
 

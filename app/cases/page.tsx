@@ -74,10 +74,8 @@ const goodsCategories = [
   {
     name: "텀블러",
     images: [
-      { src: "/goods/tumbler/clip-black-1.jpg", alt: "텀블러 예시 1" },
-      { src: "/goods/tumbler/clip-black-2.jpg", alt: "텀블러 예시 2" },
-      { src: "/goods/tumbler/clip-ivory-1.jpg", alt: "텀블러 예시 3" },
-      { src: "/goods/tumbler/etched-black-1.jpg", alt: "텀블러 예시 4" },
+      { src: "/goods/tumbler/clip-ivory-1.jpg", alt: "클립진공 텀블러 예시" },
+      { src: "/goods/tumbler/etched-purple-1.jpg", alt: "에치드 텀블러 예시" },
     ],
   },
   {
@@ -104,6 +102,7 @@ const goodsCategories = [
       { src: "/goods/fabric-poster/gallery-1.jpg", alt: "패브릭 포스터 예시 1" },
       { src: "/goods/fabric-poster/gallery-2.jpg", alt: "패브릭 포스터 예시 2" },
       { src: "/goods/fabric-poster/gallery-3.jpg", alt: "패브릭 포스터 예시 3" },
+      { src: "/goods/fabric-poster/gallery-4.jpg", alt: "패브릭 포스터 예시 4" },
     ],
   },
 ];
@@ -150,9 +149,19 @@ export default function CasesPage() {
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <p className="text-sm font-medium text-[var(--color-sky)]">디자인 샘플</p>
         <h1 className="mt-2 text-4xl font-semibold leading-tight sm:text-5xl">
-          이런 느낌으로
-          <br />
-          만들어드려요
+          {tab === "photobook" ? (
+            <>
+              이런 느낌으로
+              <br />
+              만들어드려요
+            </>
+          ) : (
+            <>
+              사진 한 장으로 만드는
+              <br />
+              나만의 굿즈
+            </>
+          )}
         </h1>
         {tab === "photobook" ? (
           <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
@@ -262,18 +271,14 @@ export default function CasesPage() {
             ))}
           </div>
 
-          <div className="mt-12 rounded-2xl bg-[var(--color-sky)]/10 p-8 text-center">
-            <p className="break-keep text-lg font-medium">
-              고객님의 사진으로 만든 사례는
-              <br />
-              후기가 쌓이는 대로 추가할게요.
-            </p>
-          </div>
         </section>
       )}
 
       <SiteFooter />
-      <StickyOrderBar />
+      <StickyOrderBar
+        label={tab === "photobook" ? "추억을 한 권에 담기" : "추억을 일상에 담기"}
+        href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
+      />
     </main>
   );
 }

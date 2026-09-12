@@ -16,10 +16,9 @@ import {
   CoatingId,
   CaseColor,
 } from "@/lib/phoneCaseModels";
-import { addToCart } from "@/lib/cart";
 import { productConfig } from "@/lib/productConfig";
 import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
-import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
+import { saveGoodsDraftAndGoToCheckout, saveGoodsDraftToCart } from "@/lib/orderDraft";
 import PhotoPickerField from "@/components/PhotoPickerField";
 import { getShippingFee } from "@/lib/shippingConfig";
 
@@ -296,6 +295,7 @@ export default function PhoneCasePage() {
   const router = useRouter();
   const [photos, setPhotos] = useState<GoodsPhoto[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [orderedImages, setOrderedImages] = useState<string[]>(
     galleryImagesByCaseType.premium
   );
@@ -350,16 +350,28 @@ export default function PhoneCasePage() {
       ? `${selectedBrand.label} ${model} · ${selectedCaseType.label} · ${selectedMaterial.label} · ${selectedCoating.label} · 배경색상 ${caseColor.label}`
       : `${selectedBrand.label} ${model} · ${selectedCaseType.label} · ${selectedMaterial.label}`;
 
-  function handleAddToCart() {
-    addToCart({
+  async function handleAddToCart() {
+    if (photos.length < 1) {
+      alert("케이스에 인쇄할 사진을 선택해주세요.");
+      return;
+    }
+    setIsAddingToCart(true);
+    const result = await saveGoodsDraftToCart({
       productName: PRODUCT_NAME,
       sizeId,
       sizeLabel,
-      unitPrice: selectedMaterial.price,
+      sizeDetail: sizeInfo?.detail ?? "",
       quantity,
+      unitPrice: selectedMaterial.price,
+      photos,
+      note: requestNote,
+      colorNote: backgroundColorNote,
     });
-    setCartNotice(true);
-    setTimeout(() => setCartNotice(false), 2000);
+    setIsAddingToCart(false);
+    if (result.ok) {
+      setCartNotice(true);
+      setTimeout(() => setCartNotice(false), 2000);
+    }
   }
 
   const sizeId = useMemo(
@@ -547,9 +559,14 @@ export default function PhoneCasePage() {
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="flex-1 border border-[var(--color-charcoal)]/30 px-6 py-4 text-sm font-medium transition hover:bg-[var(--color-hairline)]/20"
+                  disabled={isAddingToCart}
+                  className={`flex-1 border px-6 py-4 text-sm font-medium transition ${
+                    isAddingToCart
+                      ? "cursor-not-allowed border-[var(--color-hairline)] text-[var(--color-charcoal)]/40"
+                      : "border-[var(--color-charcoal)]/30 hover:bg-[var(--color-hairline)]/20"
+                  }`}
                 >
-                  장바구니
+                  {isAddingToCart ? "담는 중..." : "장바구니"}
                 </button>
                 <button
                   type="button"

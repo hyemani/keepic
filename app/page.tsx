@@ -254,7 +254,7 @@ export default function Home() {
       <SiteFooter />
 
       {/* 모바일 전용: 스크롤해도 따라다니는 하단 고정 CTA */}
-      <StickyOrderBar />
+      <StickyOrderBar label="추억을 담을 방법 고르기" />
     </main>
   );
 }
