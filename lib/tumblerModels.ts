@@ -31,6 +31,7 @@ export const tumblerTypes: {
         label: "블랙",
         images: [
           "/goods/tumbler/main-1.jpg",
+          "/goods/tumbler/clip-black-1.jpg",
           "/goods/tumbler/clip-black-2.jpg",
           "/goods/tumbler/clip-black-3.jpg",
           "/goods/tumbler/clip-black-4.jpg",

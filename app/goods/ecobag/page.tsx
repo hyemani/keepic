@@ -23,6 +23,7 @@ const PRODUCT_NAME = "에코백";
 const galleryImagesByShape: Record<EcobagShapeId, string[]> = {
   horizontal: [
     "/goods/ecobag/main-1.jpg",
+    "/goods/ecobag/gallery-2.jpg",
     "/goods/ecobag/gallery-1.jpg",
     "/goods/ecobag/gallery-3.jpg",
     "/goods/ecobag/gallery-4.jpg",

@@ -24,6 +24,7 @@ const PRODUCT_NAME = "폰케이스";
 const galleryImagesByCaseType: Record<CaseTypeId, string[]> = {
   premium: [
     "/goods/phone-case/main-1.jpg",
+    "/goods/phone-case/premium-1.jpg",
     "/goods/phone-case/premium-2.jpg",
     "/goods/phone-case/premium-3.jpg",
     "/goods/phone-case/premium-4.jpg",
