@@ -551,7 +551,8 @@ function UploadPageContent() {
     productName === "폰케이스" ||
     productName === "에코백" ||
     productName === "머그" ||
-    productName === "캘린더";
+    productName === "캘린더" ||
+    productName === "패브릭포스터";
 
   const config = productConfig[productName];
   const selectedSizeInfo = config.sizes.find((s) => s.id === sizeId) ?? config.sizes[1];

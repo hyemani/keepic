@@ -42,8 +42,9 @@ const goodsTypes = [
   {
     name: "패브릭포스터",
     desc: "한 장의 사진으로 완성하는 나만의 공간",
-    image: "",
+    image: "/goods/fabric-poster/main-1.jpg",
     alt: "사진이 담긴 패브릭 포스터",
+    href: "/goods/fabric-poster",
   },
 ];
 
@@ -113,7 +114,7 @@ export default function GoodsPage() {
         <div className="mt-12 border border-dashed border-[var(--color-hairline)] bg-white px-8 py-10 text-center">
           <p className="font-medium">지금 바로 만들 수 있는 Keepic 굿즈</p>
           <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
-            폰케이스, 텀블러, 에코백, 머그, 캘린더는
+            폰케이스, 텀블러, 에코백, 머그, 캘린더, 패브릭포스터는
             <br />
             지금 바로 주문하실 수 있어요.
           </p>

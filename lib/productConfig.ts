@@ -3,6 +3,13 @@ import { tumblerTypes } from "./tumblerModels";
 import { ecobagShapes, ecobagFabrics, ecobagAddons } from "./ecobagModels";
 import { mugTypes } from "./mugModels";
 import { calendarShapes, calendarPapers, ringColors, standColors } from "./calendarModels";
+import {
+  fabricPosterSizes,
+  fabricPosterFabrics,
+  fabricPosterHangingOptions,
+  fabricPosterEdgeOptions,
+  calcFabricPosterUnitPrice,
+} from "./fabricPosterModels";
 
 function buildPhoneCaseSizes() {
   const list: { id: string; label: string; detail: string; aspect: string }[] = [];
@@ -114,6 +121,27 @@ function buildCalendarSizes() {
   return list;
 }
 
+// 규격 × 원단 × 행잉 가공 × 테두리 가공 조합을 사이즈 목록으로 관리합니다. lib/fabricPosterModels.ts에서 관리합니다.
+function buildFabricPosterSizes() {
+  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  for (const size of fabricPosterSizes) {
+    for (const fabric of fabricPosterFabrics) {
+      for (const hanging of fabricPosterHangingOptions) {
+        for (const edge of fabricPosterEdgeOptions) {
+          const unitPrice = calcFabricPosterUnitPrice(size.id, fabric.id, hanging.id, edge.id);
+          list.push({
+            id: `${size.id}-${fabric.id}-${hanging.id}-${edge.id}`,
+            label: `${size.label} · ${fabric.label} · ${hanging.label} · ${edge.label}`,
+            detail: `${size.label} · ${fabric.label} · ${hanging.label} · ${edge.label} · ${unitPrice.toLocaleString()}원`,
+            aspect: size.aspect,
+          });
+        }
+      }
+    }
+  }
+  return list;
+}
+
 export const productConfig = {
   "액자": {
     minPhotos: 1,
@@ -164,6 +192,12 @@ export const productConfig = {
     maxPhotos: 12,
     // 모양 × 용지 × 트윈링 컬러 × 삼각대 색상 조합을 사이즈 목록으로 관리합니다. lib/calendarModels.ts에서 관리합니다.
     sizes: buildCalendarSizes(),
+  },
+  "패브릭포스터": {
+    minPhotos: 1,
+    maxPhotos: 1,
+    // 규격 × 원단 × 행잉 가공 × 테두리 가공 조합을 사이즈 목록으로 관리합니다. lib/fabricPosterModels.ts에서 관리합니다.
+    sizes: buildFabricPosterSizes(),
   },
 } as const;
 
