@@ -422,7 +422,7 @@ export default function CalendarPage() {
               <img
                 src={orderedImages[0] ?? calendarImagesByShape[shape][0]}
                 alt={`Keepic 커스텀 탁상 캘린더 · ${selectedShape.label}`}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             </div>
 
@@ -435,7 +435,7 @@ export default function CalendarPage() {
                     onClick={() => handleSelectImage(i + 1)}
                     className={`${GALLERY_ASPECT} overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]`}
                   >
-                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    <img src={src} alt="" className="h-full w-full object-contain" />
                   </button>
                 ))}
               </div>
