@@ -7,12 +7,10 @@ import SiteFooter from "@/components/SiteFooter";
 import {
   ecobagShapes,
   ecobagFabrics,
-  ecobagBodyColors,
   ecobagAddons,
   ECOBAG_BASE_PRICE,
   EcobagShapeId,
   EcobagFabricId,
-  EcobagColor,
   EcobagAddonId,
 } from "@/lib/ecobagModels";
 import { caseColorPresets, CaseColor } from "@/lib/phoneCaseModels";
@@ -21,9 +19,11 @@ import { addToCart } from "@/lib/cart";
 const PRODUCT_NAME = "에코백";
 
 // 큰 이미지 1개 + 작은 예시 이미지 4개.
+// gallery-2가 3:4 비율 사진이라 나만의 굿즈 목록 카드와 같은 이미지로,
+// 큰 이미지(메인이미지) 자리에 와요.
 const galleryImages = [
-  "/goods/ecobag/gallery-1.jpg",
   "/goods/ecobag/gallery-2.jpg",
+  "/goods/ecobag/gallery-1.jpg",
   "/goods/ecobag/gallery-3.jpg",
   "/goods/ecobag/gallery-4.jpg",
   "/goods/ecobag/gallery-5.jpg",
@@ -44,8 +44,6 @@ function OptionsForm({
   setShape,
   fabric,
   setFabric,
-  bodyColor,
-  setBodyColor,
   addonIds,
   toggleAddon,
   strapColor,
@@ -61,8 +59,6 @@ function OptionsForm({
   setShape: (s: EcobagShapeId) => void;
   fabric: EcobagFabricId;
   setFabric: (f: EcobagFabricId) => void;
-  bodyColor: EcobagColor;
-  setBodyColor: (c: EcobagColor) => void;
   addonIds: EcobagAddonId[];
   toggleAddon: (id: EcobagAddonId) => void;
   strapColor: CaseColor;
@@ -113,33 +109,6 @@ function OptionsForm({
             >
               <p className="text-sm font-medium">{f.label}</p>
               <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">{f.desc}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-sm font-medium">제품 색상</h2>
-        <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
-          기본 화이트 코튼 원단이에요. 추가금 없이 골라주세요.
-        </p>
-        <div className="mt-3 flex gap-3">
-          {ecobagBodyColors.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setBodyColor(c)}
-              className={`flex items-center gap-2 border px-4 py-2.5 text-sm transition ${
-                bodyColor.id === c.id
-                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-                  : "border-[var(--color-hairline)]"
-              }`}
-            >
-              <span
-                className="inline-block h-4 w-4 rounded-full border border-[var(--color-hairline)]"
-                style={{ backgroundColor: c.hex }}
-              />
-              {c.label}
             </button>
           ))}
         </div>
@@ -277,7 +246,6 @@ export default function EcobagPage() {
   const [orderedImages, setOrderedImages] = useState<string[]>(galleryImages);
   const [shape, setShape] = useState<EcobagShapeId>("horizontal");
   const [fabric, setFabric] = useState<EcobagFabricId>("cotton10");
-  const [bodyColor, setBodyColor] = useState<EcobagColor>(ecobagBodyColors[0]);
   const [addonIds, setAddonIds] = useState<EcobagAddonId[]>([]);
   const [strapColor, setStrapColor] = useState<CaseColor>(caseColorPresets[0]);
   const [labelColor, setLabelColor] = useState<CaseColor>(caseColorPresets[0]);
@@ -321,7 +289,6 @@ export default function EcobagPage() {
   // 본체 색상, 끈/라벨 커스텀 색상처럼 자유롭게 고르는 항목은 폰케이스 배경색상과 같은 방식으로
   // 고객이 다음 단계에서 고치지 못하는 자동 메모(colorNote)로 함께 전달해요.
   const colorNoteLines = [
-    `본체 색상 · ${bodyColor.label}`,
     addonIds.includes("strap") ? `끈 색상 · ${strapColor.label} (${strapColor.hex})` : "",
     addonIds.includes("label") ? `라벨 색상 · ${labelColor.label} (${labelColor.hex})` : "",
   ].filter(Boolean);
@@ -444,8 +411,6 @@ export default function EcobagPage() {
                 setShape={setShape}
                 fabric={fabric}
                 setFabric={setFabric}
-                bodyColor={bodyColor}
-                setBodyColor={setBodyColor}
                 addonIds={addonIds}
                 toggleAddon={toggleAddon}
                 strapColor={strapColor}
@@ -559,8 +524,6 @@ export default function EcobagPage() {
                 setShape={setShape}
                 fabric={fabric}
                 setFabric={setFabric}
-                bodyColor={bodyColor}
-                setBodyColor={setBodyColor}
                 addonIds={addonIds}
                 toggleAddon={toggleAddon}
                 strapColor={strapColor}

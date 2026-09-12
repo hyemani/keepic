@@ -33,8 +33,8 @@ const goodsTypes = [
   {
     name: "에코백",
     desc: "들고 다니는 가방에 담는 사진",
-    image: "/goods/ecobag/gallery-1.jpg",
-    alt: "가족 사진이 담긴 에코백",
+    image: "/goods/ecobag/gallery-2.jpg",
+    alt: "여행 사진이 담긴 에코백",
     href: "/goods/ecobag",
   },
   {

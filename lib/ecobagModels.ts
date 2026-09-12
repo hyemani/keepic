@@ -12,14 +12,6 @@ export const ecobagFabrics: { id: EcobagFabricId; label: string; desc: string }[
   { id: "cotton20", label: "면 20수", desc: "평직이며 먼지 날림이 적고 통기성이 일부 있는, 10수보다 얇은 원단" },
 ];
 
-// 본체 색상은 기본 화이트 코튼 원단이라 추가금이 없어요.
-export type EcobagColor = { id: string; label: string; hex: string };
-
-export const ecobagBodyColors: EcobagColor[] = [
-  { id: "natural", label: "내추럴 화이트", hex: "#f7f4ec" },
-  { id: "ivory", label: "아이보리", hex: "#efe6d3" },
-];
-
 export type EcobagAddonId = "strap" | "label" | "pocket" | "magnet";
 
 export const ecobagAddons: {
