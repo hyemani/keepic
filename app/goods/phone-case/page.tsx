@@ -225,7 +225,7 @@ export default function PhoneCasePage() {
             <div className="aspect-[3/4] w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
                 src={galleryImages[activeImage]}
-                alt="투명 젤하드케이스"
+                alt={selectedCaseType.productLabel}
                 className="h-full w-full object-cover"
               />
             </div>
@@ -248,11 +248,12 @@ export default function PhoneCasePage() {
 
             <div className="mt-8 hidden sm:block">
               <p className="break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
-                투명한 소재라 인쇄한 사진이 또렷하게 보여요. 카메라 주변과 모서리를
-                감싸는 범퍼 디자인으로 충격에도 강해요.
-                <br />
-                맥세이프케이스는 뒷면에 자석 링이 내장되어 있어 맥세이프 액세서리를
-                그대로 사용하실 수 있어요.
+                {selectedCaseType.description.map((line, i) => (
+                  <span key={i}>
+                    {line}
+                    {i < selectedCaseType.description.length - 1 && <br />}
+                  </span>
+                ))}
               </p>
             </div>
           </div>
@@ -299,11 +300,12 @@ export default function PhoneCasePage() {
 
             {/* 모바일: 설명만 노출, 옵션 선택은 하단 팝업에서 */}
             <p className="mt-6 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70 sm:hidden">
-              투명한 소재라 인쇄한 사진이 또렷하게 보여요. 카메라 주변과 모서리를
-              감싸는 범퍼 디자인으로 충격에도 강해요.
-              <br />
-              맥세이프케이스는 뒷면에 자석 링이 내장되어 있어 맥세이프 액세서리를
-              그대로 사용하실 수 있어요.
+              {selectedCaseType.description.map((line, i) => (
+                <span key={i}>
+                  {line}
+                  {i < selectedCaseType.description.length - 1 && <br />}
+                </span>
+              ))}
             </p>
           </div>
         </div>
