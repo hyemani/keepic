@@ -54,13 +54,8 @@ const calendarImagesByShape: Record<CalendarShapeId, string[]> = {
   ],
 };
 
-// 실제 사진 비율에 맞춘 이미지 박스 비율이에요. (Narrow·Small은 4:3, Large·Wide는 1:1)
-const galleryAspectByShape: Record<CalendarShapeId, string> = {
-  narrow: "aspect-[4/3]",
-  small: "aspect-[4/3]",
-  large: "aspect-square",
-  wide: "aspect-square",
-};
+// 모양과 상관없이 이미지 박스는 항상 1:1로 고정해서 보여줘요.
+const GALLERY_ASPECT = "aspect-square";
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -422,7 +417,7 @@ export default function CalendarPage() {
               사진을 메인으로 걸고, 아래 사이즈 비교 섹션에서 나머지를 비교하도록 구성했어요. */}
           <div>
             <div
-              className={`${galleryAspectByShape[shape]} w-full overflow-hidden bg-[var(--color-hairline)]/20`}
+              className={`${GALLERY_ASPECT} w-full overflow-hidden bg-[var(--color-hairline)]/20`}
             >
               <img
                 src={orderedImages[0] ?? calendarImagesByShape[shape][0]}
@@ -438,7 +433,7 @@ export default function CalendarPage() {
                     key={`${src}-${i}`}
                     type="button"
                     onClick={() => handleSelectImage(i + 1)}
-                    className={`${galleryAspectByShape[shape]} overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]`}
+                    className={`${GALLERY_ASPECT} overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]`}
                   >
                     <img src={src} alt="" className="h-full w-full object-cover" />
                   </button>
