@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
@@ -18,16 +18,24 @@ import { addToCart } from "@/lib/cart";
 
 const PRODUCT_NAME = "에코백";
 
-// 큰 이미지 1개 + 작은 예시 이미지 4개.
-// gallery-2가 3:4 비율 사진이라 나만의 굿즈 목록 카드와 같은 이미지로,
-// 큰 이미지(메인이미지) 자리에 와요.
-const galleryImages = [
-  "/goods/ecobag/gallery-2.jpg",
-  "/goods/ecobag/gallery-1.jpg",
-  "/goods/ecobag/gallery-3.jpg",
-  "/goods/ecobag/gallery-4.jpg",
-  "/goods/ecobag/gallery-5.jpg",
-];
+// 큰 이미지 1개 + 작은 예시 이미지 4개. 가로형/세로형 사진이 서로 달라서
+// 형태를 바꾸면 그 형태의 예시 사진으로 다시 보여줘요.
+const galleryImagesByShape: Record<EcobagShapeId, string[]> = {
+  horizontal: [
+    "/goods/ecobag/gallery-2.jpg",
+    "/goods/ecobag/gallery-1.jpg",
+    "/goods/ecobag/gallery-3.jpg",
+    "/goods/ecobag/gallery-4.jpg",
+    "/goods/ecobag/gallery-5.jpg",
+  ],
+  vertical: [
+    "/goods/ecobag/gallery-v-2.jpg",
+    "/goods/ecobag/gallery-v-1.jpg",
+    "/goods/ecobag/gallery-v-3.jpg",
+    "/goods/ecobag/gallery-v-4.jpg",
+    "/goods/ecobag/gallery-v-5.jpg",
+  ],
+};
 
 // 상세페이지처럼 구매하기 아래에 순서대로 보여줄 제품 설명 이미지예요.
 const detailImages = [
@@ -243,8 +251,10 @@ const productDescription = [
 ];
 
 export default function EcobagPage() {
-  const [orderedImages, setOrderedImages] = useState<string[]>(galleryImages);
   const [shape, setShape] = useState<EcobagShapeId>("horizontal");
+  const [orderedImages, setOrderedImages] = useState<string[]>(
+    galleryImagesByShape.horizontal
+  );
   const [fabric, setFabric] = useState<EcobagFabricId>("cotton10");
   const [addonIds, setAddonIds] = useState<EcobagAddonId[]>([]);
   const [strapColor, setStrapColor] = useState<CaseColor>(caseColorPresets[0]);
@@ -259,6 +269,11 @@ export default function EcobagPage() {
       prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
     );
   }
+
+  // 형태(가로형/세로형)를 바꾸면 큰 이미지 자리를 그 형태의 예시 사진 첫 장으로 되돌려줘요.
+  useEffect(() => {
+    setOrderedImages(galleryImagesByShape[shape]);
+  }, [shape]);
 
   function handleSelectImage(index: number) {
     setOrderedImages((prev) => {
@@ -323,7 +338,7 @@ export default function EcobagPage() {
           <div>
             <div className="aspect-square w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
-                src={orderedImages[0] ?? galleryImages[0]}
+                src={orderedImages[0] ?? galleryImagesByShape[shape][0]}
                 alt="사진을 담은 Keepic 에코백"
                 className="h-full w-full object-cover"
               />
