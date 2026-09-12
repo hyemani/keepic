@@ -1,4 +1,4 @@
-// 패브릭 포스터: 규격(5) × 원단(4) × 행잉 가공(4, 필수) × 테두리 가공(4, 선택 · 기본값 "가공 없음") 조합으로 관리해요.
+// 패브릭 포스터: 규격(5) × 원단(4) × 행잉 가공(5, 선택 · 기본값 "가공 없음") × 테두리 가공(4, 선택 · 기본값 "가공 없음") 조합으로 관리해요.
 // 1개당 판매가 = 규격 기본 판매가 + 원단 차액 + 행잉 가공비 + 테두리 가공비
 
 export type FabricPosterSizeId =
@@ -34,47 +34,55 @@ export const fabricPosterFabrics: {
 }[] = [
   { id: "cotton10", label: "면 10수 화이트", priceDelta: 0, desc: "사선으로 짜인 트윌 원단으로, 도톰하고 탄탄한 느낌입니다." },
   { id: "cotton20", label: "면 20수 화이트", priceDelta: -2000, desc: "10수보다 얇은 평직 원단으로, 먼지 날림이 적고 통기성이 있습니다." },
-  { id: "cotton40", label: "면 40수 화이트", priceDelta: 1000, desc: "60수보다 도톰하고 부드러운 평직 원단입니다." },
-  { id: "cotton60", label: "면 60수 화이트", priceDelta: 0, desc: "네 가지 중 가장 얇은 평직 원단으로, 비침이 있습니다." },
+  { id: "cotton40", label: "면 40수 화이트", priceDelta: 0, desc: "60수보다 도톰하고 부드러운 평직 원단입니다." },
+  { id: "cotton60", label: "면 60수 화이트", priceDelta: 1000, desc: "네 가지 중 가장 얇은 평직 원단으로, 비침이 있습니다." },
 ];
 
-// 행잉 가공은 필수 옵션이에요. 원하는 설치 방식에 맞게 골라주세요.
-export type FabricPosterHangingId = "rod-plain" | "rod-loop" | "small-ring" | "velcro";
+// 행잉 가공은 필수가 아닌 선택 옵션이에요. 기본값은 "가공 없음"이며,
+// 별도로 고르지 않으면 가공 없이(봉·고리 없이) 제작돼요.
+export type FabricPosterHangingId = "none" | "rod-plain" | "rod-loop" | "small-ring" | "velcro";
 
 export const fabricPosterHangingOptions: {
   id: FabricPosterHangingId;
   label: string;
   price: number;
   desc: string;
-  image: string;
+  image: string | null;
 }[] = [
+  {
+    id: "none",
+    label: "가공 없음",
+    price: 0,
+    desc: "봉이나 고리 없이 원단만 제작해요. 액자나 다른 방식으로 직접 걸고 싶을 때 선택해주세요.",
+    image: null,
+  },
   {
     id: "rod-plain",
     label: "봉 일반",
     price: 3000,
     desc: "원단 상단을 접어 만든 통로에 봉을 끼워 사용해요. 앞에서는 봉이 원단에 가려져요.",
-    image: "/goods/fabric-poster/detail-06.jpg",
+    image: "/goods/fabric-poster/hanging-rod-plain.jpg",
   },
   {
     id: "rod-loop",
     label: "봉 고리형",
     price: 5000,
     desc: "원단 위쪽에 달린 여러 개의 고리에 봉을 끼워 사용해요. 고리 사이로 봉이 보여요.",
-    image: "/goods/fabric-poster/detail-07.jpg",
+    image: "/goods/fabric-poster/hanging-rod-loop.jpg",
   },
   {
     id: "small-ring",
     label: "작은고리",
     price: 3000,
     desc: "원단 모서리의 작은 리본 고리를 걸이에 걸어 사용해요. 봉 없이 간편하게 걸 수 있어요.",
-    image: "/goods/fabric-poster/detail-08.jpg",
+    image: "/goods/fabric-poster/hanging-small-ring.jpg",
   },
   {
     id: "velcro",
     label: "벨크로(찍찍이)",
     price: 4000,
     desc: "원단 상단 뒷면의 벨크로를 설치 면의 벨크로와 맞붙여요. 떼었다 붙일 수 있어요.",
-    image: "/goods/fabric-poster/detail-09.jpg",
+    image: "/goods/fabric-poster/hanging-velcro.jpg",
   },
 ];
 
@@ -113,7 +121,7 @@ export const fabricPosterEdgeOptions: {
   },
 ];
 
-export const FABRIC_POSTER_DEFAULT_HANGING: FabricPosterHangingId = "rod-plain";
+export const FABRIC_POSTER_DEFAULT_HANGING: FabricPosterHangingId = "none";
 export const FABRIC_POSTER_DEFAULT_EDGE: FabricPosterEdgeId = "none";
 
 export function calcFabricPosterUnitPrice(

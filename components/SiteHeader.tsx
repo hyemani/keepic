@@ -101,7 +101,7 @@ export default function SiteHeader() {
         {/* PC 우측 */}
         <div className="hidden items-center gap-5 sm:flex">
           <Link href="/order-lookup" className="text-[15px] hover:text-[var(--color-sky)]">
-            나의 주문
+            주문 조회
           </Link>
           <CartBadge className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]" />
           <Link
@@ -112,10 +112,10 @@ export default function SiteHeader() {
           </Link>
         </div>
 
-        {/* 모바일: 나의 주문 + 장바구니 + 전체 메뉴 */}
+        {/* 모바일: 주문 조회 + 장바구니 + 전체 메뉴 */}
         <div className="flex items-center gap-4 sm:hidden">
           <Link href="/order-lookup" className="text-[13px] text-[var(--color-charcoal)]/70">
-            나의 주문
+            주문 조회
           </Link>
           <CartBadge className="text-[var(--color-charcoal)]/70" />
           <button
@@ -190,7 +190,7 @@ export default function SiteHeader() {
                 onClick={() => setMenuOpen(false)}
                 className="rounded-full border border-[var(--color-hairline)] py-3.5 text-center text-sm font-medium"
               >
-                나의 주문
+                주문 조회
               </Link>
               <Link
                 href="/order"

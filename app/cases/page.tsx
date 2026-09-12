@@ -51,31 +51,61 @@ const spreadExamples = [
   { src: "/photobook/spreads/spread-10.png", alt: "내지 펼침 예시 10" },
 ];
 
-// "나만의 굿즈" 탭: 이미 제작해둔 굿즈 페이지의 제품 사진들을 모아서 보여줘요.
-const goodsCovers = [
-  { src: "/goods/mug/main-1.jpg", alt: "머그 예시 1" },
-  { src: "/goods/mug/glossy-1.jpg", alt: "머그 예시 2" },
-  { src: "/goods/mug/ice-color-1.jpg", alt: "머그 예시 3" },
-  { src: "/goods/mug/beer-can-1.jpg", alt: "머그 예시 4" },
-  { src: "/goods/phone-case/premium-1.jpg", alt: "폰케이스 예시 1" },
-  { src: "/goods/phone-case/premium-2.jpg", alt: "폰케이스 예시 2" },
-  { src: "/goods/phone-case/standard-blue.jpg", alt: "폰케이스 예시 3" },
-  { src: "/goods/phone-case/standard-pink.jpg", alt: "폰케이스 예시 4" },
-  { src: "/goods/tumbler/clip-black-1.jpg", alt: "텀블러 예시 1" },
-  { src: "/goods/tumbler/clip-black-2.jpg", alt: "텀블러 예시 2" },
-  { src: "/goods/tumbler/clip-black-3.jpg", alt: "텀블러 예시 3" },
-  { src: "/goods/tumbler/clip-colors.jpg", alt: "텀블러 예시 4" },
-  { src: "/goods/ecobag/gallery-1.jpg", alt: "에코백 예시 1" },
-  { src: "/goods/ecobag/gallery-2.jpg", alt: "에코백 예시 2" },
-  { src: "/goods/ecobag/gallery-v-1.jpg", alt: "에코백 예시 3" },
-  { src: "/goods/ecobag/gallery-v-2.jpg", alt: "에코백 예시 4" },
-  { src: "/goods/calendar/large-1.jpg", alt: "캘린더 예시 1" },
-  { src: "/goods/calendar/small-1.jpg", alt: "캘린더 예시 2" },
-  { src: "/goods/calendar/narrow-1.jpg", alt: "캘린더 예시 3" },
-  { src: "/goods/calendar/wide-1.jpg", alt: "캘린더 예시 4" },
-  { src: "/goods/fabric-poster/gallery-1.jpg", alt: "패브릭포스터 예시 1" },
-  { src: "/goods/fabric-poster/gallery-2.jpg", alt: "패브릭포스터 예시 2" },
-  { src: "/goods/fabric-poster/gallery-3.jpg", alt: "패브릭포스터 예시 3" },
+// "나만의 굿즈" 탭: 이미 제작해둔 굿즈 페이지의 제품 사진들을 상품별로 묶어서 보여줘요.
+const goodsCategories = [
+  {
+    name: "머그",
+    images: [
+      { src: "/goods/mug/main-1.jpg", alt: "머그 예시 1" },
+      { src: "/goods/mug/glossy-1.jpg", alt: "머그 예시 2" },
+      { src: "/goods/mug/ice-color-1.jpg", alt: "머그 예시 3" },
+      { src: "/goods/mug/beer-can-1.jpg", alt: "머그 예시 4" },
+    ],
+  },
+  {
+    name: "폰케이스",
+    images: [
+      { src: "/goods/phone-case/premium-1.jpg", alt: "폰케이스 예시 1" },
+      { src: "/goods/phone-case/premium-2.jpg", alt: "폰케이스 예시 2" },
+      { src: "/goods/phone-case/standard-blue.jpg", alt: "폰케이스 예시 3" },
+      { src: "/goods/phone-case/standard-pink.jpg", alt: "폰케이스 예시 4" },
+    ],
+  },
+  {
+    name: "텀블러",
+    images: [
+      { src: "/goods/tumbler/clip-black-1.jpg", alt: "텀블러 예시 1" },
+      { src: "/goods/tumbler/clip-black-2.jpg", alt: "텀블러 예시 2" },
+      { src: "/goods/tumbler/clip-ivory-1.jpg", alt: "텀블러 예시 3" },
+      { src: "/goods/tumbler/etched-black-1.jpg", alt: "텀블러 예시 4" },
+    ],
+  },
+  {
+    name: "에코백",
+    images: [
+      { src: "/goods/ecobag/gallery-1.jpg", alt: "에코백 예시 1" },
+      { src: "/goods/ecobag/gallery-2.jpg", alt: "에코백 예시 2" },
+      { src: "/goods/ecobag/gallery-v-1.jpg", alt: "에코백 예시 3" },
+      { src: "/goods/ecobag/gallery-v-2.jpg", alt: "에코백 예시 4" },
+    ],
+  },
+  {
+    name: "캘린더",
+    images: [
+      { src: "/goods/calendar/large-1.jpg", alt: "캘린더 예시 1" },
+      { src: "/goods/calendar/small-1.jpg", alt: "캘린더 예시 2" },
+      { src: "/goods/calendar/narrow-1.jpg", alt: "캘린더 예시 3" },
+      { src: "/goods/calendar/wide-1.jpg", alt: "캘린더 예시 4" },
+    ],
+  },
+  {
+    name: "패브릭 포스터",
+    images: [
+      { src: "/goods/fabric-poster/gallery-1.jpg", alt: "패브릭 포스터 예시 1" },
+      { src: "/goods/fabric-poster/gallery-2.jpg", alt: "패브릭 포스터 예시 2" },
+      { src: "/goods/fabric-poster/gallery-3.jpg", alt: "패브릭 포스터 예시 3" },
+    ],
+  },
 ];
 
 type Tab = "photobook" | "goods";
@@ -209,10 +239,25 @@ export default function CasesPage() {
         <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
           <h2 className="break-keep text-xl font-semibold">나만의 굿즈, 이렇게 만들어드려요</h2>
           <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">제품 예시</p>
-          <div className="mt-6 grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-6">
-            {goodsCovers.map((img) => (
-              <div key={img.src} className="aspect-square overflow-hidden">
-                <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
+
+          <div className="mt-8 flex flex-col gap-10">
+            {goodsCategories.map((category) => (
+              <div key={category.name}>
+                <p className="text-sm font-medium">{category.name}</p>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {category.images.map((img) => (
+                    <div
+                      key={img.src}
+                      className="aspect-square overflow-hidden rounded-xl"
+                    >
+                      <img
+                        src={img.src}
+                        alt={img.alt}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

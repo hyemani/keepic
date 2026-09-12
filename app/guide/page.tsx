@@ -42,6 +42,12 @@ const steps = [
   },
 ];
 
+const showcaseItems = [
+  { label: "액자", src: "/frames/frame-acrylic.jpg", alt: "아크릴 액자에 담긴 반려견 사진" },
+  { label: "표지", src: "/photobook/covers/travel-1.png", alt: "여행 포토북 표지 예시" },
+  { label: "굿즈", src: "/goods/fabric-poster/main-1.jpg", alt: "패브릭 포스터로 완성한 굿즈 예시" },
+];
+
 export default function GuidePage() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
@@ -64,6 +70,23 @@ export default function GuidePage() {
           맡아서 완성해드려요.
         </p>
 
+        <div className="mt-10 grid grid-cols-3 gap-3">
+          {showcaseItems.map((item) => (
+            <div key={item.label}>
+              <div className="aspect-square w-full overflow-hidden rounded-2xl bg-[var(--color-hairline)]/20">
+                <img
+                  src={item.src}
+                  alt={item.alt}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <p className="mt-2 text-center text-xs font-medium text-[var(--color-charcoal)]/60">
+                {item.label}
+              </p>
+            </div>
+          ))}
+        </div>
+
         <div className="mt-16 flex flex-col">
           {steps.map((step, i) => (
             <div key={step.title} className="flex gap-6">
@@ -85,18 +108,18 @@ export default function GuidePage() {
           ))}
         </div>
 
-        <div className="mt-4 flex items-center gap-6">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Link
+            href="/order-lookup"
+            className="rounded-full border border-[var(--color-charcoal)]/30 px-8 py-4 text-sm font-medium transition hover:bg-[var(--color-hairline)]/20"
+          >
+            내 주문 진행상태 보기
+          </Link>
           <Link
             href="/order"
             className="rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
           >
-            주문 시작하기
-          </Link>
-          <Link
-            href="/order-lookup"
-            className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
-          >
-            내 주문 진행 상태 보기
+            추억 제작하러 가기
           </Link>
         </div>
       </section>

@@ -23,6 +23,7 @@ import { addToCart } from "@/lib/cart";
 import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
 import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
 import PhotoPickerField from "@/components/PhotoPickerField";
+import { getShippingFee } from "@/lib/shippingConfig";
 
 const PRODUCT_NAME = "패브릭포스터";
 
@@ -119,11 +120,11 @@ function OptionsForm({
       </div>
 
       <div>
-        <h2 className="text-sm font-medium">행잉 가공</h2>
+        <h2 className="text-sm font-medium">행잉 가공 (선택)</h2>
         <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
-          원하는 설치 방식에 맞게 가공 옵션을 선택해주세요.
+          원하는 설치 방식이 있다면 골라주세요. 따로 고르지 않으면 가공 없이 제작돼요.
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {fabricPosterHangingOptions.map((h) => (
             <button
               key={h.id}
@@ -136,12 +137,18 @@ function OptionsForm({
               }`}
             >
               <div className="aspect-square w-full overflow-hidden bg-[var(--color-hairline)]/20">
-                <img src={h.image} alt={h.label} className="h-full w-full object-cover" />
+                {h.image ? (
+                  <img src={h.image} alt={h.label} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-center text-xs text-[var(--color-charcoal)]/40">
+                    가공 없음
+                  </div>
+                )}
               </div>
               <div className="px-3 py-2">
                 <p className="text-sm font-medium">{h.label}</p>
                 <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/60">
-                  +{h.price.toLocaleString()}원
+                  {h.price > 0 ? `+${h.price.toLocaleString()}원` : "추가 비용 없음"}
                 </p>
               </div>
             </button>
@@ -249,6 +256,8 @@ export default function FabricPosterPage() {
     [sizeId, fabricId, hangingId, edgeId]
   );
   const totalPrice = unitPrice * quantity;
+  const shippingFee = getShippingFee(totalPrice);
+  const finalTotal = totalPrice + shippingFee;
 
   // 사진 확대·저해상도 기준은 선택한 규격(mm)을 cm 문자열로 바꿔서 계산해요.
   const sizeDetailCm = `${selectedSize.width / 10} x ${selectedSize.height / 10}`;
@@ -409,7 +418,9 @@ export default function FabricPosterPage() {
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <span className="break-keep">행잉 가공 ({selectedHanging.label})</span>
-                  <span className="shrink-0">+{selectedHanging.price.toLocaleString()}원</span>
+                  <span className="shrink-0">
+                    {selectedHanging.price === 0 ? "0원" : `+${selectedHanging.price.toLocaleString()}원`}
+                  </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <span className="break-keep">테두리 가공 ({selectedEdge.label})</span>
@@ -423,16 +434,28 @@ export default function FabricPosterPage() {
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
-                <span className="text-sm font-medium text-[var(--color-charcoal)]/70">
-                  청구금액
-                </span>
-                <div className="text-right">
-                  <span className="mr-2 text-sm text-[var(--color-charcoal)]/50">
-                    개당 {unitPrice.toLocaleString()}원
+              <div className="mt-6 border-t border-[var(--color-hairline)] pt-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-charcoal)]/70">
+                    상품 금액
                   </span>
-                  <span className="text-xl font-semibold">
+                  <span className="text-sm">
+                    <span className="mr-2 text-[var(--color-charcoal)]/50">
+                      개당 {unitPrice.toLocaleString()}원
+                    </span>
                     {totalPrice.toLocaleString()}원
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-charcoal)]/70">배송비</span>
+                  <span className="text-sm">
+                    {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3">
+                  <span className="text-sm font-medium">최종 결제금액</span>
+                  <span className="text-xl font-semibold">
+                    {finalTotal.toLocaleString()}원
                   </span>
                 </div>
               </div>
@@ -557,7 +580,9 @@ export default function FabricPosterPage() {
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <span className="break-keep">행잉 가공</span>
-                  <span className="shrink-0">+{selectedHanging.price.toLocaleString()}원</span>
+                  <span className="shrink-0">
+                    {selectedHanging.price === 0 ? "0원" : `+${selectedHanging.price.toLocaleString()}원`}
+                  </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <span className="break-keep">테두리 가공</span>
@@ -573,7 +598,13 @@ export default function FabricPosterPage() {
             </div>
 
             <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-5">
-              <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
+              <div>
+                <p className="text-lg font-semibold">{finalTotal.toLocaleString()}원</p>
+                <p className="text-[11px] text-[var(--color-charcoal)]/50">
+                  상품 {totalPrice.toLocaleString()}원 + 배송비{" "}
+                  {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={handleSubmit}

@@ -4,6 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { productConfig, ProductName } from "@/lib/productConfig";
+import { getShippingFee } from "@/lib/shippingConfig";
 import {
   photobookCovers,
   photobookSizes,
@@ -47,6 +48,8 @@ function PhotobookOptions() {
   );
 
   const total = price.total * quantity;
+  const shippingFee = getShippingFee(total);
+  const finalTotal = total + shippingFee;
   const sizeInfo = photobookSizes.find((s) => s.id === size)!;
 
   return (
@@ -225,13 +228,21 @@ function PhotobookOptions() {
               <p>+{price.paperSurcharge.toLocaleString()}원</p>
             </div>
           )}
-          <div className="mt-2 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3 text-base font-semibold">
-            <p>예상 합계 ({quantity}권)</p>
+          <div className="mt-2 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3">
+            <p className="text-[var(--color-charcoal)]/60">상품 금액 ({quantity}권)</p>
             <p>{total.toLocaleString()}원</p>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-[var(--color-charcoal)]/60">배송비</p>
+            <p>{shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}</p>
+          </div>
+          <div className="mt-1 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3 text-base font-semibold">
+            <p>최종 결제금액</p>
+            <p>{finalTotal.toLocaleString()}원</p>
           </div>
         </div>
         <p className="mt-3 text-xs text-[var(--color-charcoal)]/40 break-keep">
-          배송비 별도예요. 편집과 기본 수정 1회가 포함된 임시 판매가예요.
+          편집과 기본 수정 1회가 포함된 임시 판매가예요.
         </p>
       </div>
 

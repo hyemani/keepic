@@ -7,7 +7,7 @@ const products = [
     name: "액자",
     description: "사진 한 장, 벽에 걸어두는 순간",
     price: "19,000원부터",
-    swatch: "bg-[var(--color-sky)]/20",
+    image: "/order/category-frame.jpg",
     href: "/options?product=액자",
     ready: true,
   },
@@ -15,17 +15,17 @@ const products = [
     name: "포토북",
     description: "여러 장의 사진을 한 권의 책으로",
     price: "29,000원부터",
-    swatch: "bg-[var(--color-charcoal)]/10",
+    image: "/order/category-photobook.jpg",
     href: "/options?product=포토북",
     ready: true,
   },
   {
     name: "나만의 굿즈",
     description: "머그컵, 폰케이스 같은 사진 소품",
-    price: "준비 중",
-    swatch: "bg-[var(--color-sky)]/30",
+    price: "17,000원부터",
+    image: "/order/category-goods.jpg",
     href: "/goods",
-    ready: false,
+    ready: true,
   },
 ];
 
@@ -48,7 +48,13 @@ export default function OrderPage() {
               key={product.name}
               className="flex flex-col rounded-2xl border border-[var(--color-hairline)] p-6"
             >
-              <div className={`aspect-square rounded-xl ${product.swatch}`} />
+              <div className="aspect-square overflow-hidden rounded-xl bg-[var(--color-hairline)]/20">
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="h-full w-full object-cover"
+                />
+              </div>
               <h2 className="mt-6 text-xl font-semibold">{product.name}</h2>
               <p className="mt-2 text-sm text-[var(--color-charcoal)]/70">
                 {product.description}

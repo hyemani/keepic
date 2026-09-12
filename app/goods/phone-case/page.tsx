@@ -21,6 +21,7 @@ import { productConfig } from "@/lib/productConfig";
 import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
 import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
 import PhotoPickerField from "@/components/PhotoPickerField";
+import { getShippingFee } from "@/lib/shippingConfig";
 
 const PRODUCT_NAME = "폰케이스";
 
@@ -314,6 +315,8 @@ export default function PhoneCasePage() {
     selectedCaseType.materials.find((m) => m.id === material) ??
     selectedCaseType.materials[0];
   const totalPrice = selectedMaterial.price * quantity;
+  const shippingFee = getShippingFee(totalPrice);
+  const finalTotal = totalPrice + shippingFee;
   const galleryImages = galleryImagesByCaseType[caseType];
 
   // 케이스 종류를 바꾸면 그 종류에 있는 자재로 다시 맞춰줘요.
@@ -514,16 +517,28 @@ export default function PhoneCasePage() {
                 photoAspect={photoAspect}
               />
 
-              <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
-                <span className="text-sm font-medium text-[var(--color-charcoal)]/70">
-                  청구금액
-                </span>
-                <div className="text-right">
-                  <span className="mr-2 text-sm text-[var(--color-charcoal)]/50">
-                    개당 {selectedMaterial.price.toLocaleString()}원
+              <div className="mt-10 border-t border-[var(--color-hairline)] pt-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-charcoal)]/70">
+                    상품 금액
                   </span>
-                  <span className="text-xl font-semibold">
+                  <span className="text-sm">
+                    <span className="mr-2 text-[var(--color-charcoal)]/50">
+                      개당 {selectedMaterial.price.toLocaleString()}원
+                    </span>
                     {totalPrice.toLocaleString()}원
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-charcoal)]/70">배송비</span>
+                  <span className="text-sm">
+                    {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3">
+                  <span className="text-sm font-medium">최종 결제금액</span>
+                  <span className="text-xl font-semibold">
+                    {finalTotal.toLocaleString()}원
                   </span>
                 </div>
               </div>
@@ -627,8 +642,14 @@ export default function PhoneCasePage() {
               />
             </div>
 
-            <div className="mt-8 flex items-center justify-between border-t border-[var(--color-hairline)] pt-5">
-              <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
+            <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-5">
+              <div>
+                <p className="text-lg font-semibold">{finalTotal.toLocaleString()}원</p>
+                <p className="text-[11px] text-[var(--color-charcoal)]/50">
+                  상품 {totalPrice.toLocaleString()}원 + 배송비{" "}
+                  {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={handleSubmit}

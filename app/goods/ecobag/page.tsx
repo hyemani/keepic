@@ -19,6 +19,7 @@ import { productConfig } from "@/lib/productConfig";
 import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
 import { saveGoodsDraftAndGoToCheckout } from "@/lib/orderDraft";
 import PhotoPickerField from "@/components/PhotoPickerField";
+import { getShippingFee } from "@/lib/shippingConfig";
 
 const PRODUCT_NAME = "에코백";
 
@@ -316,6 +317,8 @@ export default function EcobagPage() {
     .reduce((sum, a) => sum + a.price, 0);
   const unitPrice = ECOBAG_BASE_PRICE + addonsTotal;
   const totalPrice = unitPrice * quantity;
+  const shippingFee = getShippingFee(totalPrice);
+  const finalTotal = totalPrice + shippingFee;
 
   // 사이즈 아이디는 형태 × 원단 × 후가공 on/off 조합으로, lib/productConfig.ts의
   // 자동 생성 목록과 그대로 맞아야 해요. (끈/라벨의 자유 색상은 섞지 않아요.)
@@ -487,16 +490,28 @@ export default function EcobagPage() {
                 photoAspect={photoAspect}
               />
 
-              <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
-                <span className="text-sm font-medium text-[var(--color-charcoal)]/70">
-                  청구금액
-                </span>
-                <div className="text-right">
-                  <span className="mr-2 text-sm text-[var(--color-charcoal)]/50">
-                    개당 {unitPrice.toLocaleString()}원
+              <div className="mt-10 border-t border-[var(--color-hairline)] pt-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-charcoal)]/70">
+                    상품 금액
                   </span>
-                  <span className="text-xl font-semibold">
+                  <span className="text-sm">
+                    <span className="mr-2 text-[var(--color-charcoal)]/50">
+                      개당 {unitPrice.toLocaleString()}원
+                    </span>
                     {totalPrice.toLocaleString()}원
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-charcoal)]/70">배송비</span>
+                  <span className="text-sm">
+                    {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-[var(--color-hairline)] pt-3">
+                  <span className="text-sm font-medium">최종 결제금액</span>
+                  <span className="text-xl font-semibold">
+                    {finalTotal.toLocaleString()}원
                   </span>
                 </div>
               </div>
@@ -611,8 +626,14 @@ export default function EcobagPage() {
               />
             </div>
 
-            <div className="mt-8 flex items-center justify-between border-t border-[var(--color-hairline)] pt-5">
-              <p className="text-lg font-semibold">{totalPrice.toLocaleString()}원</p>
+            <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--color-hairline)] pt-5">
+              <div>
+                <p className="text-lg font-semibold">{finalTotal.toLocaleString()}원</p>
+                <p className="text-[11px] text-[var(--color-charcoal)]/50">
+                  상품 {totalPrice.toLocaleString()}원 + 배송비{" "}
+                  {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={handleSubmit}
