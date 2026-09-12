@@ -1,6 +1,7 @@
 import { phoneBrands, phoneModelsByBrand, caseTypes, coatings } from "./phoneCaseModels";
 import { tumblerTypes } from "./tumblerModels";
 import { ecobagShapes, ecobagFabrics, ecobagAddons } from "./ecobagModels";
+import { mugTypes } from "./mugModels";
 
 function buildPhoneCaseSizes() {
   const list: { id: string; label: string; detail: string; aspect: string }[] = [];
@@ -78,6 +79,21 @@ function buildEcobagSizes() {
   return list;
 }
 
+function buildMugSizes() {
+  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  for (const type of mugTypes) {
+    for (const color of type.colors) {
+      list.push({
+        id: `${type.id}-${color.id}`,
+        label: type.colors.length > 1 ? `${type.label} · ${color.label}` : type.label,
+        detail: `${type.productLabel} · ${type.capacity} · ${type.size} · ${type.price.toLocaleString()}원`,
+        aspect: "aspect-square",
+      });
+    }
+  }
+  return list;
+}
+
 export const productConfig = {
   "액자": {
     minPhotos: 1,
@@ -115,6 +131,12 @@ export const productConfig = {
     maxPhotos: 1,
     // 형태 × 원단 × 후가공 조합을 사이즈 목록으로 관리합니다. lib/ecobagModels.ts에서 관리합니다.
     sizes: buildEcobagSizes(),
+  },
+  "머그": {
+    minPhotos: 1,
+    maxPhotos: 1,
+    // 종류 × 색상(아이스 변색 컵만 해당) 조합을 사이즈 목록으로 관리합니다. lib/mugModels.ts에서 관리합니다.
+    sizes: buildMugSizes(),
   },
 } as const;
 

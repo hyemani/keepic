@@ -547,7 +547,10 @@ function UploadPageContent() {
   // 하드케이스 배경색상처럼 자동으로 붙는 메모는 고객이 고치지 못하게 별도로 갖고 있어요.
   const colorNote = searchParams.get("colorNote") ?? "";
   const hasNoteFeature =
-    productName === "텀블러" || productName === "폰케이스" || productName === "에코백";
+    productName === "텀블러" ||
+    productName === "폰케이스" ||
+    productName === "에코백" ||
+    productName === "머그";
 
   const config = productConfig[productName];
   const selectedSizeInfo = config.sizes.find((s) => s.id === sizeId) ?? config.sizes[1];
