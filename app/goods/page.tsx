@@ -65,7 +65,7 @@ export default function GoodsPage() {
           다양한 굿즈로 만나보실 수 있어요.
         </p>
 
-        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3">
           {goodsTypes.map((type) => {
             const card = (
               <div className="overflow-hidden border border-[var(--color-hairline)] bg-white">
