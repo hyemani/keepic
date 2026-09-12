@@ -107,7 +107,7 @@ function OptionsForm({
               key={m.id}
               type="button"
               onClick={() => setMaterial(m.id)}
-              className={`border px-4 py-3 text-left transition ${
+              className={`border px-4 py-3 text-center transition ${
                 material === m.id
                   ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
                   : "border-[var(--color-hairline)]"
@@ -229,6 +229,29 @@ export default function PhoneCasePage() {
                 className="h-full w-full object-cover"
               />
             </div>
+
+            {/* 모바일: 이미지 바로 아래에 이름·가격·설명을 바로 보여줘요 */}
+            <div className="mt-4 sm:hidden">
+              <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
+              <h1 className="mt-2 text-2xl font-semibold">
+                {selectedCaseType.productLabel}
+              </h1>
+              <p className="mt-3 text-2xl font-semibold">
+                {totalPrice.toLocaleString()}원
+                <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
+                  ({selectedMaterial.price.toLocaleString()}원 × {quantity}개)
+                </span>
+              </p>
+              <p className="mt-4 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
+                {selectedCaseType.description.map((line, i) => (
+                  <span key={i}>
+                    {line}
+                    {i < selectedCaseType.description.length - 1 && <br />}
+                  </span>
+                ))}
+              </p>
+            </div>
+
             <div className="mt-3 grid grid-cols-4 gap-3">
               {galleryImages.map((src, i) => (
                 <button
@@ -260,16 +283,18 @@ export default function PhoneCasePage() {
 
           {/* 정보 + 옵션 선택 (PC) */}
           <div>
-            <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
-            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
-              {selectedCaseType.productLabel}
-            </h1>
-            <p className="mt-3 text-2xl font-semibold">
-              {totalPrice.toLocaleString()}원
-              <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
-                ({selectedMaterial.price.toLocaleString()}원 × {quantity}개)
-              </span>
-            </p>
+            <div className="hidden sm:block">
+              <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
+              <h1 className="mt-2 text-3xl font-semibold">
+                {selectedCaseType.productLabel}
+              </h1>
+              <p className="mt-3 text-2xl font-semibold">
+                {totalPrice.toLocaleString()}원
+                <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
+                  ({selectedMaterial.price.toLocaleString()}원 × {quantity}개)
+                </span>
+              </p>
+            </div>
 
             <div className="mt-8 hidden sm:block">
               <OptionsForm
@@ -298,15 +323,6 @@ export default function PhoneCasePage() {
               </p>
             </div>
 
-            {/* 모바일: 설명만 노출, 옵션 선택은 하단 팝업에서 */}
-            <p className="mt-6 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70 sm:hidden">
-              {selectedCaseType.description.map((line, i) => (
-                <span key={i}>
-                  {line}
-                  {i < selectedCaseType.description.length - 1 && <br />}
-                </span>
-              ))}
-            </p>
           </div>
         </div>
       </section>
