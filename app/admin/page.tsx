@@ -15,6 +15,7 @@ import {
 type OrderPhoto = {
   url: string;
   caption?: string;
+  note?: string;
   [key: string]: unknown;
 };
 
@@ -101,9 +102,10 @@ export default function AdminPage() {
     setIsDownloading(true);
     try {
       const zip = new JSZip();
+      const realPhotos = order.photos.filter((photo) => photo.url);
 
       await Promise.all(
-        order.photos.map(async (photo, i) => {
+        realPhotos.map(async (photo, i) => {
           const res = await fetch(photo.url);
           const blob = await res.blob();
           const ext = photo.url.split(".").pop()?.split("?")[0] || "jpg";
@@ -228,7 +230,8 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {orders.map((order) => {
-                const photos = order.photos ?? [];
+                const photos = (order.photos ?? []).filter((p) => p.url);
+                const noteEntry = (order.photos ?? []).find((p) => p.note);
                 return (
                   <tr
                     key={order.id}
@@ -241,6 +244,11 @@ export default function AdminPage() {
                       {order.product_name
                         ? `${order.product_name} · ${order.size ?? ""} · ${order.quantity ?? 1}개`
                         : "-"}
+                      {noteEntry && (
+                        <span className="ml-1 rounded bg-[var(--color-sky)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-sky)]">
+                          요청사항
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {photos.length > 0 ? (
@@ -351,7 +359,9 @@ export default function AdminPage() {
               </div>
               <div>
                 <p className="text-xs text-[var(--color-charcoal)]/50">사진 수</p>
-                <p className="mt-0.5">{selectedOrder.photos?.length ?? 0}장</p>
+                <p className="mt-0.5">
+                  {(selectedOrder.photos ?? []).filter((p) => p.url).length}장
+                </p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-charcoal)]/50">배송비</p>
@@ -437,37 +447,54 @@ export default function AdminPage() {
               </label>
             </div>
 
-            {selectedOrder.photos && selectedOrder.photos.length > 0 && (
-              <div className="mt-6">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">사진</p>
-                  <button
-                    onClick={() => handleDownloadAll(selectedOrder)}
-                    disabled={isDownloading}
-                    className="text-xs font-medium text-[var(--color-sky)] hover:underline disabled:cursor-not-allowed disabled:text-[var(--color-charcoal)]/40"
-                  >
-                    {isDownloading ? "압축하는 중..." : "전체 다운로드"}
-                  </button>
+            {selectedOrder.photos &&
+              selectedOrder.photos.some((p) => p.note) && (
+                <div className="mt-6 rounded-xl border border-[var(--color-hairline)] p-4">
+                  <p className="text-sm font-medium">요청사항</p>
+                  {selectedOrder.photos
+                    .filter((p) => p.note)
+                    .map((p, i) => (
+                      <p key={i} className="mt-2 break-keep text-sm leading-relaxed">
+                        {p.note}
+                      </p>
+                    ))}
                 </div>
-                <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                  {selectedOrder.photos.map((photo, i) => (
-                    <a
-                      key={i}
-                      href={photo.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block aspect-square overflow-hidden rounded-lg border border-[var(--color-hairline)]"
+              )}
+
+            {selectedOrder.photos &&
+              selectedOrder.photos.filter((p) => p.url).length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">사진</p>
+                    <button
+                      onClick={() => handleDownloadAll(selectedOrder)}
+                      disabled={isDownloading}
+                      className="text-xs font-medium text-[var(--color-sky)] hover:underline disabled:cursor-not-allowed disabled:text-[var(--color-charcoal)]/40"
                     >
-                      <img
-                        src={photo.url}
-                        alt={`사진 ${i + 1}`}
-                        className="h-full w-full object-cover"
-                      />
-                    </a>
-                  ))}
+                      {isDownloading ? "압축하는 중..." : "전체 다운로드"}
+                    </button>
+                  </div>
+                  <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                    {selectedOrder.photos
+                      .filter((p) => p.url)
+                      .map((photo, i) => (
+                        <a
+                          key={i}
+                          href={photo.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block aspect-square overflow-hidden rounded-lg border border-[var(--color-hairline)]"
+                        >
+                          <img
+                            src={photo.url}
+                            alt={`사진 ${i + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </a>
+                      ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         </div>
       )}

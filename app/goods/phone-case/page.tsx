@@ -230,7 +230,7 @@ export default function PhoneCasePage() {
   );
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
-  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}`;
+  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${selectedMaterial.price}`;
 
   return (
     <main className="min-h-screen bg-white pb-24 text-[var(--color-charcoal)] sm:pb-0">

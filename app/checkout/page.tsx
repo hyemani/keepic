@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { supabase } from "@/lib/supabase";
-import { SHIPPING_FEE } from "@/lib/shippingConfig";
+import { getShippingFee } from "@/lib/shippingConfig";
 
 type DraftOrder = {
   productName: string;
@@ -12,6 +12,7 @@ type DraftOrder = {
   sizeLabel: string;
   sizeDetail: string;
   quantity: string;
+  unitPrice?: number;
   templateId: string | null;
   photos: Record<string, unknown>[];
 };
@@ -58,6 +59,14 @@ export default function CheckoutPage() {
     }).open();
   }
 
+  const subtotal = (draft?.unitPrice ?? 0) * Number(draft?.quantity ?? 0);
+  const shippingFee = getShippingFee(subtotal);
+  const realPhotoCount =
+    draft?.photos.filter((p) => typeof p.url === "string" && p.url).length ?? 0;
+  const noteEntry = draft?.photos.find(
+    (p) => typeof p.note === "string" && p.note
+  ) as { note: string } | undefined;
+
   async function handleSubmit() {
     if (!draft) return;
 
@@ -75,7 +84,7 @@ export default function CheckoutPage() {
       quantity: Number(draft.quantity),
       template_id: draft.templateId,
       photos: draft.photos,
-      shipping_fee: SHIPPING_FEE,
+      shipping_fee: shippingFee,
     });
 
     setIsSubmitting(false);
@@ -120,11 +129,26 @@ export default function CheckoutPage() {
             <p className="font-medium">
               {draft.productName} · {draft.sizeLabel} · {draft.quantity}개
             </p>
+            {realPhotoCount > 0 && (
+              <p className="mt-1 text-[var(--color-charcoal)]/60">
+                사진 {realPhotoCount}장
+              </p>
+            )}
+            {noteEntry && (
+              <p className="mt-1 break-keep text-[var(--color-charcoal)]/60">
+                요청사항 · {noteEntry.note}
+              </p>
+            )}
+            {subtotal > 0 && (
+              <p className="mt-1 text-[var(--color-charcoal)]/60">
+                상품 금액 {subtotal.toLocaleString()}원
+              </p>
+            )}
             <p className="mt-1 text-[var(--color-charcoal)]/60">
-              사진 {draft.photos.length}장
-            </p>
-            <p className="mt-1 text-[var(--color-charcoal)]/60">
-              배송비 {SHIPPING_FEE.toLocaleString()}원
+              배송비{" "}
+              {shippingFee === 0
+                ? "무료"
+                : `${shippingFee.toLocaleString()}원`}
             </p>
           </div>
         )}

@@ -14,6 +14,7 @@ import {
 type OrderPhoto = {
   url: string;
   caption?: string;
+  note?: string;
   [key: string]: unknown;
 };
 
@@ -179,7 +180,8 @@ export default function OrderLookupPage() {
 
   function handleStartEdit(order: Order) {
     setEditingId(order.id);
-    setEditPhotos(order.photos ?? []);
+    // 요청사항 메모(url이 없는 항목)는 사진 수정 목록에서 제외하고, 저장할 때 다시 합쳐줘요.
+    setEditPhotos((order.photos ?? []).filter((p) => p.url));
   }
 
   function handleCancelEdit() {
@@ -215,9 +217,14 @@ export default function OrderLookupPage() {
   async function handleSaveEdit(orderId: string) {
     setIsSavingPhotos(true);
 
+    const existingNotes = (
+      orders?.find((o) => o.id === orderId)?.photos ?? []
+    ).filter((p) => p.note && !p.url);
+    const nextPhotos = [...editPhotos, ...existingNotes];
+
     const { error } = await supabase
       .from("orders")
-      .update({ photos: editPhotos })
+      .update({ photos: nextPhotos })
       .eq("id", orderId)
       .eq("status", "pending_payment");
 
@@ -227,7 +234,7 @@ export default function OrderLookupPage() {
     } else {
       setOrders((prev) =>
         prev
-          ? prev.map((o) => (o.id === orderId ? { ...o, photos: editPhotos } : o))
+          ? prev.map((o) => (o.id === orderId ? { ...o, photos: nextPhotos } : o))
           : prev
       );
       setEditingId(null);
@@ -285,7 +292,8 @@ export default function OrderLookupPage() {
             {orders && orders.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {orders.map((order) => {
-                  const photos = order.photos ?? [];
+                  const photos = (order.photos ?? []).filter((p) => p.url);
+                  const noteEntry = (order.photos ?? []).find((p) => p.note);
                   const currentStepIndex = progressSteps.findIndex(
                     (step) => step.id === order.status
                   );
@@ -312,8 +320,16 @@ export default function OrderLookupPage() {
                           : "-"}
                       </p>
                       <p className="mt-1 text-[var(--color-charcoal)]/60">
-                        배송비 {(order.shipping_fee ?? 0).toLocaleString()}원
+                        배송비{" "}
+                        {(order.shipping_fee ?? 0) === 0
+                          ? "무료"
+                          : `${(order.shipping_fee ?? 0).toLocaleString()}원`}
                       </p>
+                      {noteEntry && (
+                        <p className="mt-1 break-keep text-[var(--color-charcoal)]/60">
+                          요청사항 · {noteEntry.note}
+                        </p>
+                      )}
 
                       {order.status !== "cancelled" && (
                         <div className="mt-4 flex items-center">

@@ -543,6 +543,8 @@ function UploadPageContent() {
   const sizeId = searchParams.get("size") ?? "";
   const quantity = searchParams.get("quantity") ?? "1";
   const templateId = searchParams.get("template") ?? "";
+  const unitPrice = Number(searchParams.get("unitPrice") ?? "0");
+  const requestNote = searchParams.get("note") ?? "";
 
   const config = productConfig[productName];
   const selectedSizeInfo = config.sizes.find((s) => s.id === sizeId) ?? config.sizes[1];
@@ -622,12 +624,17 @@ function UploadPageContent() {
     return data.publicUrl;
   }
 
-  async function handleProceed(nextUrl: string, photosToUpload: Photo[]) {
+  async function handleProceed(nextUrl: string, photosToUpload: Photo[], note?: string) {
     setIsSaving(true);
     try {
       const uploadedPhotos = await Promise.all(
         photosToUpload.map(async (p) => ({ ...p, url: await uploadPhotoToStorage(p) }))
       );
+
+      // 텀블러 각인 요청사항처럼 사진이 아닌 메모는 실제 이미지 업로드 없이
+      // photos 배열 맨 뒤에 { url: "", note } 형태로 함께 담아요.
+      const notePhotos =
+        note && note.trim() ? [{ url: "", caption: "", note: note.trim() }] : [];
 
       const draft = {
         productName,
@@ -635,8 +642,9 @@ function UploadPageContent() {
         sizeLabel: selectedSizeInfo.label,
         sizeDetail: selectedSizeInfo.detail,
         quantity,
+        unitPrice,
         templateId: template?.id ?? null,
-        photos: uploadedPhotos,
+        photos: [...uploadedPhotos, ...notePhotos],
       };
 
       sessionStorage.setItem("keepic_draft_order", JSON.stringify(draft));
@@ -846,8 +854,25 @@ function UploadPageContent() {
         <p className="text-sm text-[var(--color-charcoal)]/60">
           {productName} · {selectedSizeInfo.label} · {quantity}개
         </p>
-        <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">사진을 골라주세요</h1>
-        <p className="mt-3 text-[var(--color-charcoal)]/70">이 상품은 사진 1장이 필요해요.</p>
+        <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">
+          {productName === "텀블러" ? "요청사항을 확인해주세요" : "사진을 골라주세요"}
+        </h1>
+        <p className="mt-3 text-[var(--color-charcoal)]/70">
+          {productName === "텀블러"
+            ? "텀블러는 사진 대신 각인으로 제작해요. 참고할 사진이 있다면 함께 올려주셔도 좋아요. (선택)"
+            : "이 상품은 사진 1장이 필요해요."}
+        </p>
+
+        {productName === "텀블러" && (
+          <div className="mt-6 border border-[var(--color-hairline)] bg-white px-5 py-4">
+            <p className="text-xs font-medium text-[var(--color-charcoal)]/50">
+              앞에서 남기신 요청사항
+            </p>
+            <p className="mt-2 break-keep text-sm leading-relaxed">
+              {requestNote.trim() ? requestNote : "작성하신 요청사항이 없어요."}
+            </p>
+          </div>
+        )}
 
         <label className="mt-8 inline-block cursor-pointer rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
           사진 선택하기
@@ -881,9 +906,16 @@ function UploadPageContent() {
           </div>
         )}
 
-        {photos.length > 0 && (
+        {(photos.length > 0 ||
+          (productName === "텀블러" && requestNote.trim() !== "")) && (
           <button
-            onClick={() => handleProceed(nextUrlSimple, photos)}
+            onClick={() =>
+              handleProceed(
+                nextUrlSimple,
+                photos,
+                productName === "텀블러" ? requestNote : undefined
+              )
+            }
             disabled={isSaving}
             className={`mt-10 rounded-full px-8 py-4 text-sm font-medium text-white transition ${
               isSaving

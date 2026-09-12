@@ -17,7 +17,7 @@ export default function SiteFooter() {
           <p className="font-medium text-[var(--color-charcoal)]/80">배송 안내</p>
           <ul className="mt-3 flex flex-col gap-1.5 break-keep">
             <li>· 입금 확인 후 제작이 시작되며, 제작 완료 후 택배로 배송돼요.</li>
-            <li>· 배송비는 상품 금액과 별도이며, 정확한 금액은 준비 중이에요.</li>
+            <li>· 배송비는 3,000원이며, 5만원 이상 구매 시 무료로 보내드려요.</li>
             <li>· 제작·배송 소요 기간은 상품별로 다르며, 확정되는 대로 각 상품 페이지에 안내드려요.</li>
           </ul>
         </div>

@@ -16,6 +16,8 @@ function OptionsForm({
   setColorId,
   quantity,
   setQuantity,
+  requestNote,
+  setRequestNote,
 }: {
   typeId: TumblerTypeId;
   setTypeId: (t: TumblerTypeId) => void;
@@ -23,6 +25,8 @@ function OptionsForm({
   setColorId: (c: string) => void;
   quantity: number;
   setQuantity: (fn: (prev: number) => number) => void;
+  requestNote: string;
+  setRequestNote: (v: string) => void;
 }) {
   const selectedType = tumblerTypes.find((t) => t.id === typeId)!;
 
@@ -81,6 +85,21 @@ function OptionsForm({
       </div>
 
       <div>
+        <h2 className="text-sm font-medium">요청사항</h2>
+        <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
+          텀블러는 사진 대신 각인으로 제작해요. 원하는 문구, 이니셜, 캐릭터 등을
+          자유롭게 적어주세요.
+        </p>
+        <textarea
+          value={requestNote}
+          onChange={(e) => setRequestNote(e.target.value)}
+          placeholder="예) OOO 이니셜 각인 부탁드려요 / 강아지 캐릭터 넣고 싶어요"
+          rows={4}
+          className="mt-3 w-full resize-none border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+        />
+      </div>
+
+      <div>
         <h2 className="text-sm font-medium">수량</h2>
         <div className="mt-3 flex items-center gap-4">
           <button
@@ -111,6 +130,7 @@ export default function TumblerPage() {
   const [activeImage, setActiveImage] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
 
   const selectedType = tumblerTypes.find((t) => t.id === typeId)!;
   const selectedColor =
@@ -131,7 +151,9 @@ export default function TumblerPage() {
   const sizeLabel = `${selectedType.label} · ${selectedColor.label}`;
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
-  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}`;
+  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${
+    selectedType.price
+  }&note=${encodeURIComponent(requestNote)}`;
 
   function handleAddToCart() {
     addToCart({
@@ -253,6 +275,8 @@ export default function TumblerPage() {
                 setColorId={setColorId}
                 quantity={quantity}
                 setQuantity={setQuantity}
+                requestNote={requestNote}
+                setRequestNote={setRequestNote}
               />
 
               <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
@@ -290,7 +314,7 @@ export default function TumblerPage() {
                 </p>
               )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-                다음 단계에서 텀블러에 담을 사진을 올려주세요. 배송비는 별도예요.
+                다음 단계에서 요청사항과 참고 사진(선택)을 다시 확인할 수 있어요. 5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
           </div>
@@ -344,6 +368,8 @@ export default function TumblerPage() {
                 setColorId={setColorId}
                 quantity={quantity}
                 setQuantity={setQuantity}
+                requestNote={requestNote}
+                setRequestNote={setRequestNote}
               />
             </div>
 
