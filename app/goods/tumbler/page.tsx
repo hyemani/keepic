@@ -5,6 +5,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { tumblerTypes, TumblerTypeId } from "@/lib/tumblerModels";
+import { addToCart } from "@/lib/cart";
 
 const PRODUCT_NAME = "텀블러";
 
@@ -35,7 +36,7 @@ function OptionsForm({
               key={t.id}
               type="button"
               onClick={() => setTypeId(t.id)}
-              className={`border px-4 py-3 text-left transition ${
+              className={`border px-4 py-3 text-center transition ${
                 typeId === t.id
                   ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
                   : "border-[var(--color-hairline)]"
@@ -109,8 +110,11 @@ export default function TumblerPage() {
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [cartNotice, setCartNotice] = useState(false);
 
   const selectedType = tumblerTypes.find((t) => t.id === typeId)!;
+  const selectedColor =
+    selectedType.colors.find((c) => c.id === colorId) ?? selectedType.colors[0];
   const totalPrice = selectedType.price * quantity;
 
   // 종류를 바꾸면 그 종류에 있는 색상으로 다시 맞춰줘요.
@@ -124,9 +128,22 @@ export default function TumblerPage() {
   }
 
   const sizeId = useMemo(() => `${typeId}-${colorId}`, [typeId, colorId]);
+  const sizeLabel = `${selectedType.label} · ${selectedColor.label}`;
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
   )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}`;
+
+  function handleAddToCart() {
+    addToCart({
+      productName: PRODUCT_NAME,
+      sizeId,
+      sizeLabel,
+      unitPrice: selectedType.price,
+      quantity,
+    });
+    setCartNotice(true);
+    setTimeout(() => setCartNotice(false), 2000);
+  }
 
   return (
     <main className="min-h-screen bg-white pb-24 text-[var(--color-charcoal)] sm:pb-0">
@@ -134,22 +151,63 @@ export default function TumblerPage() {
 
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-14">
-          {/* 이미지: 큰 이미지 1개 + 하단 예시 이미지 */}
+          {/* 이미지: 큰 이미지 1개 + 하단 예시 이미지 4개 */}
           <div>
-            <div className="aspect-[4/3] w-full overflow-hidden bg-[var(--color-hairline)]/20">
+            <div className="aspect-square w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
                 src={selectedType.images[activeImage] ?? selectedType.images[0]}
                 alt={selectedType.productLabel}
                 className="h-full w-full object-cover"
               />
             </div>
+
+            {/* 모바일: 이미지 바로 아래에 이름·가격·설명을 바로 보여줘요 */}
+            <div className="mt-4 sm:hidden">
+              <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
+              <h1 className="mt-2 text-2xl font-semibold">
+                {selectedType.productLabel}
+              </h1>
+              <p className="mt-3 text-2xl font-semibold">
+                {totalPrice.toLocaleString()}원
+                <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
+                  ({selectedType.price.toLocaleString()}원 × {quantity}개)
+                </span>
+              </p>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {tumblerTypes.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTypeId(t.id)}
+                    className={`border px-3 py-2.5 text-xs font-medium transition ${
+                      typeId === t.id
+                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <p className="mt-4 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
+                {selectedType.description.map((line, i) => (
+                  <span key={i}>
+                    {line}
+                    {i < selectedType.description.length - 1 && <br />}
+                  </span>
+                ))}
+              </p>
+            </div>
+
             <div className="mt-3 grid grid-cols-4 gap-3">
               {selectedType.images.map((src, i) => (
                 <button
-                  key={src}
+                  key={`${src}-${i}`}
                   type="button"
                   onClick={() => setActiveImage(i)}
-                  className={`aspect-[4/3] overflow-hidden border transition ${
+                  className={`aspect-square overflow-hidden border transition ${
                     activeImage === i
                       ? "border-[var(--color-sky)]"
                       : "border-[var(--color-hairline)]"
@@ -162,25 +220,30 @@ export default function TumblerPage() {
 
             <div className="mt-8 hidden sm:block">
               <p className="break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
-                매일 손에 드는 텀블러에 사진과 각인을 함께 담아드려요.
-                <br />
-                보온·보냉이 되는 스테인리스 소재라 오래 쓰기 좋아요.
+                {selectedType.description.map((line, i) => (
+                  <span key={i}>
+                    {line}
+                    {i < selectedType.description.length - 1 && <br />}
+                  </span>
+                ))}
               </p>
             </div>
           </div>
 
           {/* 정보 + 옵션 선택 (PC) */}
           <div>
-            <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
-            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">
-              {selectedType.productLabel}
-            </h1>
-            <p className="mt-3 text-2xl font-semibold">
-              {totalPrice.toLocaleString()}원
-              <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
-                ({selectedType.price.toLocaleString()}원 × {quantity}개)
-              </span>
-            </p>
+            <div className="hidden sm:block">
+              <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
+              <h1 className="mt-2 text-3xl font-semibold">
+                {selectedType.productLabel}
+              </h1>
+              <p className="mt-3 text-2xl font-semibold">
+                {totalPrice.toLocaleString()}원
+                <span className="ml-2 text-sm font-normal text-[var(--color-charcoal)]/50">
+                  ({selectedType.price.toLocaleString()}원 × {quantity}개)
+                </span>
+              </p>
+            </div>
 
             <div className="mt-8 hidden sm:block">
               <OptionsForm
@@ -192,23 +255,44 @@ export default function TumblerPage() {
                 setQuantity={setQuantity}
               />
 
-              <Link
-                href={nextUrl}
-                className="mt-10 inline-block bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-              >
-                제작 신청하기
-              </Link>
+              <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
+                <span className="text-sm font-medium text-[var(--color-charcoal)]/70">
+                  청구금액
+                </span>
+                <div className="text-right">
+                  <span className="mr-2 text-sm text-[var(--color-charcoal)]/50">
+                    개당 {selectedType.price.toLocaleString()}원
+                  </span>
+                  <span className="text-xl font-semibold">
+                    {totalPrice.toLocaleString()}원
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  className="flex-1 border border-[var(--color-charcoal)]/30 px-6 py-4 text-sm font-medium transition hover:bg-[var(--color-hairline)]/20"
+                >
+                  장바구니
+                </button>
+                <Link
+                  href={nextUrl}
+                  className="flex-1 bg-[var(--color-sky)] px-6 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"
+                >
+                  제작 신청하기
+                </Link>
+              </div>
+              {cartNotice && (
+                <p className="mt-2 text-right text-xs text-[var(--color-sky)]">
+                  장바구니에 담았어요.
+                </p>
+              )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
                 다음 단계에서 텀블러에 담을 사진을 올려주세요. 배송비는 별도예요.
               </p>
             </div>
-
-            {/* 모바일: 설명만 노출, 옵션 선택은 하단 팝업에서 */}
-            <p className="mt-6 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70 sm:hidden">
-              매일 손에 드는 텀블러에 사진과 각인을 함께 담아드려요.
-              <br />
-              보온·보냉이 되는 스테인리스 소재라 오래 쓰기 좋아요.
-            </p>
           </div>
         </div>
       </section>
