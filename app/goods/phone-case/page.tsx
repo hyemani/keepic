@@ -53,6 +53,8 @@ function OptionsForm({
   setModel,
   quantity,
   setQuantity,
+  requestNote,
+  setRequestNote,
 }: {
   caseType: CaseTypeId;
   setCaseType: (t: CaseTypeId) => void;
@@ -68,6 +70,8 @@ function OptionsForm({
   setModel: (m: string) => void;
   quantity: number;
   setQuantity: (fn: (prev: number) => number) => void;
+  requestNote: string;
+  setRequestNote: (v: string) => void;
 }) {
   const models = phoneModelsByBrand[brand];
   const selectedCaseType = caseTypes.find((t) => t.id === caseType)!;
@@ -228,6 +232,20 @@ function OptionsForm({
       </div>
 
       <div>
+        <h2 className="text-sm font-medium">요청사항</h2>
+        <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
+          케이스에 대해 남기고 싶은 요청사항이 있다면 자유롭게 적어주세요. (선택)
+        </p>
+        <textarea
+          value={requestNote}
+          onChange={(e) => setRequestNote(e.target.value)}
+          placeholder="예) 사진을 조금 더 크게 배치해주세요"
+          rows={4}
+          className="mt-3 w-full resize-none border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+        />
+      </div>
+
+      <div>
         <h2 className="text-sm font-medium">수량</h2>
         <div className="mt-3 flex items-center gap-4">
           <button
@@ -264,6 +282,7 @@ export default function PhoneCasePage() {
   const [quantity, setQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
 
   const selectedCaseType = caseTypes.find((t) => t.id === caseType)!;
   const selectedMaterial =
@@ -319,15 +338,18 @@ export default function PhoneCasePage() {
     () => `${caseType}-${material}-${coating}-${brand}-${model}`,
     [caseType, material, coating, brand, model]
   );
-  // 하드케이스일 때는 고른 배경색상을 요청사항 메모로 함께 넘겨요.
-  // (사이즈 아이디는 lib/productConfig.ts의 자동 생성 목록과 그대로 맞아야 해서 색상을 섞지 않아요.)
+  // 하드케이스일 때는 고른 배경색상을 별도 메모(colorNote)로 함께 넘겨요.
+  // (사이즈 아이디는 lib/productConfig.ts의 자동 생성 목록과 그대로 맞아야 해서 색상을 섞지 않고,
+  //  고객이 다음 단계에서 요청사항을 고쳐도 배경색상 메모는 따로 안전하게 남아있어요.)
   const backgroundColorNote =
     caseType === "standard" ? `배경색상 · ${caseColor.label} (${caseColor.hex})` : "";
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
   )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${
     selectedMaterial.price
-  }&note=${encodeURIComponent(backgroundColorNote)}`;
+  }&note=${encodeURIComponent(requestNote)}&colorNote=${encodeURIComponent(
+    backgroundColorNote
+  )}`;
 
   return (
     <main className="min-h-screen bg-white pb-24 text-[var(--color-charcoal)] sm:pb-0">
@@ -343,6 +365,19 @@ export default function PhoneCasePage() {
                 alt={selectedCaseType.productLabel}
                 className="h-full w-full object-cover"
               />
+            </div>
+
+            <div className="mt-3 grid grid-cols-4 gap-3">
+              {orderedImages.slice(1).map((src, i) => (
+                <button
+                  key={`${src}-${i}`}
+                  type="button"
+                  onClick={() => handleSelectImage(i + 1)}
+                  className="aspect-square overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]"
+                >
+                  <img src={src} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
             </div>
 
             {/* 모바일: 이미지 바로 아래에 이름·가격·설명을 바로 보여줘요 */}
@@ -383,19 +418,6 @@ export default function PhoneCasePage() {
                   </span>
                 ))}
               </p>
-            </div>
-
-            <div className="mt-3 grid grid-cols-4 gap-3">
-              {orderedImages.slice(1).map((src, i) => (
-                <button
-                  key={`${src}-${i}`}
-                  type="button"
-                  onClick={() => handleSelectImage(i + 1)}
-                  className="aspect-square overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]"
-                >
-                  <img src={src} alt="" className="h-full w-full object-cover" />
-                </button>
-              ))}
             </div>
 
             <div className="mt-8 hidden sm:block">
@@ -441,6 +463,8 @@ export default function PhoneCasePage() {
                 setModel={setModel}
                 quantity={quantity}
                 setQuantity={setQuantity}
+                requestNote={requestNote}
+                setRequestNote={setRequestNote}
               />
 
               <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
@@ -541,6 +565,8 @@ export default function PhoneCasePage() {
                 setModel={setModel}
                 quantity={quantity}
                 setQuantity={setQuantity}
+                requestNote={requestNote}
+                setRequestNote={setRequestNote}
               />
             </div>
 

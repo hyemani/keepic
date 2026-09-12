@@ -544,7 +544,9 @@ function UploadPageContent() {
   const quantity = searchParams.get("quantity") ?? "1";
   const templateId = searchParams.get("template") ?? "";
   const unitPrice = Number(searchParams.get("unitPrice") ?? "0");
-  const requestNote = searchParams.get("note") ?? "";
+  // 하드케이스 배경색상처럼 자동으로 붙는 메모는 고객이 고치지 못하게 별도로 갖고 있어요.
+  const colorNote = searchParams.get("colorNote") ?? "";
+  const hasNoteFeature = productName === "텀블러" || productName === "폰케이스";
 
   const config = productConfig[productName];
   const selectedSizeInfo = config.sizes.find((s) => s.id === sizeId) ?? config.sizes[1];
@@ -556,6 +558,8 @@ function UploadPageContent() {
     template ? template.spreads.map((s) => ({ ...s })) : []
   );
   const [isSaving, setIsSaving] = useState(false);
+  // 이전 단계에서 남긴 요청사항이에요. 이 페이지에서 바로 고칠 수 있어요.
+  const [requestNote, setRequestNote] = useState(searchParams.get("note") ?? "");
 
   async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
@@ -631,10 +635,12 @@ function UploadPageContent() {
         photosToUpload.map(async (p) => ({ ...p, url: await uploadPhotoToStorage(p) }))
       );
 
-      // 텀블러 각인 요청사항처럼 사진이 아닌 메모는 실제 이미지 업로드 없이
-      // photos 배열 맨 뒤에 { url: "", note } 형태로 함께 담아요.
-      const notePhotos =
-        note && note.trim() ? [{ url: "", caption: "", note: note.trim() }] : [];
+      // 텀블러 각인 요청사항이나 하드케이스 배경색상처럼 사진이 아닌 메모는
+      // 실제 이미지 업로드 없이 photos 배열 맨 뒤에 { url: "", note } 형태로 함께 담아요.
+      // (colorNote는 이 페이지에서 고칠 수 없는, 이전 단계에서 자동으로 붙은 메모예요.)
+      const notePhotos = [note, colorNote]
+        .filter((n): n is string => !!n && n.trim() !== "")
+        .map((n) => ({ url: "", caption: "", note: n.trim() }));
 
       const draft = {
         productName,
@@ -863,14 +869,18 @@ function UploadPageContent() {
             : "이 상품은 사진 1장이 필요해요."}
         </p>
 
-        {productName === "텀블러" && (
+        {hasNoteFeature && (
           <div className="mt-6 border border-[var(--color-hairline)] bg-white px-5 py-4">
             <p className="text-xs font-medium text-[var(--color-charcoal)]/50">
-              앞에서 남기신 요청사항
+              앞에서 남기신 요청사항 · 수정하고 싶으면 바로 고칠 수 있어요
             </p>
-            <p className="mt-2 break-keep text-sm leading-relaxed">
-              {requestNote.trim() ? requestNote : "작성하신 요청사항이 없어요."}
-            </p>
+            <textarea
+              value={requestNote}
+              onChange={(e) => setRequestNote(e.target.value)}
+              placeholder="요청사항이 없다면 비워두셔도 돼요."
+              rows={4}
+              className="mt-3 w-full resize-none border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+            />
           </div>
         )}
 
@@ -923,7 +933,13 @@ function UploadPageContent() {
                 : "bg-[var(--color-charcoal)] hover:opacity-90"
             }`}
           >
-            {isSaving ? "사진 올리는 중..." : "다음"}
+            {isSaving
+              ? productName === "텀블러"
+                ? "신청 접수하는 중..."
+                : "사진 올리는 중..."
+              : productName === "텀블러"
+                ? "제작 신청하기"
+                : "다음"}
           </button>
         )}
       </section>

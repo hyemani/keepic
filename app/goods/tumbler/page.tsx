@@ -198,7 +198,20 @@ export default function TumblerPage() {
               />
             </div>
 
-            {/* 모바일: 이미지 바로 아래에 이름·가격·설명을 바로 보여줘요 */}
+            <div className="mt-3 grid grid-cols-4 gap-3">
+              {orderedImages.slice(1).map((src, i) => (
+                <button
+                  key={`${src}-${i}`}
+                  type="button"
+                  onClick={() => handleSelectImage(i + 1)}
+                  className="aspect-square overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]"
+                >
+                  <img src={src} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+
+            {/* 모바일: 이미지 바로 아래에 이름·가격·종류·색상·설명을 바로 보여줘요 */}
             <div className="mt-4 sm:hidden">
               <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
               <h1 className="mt-2 text-2xl font-semibold">
@@ -228,6 +241,23 @@ export default function TumblerPage() {
                 ))}
               </div>
 
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedType.colors.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setColorId(c.id)}
+                    className={`border px-3 py-2 text-xs font-medium transition ${
+                      colorId === c.id
+                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+
               <p className="mt-4 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
                 {selectedType.description.map((line, i) => (
                   <span key={i}>
@@ -236,19 +266,6 @@ export default function TumblerPage() {
                   </span>
                 ))}
               </p>
-            </div>
-
-            <div className="mt-3 grid grid-cols-4 gap-3">
-              {orderedImages.slice(1).map((src, i) => (
-                <button
-                  key={`${src}-${i}`}
-                  type="button"
-                  onClick={() => handleSelectImage(i + 1)}
-                  className="aspect-square overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]"
-                >
-                  <img src={src} alt="" className="h-full w-full object-cover" />
-                </button>
-              ))}
             </div>
 
             <div className="mt-8 hidden sm:block">
