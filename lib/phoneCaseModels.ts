@@ -61,7 +61,7 @@ export const caseTypes: {
 }[] = [
   {
     id: "premium",
-    label: "프리미엄",
+    label: "투명 젤하드 케이스",
     productLabel: "투명 젤하드케이스 프리미엄",
     materials: [
       { id: "normal", label: "일반케이스", price: 23000 },
@@ -70,11 +70,18 @@ export const caseTypes: {
   },
   {
     id: "standard",
-    label: "일반",
-    productLabel: "일반 케이스",
+    label: "하드케이스",
+    productLabel: "나만의 핸드폰 케이스",
     materials: [
       { id: "normal", label: "일반케이스", price: 29000 },
       { id: "magsafe", label: "맥세이프케이스", price: 34000 },
     ],
   },
+];
+
+export type CoatingId = "matte" | "glossy";
+
+export const coatings: { id: CoatingId; label: string }[] = [
+  { id: "matte", label: "무광코팅" },
+  { id: "glossy", label: "유광코팅" },
 ];
