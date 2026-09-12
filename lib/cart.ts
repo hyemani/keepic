@@ -19,13 +19,31 @@ export type CartItem = {
 const STORAGE_KEY = "keepic_cart";
 const EVENT_NAME = "keepic:cart-updated";
 
+// 이 형태가 바뀌기 전(사진 없이 담던 시절)에 담겨있던 예전 장바구니 항목도
+// 깨지지 않도록, 빠진 값은 안전한 기본값으로 채워줘요.
+function normalizeCartItem(item: Partial<CartItem> & Record<string, unknown>): CartItem {
+  return {
+    id: typeof item.id === "string" ? item.id : `legacy-${Date.now()}-${Math.random()}`,
+    productName: typeof item.productName === "string" ? item.productName : "",
+    sizeId: typeof item.sizeId === "string" ? item.sizeId : "",
+    sizeLabel: typeof item.sizeLabel === "string" ? item.sizeLabel : "",
+    sizeDetail: typeof item.sizeDetail === "string" ? item.sizeDetail : "",
+    unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : 0,
+    quantity: typeof item.quantity === "number" && item.quantity > 0 ? item.quantity : 1,
+    photos: Array.isArray(item.photos) ? (item.photos as GoodsPhoto[]) : [],
+    note: typeof item.note === "string" ? item.note : undefined,
+    colorNote: typeof item.colorNote === "string" ? item.colorNote : undefined,
+    addedAt: typeof item.addedAt === "number" ? item.addedAt : Date.now(),
+  };
+}
+
 function readCart(): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeCartItem) : [];
   } catch {
     return [];
   }
