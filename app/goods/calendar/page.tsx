@@ -46,6 +46,8 @@ function OptionsForm({
   setStartMonth,
   orderTitle,
   setOrderTitle,
+  requestNote,
+  setRequestNote,
   quantity,
   setQuantity,
 }: {
@@ -65,6 +67,8 @@ function OptionsForm({
   setStartMonth: (m: number) => void;
   orderTitle: string;
   setOrderTitle: (v: string) => void;
+  requestNote: string;
+  setRequestNote: (v: string) => void;
   quantity: number;
   setQuantity: (fn: (prev: number) => number) => void;
 }) {
@@ -253,6 +257,21 @@ function OptionsForm({
       </div>
 
       <div>
+        <h2 className="text-sm font-medium">요청사항</h2>
+        <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
+          디자인 배치는 Keepic이 직접 작업해요. 원하는 사진 배치나 문구가 있다면
+          자유롭게 남겨주세요.
+        </p>
+        <textarea
+          value={requestNote}
+          onChange={(e) => setRequestNote(e.target.value)}
+          placeholder="예) 1월엔 가족사진, 7월엔 여행 사진으로 넣고 싶어요"
+          rows={4}
+          className="mt-3 w-full resize-none border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+        />
+      </div>
+
+      <div>
         <h2 className="text-sm font-medium">수량</h2>
         <div className="mt-3 flex items-center gap-4">
           <button
@@ -294,6 +313,7 @@ export default function CalendarPage() {
   const [startYear, setStartYear] = useState(2026);
   const [startMonth, setStartMonth] = useState(1);
   const [orderTitle, setOrderTitle] = useState("");
+  const [requestNote, setRequestNote] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState(false);
@@ -312,11 +332,15 @@ export default function CalendarPage() {
     standColors.find((c) => c.id === standColor)?.label
   }`;
 
+  // 주문제목·시작년월·페이지수는 고객이 다음 단계에서 고치지 못하는 자동 메모(colorNote)로
+  // 함께 전달하고, 요청사항(note)만 다음 단계에서 자유롭게 다시 고칠 수 있게 해요.
+  const colorNote = `${orderTitle} / 시작 ${startYear}년 ${startMonth}월 / ${pageCount}장`;
+
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
   )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${unitPrice}&note=${encodeURIComponent(
-    `${orderTitle} / 시작 ${startYear}년 ${startMonth}월 / ${pageCount}장`
-  )}`;
+    requestNote
+  )}&colorNote=${encodeURIComponent(colorNote)}`;
 
   function handleAddToCart() {
     addToCart({
@@ -468,6 +492,8 @@ export default function CalendarPage() {
                 setStartMonth={setStartMonth}
                 orderTitle={orderTitle}
                 setOrderTitle={setOrderTitle}
+                requestNote={requestNote}
+                setRequestNote={setRequestNote}
                 quantity={quantity}
                 setQuantity={setQuantity}
               />
@@ -571,6 +597,8 @@ export default function CalendarPage() {
                 setStartMonth={setStartMonth}
                 orderTitle={orderTitle}
                 setOrderTitle={setOrderTitle}
+                requestNote={requestNote}
+                setRequestNote={setRequestNote}
                 quantity={quantity}
                 setQuantity={setQuantity}
               />

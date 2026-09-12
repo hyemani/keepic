@@ -83,6 +83,6 @@ export const CALENDAR_MAX_PAGES = 24;
 export const CALENDAR_DEFAULT_PAGES = 13;
 
 export const calendarOrderNotes = [
-  "중요한 얼굴이나 문구는 재단선 가까이에 배치하지 마세요.",
-  "링 제본이 들어가는 상단과 재단 영역을 고려하여 여유 있게 디자인해 주세요.",
+  "중요한 얼굴이나 문구가 사진 가장자리에 너무 가깝지 않은 사진으로 보내주세요.",
+  "링 제본이 들어가는 상단 부분은 여유 공간이 있는 사진이면 더 좋아요.",
 ];
