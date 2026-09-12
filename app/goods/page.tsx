@@ -19,14 +19,14 @@ const goodsTypes = [
   {
     name: "폰케이스",
     desc: "늘 곁에 두는 휴대폰에 담는 사진",
-    image: "/goods/goods-phonecase.jpg",
+    image: "/goods/phone-case/premium-1.jpg",
     alt: "커플 사진이 담긴 폰케이스",
     href: "/goods/phone-case",
   },
   {
     name: "텀블러",
     desc: "매일 손에 드는 텀블러에 담는 사진",
-    image: "/goods/tumbler/clip-main.jpg",
+    image: "/goods/tumbler/clip-black-1.jpg",
     alt: "각인과 사진이 담긴 텀블러",
     href: "/goods/tumbler",
   },
