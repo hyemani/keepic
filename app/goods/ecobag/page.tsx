@@ -22,7 +22,7 @@ const PRODUCT_NAME = "에코백";
 // 형태를 바꾸면 그 형태의 예시 사진으로 다시 보여줘요.
 const galleryImagesByShape: Record<EcobagShapeId, string[]> = {
   horizontal: [
-    "/goods/ecobag/gallery-2.jpg",
+    "/goods/ecobag/main-1.jpg",
     "/goods/ecobag/gallery-1.jpg",
     "/goods/ecobag/gallery-3.jpg",
     "/goods/ecobag/gallery-4.jpg",

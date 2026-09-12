@@ -23,7 +23,7 @@ const PRODUCT_NAME = "폰케이스";
 // 투명 젤하드 케이스(premium) / 하드케이스(standard) 예시 사진이에요.
 const galleryImagesByCaseType: Record<CaseTypeId, string[]> = {
   premium: [
-    "/goods/phone-case/premium-1.jpg",
+    "/goods/phone-case/main-1.jpg",
     "/goods/phone-case/premium-2.jpg",
     "/goods/phone-case/premium-3.jpg",
     "/goods/phone-case/premium-4.jpg",
