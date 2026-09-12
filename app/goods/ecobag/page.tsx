@@ -245,7 +245,8 @@ function OptionsForm({
 
 const productDescription = [
   "여행 혹은 일상에서 가볍고 편안하게 사용하기 좋은 에코백이에요.",
-  "좋아하는 사진과 문구를 보내주시면 디자이너가 배치부터 디자인까지 작업해드려요.",
+  "좋아하는 사진과 문구를 보내주시면",
+  "디자이너가 배치부터 디자인까지 작업해드려요.",
   "끈 커스텀을 선택하지 않으면 기본 화이트 원단 끈으로 제작돼요.",
   "인체에 무해한 OEKO-TEX 인증 원단과 잉크로 제작해요.",
 ];
@@ -481,7 +482,7 @@ export default function EcobagPage() {
 
         {/* 상세페이지: 구매하기 아래에 제품 설명 이미지를 순서대로 보여줘요 */}
         <div className="mt-20 border-t border-[var(--color-hairline)] pt-16">
-          <div className="mx-auto flex max-w-xl flex-col gap-6">
+          <div className="mx-auto flex max-w-xl flex-col">
             {detailImages.map((src, i) => (
               <img
                 key={src}

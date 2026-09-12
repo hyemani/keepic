@@ -1,7 +1,8 @@
 export type MugTypeId = "glossy" | "glass-handle" | "beer-can" | "ice-color";
 
 const GENERAL_NOTES = [
-  "열을 가해 디자인을 옮기는 전사 인쇄 방식으로 제작되어 화면과 실제 인쇄 색상이 다를 수 있어요.",
+  "열을 가해 디자인을 옮기는 전사 인쇄 방식으로 제작되어",
+  "화면과 실제 인쇄 색상이 다를 수 있어요.",
   "제품 크기는 측정 방법에 따라 약 1~2mm 차이가 있을 수 있어요.",
 ];
 
