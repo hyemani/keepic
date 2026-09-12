@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
@@ -252,7 +252,9 @@ function OptionsForm({
 }
 
 export default function PhoneCasePage() {
-  const [activeImage, setActiveImage] = useState(0);
+  const [orderedImages, setOrderedImages] = useState<string[]>(
+    galleryImagesByCaseType.premium
+  );
   const [caseType, setCaseTypeState] = useState<CaseTypeId>("premium");
   const [brand, setBrand] = useState<PhoneBrandId>("apple");
   const [material, setMaterial] = useState<CaseMaterialId>("normal");
@@ -270,14 +272,28 @@ export default function PhoneCasePage() {
   const totalPrice = selectedMaterial.price * quantity;
   const galleryImages = galleryImagesByCaseType[caseType];
 
-  // 케이스 종류를 바꾸면 그 종류에 있는 자재로 다시 맞춰주고, 예시 사진도 처음부터 보여줘요.
+  // 케이스 종류를 바꾸면 그 종류에 있는 자재로 다시 맞춰줘요.
   function setCaseType(next: CaseTypeId) {
     setCaseTypeState(next);
     const nextType = caseTypes.find((t) => t.id === next)!;
     if (!nextType.materials.some((m) => m.id === material)) {
       setMaterial(nextType.materials[0].id);
     }
-    setActiveImage(0);
+  }
+
+  // 케이스 종류가 바뀌면 큰 이미지 자리를 그 종류의 예시 사진 첫 장으로 되돌려줘요.
+  useEffect(() => {
+    setOrderedImages(galleryImages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseType]);
+
+  // 작은 이미지를 누르면 큰 이미지와 자리를 서로 바꿔줘요.
+  function handleSelectImage(index: number) {
+    setOrderedImages((prev) => {
+      const next = [...prev];
+      [next[0], next[index]] = [next[index], next[0]];
+      return next;
+    });
   }
 
   const selectedBrand = phoneBrands.find((b) => b.id === brand)!;
@@ -323,7 +339,7 @@ export default function PhoneCasePage() {
           <div>
             <div className="aspect-square w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
-                src={galleryImages[activeImage]}
+                src={orderedImages[0] ?? galleryImages[0]}
                 alt={selectedCaseType.productLabel}
                 className="h-full w-full object-cover"
               />
@@ -370,16 +386,12 @@ export default function PhoneCasePage() {
             </div>
 
             <div className="mt-3 grid grid-cols-4 gap-3">
-              {galleryImages.map((src, i) => (
+              {orderedImages.slice(1).map((src, i) => (
                 <button
-                  key={i}
+                  key={`${src}-${i}`}
                   type="button"
-                  onClick={() => setActiveImage(i)}
-                  className={`aspect-square overflow-hidden border transition ${
-                    activeImage === i
-                      ? "border-[var(--color-sky)]"
-                      : "border-[var(--color-hairline)]"
-                  }`}
+                  onClick={() => handleSelectImage(i + 1)}
+                  className="aspect-square overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]"
                 >
                   <img src={src} alt="" className="h-full w-full object-cover" />
                 </button>

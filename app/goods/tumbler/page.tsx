@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
@@ -125,9 +125,11 @@ function OptionsForm({
 
 export default function TumblerPage() {
   const [typeId, setTypeIdState] = useState<TumblerTypeId>("clip-vacuum");
-  const [colorId, setColorIdState] = useState(tumblerTypes[0].colors[0].id);
+  const [colorId, setColorId] = useState(tumblerTypes[0].colors[0].id);
   const [quantity, setQuantity] = useState(1);
-  const [activeImage, setActiveImage] = useState(0);
+  const [orderedImages, setOrderedImages] = useState<string[]>(
+    tumblerTypes[0].colors[0].images
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState(false);
   const [requestNote, setRequestNote] = useState("");
@@ -142,15 +144,22 @@ export default function TumblerPage() {
     setTypeIdState(next);
     const nextType = tumblerTypes.find((t) => t.id === next)!;
     if (!nextType.colors.some((c) => c.id === colorId)) {
-      setColorIdState(nextType.colors[0].id);
+      setColorId(nextType.colors[0].id);
     }
-    setActiveImage(0);
   }
 
-  // 색상을 바꾸면 그 색상의 예시 사진으로 다시 보여줘요.
-  function setColorId(next: string) {
-    setColorIdState(next);
-    setActiveImage(0);
+  // 종류·색상이 바뀌면 큰 이미지 자리를 그 예시 사진 첫 장으로 되돌려줘요.
+  useEffect(() => {
+    setOrderedImages(selectedColor.images);
+  }, [selectedColor]);
+
+  // 작은 이미지를 누르면 큰 이미지와 자리를 서로 바꿔줘요.
+  function handleSelectImage(index: number) {
+    setOrderedImages((prev) => {
+      const next = [...prev];
+      [next[0], next[index]] = [next[index], next[0]];
+      return next;
+    });
   }
 
   const sizeId = useMemo(() => `${typeId}-${colorId}`, [typeId, colorId]);
@@ -183,7 +192,7 @@ export default function TumblerPage() {
           <div>
             <div className="aspect-square w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
-                src={selectedColor.images[activeImage] ?? selectedColor.images[0]}
+                src={orderedImages[0] ?? selectedColor.images[0]}
                 alt={`${selectedType.productLabel} · ${selectedColor.label}`}
                 className="h-full w-full object-cover"
               />
@@ -230,16 +239,12 @@ export default function TumblerPage() {
             </div>
 
             <div className="mt-3 grid grid-cols-4 gap-3">
-              {selectedColor.images.map((src, i) => (
+              {orderedImages.slice(1).map((src, i) => (
                 <button
                   key={`${src}-${i}`}
                   type="button"
-                  onClick={() => setActiveImage(i)}
-                  className={`aspect-square overflow-hidden border transition ${
-                    activeImage === i
-                      ? "border-[var(--color-sky)]"
-                      : "border-[var(--color-hairline)]"
-                  }`}
+                  onClick={() => handleSelectImage(i + 1)}
+                  className="aspect-square overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]"
                 >
                   <img src={src} alt="" className="h-full w-full object-cover" />
                 </button>
