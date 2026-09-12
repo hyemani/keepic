@@ -913,7 +913,7 @@ function UploadPageContent() {
               handleProceed(
                 nextUrlSimple,
                 photos,
-                productName === "텀블러" ? requestNote : undefined
+                requestNote.trim() ? requestNote : undefined
               )
             }
             disabled={isSaving}

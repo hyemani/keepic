@@ -299,15 +299,19 @@ export default function PhoneCasePage() {
     setTimeout(() => setCartNotice(false), 2000);
   }
 
-  const sizeId = useMemo(() => {
-    const base = `${caseType}-${material}-${coating}-${brand}-${model}`;
-    return caseType === "standard"
-      ? `${base}-${caseColor.hex.replace("#", "")}`
-      : base;
-  }, [caseType, material, coating, brand, model, caseColor]);
+  const sizeId = useMemo(
+    () => `${caseType}-${material}-${coating}-${brand}-${model}`,
+    [caseType, material, coating, brand, model]
+  );
+  // 하드케이스일 때는 고른 배경색상을 요청사항 메모로 함께 넘겨요.
+  // (사이즈 아이디는 lib/productConfig.ts의 자동 생성 목록과 그대로 맞아야 해서 색상을 섞지 않아요.)
+  const backgroundColorNote =
+    caseType === "standard" ? `배경색상 · ${caseColor.label} (${caseColor.hex})` : "";
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
-  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${selectedMaterial.price}`;
+  )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${
+    selectedMaterial.price
+  }&note=${encodeURIComponent(backgroundColorNote)}`;
 
   return (
     <main className="min-h-screen bg-white pb-24 text-[var(--color-charcoal)] sm:pb-0">
