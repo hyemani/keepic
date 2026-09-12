@@ -74,8 +74,10 @@ const goodsCategories = [
   {
     name: "텀블러",
     images: [
-      { src: "/goods/tumbler/clip-ivory-1.jpg", alt: "클립진공 텀블러 예시" },
-      { src: "/goods/tumbler/etched-purple-1.jpg", alt: "에치드 텀블러 예시" },
+      { src: "/goods/tumbler/clip-black-1.jpg", alt: "클립진공 텀블러 예시 (블랙)" },
+      { src: "/goods/tumbler/clip-ivory-1.jpg", alt: "클립진공 텀블러 예시 (아이보리)" },
+      { src: "/goods/tumbler/etched-black-1.jpg", alt: "에치드 텀블러 예시 (블랙)" },
+      { src: "/goods/tumbler/etched-purple-1.jpg", alt: "에치드 텀블러 예시 (퍼플)" },
     ],
   },
   {
