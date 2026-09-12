@@ -35,7 +35,7 @@ const goodsTypes = [
   {
     name: "캘린더",
     desc: "매달 바뀌는 탁상용 캘린더",
-    image: "",
+    image: "/goods/calendar/large-1.jpg",
     alt: "사진이 담긴 탁상용 캘린더",
     href: "/goods/calendar",
   },

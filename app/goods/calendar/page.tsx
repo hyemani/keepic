@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
@@ -21,6 +21,46 @@ import {
 import { addToCart } from "@/lib/cart";
 
 const PRODUCT_NAME = "캘린더";
+
+// 모양별 제품 이미지예요. 모양을 바꾸면 아래 갤러리도 그 모양 사진으로 바뀌어요.
+const calendarImagesByShape: Record<CalendarShapeId, string[]> = {
+  narrow: [
+    "/goods/calendar/narrow-1.jpg",
+    "/goods/calendar/narrow-2.jpg",
+    "/goods/calendar/narrow-3.jpg",
+    "/goods/calendar/narrow-4.jpg",
+    "/goods/calendar/narrow-5.jpg",
+  ],
+  small: [
+    "/goods/calendar/small-1.jpg",
+    "/goods/calendar/small-2.jpg",
+    "/goods/calendar/small-3.jpg",
+    "/goods/calendar/small-4.jpg",
+    "/goods/calendar/small-5.jpg",
+  ],
+  large: [
+    "/goods/calendar/large-1.jpg",
+    "/goods/calendar/large-2.jpg",
+    "/goods/calendar/large-3.jpg",
+    "/goods/calendar/large-4.jpg",
+    "/goods/calendar/large-5.jpg",
+  ],
+  wide: [
+    "/goods/calendar/wide-1.jpg",
+    "/goods/calendar/wide-2.jpg",
+    "/goods/calendar/wide-3.jpg",
+    "/goods/calendar/wide-4.jpg",
+    "/goods/calendar/wide-5.jpg",
+  ],
+};
+
+// 실제 사진 비율에 맞춘 이미지 박스 비율이에요. (Narrow·Small은 4:3, Large·Wide는 1:1)
+const galleryAspectByShape: Record<CalendarShapeId, string> = {
+  narrow: "aspect-[4/3]",
+  small: "aspect-[4/3]",
+  large: "aspect-square",
+  wide: "aspect-square",
+};
 
 const YEAR_OPTIONS = [2025, 2026, 2027];
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -317,6 +357,23 @@ export default function CalendarPage() {
   const [quantity, setQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cartNotice, setCartNotice] = useState(false);
+  const [orderedImages, setOrderedImages] = useState<string[]>(
+    calendarImagesByShape.large
+  );
+
+  // 모양이 바뀌면 큰 이미지 자리를 그 모양 사진 첫 장으로 되돌려줘요.
+  useEffect(() => {
+    setOrderedImages(calendarImagesByShape[shape]);
+  }, [shape]);
+
+  // 작은 이미지를 누르면 큰 이미지와 자리를 서로 바꿔줘요.
+  function handleSelectImage(index: number) {
+    setOrderedImages((prev) => {
+      const next = [...prev];
+      [next[0], next[index]] = [next[index], next[0]];
+      return next;
+    });
+  }
 
   const selectedShape = calendarShapes.find((s) => s.id === shape)!;
   const unitPrice = selectedShape.prices[paper];
@@ -360,14 +417,34 @@ export default function CalendarPage() {
 
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-14">
-          {/* 이미지: 아직 실제 사진이 없어서 1:1 자리만 잡아뒀어요. 사진이 준비되면
-              네 사이즈를 한꺼번에 보여주기보다, Large 또는 Small 한 컷을 메인으로 걸고
-              아래 사이즈 비교 섹션에서 나머지를 보여주는 구성을 추천해요. */}
+          {/* 이미지: 모양별로 준비된 예시 사진 5장 중 1장을 크게 보여주고, 나머지는
+              하단 썸네일로 보여줘요. 네 사이즈를 한꺼번에 보여주기보다 선택한 모양
+              사진을 메인으로 걸고, 아래 사이즈 비교 섹션에서 나머지를 비교하도록 구성했어요. */}
           <div>
-            <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 border border-dashed border-[var(--color-hairline)] bg-[var(--color-hairline)]/10 text-[var(--color-charcoal)]/40">
-              <span className="text-sm">이미지 준비중</span>
-              <span className="text-xs">1:1 사이즈 · {selectedShape.label} 기준</span>
+            <div
+              className={`${galleryAspectByShape[shape]} w-full overflow-hidden bg-[var(--color-hairline)]/20`}
+            >
+              <img
+                src={orderedImages[0] ?? calendarImagesByShape[shape][0]}
+                alt={`Keepic 커스텀 탁상 캘린더 · ${selectedShape.label}`}
+                className="h-full w-full object-cover"
+              />
             </div>
+
+            {orderedImages.length > 1 && (
+              <div className="mt-3 grid grid-cols-4 gap-3">
+                {orderedImages.slice(1).map((src, i) => (
+                  <button
+                    key={`${src}-${i}`}
+                    type="button"
+                    onClick={() => handleSelectImage(i + 1)}
+                    className={`${galleryAspectByShape[shape]} overflow-hidden border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)]`}
+                  >
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* 모바일: 이미지 바로 아래에 이름·가격·사이즈·설명을 바로 보여줘요 */}
             <div className="mt-4 sm:hidden">

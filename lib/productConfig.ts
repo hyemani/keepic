@@ -159,11 +159,10 @@ export const productConfig = {
     sizes: buildMugSizes(),
   },
   "캘린더": {
-    // 아직 가격·이미지가 확정되지 않은 준비중 상품이에요. minPhotos/maxPhotos는
-    // 12달 분량 사진을 가정한 임시값이고, 실제 구성이 정해지면 조정해주세요.
+    // minPhotos/maxPhotos는 12달 분량 사진을 가정한 값이에요.
     minPhotos: 1,
     maxPhotos: 12,
-    // 모양 × 트윈링 컬러 × 삼각대 색상 조합을 사이즈 목록으로 관리합니다. lib/calendarModels.ts에서 관리합니다.
+    // 모양 × 용지 × 트윈링 컬러 × 삼각대 색상 조합을 사이즈 목록으로 관리합니다. lib/calendarModels.ts에서 관리합니다.
     sizes: buildCalendarSizes(),
   },
 } as const;
