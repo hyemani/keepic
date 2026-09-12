@@ -125,7 +125,7 @@ function OptionsForm({
 
 export default function TumblerPage() {
   const [typeId, setTypeIdState] = useState<TumblerTypeId>("clip-vacuum");
-  const [colorId, setColorId] = useState(tumblerTypes[0].colors[0].id);
+  const [colorId, setColorIdState] = useState(tumblerTypes[0].colors[0].id);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -142,8 +142,14 @@ export default function TumblerPage() {
     setTypeIdState(next);
     const nextType = tumblerTypes.find((t) => t.id === next)!;
     if (!nextType.colors.some((c) => c.id === colorId)) {
-      setColorId(nextType.colors[0].id);
+      setColorIdState(nextType.colors[0].id);
     }
+    setActiveImage(0);
+  }
+
+  // 색상을 바꾸면 그 색상의 예시 사진으로 다시 보여줘요.
+  function setColorId(next: string) {
+    setColorIdState(next);
     setActiveImage(0);
   }
 
@@ -177,8 +183,8 @@ export default function TumblerPage() {
           <div>
             <div className="aspect-square w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
-                src={selectedType.images[activeImage] ?? selectedType.images[0]}
-                alt={selectedType.productLabel}
+                src={selectedColor.images[activeImage] ?? selectedColor.images[0]}
+                alt={`${selectedType.productLabel} · ${selectedColor.label}`}
                 className="h-full w-full object-cover"
               />
             </div>
@@ -224,7 +230,7 @@ export default function TumblerPage() {
             </div>
 
             <div className="mt-3 grid grid-cols-4 gap-3">
-              {selectedType.images.map((src, i) => (
+              {selectedColor.images.map((src, i) => (
                 <button
                   key={`${src}-${i}`}
                   type="button"

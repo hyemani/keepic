@@ -101,3 +101,38 @@ export const coatings: { id: CoatingId; label: string }[] = [
   { id: "matte", label: "무광코팅" },
   { id: "glossy", label: "유광코팅" },
 ];
+
+// 하드케이스(불투명) 전용 배경색상 옵션이에요.
+// 맨 위 5개는 실제 제작 예시 사진에서 쓰인 색이라 "추천 색상"으로 보여줘요.
+export type CaseColor = { id: string; label: string; hex: string };
+
+export const caseColorPresets: CaseColor[] = [
+  { id: "sample-sky", label: "하늘색", hex: "#9eccee" },
+  { id: "sample-yellow", label: "옐로우", hex: "#edd899" },
+  { id: "sample-teal", label: "틸블루", hex: "#549cb3" },
+  { id: "sample-pink", label: "코랄핑크", hex: "#f0b0a9" },
+  { id: "sample-green", label: "세이지그린", hex: "#91957a" },
+  { id: "black", label: "블랙", hex: "#1a1a1a" },
+  { id: "gray", label: "그레이", hex: "#9a9a9a" },
+  { id: "lightgray", label: "라이트그레이", hex: "#d9d9d9" },
+  { id: "white", label: "화이트", hex: "#ffffff" },
+  { id: "hotpink", label: "핫핑크", hex: "#e0447e" },
+  { id: "pink", label: "핑크", hex: "#f2a0c1" },
+  { id: "palepink", label: "페일핑크", hex: "#f8d3e0" },
+  { id: "red", label: "레드", hex: "#e0332f" },
+  { id: "coral", label: "코랄", hex: "#f2755a" },
+  { id: "orange", label: "오렌지", hex: "#f2941f" },
+  { id: "peach", label: "피치", hex: "#f6c89a" },
+  { id: "yellow", label: "옐로우", hex: "#f6e04b" },
+  { id: "lemon", label: "레몬", hex: "#f2ee9b" },
+  { id: "lime", label: "라임", hex: "#b6d44e" },
+  { id: "green", label: "그린", hex: "#4a9c4a" },
+  { id: "mint", label: "민트", hex: "#7fd1a8" },
+  { id: "teal", label: "틸", hex: "#3a9aa0" },
+  { id: "skyblue", label: "스카이블루", hex: "#8fc7ee" },
+  { id: "blue", label: "블루", hex: "#3468c4" },
+  { id: "navy", label: "네이비", hex: "#26327a" },
+  { id: "lavender", label: "라벤더", hex: "#a6a0d6" },
+  { id: "purple", label: "퍼플", hex: "#7c4fa8" },
+  { id: "brown", label: "브라운", hex: "#8a5a3c" },
+];

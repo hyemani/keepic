@@ -9,8 +9,7 @@ export const tumblerTypes: {
   engraveArea: string;
   price: number;
   description: string[];
-  colors: { id: string; label: string }[];
-  images: string[];
+  colors: { id: string; label: string; images: string[] }[];
 }[] = [
   {
     id: "clip-vacuum",
@@ -27,14 +26,28 @@ export const tumblerTypes: {
       "45 x 100mm 영역에 사진이나 문구를 각인해드려요.",
     ],
     colors: [
-      { id: "black", label: "블랙" },
-      { id: "ivory", label: "아이보리" },
-    ],
-    images: [
-      "/goods/tumbler/clip-main.jpg",
-      "/goods/tumbler/clip-colors.jpg",
-      "/goods/tumbler/clip-main.jpg",
-      "/goods/tumbler/clip-colors.jpg",
+      {
+        id: "black",
+        label: "블랙",
+        images: [
+          "/goods/tumbler/clip-black-1.jpg",
+          "/goods/tumbler/clip-black-2.jpg",
+          "/goods/tumbler/clip-black-3.jpg",
+          "/goods/tumbler/clip-black-4.jpg",
+          "/goods/tumbler/clip-black-5.jpg",
+        ],
+      },
+      {
+        id: "ivory",
+        label: "아이보리",
+        images: [
+          "/goods/tumbler/clip-ivory-1.jpg",
+          "/goods/tumbler/clip-ivory-2.jpg",
+          "/goods/tumbler/clip-ivory-3.jpg",
+          "/goods/tumbler/clip-ivory-4.jpg",
+          "/goods/tumbler/clip-ivory-5.jpg",
+        ],
+      },
     ],
   },
   {
@@ -52,14 +65,28 @@ export const tumblerTypes: {
       "35 x 125mm 영역에 사진이나 문구를 각인해드려요.",
     ],
     colors: [
-      { id: "black", label: "블랙" },
-      { id: "purple", label: "퍼플" },
-    ],
-    images: [
-      "/goods/tumbler/etched-main.jpg",
-      "/goods/tumbler/etched-colors.jpg",
-      "/goods/tumbler/etched-main.jpg",
-      "/goods/tumbler/etched-colors.jpg",
+      {
+        id: "black",
+        label: "블랙",
+        images: [
+          "/goods/tumbler/etched-black-1.jpg",
+          "/goods/tumbler/etched-black-2.jpg",
+          "/goods/tumbler/etched-black-3.jpg",
+          "/goods/tumbler/etched-black-4.jpg",
+          "/goods/tumbler/etched-black-5.jpg",
+        ],
+      },
+      {
+        id: "purple",
+        label: "퍼플",
+        images: [
+          "/goods/tumbler/etched-purple-1.jpg",
+          "/goods/tumbler/etched-purple-2.jpg",
+          "/goods/tumbler/etched-purple-3.jpg",
+          "/goods/tumbler/etched-purple-4.jpg",
+          "/goods/tumbler/etched-purple-5.jpg",
+        ],
+      },
     ],
   },
 ];

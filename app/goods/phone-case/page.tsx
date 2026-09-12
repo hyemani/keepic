@@ -9,21 +9,34 @@ import {
   phoneModelsByBrand,
   caseTypes,
   coatings,
+  caseColorPresets,
   PhoneBrandId,
   CaseMaterialId,
   CaseTypeId,
   CoatingId,
+  CaseColor,
 } from "@/lib/phoneCaseModels";
 import { addToCart } from "@/lib/cart";
 
 const PRODUCT_NAME = "폰케이스";
-// 실제 제작 예시 사진이 더 모이면 galleryImages 배열에 추가해주세요. 현재는 1장뿐이라 임시로 반복 배치했어요.
-const galleryImages = [
-  "/goods/goods-phonecase.jpg",
-  "/goods/goods-phonecase.jpg",
-  "/goods/goods-phonecase.jpg",
-  "/goods/goods-phonecase.jpg",
-];
+
+// 투명 젤하드 케이스(premium) / 하드케이스(standard) 예시 사진이에요.
+const galleryImagesByCaseType: Record<CaseTypeId, string[]> = {
+  premium: [
+    "/goods/phone-case/premium-1.jpg",
+    "/goods/phone-case/premium-2.jpg",
+    "/goods/phone-case/premium-3.jpg",
+    "/goods/phone-case/premium-4.jpg",
+    "/goods/phone-case/premium-5.jpg",
+  ],
+  standard: [
+    "/goods/phone-case/standard-blue.jpg",
+    "/goods/phone-case/standard-yellow.jpg",
+    "/goods/phone-case/standard-teal.jpg",
+    "/goods/phone-case/standard-pink.jpg",
+    "/goods/phone-case/standard-green.jpg",
+  ],
+};
 
 function OptionsForm({
   caseType,
@@ -34,6 +47,8 @@ function OptionsForm({
   setMaterial,
   coating,
   setCoating,
+  caseColor,
+  setCaseColor,
   model,
   setModel,
   quantity,
@@ -47,6 +62,8 @@ function OptionsForm({
   setMaterial: (m: CaseMaterialId) => void;
   coating: CoatingId;
   setCoating: (c: CoatingId) => void;
+  caseColor: CaseColor;
+  setCaseColor: (c: CaseColor) => void;
   model: string;
   setModel: (m: string) => void;
   quantity: number;
@@ -143,6 +160,58 @@ function OptionsForm({
         </div>
       </div>
 
+      {caseType === "standard" && (
+        <div>
+          <h2 className="text-sm font-medium">배경색상</h2>
+          <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/50">
+            하드케이스 디자인의 배경으로 쓸 색상을 골라주세요. 원하는 색이 없다면
+            직접 선택도 가능해요.
+          </p>
+          <div className="mt-3 grid grid-cols-6 gap-2.5 sm:grid-cols-9">
+            {caseColorPresets.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                title={c.label}
+                aria-label={c.label}
+                onClick={() => setCaseColor(c)}
+                className={`aspect-square rounded-full border transition ${
+                  caseColor.id === c.id
+                    ? "ring-2 ring-[var(--color-sky)] ring-offset-2"
+                    : "border-[var(--color-hairline)]"
+                }`}
+                style={{ backgroundColor: c.hex }}
+              />
+            ))}
+            <label
+              title="직접 선택"
+              className="relative flex aspect-square items-center justify-center rounded-full border border-dashed border-[var(--color-charcoal)]/30 text-sm text-[var(--color-charcoal)]/50"
+            >
+              +
+              <input
+                type="color"
+                value={caseColor.hex}
+                onChange={(e) =>
+                  setCaseColor({
+                    id: "custom",
+                    label: `직접 선택(${e.target.value})`,
+                    hex: e.target.value,
+                  })
+                }
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </label>
+          </div>
+          <div className="mt-3 flex items-center gap-2 text-xs text-[var(--color-charcoal)]/60">
+            <span
+              className="inline-block h-4 w-4 rounded-full border border-[var(--color-hairline)]"
+              style={{ backgroundColor: caseColor.hex }}
+            />
+            선택한 색상 · {caseColor.label}
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-sm font-medium">기종</h2>
         <select
@@ -188,6 +257,7 @@ export default function PhoneCasePage() {
   const [brand, setBrand] = useState<PhoneBrandId>("apple");
   const [material, setMaterial] = useState<CaseMaterialId>("normal");
   const [coating, setCoating] = useState<CoatingId>("matte");
+  const [caseColor, setCaseColor] = useState<CaseColor>(caseColorPresets[0]);
   const [model, setModel] = useState(phoneModelsByBrand.apple[0]);
   const [quantity, setQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -198,19 +268,24 @@ export default function PhoneCasePage() {
     selectedCaseType.materials.find((m) => m.id === material) ??
     selectedCaseType.materials[0];
   const totalPrice = selectedMaterial.price * quantity;
+  const galleryImages = galleryImagesByCaseType[caseType];
 
-  // 케이스 종류를 바꾸면 그 종류에 있는 자재로 다시 맞춰줘요.
+  // 케이스 종류를 바꾸면 그 종류에 있는 자재로 다시 맞춰주고, 예시 사진도 처음부터 보여줘요.
   function setCaseType(next: CaseTypeId) {
     setCaseTypeState(next);
     const nextType = caseTypes.find((t) => t.id === next)!;
     if (!nextType.materials.some((m) => m.id === material)) {
       setMaterial(nextType.materials[0].id);
     }
+    setActiveImage(0);
   }
 
   const selectedBrand = phoneBrands.find((b) => b.id === brand)!;
   const selectedCoating = coatings.find((c) => c.id === coating)!;
-  const sizeLabel = `${selectedBrand.label} ${model} · ${selectedCaseType.label} · ${selectedMaterial.label} · ${selectedCoating.label}`;
+  const sizeLabel =
+    caseType === "standard"
+      ? `${selectedBrand.label} ${model} · ${selectedCaseType.label} · ${selectedMaterial.label} · ${selectedCoating.label} · 배경색상 ${caseColor.label}`
+      : `${selectedBrand.label} ${model} · ${selectedCaseType.label} · ${selectedMaterial.label}`;
 
   function handleAddToCart() {
     addToCart({
@@ -224,10 +299,12 @@ export default function PhoneCasePage() {
     setTimeout(() => setCartNotice(false), 2000);
   }
 
-  const sizeId = useMemo(
-    () => `${caseType}-${material}-${coating}-${brand}-${model}`,
-    [caseType, material, coating, brand, model]
-  );
+  const sizeId = useMemo(() => {
+    const base = `${caseType}-${material}-${coating}-${brand}-${model}`;
+    return caseType === "standard"
+      ? `${base}-${caseColor.hex.replace("#", "")}`
+      : base;
+  }, [caseType, material, coating, brand, model, caseColor]);
   const nextUrl = `/upload?product=${encodeURIComponent(
     PRODUCT_NAME
   )}&size=${encodeURIComponent(sizeId)}&quantity=${quantity}&unitPrice=${selectedMaterial.price}`;
@@ -342,6 +419,8 @@ export default function PhoneCasePage() {
                 setMaterial={setMaterial}
                 coating={coating}
                 setCoating={setCoating}
+                caseColor={caseColor}
+                setCaseColor={setCaseColor}
                 model={model}
                 setModel={setModel}
                 quantity={quantity}
@@ -383,7 +462,7 @@ export default function PhoneCasePage() {
                 </p>
               )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
-                다음 단계에서 케이스에 담을 사진을 올려주세요. 배송비는 별도예요.
+                다음 단계에서 케이스에 담을 사진을 올려주세요. 5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
 
@@ -440,6 +519,8 @@ export default function PhoneCasePage() {
                 setMaterial={setMaterial}
                 coating={coating}
                 setCoating={setCoating}
+                caseColor={caseColor}
+                setCaseColor={setCaseColor}
                 model={model}
                 setModel={setModel}
                 quantity={quantity}
