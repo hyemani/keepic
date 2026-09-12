@@ -31,10 +31,11 @@ const goodsTypes = [
     href: "/goods/tumbler",
   },
   {
-    name: "토트백",
+    name: "에코백",
     desc: "들고 다니는 가방에 담는 사진",
-    image: "/goods/goods-totebag.jpg",
-    alt: "여행 사진이 담긴 토트백",
+    image: "/goods/ecobag/gallery-1.jpg",
+    alt: "가족 사진이 담긴 에코백",
+    href: "/goods/ecobag",
   },
   {
     name: "포토 마그넷",
@@ -98,7 +99,7 @@ export default function GoodsPage() {
         </div>
 
         <div className="mt-12 border border-dashed border-[var(--color-hairline)] bg-white px-8 py-10 text-center">
-          <p className="font-medium">폰케이스, 텀블러는 지금 바로 주문하실 수 있어요</p>
+          <p className="font-medium">폰케이스, 텀블러, 에코백은 지금 바로 주문하실 수 있어요</p>
           <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
             나머지 굿즈도 사이즈, 재질, 가격을 확정하는 대로
             <br />

@@ -1,5 +1,6 @@
 import { phoneBrands, phoneModelsByBrand, caseTypes, coatings } from "./phoneCaseModels";
 import { tumblerTypes } from "./tumblerModels";
+import { ecobagShapes, ecobagFabrics, ecobagAddons } from "./ecobagModels";
 
 function buildPhoneCaseSizes() {
   const list: { id: string; label: string; detail: string; aspect: string }[] = [];
@@ -37,6 +38,46 @@ function buildTumblerSizes() {
   return list;
 }
 
+// 형태 × 원단 × 후가공(끈/라벨/포켓/자석 on-off) 조합을 사이즈 목록으로 관리합니다.
+// 후가공 색상(끈/라벨 커스텀 색)은 자유 색상이라 사이즈 목록에 넣지 않고,
+// 폰케이스 배경색상처럼 별도 메모(colorNote)로 전달해요.
+function buildEcobagSizes() {
+  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  for (const shape of ecobagShapes) {
+    for (const fabric of ecobagFabrics) {
+      for (let strapOn = 0; strapOn < 2; strapOn++) {
+        for (let labelOn = 0; labelOn < 2; labelOn++) {
+          for (let pocketOn = 0; pocketOn < 2; pocketOn++) {
+            for (let magnetOn = 0; magnetOn < 2; magnetOn++) {
+              const flags = [
+                strapOn && "strap",
+                labelOn && "label",
+                pocketOn && "pocket",
+                magnetOn && "magnet",
+              ].filter(Boolean) as string[];
+              const addonLabels = ecobagAddons
+                .filter((a) => flags.includes(a.id))
+                .map((a) => a.label);
+              const addonKey = flags.length ? flags.join("-") : "none";
+              list.push({
+                id: `${shape.id}-${fabric.id}-${addonKey}`,
+                label: `${shape.label} · ${fabric.label}${
+                  addonLabels.length ? " · " + addonLabels.join("/") : ""
+                }`,
+                detail: `${shape.detail} · ${fabric.label}${
+                  addonLabels.length ? " · " + addonLabels.join(", ") : ""
+                }`,
+                aspect: shape.id === "horizontal" ? "aspect-[42/35]" : "aspect-[37/39]",
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+  return list;
+}
+
 export const productConfig = {
   "액자": {
     minPhotos: 1,
@@ -68,6 +109,12 @@ export const productConfig = {
     maxPhotos: 1,
     // 종류 × 색상 조합을 사이즈 목록으로 관리합니다. lib/tumblerModels.ts에서 관리합니다.
     sizes: buildTumblerSizes(),
+  },
+  "에코백": {
+    minPhotos: 1,
+    maxPhotos: 1,
+    // 형태 × 원단 × 후가공 조합을 사이즈 목록으로 관리합니다. lib/ecobagModels.ts에서 관리합니다.
+    sizes: buildEcobagSizes(),
   },
 } as const;
 
