@@ -9,14 +9,6 @@ import { addToCart } from "@/lib/cart";
 
 const PRODUCT_NAME = "머그";
 
-// 상세페이지: 구매하기 아래에 순서대로 보여줄 제품 설명(예시) 이미지예요.
-const detailImages = [
-  "/goods/mug/desc-1.jpg",
-  "/goods/mug/desc-2.jpg",
-  "/goods/mug/desc-3.jpg",
-  "/goods/mug/desc-4.jpg",
-  "/goods/mug/desc-5.jpg",
-];
 
 function OptionsForm({
   typeId,
@@ -258,25 +250,6 @@ export default function MugPage() {
                 ))}
               </div>
 
-              {selectedType.colors.length > 1 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedType.colors.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setColorId(c.id)}
-                      className={`border px-3 py-2 text-xs font-medium transition ${
-                        colorId === c.id
-                          ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                          : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70"
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               <p className="mt-4 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
                 {selectedType.description.map((line, i) => (
                   <span key={i}>
@@ -364,20 +337,6 @@ export default function MugPage() {
                 다음 단계에서 요청사항과 참고 사진(선택)을 다시 확인할 수 있어요. 5만원 이상 구매 시 배송비가 무료예요.
               </p>
             </div>
-          </div>
-        </div>
-
-        {/* 상세페이지: 구매하기 아래에 제품 설명 이미지를 순서대로 보여줘요 */}
-        <div className="mt-20 border-t border-[var(--color-hairline)] pt-16">
-          <div className="mx-auto flex max-w-xl flex-col gap-6">
-            {detailImages.map((src, i) => (
-              <img
-                key={src}
-                src={src}
-                alt={`Keepic 머그·유리컵 상세 설명 ${i + 1}`}
-                className="w-full"
-              />
-            ))}
           </div>
         </div>
       </section>
