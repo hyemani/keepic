@@ -190,6 +190,7 @@ export default function PhoneCasePage() {
   const [model, setModel] = useState(phoneModelsByBrand.apple[0]);
   const [quantity, setQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [cartNotice, setCartNotice] = useState(false);
 
   const selectedCaseType = caseTypes.find((t) => t.id === caseType)!;
   const selectedMaterial =
@@ -204,6 +205,11 @@ export default function PhoneCasePage() {
     if (!nextType.materials.some((m) => m.id === material)) {
       setMaterial(nextType.materials[0].id);
     }
+  }
+
+  function handleAddToCart() {
+    setCartNotice(true);
+    setTimeout(() => setCartNotice(false), 2000);
   }
 
   const sizeId = useMemo(
@@ -222,7 +228,7 @@ export default function PhoneCasePage() {
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 sm:gap-14">
           {/* 이미지: 큰 이미지 1개 + 하단 예시 이미지 4개 */}
           <div>
-            <div className="aspect-[3/4] w-full overflow-hidden bg-[var(--color-hairline)]/20">
+            <div className="aspect-square w-full overflow-hidden bg-[var(--color-hairline)]/20">
               <img
                 src={galleryImages[activeImage]}
                 alt={selectedCaseType.productLabel}
@@ -242,6 +248,24 @@ export default function PhoneCasePage() {
                   ({selectedMaterial.price.toLocaleString()}원 × {quantity}개)
                 </span>
               </p>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {caseTypes.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setCaseType(t.id)}
+                    className={`border px-3 py-2.5 text-xs font-medium transition ${
+                      caseType === t.id
+                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
               <p className="mt-4 break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/70">
                 {selectedCaseType.description.map((line, i) => (
                   <span key={i}>
@@ -258,7 +282,7 @@ export default function PhoneCasePage() {
                   key={i}
                   type="button"
                   onClick={() => setActiveImage(i)}
-                  className={`aspect-[3/4] overflow-hidden border transition ${
+                  className={`aspect-square overflow-hidden border transition ${
                     activeImage === i
                       ? "border-[var(--color-sky)]"
                       : "border-[var(--color-hairline)]"
@@ -312,12 +336,40 @@ export default function PhoneCasePage() {
                 setQuantity={setQuantity}
               />
 
-              <Link
-                href={nextUrl}
-                className="mt-10 inline-block bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-              >
-                제작 신청하기
-              </Link>
+              <div className="mt-10 flex items-center justify-between border-t border-[var(--color-hairline)] pt-6">
+                <span className="text-sm font-medium text-[var(--color-charcoal)]/70">
+                  청구금액
+                </span>
+                <div className="text-right">
+                  <span className="mr-2 text-sm text-[var(--color-charcoal)]/50">
+                    개당 {selectedMaterial.price.toLocaleString()}원
+                  </span>
+                  <span className="text-xl font-semibold">
+                    {totalPrice.toLocaleString()}원
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  className="flex-1 border border-[var(--color-charcoal)]/30 px-6 py-4 text-sm font-medium transition hover:bg-[var(--color-hairline)]/20"
+                >
+                  장바구니
+                </button>
+                <Link
+                  href={nextUrl}
+                  className="flex-1 bg-[var(--color-sky)] px-6 py-4 text-center text-sm font-medium text-white transition hover:opacity-90"
+                >
+                  제작 신청하기
+                </Link>
+              </div>
+              {cartNotice && (
+                <p className="mt-2 text-right text-xs text-[var(--color-sky)]">
+                  장바구니에 담았어요.
+                </p>
+              )}
               <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
                 다음 단계에서 케이스에 담을 사진을 올려주세요. 배송비는 별도예요.
               </p>
