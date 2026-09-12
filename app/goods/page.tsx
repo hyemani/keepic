@@ -6,42 +6,42 @@ import SiteFooter from "@/components/SiteFooter";
 const goodsTypes = [
   {
     name: "머그",
-    desc: "매일 쓰는 컵에 담는 사진",
+    desc: "좋아하는 순간을 매일 쓰는 컵에",
     image: "/goods/mug/main-1.jpg",
     alt: "여행 사진이 담긴 머그컵",
     href: "/goods/mug",
   },
   {
     name: "폰케이스",
-    desc: "늘 곁에 두는 휴대폰에 담는 사진",
+    desc: "늘 곁에 두는 휴대폰에 나만의 사진을",
     image: "/goods/phone-case/main-1.jpg",
     alt: "커플 사진이 담긴 폰케이스",
     href: "/goods/phone-case",
   },
   {
     name: "텀블러",
-    desc: "매일 손에 드는 텀블러에 담는 사진",
+    desc: "매일 함께하는 텀블러에 특별한 순간을",
     image: "/goods/tumbler/main-1.jpg",
     alt: "각인과 사진이 담긴 텀블러",
     href: "/goods/tumbler",
   },
   {
     name: "에코백",
-    desc: "들고 다니는 가방에 담는 사진",
+    desc: "좋아하는 사진을 담아 만드는 나만의 가방",
     image: "/goods/ecobag/main-1.jpg",
     alt: "여행 사진이 담긴 에코백",
     href: "/goods/ecobag",
   },
   {
     name: "캘린더",
-    desc: "매달 바뀌는 탁상용 캘린더",
+    desc: "소중한 순간을 매달 꺼내보는 탁상 캘린더",
     image: "/goods/calendar/main-1.jpg",
     alt: "사진이 담긴 탁상용 캘린더",
     href: "/goods/calendar",
   },
   {
     name: "패브릭포스터",
-    desc: "패브릭 원단에 담는 사진",
+    desc: "한 장의 사진으로 완성하는 나만의 공간",
     image: "",
     alt: "사진이 담긴 패브릭 포스터",
   },
@@ -87,9 +87,13 @@ export default function GoodsPage() {
                   <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
                     {type.desc}
                   </p>
-                  {type.href && (
+                  {type.href ? (
                     <p className="mt-2 text-xs font-medium text-[var(--color-sky)]">
                       지금 주문 가능 →
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs font-medium text-[var(--color-charcoal)]/40">
+                      준비 중
                     </p>
                   )}
                 </div>
@@ -107,17 +111,22 @@ export default function GoodsPage() {
         </div>
 
         <div className="mt-12 border border-dashed border-[var(--color-hairline)] bg-white px-8 py-10 text-center">
-          <p className="font-medium">폰케이스, 텀블러, 에코백, 머그, 캘린더는 지금 바로 주문하실 수 있어요</p>
+          <p className="font-medium">지금 바로 만들 수 있는 Keepic 굿즈</p>
           <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
-            나머지 굿즈도 사이즈, 재질, 가격을 확정하는 대로
+            폰케이스, 텀블러, 에코백, 머그, 캘린더는
             <br />
-            바로 주문하실 수 있게 열어드릴게요.
+            지금 바로 주문하실 수 있어요.
+          </p>
+          <p className="mt-4 break-keep text-sm text-[var(--color-charcoal)]/60">
+            새로운 굿즈도 사이즈와 재질, 가격이 확정되는 대로
+            <br />
+            하나씩 추가될 예정이에요.
           </p>
         </div>
       </section>
 
       <SiteFooter />
-      <StickyOrderBar label="나만의 굿즈 제작 신청" />
+      <StickyOrderBar label="나만의 굿즈 만들기" />
     </main>
   );
 }
