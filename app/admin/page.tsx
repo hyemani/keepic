@@ -19,6 +19,12 @@ type OrderPhoto = {
   [key: string]: unknown;
 };
 
+// 포토북 인쇄용 제작 파일(내지/표지 PDF)은 note가 "[인쇄파일] ..."로 시작하는
+// 특별한 photos 항목으로 함께 저장돼요. 일반 사진/요청사항과는 구분해서 보여줘요.
+function isPrintFileEntry(photo: OrderPhoto) {
+  return typeof photo.note === "string" && photo.note.startsWith("[인쇄파일]");
+}
+
 type Order = {
   id: string;
   created_at: string;
@@ -102,7 +108,7 @@ export default function AdminPage() {
     setIsDownloading(true);
     try {
       const zip = new JSZip();
-      const realPhotos = order.photos.filter((photo) => photo.url);
+      const realPhotos = order.photos.filter((photo) => photo.url && !isPrintFileEntry(photo));
 
       await Promise.all(
         realPhotos.map(async (photo, i) => {
@@ -230,8 +236,9 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {orders.map((order) => {
-                const photos = (order.photos ?? []).filter((p) => p.url);
-                const noteEntry = (order.photos ?? []).find((p) => p.note);
+                const photos = (order.photos ?? []).filter((p) => p.url && !isPrintFileEntry(p));
+                const noteEntry = (order.photos ?? []).find((p) => p.note && !isPrintFileEntry(p));
+                const hasPrintFiles = (order.photos ?? []).some(isPrintFileEntry);
                 return (
                   <tr
                     key={order.id}
@@ -247,6 +254,11 @@ export default function AdminPage() {
                       {noteEntry && (
                         <span className="ml-1 rounded bg-[var(--color-sky)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-sky)]">
                           요청사항
+                        </span>
+                      )}
+                      {hasPrintFiles && (
+                        <span className="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                          인쇄파일
                         </span>
                       )}
                     </td>
@@ -447,12 +459,35 @@ export default function AdminPage() {
               </label>
             </div>
 
+            {selectedOrder.photos && selectedOrder.photos.some(isPrintFileEntry) && (
+              <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                <p className="text-sm font-medium text-emerald-700">인쇄용 제작 파일</p>
+                <p className="mt-1 text-xs text-emerald-700/70 break-keep">
+                  고객이 편집한 내용으로 자동 생성된 발주용 PDF예요. 책등 폭 등은 참고용 예상치가
+                  섞여 있을 수 있으니, 발주 전 파일을 한 번 열어 확인해주세요.
+                </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  {selectedOrder.photos.filter(isPrintFileEntry).map((p, i) => (
+                    <a
+                      key={i}
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-300 bg-white px-4 py-2 text-xs font-medium text-emerald-700 hover:border-emerald-500"
+                    >
+                      {String(p.note).replace("[인쇄파일] ", "")} 열기
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {selectedOrder.photos &&
-              selectedOrder.photos.some((p) => p.note) && (
+              selectedOrder.photos.some((p) => p.note && !isPrintFileEntry(p)) && (
                 <div className="mt-6 rounded-xl border border-[var(--color-hairline)] p-4">
                   <p className="text-sm font-medium">요청사항</p>
                   {selectedOrder.photos
-                    .filter((p) => p.note)
+                    .filter((p) => p.note && !isPrintFileEntry(p))
                     .map((p, i) => (
                       <p key={i} className="mt-2 break-keep text-sm leading-relaxed">
                         {p.note}
@@ -462,7 +497,7 @@ export default function AdminPage() {
               )}
 
             {selectedOrder.photos &&
-              selectedOrder.photos.filter((p) => p.url).length > 0 && (
+              selectedOrder.photos.filter((p) => p.url && !isPrintFileEntry(p)).length > 0 && (
                 <div className="mt-6">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">사진</p>
@@ -476,7 +511,7 @@ export default function AdminPage() {
                   </div>
                   <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
                     {selectedOrder.photos
-                      .filter((p) => p.url)
+                      .filter((p) => p.url && !isPrintFileEntry(p))
                       .map((photo, i) => (
                         <a
                           key={i}

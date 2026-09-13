@@ -15,7 +15,9 @@ import {
   coverCoatingOptions,
   innerPaperOptions,
   calcPagesLabel,
+  photobookSizes,
 } from "@/lib/photobookPricing";
+import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
 
 type Photo = {
   url: string;
@@ -31,6 +33,11 @@ type Photo = {
   color: string;
   align: "left" | "center" | "right";
   position: "below" | "overlayBottom" | "overlayCenter";
+  // 드래그(x, y)는 화면에 보이던 사진칸의 실제 픽셀 크기를 기준으로 저장돼요.
+  // 인쇄 파일을 만들 때는 그 화면 크기와 인쇄용 캔버스 크기 비율을 계산해서,
+  // 화면에서 본 위치와 똑같은 자리에 사진이 오도록 맞춰줘요.
+  containerW: number;
+  containerH: number;
 };
 
 const captionSizeClass: Record<Photo["size"], string> = {
@@ -91,6 +98,21 @@ function calcRequiredMinPx(detail: string) {
 
 function isLowRes(photo: Photo, requiredMinPx: number) {
   return Math.min(photo.width, photo.height) < requiredMinPx;
+}
+
+// 스프레드별로 사진 배열에서 왼쪽/오른쪽 페이지가 각각 몇 번째 사진들을 쓰는지 계산해요.
+// (미리보기 렌더링과 인쇄 파일 생성, 둘 다 같은 계산을 써야 순서가 어긋나지 않아요.)
+function computeSpreadPhotoGroups(customSpreads: SpreadDef[]): SpreadPhotoGroup[] {
+  let cursor = 0;
+  return customSpreads.map((spread) => {
+    const leftCount = pageTemplates[spread.left].photoCount;
+    const rightCount = pageTemplates[spread.right].photoCount;
+    const leftIndexes = Array.from({ length: leftCount }, (_, i) => cursor + i);
+    cursor += leftCount;
+    const rightIndexes = Array.from({ length: rightCount }, (_, i) => cursor + i);
+    cursor += rightCount;
+    return { leftIndexes, rightIndexes };
+  });
 }
 
 const layoutOptions: { id: PageTemplateId; label: string }[] = [
@@ -241,16 +263,29 @@ function PhotoCell({
   onChange: (changes: Partial<Photo>) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ mouseX: 0, mouseY: 0, photoX: 0, photoY: 0 });
+  const cellRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({
+    mouseX: 0,
+    mouseY: 0,
+    photoX: 0,
+    photoY: 0,
+    containerW: 0,
+    containerH: 0,
+  });
 
   function handleMouseDown(e: React.MouseEvent) {
     e.preventDefault();
     setIsDragging(true);
+    const rect = cellRef.current?.getBoundingClientRect();
     dragStart.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
       photoX: photo.x,
       photoY: photo.y,
+      // 이 사진칸이 화면에서 실제로 몇 px인지 함께 저장해둬요.
+      // (나중에 인쇄 파일을 만들 때, 같은 비율로 위치를 옮기기 위해 필요해요.)
+      containerW: rect?.width || photo.containerW || 1,
+      containerH: rect?.height || photo.containerH || 1,
     };
   }
 
@@ -263,6 +298,8 @@ function PhotoCell({
       onChange({
         x: dragStart.current.photoX + dx,
         y: dragStart.current.photoY + dy,
+        containerW: dragStart.current.containerW,
+        containerH: dragStart.current.containerH,
       });
     }
 
@@ -279,7 +316,7 @@ function PhotoCell({
   }, [isDragging]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]">
+    <div ref={cellRef} className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]">
       <img
         src={photo.url}
         onMouseDown={handleMouseDown}
@@ -591,6 +628,38 @@ function UploadPageContent() {
   const [isSaving, setIsSaving] = useState(false);
   // 이전 단계에서 남긴 요청사항이에요. 이 페이지에서 바로 고칠 수 있어요.
   const [requestNote, setRequestNote] = useState(searchParams.get("note") ?? "");
+  // 포토북 표지(앞표지 사진 + 제목)예요. 표지 종류(소프트/하드)는 이전 단계에서 이미
+  // 골랐고, 여기서는 표지에 들어갈 사진과 제목만 정해요.
+  const [coverPhoto, setCoverPhoto] = useState<Photo | null>(null);
+  const [coverTitle, setCoverTitle] = useState("");
+  const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
+
+  async function handleCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      setCoverPhoto({
+        url,
+        caption: "",
+        x: 0,
+        y: 0,
+        scale: 1,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        fontFamily: fontOptions[0].id,
+        size: "base",
+        bold: false,
+        color: "#2B2B2B",
+        align: "center",
+        position: "below",
+        containerW: 0,
+        containerH: 0,
+      });
+    };
+    img.src = url;
+  }
 
   async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
@@ -615,6 +684,8 @@ function UploadPageContent() {
             color: "#2B2B2B",
             align: "left",
             position: "below",
+            containerW: 0,
+            containerH: 0,
           });
         };
         img.src = url;
@@ -659,6 +730,58 @@ function UploadPageContent() {
     return data.publicUrl;
   }
 
+  // 포토북 편집 내용을 실제 인쇄용 PDF(내지 1개 + 표지 1개)로 만들어서 Storage에 올리고,
+  // 다운로드 링크를 주문 photos 배열에 특별한 표시(note: "[인쇄파일] ...")로 함께 담아요.
+  // 혜민님은 관리자 화면에서 이 링크로 바로 파일을 받아 발주할 수 있어요.
+  //
+  // 주의: 표지의 책등(세네카) 폭은 참고용 예상치예요. 실제 발주 전에는 꼭 제작처
+  // 계산기로 다시 확인해주세요. (자세한 내용은 lib/printCompose.ts 상단 설명 참고)
+  async function generatePhotobookPrintFiles(): Promise<
+    { url: string; caption: string; note: string }[]
+  > {
+    if (!template) return [];
+
+    const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
+    const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+    const innerPaper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
+    const pages = photobookPages ? Number(photobookPages) : 20;
+    const trimMatch = (sizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
+    const trimCm = trimMatch ? parseFloat(trimMatch[1]) : 30;
+
+    const innerBlob = await buildInnerPrintPdf({
+      customSpreads,
+      spreadPhotoGroups,
+      photos,
+      productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
+    });
+    const coverBlob = await buildCoverPrintPdf({
+      cover: photobookCover === "hard" ? "hard" : "soft",
+      sizeInnerTrimMm: trimCm * 10,
+      coverPhoto,
+      coverTitle,
+      innerPaperWeightG: innerPaper.weightG,
+      pages,
+    });
+
+    const innerPath = `print-files/${crypto.randomUUID()}-inner.pdf`;
+    const coverPath = `print-files/${crypto.randomUUID()}-cover.pdf`;
+
+    const [innerUpload, coverUpload] = await Promise.all([
+      supabase.storage.from("order-photos").upload(innerPath, innerBlob, { contentType: "application/pdf" }),
+      supabase.storage.from("order-photos").upload(coverPath, coverBlob, { contentType: "application/pdf" }),
+    ]);
+    if (innerUpload.error) throw innerUpload.error;
+    if (coverUpload.error) throw coverUpload.error;
+
+    const innerUrl = supabase.storage.from("order-photos").getPublicUrl(innerPath).data.publicUrl;
+    const coverUrl = supabase.storage.from("order-photos").getPublicUrl(coverPath).data.publicUrl;
+
+    return [
+      { url: innerUrl, caption: "", note: "[인쇄파일] 내지 PDF" },
+      { url: coverUrl, caption: "", note: "[인쇄파일] 표지 PDF (책등 폭은 참고용 예상치 — 발주 전 재확인 필요)" },
+    ];
+  }
+
   async function handleProceed(nextUrl: string, photosToUpload: Photo[], note?: string) {
     setIsSaving(true);
     try {
@@ -673,6 +796,21 @@ function UploadPageContent() {
         .filter((n): n is string => !!n && n.trim() !== "")
         .map((n) => ({ url: "", caption: "", note: n.trim() }));
 
+      let printFilePhotos: { url: string; caption: string; note: string }[] = [];
+      if (isPhotobook && template) {
+        setIsGeneratingPrintFiles(true);
+        try {
+          printFilePhotos = await generatePhotobookPrintFiles();
+        } catch (err) {
+          console.error(err);
+          alert(
+            "인쇄용 파일을 만드는 중 문제가 발생했어요. 주문은 계속 접수되고, 인쇄 파일은 나중에 다시 만들어드릴게요."
+          );
+        } finally {
+          setIsGeneratingPrintFiles(false);
+        }
+      }
+
       const draft = {
         productName,
         sizeId: selectedSizeInfo.id,
@@ -681,7 +819,7 @@ function UploadPageContent() {
         quantity,
         unitPrice,
         templateId: template?.id ?? null,
-        photos: [...uploadedPhotos, ...notePhotos],
+        photos: [...uploadedPhotos, ...notePhotos, ...printFilePhotos],
       };
 
       sessionStorage.setItem("keepic_draft_order", JSON.stringify([draft]));
@@ -705,16 +843,7 @@ function UploadPageContent() {
       productName
     )}&size=${selectedSizeInfo.id}&quantity=${quantity}`;
 
-    let cursor = 0;
-    const spreadPhotoGroups = customSpreads.map((spread) => {
-      const leftCount = pageTemplates[spread.left].photoCount;
-      const rightCount = pageTemplates[spread.right].photoCount;
-      const leftIndexes = Array.from({ length: leftCount }, (_, i) => cursor + i);
-      cursor += leftCount;
-      const rightIndexes = Array.from({ length: rightCount }, (_, i) => cursor + i);
-      cursor += rightCount;
-      return { leftIndexes, rightIndexes };
-    });
+    const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -743,6 +872,50 @@ function UploadPageContent() {
           <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
             각 페이지 왼쪽 위 배치 메뉴로 구성을 바꿀 수 있어요. 사진 오른쪽 위 "Aa" 버튼으로 그 캡션만의 서체·크기·색상·정렬·위치를 따로 정할 수 있어요.
           </p>
+
+          {isPhotobook && (
+            <div className="mt-10 rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
+              <h2 className="text-lg font-semibold">앞표지 꾸미기</h2>
+              <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
+                여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. (뒤표지·책등은 우선 무지로 비워둘게요)
+              </p>
+
+              <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
+                <div className="aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border border-[var(--color-hairline)]">
+                  {coverPhoto ? (
+                    <PhotoCell
+                      photo={coverPhoto}
+                      requiredMinPx={requiredMinPx}
+                      onChange={(c) => setCoverPhoto((prev) => (prev ? { ...prev, ...c } : prev))}
+                    />
+                  ) : (
+                    <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 bg-[var(--color-ivory)] text-center text-xs text-[var(--color-charcoal)]/50">
+                      표지 사진 선택
+                      <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                    </label>
+                  )}
+                </div>
+                <div className="flex-1">
+                  {coverPhoto && (
+                    <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                      표지 사진 바꾸기
+                      <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                    </label>
+                  )}
+                  <input
+                    type="text"
+                    value={coverTitle}
+                    onChange={(e) => setCoverTitle(e.target.value)}
+                    placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
+                    className="mt-3 w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+                  />
+                  <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
+                    제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <label className="mt-8 inline-block cursor-pointer rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
             사진 선택하기
@@ -868,7 +1041,11 @@ function UploadPageContent() {
                     : "bg-[var(--color-charcoal)] hover:opacity-90"
                 }`}
               >
-                {isSaving ? "사진 올리는 중..." : "다음"}
+                {isGeneratingPrintFiles
+                  ? "인쇄 파일 만드는 중..."
+                  : isSaving
+                    ? "사진 올리는 중..."
+                    : "다음"}
               </button>
             ) : (
               <button
