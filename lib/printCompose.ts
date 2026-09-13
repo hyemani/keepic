@@ -299,6 +299,39 @@ function strokeDashedRect(
   ctx.restore();
 }
 
+// 스프레드로 이어지는 안쪽(접히는) 면은 실제로 잘리는 자리가 아니라서,
+// 그쪽 변만 빼고 나머지 3면만 그려요.
+function strokeDashedRectSkipSide(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  lineWidthPx: number,
+  skipSide: "left" | "right"
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidthPx;
+  ctx.setLineDash([mmToPx(2.2), mmToPx(1.6)]);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + w, y);
+  ctx.moveTo(x, y + h);
+  ctx.lineTo(x + w, y + h);
+  if (skipSide !== "left") {
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y + h);
+  }
+  if (skipSide !== "right") {
+    ctx.moveTo(x + w, y);
+    ctx.lineTo(x + w, y + h);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawCornerMarks(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -338,7 +371,8 @@ function drawGuideOverlay(
   pxH: number,
   bleedPx: number,
   safetyPx: number,
-  label: string
+  label: string,
+  hideSafetyEdge?: "left" | "right"
 ) {
   const lineW = Math.max(2, Math.round(mmToPx(0.25)));
   const armPx = mmToPx(3);
@@ -352,9 +386,14 @@ function drawGuideOverlay(
   drawCornerMarks(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, armPx, GUIDE_TRIM_COLOR, lineW);
 
   // 안전선 - 재단선에서 다시 안쪽으로 들어간 자리 (사진/글자가 이 안쪽에 있어야 잘려도 안전해요)
+  // 스프레드로 이어지는 접힘면 쪽은 실제 절단선이 아니라서 안전선을 표시하지 않아요.
   const sx = bleedPx + safetyPx;
   const sy = bleedPx + safetyPx;
-  strokeDashedRect(ctx, sx, sy, pxW - sx * 2, pxH - sy * 2, GUIDE_SAFETY_COLOR, lineW);
+  if (hideSafetyEdge) {
+    strokeDashedRectSkipSide(ctx, sx, sy, pxW - sx * 2, pxH - sy * 2, GUIDE_SAFETY_COLOR, lineW, hideSafetyEdge);
+  } else {
+    strokeDashedRect(ctx, sx, sy, pxW - sx * 2, pxH - sy * 2, GUIDE_SAFETY_COLOR, lineW);
+  }
 
   ctx.save();
   const fontPx = Math.round(mmToPx(3.2));
@@ -411,9 +450,9 @@ export async function buildInnerPrintPdf({
   for (let i = 0; i < customSpreads.length; i++) {
     const spread = customSpreads[i];
     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
-    const sides: { templateId: PageTemplateId; indexes: number[] }[] = [
-      { templateId: spread.left, indexes: leftIndexes },
-      { templateId: spread.right, indexes: rightIndexes },
+    const sides: { templateId: PageTemplateId; indexes: number[]; hideSafetyEdge: "left" | "right" }[] = [
+      { templateId: spread.left, indexes: leftIndexes, hideSafetyEdge: "right" },
+      { templateId: spread.right, indexes: rightIndexes, hideSafetyEdge: "left" },
     ];
 
     for (const side of sides) {
@@ -421,7 +460,7 @@ export async function buildInnerPrintPdf({
       // 페이지를 순서대로(1p, 2p, ...) 그려야 해서 일부러 순차적으로 기다려요.
       await drawPage(ctx, side.templateId, sidePhotos, pxW, pxH);
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
-      drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label);
+      drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideSafetyEdge);
       const guideDataUrl = canvasToJpegDataUrl(canvas);
 
       if (!pdf || !guidePdf) {

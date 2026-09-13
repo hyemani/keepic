@@ -259,12 +259,30 @@ function CaptionSettingsPopover({
 
 // 작업선(초록)·재단선(마젠타)·안전선(파랑) 미리보기 오버레이예요.
 // 실제 인쇄 파일(lib/printCompose.ts의 drawGuideOverlay)과 같은 세 겹 구조를 화면에서도 보여줘요.
-function GuideLines({ trimPct, safetyPct }: { trimPct: number; safetyPct: number }) {
+function GuideLines({
+  trimPct,
+  safetyPct,
+  hideSafetyEdge,
+}: {
+  trimPct: number;
+  safetyPct: number;
+  // 스프레드로 붙는 쪽(접히는 안쪽 면)은 실제로 잘리는 자리가 아니라서,
+  // 그쪽 안전선만 보이지 않게 해요. (좌우로 나뉜 페이지가 이어지는 그 경계선이에요)
+  hideSafetyEdge?: "left" | "right";
+}) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
       <div className="absolute inset-0 border border-dashed" style={{ borderColor: "#22a559" }} />
       <div className="absolute border border-dashed" style={{ inset: `${trimPct}%`, borderColor: "#ff2fb0" }} />
-      <div className="absolute border border-dashed" style={{ inset: `${safetyPct}%`, borderColor: "#2f7bff" }} />
+      <div
+        className="absolute border border-dashed"
+        style={{
+          inset: `${safetyPct}%`,
+          borderColor: "#2f7bff",
+          ...(hideSafetyEdge === "left" ? { borderLeftStyle: "none" } : {}),
+          ...(hideSafetyEdge === "right" ? { borderRightStyle: "none" } : {}),
+        }}
+      />
     </div>
   );
 }
@@ -1245,7 +1263,7 @@ function UploadPageContent() {
                                 requiredMinPx
                               )}
                               {showGuidelines && (
-                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} />
+                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideSafetyEdge="right" />
                               )}
                             </div>
                             <div className="group relative w-1/2">
@@ -1269,7 +1287,7 @@ function UploadPageContent() {
                                 requiredMinPx
                               )}
                               {showGuidelines && (
-                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} />
+                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideSafetyEdge="left" />
                               )}
                             </div>
                           </div>
