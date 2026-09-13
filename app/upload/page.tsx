@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState, useRef, useEffect } from "react";
-import type { CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { supabase } from "@/lib/supabase";
@@ -19,6 +18,7 @@ import {
   photobookSizes,
   calcEstimatedSpineWidthMm,
   printFileSpec,
+  SPINE_SAFETY_BUFFER_MM,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
 
@@ -260,37 +260,42 @@ function CaptionSettingsPopover({
 
 // 작업선(초록)·재단선(마젠타)·안전선(파랑) 미리보기 오버레이예요.
 // 실제 인쇄 파일(lib/printCompose.ts의 drawGuideOverlay)과 같은 세 겹 구조를 화면에서도 보여줘요.
+// 스프레드/표지 전체를 감싸는 작업선(초록)·재단선(마젠타)·안전선(파랑) 가이드 오버레이예요.
+// 반드시 스프레드(또는 표지) 전체를 감싸는 딱 하나의 요소로만 그려야 점선이 가운데서
+// 끊기지 않아요. (페이지마다 따로 그리면 이어지는 자리에서 점선 위상이 어긋나 끊겨 보여요)
 function GuideLines({
-  trimPct,
-  safetyPct,
-  hideEdge,
+  trimXPct,
+  trimYPct,
+  safetyXPct,
+  safetyYPct,
 }: {
-  trimPct: number;
-  safetyPct: number;
-  // 스프레드로 붙는 쪽(접히는 안쪽 면)은 실제로 잘리는 자리가 아니에요.
-  // 그쪽에는 작업선·재단선·안전선을 전부 표시하지 않고, 스프레드 전체를 하나로 감싸는
-  // 바깥쪽 테두리만 보이게 해요. (좌우로 나뉜 페이지가 이어지는 그 경계선이에요)
-  hideEdge?: "left" | "right";
+  trimXPct: number;
+  trimYPct: number;
+  safetyXPct: number;
+  safetyYPct: number;
 }) {
-  const edgeStyle: CSSProperties =
-    hideEdge === "left"
-      ? { borderLeftStyle: "none" }
-      : hideEdge === "right"
-      ? { borderRightStyle: "none" }
-      : {};
   return (
-    <div className="pointer-events-none absolute inset-0 z-10">
+    <div className="pointer-events-none absolute inset-0 z-20">
+      <div className="absolute inset-0 border border-dashed" style={{ borderColor: "#22a559" }} />
       <div
-        className="absolute inset-0 border border-dashed"
-        style={{ borderColor: "#22a559", ...edgeStyle }}
+        className="absolute border border-dashed"
+        style={{
+          left: `${trimXPct}%`,
+          right: `${trimXPct}%`,
+          top: `${trimYPct}%`,
+          bottom: `${trimYPct}%`,
+          borderColor: "#ff2fb0",
+        }}
       />
       <div
         className="absolute border border-dashed"
-        style={{ inset: `${trimPct}%`, borderColor: "#ff2fb0", ...edgeStyle }}
-      />
-      <div
-        className="absolute border border-dashed"
-        style={{ inset: `${safetyPct}%`, borderColor: "#2f7bff", ...edgeStyle }}
+        style={{
+          left: `${safetyXPct}%`,
+          right: `${safetyXPct}%`,
+          top: `${safetyYPct}%`,
+          bottom: `${safetyYPct}%`,
+          borderColor: "#2f7bff",
+        }}
       />
     </div>
   );
@@ -969,13 +974,18 @@ function UploadPageContent() {
 
     // 작업선·재단선·안전선 미리보기용 비율이에요. (실제 발주 파일의 수치와 같은 값을 써요:
     // lib/printCompose.ts의 printFileSpec.innerTrimBleedMm / GUIDE_SAFETY_MARGIN_MM)
+    // 스프레드는 왼쪽+오른쪽 페이지 두 장이 나란히 붙은 통짜 작업 사이즈라서, 가로 비율은
+    // 페이지 폭의 2배를 기준으로 계산해요. (가로/세로 기준을 따로 둬야 점선이 딱 맞아요)
     const guideSizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
     const guideWorkMatch = (guideSizeInfo?.productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)/);
-    const guideWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
+    const guidePageWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
+    const guideSpreadWorkMm = guidePageWorkMm * 2;
     const GUIDE_BLEED_MM = 5;
     const GUIDE_SAFETY_MM = 8; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
-    const trimInsetPct = (GUIDE_BLEED_MM / guideWorkMm) * 100;
-    const safetyInsetPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideWorkMm) * 100;
+    const trimXPct = (GUIDE_BLEED_MM / guideSpreadWorkMm) * 100;
+    const trimYPct = (GUIDE_BLEED_MM / guidePageWorkMm) * 100;
+    const safetyXPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideSpreadWorkMm) * 100;
+    const safetyYPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guidePageWorkMm) * 100;
 
     // 표지(뒤표지-책등-앞표지) 실제 비율이에요. lib/printCompose.ts의 buildCoverPrintPdf와
     // 같은 계산식을 그대로 써서, 화면 미리보기가 실제 표지 인쇄 파일 비율과 일치하도록 해요.
@@ -991,16 +1001,17 @@ function UploadPageContent() {
       : coverInnerTrimMm;
     const coverBleedMm = coverIsHard ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
     const coverSpineInfo = calcEstimatedSpineWidthMm(coverInnerPaper.weightG, coverPages, coverIsHard ? "hard" : "soft");
-    const coverSpineMm = coverSpineInfo.isConfirmed ? coverSpineInfo.estimateMm : coverSpineInfo.maxMm;
+    const coverSpineMm = (coverSpineInfo.isConfirmed ? coverSpineInfo.estimateMm : coverSpineInfo.maxMm) + SPINE_SAFETY_BUFFER_MM;
     const coverTotalWmm = coverPanelMm * 2 + coverSpineMm + coverBleedMm * 2;
     const coverTotalHmm = coverPanelMm + coverBleedMm * 2;
     const coverBackPct = (coverPanelMm / coverTotalWmm) * 100;
     const coverSpinePct = (coverSpineMm / coverTotalWmm) * 100;
     const coverFrontPct = (coverPanelMm / coverTotalWmm) * 100;
-    // 앞표지 패널 안에서의 작업선·재단선·안전선 비율이에요. (앞표지 패널 자체 크기 기준)
-    const coverPanelWorkMm = coverPanelMm + coverBleedMm * 2;
-    const coverTrimInsetPct = (coverBleedMm / coverPanelWorkMm) * 100;
-    const coverSafetyInsetPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverPanelWorkMm) * 100;
+    // 표지 전체(뒤표지-책등-앞표지)를 감싸는 작업선·재단선·안전선 비율이에요.
+    const coverTrimXPct = (coverBleedMm / coverTotalWmm) * 100;
+    const coverTrimYPct = (coverBleedMm / coverTotalHmm) * 100;
+    const coverSafetyXPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverTotalWmm) * 100;
+    const coverSafetyYPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverTotalHmm) * 100;
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -1162,7 +1173,7 @@ function UploadPageContent() {
                       </p>
 
                       <div
-                        className="mt-4 flex w-full overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-sm"
+                        className="relative mt-4 flex w-full overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-sm"
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
                         <div
@@ -1195,10 +1206,15 @@ function UploadPageContent() {
                               {coverTitle}
                             </p>
                           )}
-                          {showGuidelines && (
-                            <GuideLines trimPct={coverTrimInsetPct} safetyPct={coverSafetyInsetPct} />
-                          )}
                         </div>
+                        {showGuidelines && (
+                          <GuideLines
+                            trimXPct={coverTrimXPct}
+                            trimYPct={coverTrimYPct}
+                            safetyXPct={coverSafetyXPct}
+                            safetyYPct={coverSafetyYPct}
+                          />
+                        )}
                       </div>
 
                       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1273,9 +1289,6 @@ function UploadPageContent() {
                                 handleCaptionChange,
                                 requiredMinPx
                               )}
-                              {showGuidelines && (
-                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideEdge="right" />
-                              )}
                             </div>
                             <div className="group relative w-1/2">
                               <select
@@ -1297,10 +1310,15 @@ function UploadPageContent() {
                                 handleCaptionChange,
                                 requiredMinPx
                               )}
-                              {showGuidelines && (
-                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideEdge="left" />
-                              )}
                             </div>
+                            {showGuidelines && (
+                              <GuideLines
+                                trimXPct={trimXPct}
+                                trimYPct={trimYPct}
+                                safetyXPct={safetyXPct}
+                                safetyYPct={safetyYPct}
+                              />
+                            )}
                           </div>
                         </div>
                       );

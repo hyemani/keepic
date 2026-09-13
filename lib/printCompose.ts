@@ -16,6 +16,7 @@ import {
   PhotobookCoverId,
   printFileSpec,
   calcEstimatedSpineWidthMm,
+  SPINE_SAFETY_BUFFER_MM,
 } from "@/lib/photobookPricing";
 
 export type PrintPhoto = {
@@ -530,7 +531,7 @@ export async function buildCoverPrintPdf({
   // 아직 실측값이 없는 페이지 수라면 참고용 예상치의 여유치(0.5~1mm) 포함 최대값을 써서
   // 너무 좁게 잡히는 것보다는 안전하게 맞춰요.
   const spine = calcEstimatedSpineWidthMm(innerPaperWeightG, pages, cover);
-  const spineMm = spine.isConfirmed ? spine.estimateMm : spine.maxMm;
+  const spineMm = (spine.isConfirmed ? spine.estimateMm : spine.maxMm) + SPINE_SAFETY_BUFFER_MM;
 
   const totalWmm = panelMm * 2 + spineMm + bleedMm * 2;
   const totalHmm = panelMm + bleedMm * 2;

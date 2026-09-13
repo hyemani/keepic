@@ -135,6 +135,11 @@ export const productionSpec = {
 // 공식 도구로 다시 확인해주세요.
 
 export const SPINE_BINDING_MARGIN_MM = { min: 0.5, max: 1 };
+
+// 책등(세네카) 폭은 실측 확인값이든 간편 공식 예상치든 실제 제본 시 약간의 오차가
+// 있을 수 있어요. 혜민님 확인(2026-09): 책등 폭에는 항상 이만큼 여유를 기본으로 더해서
+// 표지 파일을 만들어요. (표지 뒷면/앞면 사진이 책등 쪽으로 살짝 여유 있게 이어지도록)
+export const SPINE_SAFETY_BUFFER_MM = 1;
 export const SPINE_CALCULATOR_REFERENCE_URL = "https://wowpress.co.kr/ordr/prod/seneka";
 export const SPINE_REFERENCE_NOTE =
   "내지 평량 기준 간편 공식으로 계산한 참고용 예상치예요. 인쇄사·용지에 따라 실제 두께가 달라질 수 있어, 제작 전 제작처 계산기로 꼭 다시 확인해주세요.";
