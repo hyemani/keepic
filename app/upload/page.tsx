@@ -749,13 +749,13 @@ function UploadPageContent() {
     const trimMatch = (sizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
     const trimCm = trimMatch ? parseFloat(trimMatch[1]) : 30;
 
-    const innerBlob = await buildInnerPrintPdf({
+    const { printBlob: innerBlob, guideBlob: innerGuideBlob } = await buildInnerPrintPdf({
       customSpreads,
       spreadPhotoGroups,
       photos,
       productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
     });
-    const coverBlob = await buildCoverPrintPdf({
+    const { printBlob: coverBlob, guideBlob: coverGuideBlob } = await buildCoverPrintPdf({
       cover: photobookCover === "hard" ? "hard" : "soft",
       sizeInnerTrimMm: trimCm * 10,
       coverPhoto,
@@ -764,18 +764,25 @@ function UploadPageContent() {
       pages,
     });
 
-    const innerPath = `print-files/${crypto.randomUUID()}-inner.pdf`;
-    const coverPath = `print-files/${crypto.randomUUID()}-cover.pdf`;
+    const uuid = () => crypto.randomUUID();
+    const files: { path: string; blob: Blob }[] = [
+      { path: `print-files/${uuid()}-inner.pdf`, blob: innerBlob },
+      { path: `print-files/${uuid()}-inner-guide.pdf`, blob: innerGuideBlob },
+      { path: `print-files/${uuid()}-cover.pdf`, blob: coverBlob },
+      { path: `print-files/${uuid()}-cover-guide.pdf`, blob: coverGuideBlob },
+    ];
 
-    const [innerUpload, coverUpload] = await Promise.all([
-      supabase.storage.from("order-photos").upload(innerPath, innerBlob, { contentType: "application/pdf" }),
-      supabase.storage.from("order-photos").upload(coverPath, coverBlob, { contentType: "application/pdf" }),
-    ]);
-    if (innerUpload.error) throw innerUpload.error;
-    if (coverUpload.error) throw coverUpload.error;
+    const uploads = await Promise.all(
+      files.map((f) =>
+        supabase.storage.from("order-photos").upload(f.path, f.blob, { contentType: "application/pdf" })
+      )
+    );
+    const uploadError = uploads.find((u) => u.error);
+    if (uploadError?.error) throw uploadError.error;
 
-    const innerUrl = supabase.storage.from("order-photos").getPublicUrl(innerPath).data.publicUrl;
-    const coverUrl = supabase.storage.from("order-photos").getPublicUrl(coverPath).data.publicUrl;
+    const [innerUrl, innerGuideUrl, coverUrl, coverGuideUrl] = files.map(
+      (f) => supabase.storage.from("order-photos").getPublicUrl(f.path).data.publicUrl
+    );
 
     const spineIsConfirmed = calcEstimatedSpineWidthMm(innerPaper.weightG, pages, photobookCover === "hard" ? "hard" : "soft")
       .isConfirmed;
@@ -786,6 +793,8 @@ function UploadPageContent() {
     return [
       { url: innerUrl, caption: "", note: "[인쇄파일] 내지 PDF" },
       { url: coverUrl, caption: "", note: coverNote },
+      { url: innerGuideUrl, caption: "", note: "[가이드] 내지 확인용 PDF (재단선·안전선 표시 — 발주 금지, 확인 후 버려주세요)" },
+      { url: coverGuideUrl, caption: "", note: "[가이드] 표지 확인용 PDF (재단선·안전선·책등 경계 표시 — 발주 금지, 확인 후 버려주세요)" },
     ];
   }
 

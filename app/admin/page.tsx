@@ -19,10 +19,20 @@ type OrderPhoto = {
   [key: string]: unknown;
 };
 
-// 포토북 인쇄용 제작 파일(내지/표지 PDF)은 note가 "[인쇄파일] ..."로 시작하는
-// 특별한 photos 항목으로 함께 저장돼요. 일반 사진/요청사항과는 구분해서 보여줘요.
+// 포토북 인쇄용 제작 파일(내지/표지 PDF, 재단선 표시된 확인용 PDF)은 note가
+// "[인쇄파일] ..." 또는 "[가이드] ..."로 시작하는 특별한 photos 항목으로 함께 저장돼요.
+// 일반 사진/요청사항과는 구분해서 보여줘요.
 function isPrintFileEntry(photo: OrderPhoto) {
+  return (
+    typeof photo.note === "string" &&
+    (photo.note.startsWith("[인쇄파일]") || photo.note.startsWith("[가이드]"))
+  );
+}
+function isPrintDeliverable(photo: OrderPhoto) {
   return typeof photo.note === "string" && photo.note.startsWith("[인쇄파일]");
+}
+function isPrintGuide(photo: OrderPhoto) {
+  return typeof photo.note === "string" && photo.note.startsWith("[가이드]");
 }
 
 type Order = {
@@ -459,15 +469,15 @@ export default function AdminPage() {
               </label>
             </div>
 
-            {selectedOrder.photos && selectedOrder.photos.some(isPrintFileEntry) && (
+            {selectedOrder.photos && selectedOrder.photos.some(isPrintDeliverable) && (
               <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-                <p className="text-sm font-medium text-emerald-700">인쇄용 제작 파일</p>
+                <p className="text-sm font-medium text-emerald-700">인쇄용 제작 파일 (발주용)</p>
                 <p className="mt-1 text-xs text-emerald-700/70 break-keep">
-                  고객이 편집한 내용으로 자동 생성된 발주용 PDF예요. 책등 폭 등은 참고용 예상치가
-                  섞여 있을 수 있으니, 발주 전 파일을 한 번 열어 확인해주세요.
+                  고객이 편집한 내용으로 자동 생성된 발주용 PDF예요. 재단선 표시는 없어요 — 자리가
+                  맞는지는 아래 &quot;확인용 가이드 PDF&quot;로 먼저 봐주세요.
                 </p>
                 <div className="mt-3 flex flex-col gap-2">
-                  {selectedOrder.photos.filter(isPrintFileEntry).map((p, i) => (
+                  {selectedOrder.photos.filter(isPrintDeliverable).map((p, i) => (
                     <a
                       key={i}
                       href={p.url}
@@ -476,6 +486,30 @@ export default function AdminPage() {
                       className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-300 bg-white px-4 py-2 text-xs font-medium text-emerald-700 hover:border-emerald-500"
                     >
                       {String(p.note).replace("[인쇄파일] ", "")} 열기
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedOrder.photos && selectedOrder.photos.some(isPrintGuide) && (
+              <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+                <p className="text-sm font-medium text-sky-700">확인용 가이드 PDF (재단선·안전선 표시)</p>
+                <p className="mt-1 text-xs text-sky-700/70 break-keep">
+                  마젠타 점선 = 재단선, 파란 점선 = 안전선(그 안쪽에 사진·글자가 있어야 잘려도
+                  안전해요). 이 파일은 확인용이라 실제 발주 파일로 보내면 안 돼요 — 선이 그대로
+                  인쇄돼요.
+                </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  {selectedOrder.photos.filter(isPrintGuide).map((p, i) => (
+                    <a
+                      key={i}
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-300 bg-white px-4 py-2 text-xs font-medium text-sky-700 hover:border-sky-500"
+                    >
+                      {String(p.note).replace("[가이드] ", "")} 열기
                     </a>
                   ))}
                 </div>

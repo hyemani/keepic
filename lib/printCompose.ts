@@ -267,10 +267,101 @@ function canvasToJpegDataUrl(canvas: HTMLCanvasElement) {
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
+// 재단선/안전선을 보여주는 "확인용 가이드" 파일에서만 쓰는 값이에요.
+// (레드프린팅에서 공식적으로 확인받은 수치가 아니라, 업계에서 흔히 쓰는 안전여백 기준이에요.
+//  실제 안전여백 기준을 제작처에서 알려주면 이 값을 그 값으로 바꿔주세요.)
+const GUIDE_SAFETY_MARGIN_MM = 5;
+const GUIDE_TRIM_COLOR = "#ff2fb0"; // 재단선 - 마젠타
+const GUIDE_SAFETY_COLOR = "#2f7bff"; // 안전선 - 파랑
+
+function strokeDashedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  lineWidthPx: number
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidthPx;
+  ctx.setLineDash([mmToPx(2.2), mmToPx(1.6)]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
+function drawCornerMarks(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  armPx: number,
+  color: string,
+  lineWidthPx: number
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidthPx;
+  ctx.setLineDash([]);
+  const corners: [number, number, number, number][] = [
+    [x, y, 1, 1],
+    [x + w, y, -1, 1],
+    [x, y + h, 1, -1],
+    [x + w, y + h, -1, -1],
+  ];
+  corners.forEach(([cx, cy, dx, dy]) => {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + dx * armPx, cy);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy + dy * armPx);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+// 재단선(마젠타 점선) + 안전선(파란 점선) + 모서리 크롭마크 + 규격 라벨을 캔버스 위에 그려요.
+// 이 오버레이는 "확인용 가이드" 파일에만 들어가고, 실제 발주 파일에는 들어가지 않아요.
+function drawGuideOverlay(
+  ctx: CanvasRenderingContext2D,
+  pxW: number,
+  pxH: number,
+  bleedPx: number,
+  safetyPx: number,
+  label: string
+) {
+  const lineW = Math.max(2, Math.round(mmToPx(0.25)));
+  const armPx = mmToPx(3);
+
+  // 재단선 - 작업(전체 캔버스) 안쪽으로 재단여유(bleed)만큼 들어간 자리
+  strokeDashedRect(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, GUIDE_TRIM_COLOR, lineW);
+  drawCornerMarks(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, armPx, GUIDE_TRIM_COLOR, lineW);
+
+  // 안전선 - 재단선에서 다시 안쪽으로 들어간 자리 (사진/글자가 이 안쪽에 있어야 잘려도 안전해요)
+  const sx = bleedPx + safetyPx;
+  const sy = bleedPx + safetyPx;
+  strokeDashedRect(ctx, sx, sy, pxW - sx * 2, pxH - sy * 2, GUIDE_SAFETY_COLOR, lineW);
+
+  ctx.save();
+  const fontPx = Math.round(mmToPx(3.2));
+  ctx.font = `${fontPx}px Pretendard, sans-serif`;
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+  ctx.fillStyle = GUIDE_TRIM_COLOR;
+  ctx.fillText(`재단선(마젠타) · 안전선(파랑, ${GUIDE_SAFETY_MARGIN_MM}mm)`, mmToPx(2), mmToPx(2));
+  ctx.fillStyle = "#333333";
+  ctx.fillText(label, mmToPx(2), mmToPx(2) + fontPx * 1.3);
+  ctx.restore();
+}
+
 export type SpreadPhotoGroup = { leftIndexes: number[]; rightIndexes: number[] };
+export type PrintPdfResult = { printBlob: Blob; guideBlob: Blob };
 
 // 내지 PDF: 스프레드마다 왼쪽/오른쪽 페이지를 각각 한 페이지씩(재단여유 포함 작업 사이즈)
 // 실제 크기 그대로 그려서 하나의 PDF로 합쳐요.
+// printBlob = 실제 발주용(재단선 표시 없음), guideBlob = 재단선·안전선이 표시된 확인용 파일이에요.
 export async function buildInnerPrintPdf({
   customSpreads,
   spreadPhotoGroups,
@@ -281,10 +372,15 @@ export async function buildInnerPrintPdf({
   spreadPhotoGroups: SpreadPhotoGroup[];
   photos: PrintPhoto[];
   productionFileSizeMm: string | null;
-}): Promise<Blob> {
+}): Promise<PrintPdfResult> {
   const { w: workW, h: workH } = parseWorkSizeMm(productionFileSizeMm);
   const pxW = mmToPx(workW);
   const pxH = mmToPx(workH);
+  const bleedPx = mmToPx(printFileSpec.innerTrimBleedMm);
+  const safetyPx = mmToPx(GUIDE_SAFETY_MARGIN_MM);
+  const trimW = workW - printFileSpec.innerTrimBleedMm * 2;
+  const trimH = workH - printFileSpec.innerTrimBleedMm * 2;
+  const label = `작업 ${workW}×${workH}mm / 재단 ${trimW}×${trimH}mm`;
 
   const canvas = document.createElement("canvas");
   canvas.width = pxW;
@@ -293,6 +389,8 @@ export async function buildInnerPrintPdf({
   if (!ctx) throw new Error("캔버스를 만들지 못했어요.");
 
   let pdf: jsPDF | null = null;
+  let guidePdf: jsPDF | null = null;
+  const orientation = workW >= workH ? "l" : "p";
 
   for (let i = 0; i < customSpreads.length; i++) {
     const spread = customSpreads[i];
@@ -306,26 +404,33 @@ export async function buildInnerPrintPdf({
       const sidePhotos = side.indexes.map((idx) => photos[idx]).filter(Boolean);
       // 페이지를 순서대로(1p, 2p, ...) 그려야 해서 일부러 순차적으로 기다려요.
       await drawPage(ctx, side.templateId, sidePhotos, pxW, pxH);
-      const dataUrl = canvasToJpegDataUrl(canvas);
+      const cleanDataUrl = canvasToJpegDataUrl(canvas);
+      drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label);
+      const guideDataUrl = canvasToJpegDataUrl(canvas);
 
-      if (!pdf) {
-        pdf = new jsPDF({ orientation: workW >= workH ? "l" : "p", unit: "mm", format: [workW, workH] });
+      if (!pdf || !guidePdf) {
+        pdf = new jsPDF({ orientation, unit: "mm", format: [workW, workH] });
+        guidePdf = new jsPDF({ orientation, unit: "mm", format: [workW, workH] });
       } else {
-        pdf.addPage([workW, workH], workW >= workH ? "l" : "p");
+        pdf.addPage([workW, workH], orientation);
+        guidePdf.addPage([workW, workH], orientation);
       }
-      pdf.addImage(dataUrl, "JPEG", 0, 0, workW, workH);
+      pdf.addImage(cleanDataUrl, "JPEG", 0, 0, workW, workH);
+      guidePdf.addImage(guideDataUrl, "JPEG", 0, 0, workW, workH);
     }
   }
 
-  if (!pdf) {
+  if (!pdf || !guidePdf) {
     pdf = new jsPDF({ orientation: "p", unit: "mm", format: [workW, workH] });
+    guidePdf = new jsPDF({ orientation: "p", unit: "mm", format: [workW, workH] });
   }
 
-  return pdf.output("blob");
+  return { printBlob: pdf.output("blob"), guideBlob: guidePdf.output("blob") };
 }
 
 // 표지 PDF: 뒤표지 - 책등(세네카) - 앞표지가 한 장으로 이어진 펼침 도면 1페이지를 만들어요.
 // 앞표지에는 고객이 고른 사진과 제목을 넣고, 책등/뒤표지는 우선 흰색 배경으로 비워둬요.
+// printBlob = 실제 발주용, guideBlob = 재단선·안전선·책등 경계가 표시된 확인용 파일이에요.
 export async function buildCoverPrintPdf({
   cover,
   sizeInnerTrimMm,
@@ -340,7 +445,7 @@ export async function buildCoverPrintPdf({
   coverTitle: string;
   innerPaperWeightG: number;
   pages: number;
-}): Promise<Blob> {
+}): Promise<PrintPdfResult> {
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
   const bleedMm = cover === "hard" ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
@@ -358,6 +463,7 @@ export async function buildCoverPrintPdf({
   const bleedPx = mmToPx(bleedMm);
   const panelPx = mmToPx(panelMm);
   const spinePx = mmToPx(spineMm);
+  const safetyPx = mmToPx(GUIDE_SAFETY_MARGIN_MM);
 
   const canvas = document.createElement("canvas");
   canvas.width = pxW;
@@ -391,15 +497,41 @@ export async function buildCoverPrintPdf({
     ctx.shadowBlur = 0;
   }
 
-  const dataUrl = canvasToJpegDataUrl(canvas);
-  const pdf = new jsPDF({
-    orientation: totalWmm >= totalHmm ? "l" : "p",
-    unit: "mm",
-    format: [totalWmm, totalHmm],
-  });
-  pdf.addImage(dataUrl, "JPEG", 0, 0, totalWmm, totalHmm);
+  const cleanDataUrl = canvasToJpegDataUrl(canvas);
 
-  return pdf.output("blob");
+  // 가이드용: 표지 전체 재단선/안전선 + 뒤표지·책등·앞표지 경계선을 함께 표시해요.
+  drawGuideOverlay(
+    ctx,
+    pxW,
+    pxH,
+    bleedPx,
+    safetyPx,
+    `작업 ${roundMm(totalWmm)}×${roundMm(totalHmm)}mm / 책등 ${spineMm}mm(${spine.isConfirmed ? "실측" : "예상치"})`
+  );
+  ctx.save();
+  ctx.strokeStyle = "#8a7f66";
+  ctx.setLineDash([mmToPx(1.5), mmToPx(1.5)]);
+  ctx.lineWidth = Math.max(2, Math.round(mmToPx(0.2)));
+  [spineX, spineX + spinePx].forEach((x) => {
+    ctx.beginPath();
+    ctx.moveTo(x, bleedPx);
+    ctx.lineTo(x, bleedPx + panelPx);
+    ctx.stroke();
+  });
+  ctx.restore();
+  const guideDataUrl = canvasToJpegDataUrl(canvas);
+
+  const orientation = totalWmm >= totalHmm ? "l" : "p";
+  const pdf = new jsPDF({ orientation, unit: "mm", format: [totalWmm, totalHmm] });
+  pdf.addImage(cleanDataUrl, "JPEG", 0, 0, totalWmm, totalHmm);
+  const guidePdf = new jsPDF({ orientation, unit: "mm", format: [totalWmm, totalHmm] });
+  guidePdf.addImage(guideDataUrl, "JPEG", 0, 0, totalWmm, totalHmm);
+
+  return { printBlob: pdf.output("blob"), guideBlob: guidePdf.output("blob") };
+}
+
+function roundMm(mm: number) {
+  return Math.round(mm * 10) / 10;
 }
 
 export { pxToMm, mmToPx };
