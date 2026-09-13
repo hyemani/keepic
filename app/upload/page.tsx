@@ -634,6 +634,11 @@ function UploadPageContent() {
   const [coverPhoto, setCoverPhoto] = useState<Photo | null>(null);
   const [coverTitle, setCoverTitle] = useState("");
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
+  // 지금 화면 오른쪽 큰 미리보기에 어떤 페이지를 보여줄지예요.
+  // "cover"면 표지(뒤표지-세네카-앞표지)를, 숫자면 그 번째 스프레드를 보여줘요.
+  const [selectedPageKey, setSelectedPageKey] = useState<"cover" | number>(
+    isPhotobook ? "cover" : 0
+  );
 
   async function handleCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -877,7 +882,7 @@ function UploadPageContent() {
           </a>
         </header>
 
-        <section className="mx-auto max-w-3xl px-6 pb-24 pt-8 sm:px-10">
+        <section className="mx-auto max-w-5xl px-6 pb-24 pt-8 sm:px-10">
           <p className="text-sm text-[var(--color-charcoal)]/60">
             {productName} · {displaySizeLabel} · {quantity}개 · {template.name}
           </p>
@@ -888,50 +893,6 @@ function UploadPageContent() {
           <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
             각 페이지 왼쪽 위 배치 메뉴로 구성을 바꿀 수 있어요. 사진 오른쪽 위 "Aa" 버튼으로 그 캡션만의 서체·크기·색상·정렬·위치를 따로 정할 수 있어요.
           </p>
-
-          {isPhotobook && (
-            <div className="mt-10 rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
-              <h2 className="text-lg font-semibold">앞표지 꾸미기</h2>
-              <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
-                여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. (뒤표지·책등은 우선 무지로 비워둘게요)
-              </p>
-
-              <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
-                <div className="aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border border-[var(--color-hairline)]">
-                  {coverPhoto ? (
-                    <PhotoCell
-                      photo={coverPhoto}
-                      requiredMinPx={requiredMinPx}
-                      onChange={(c) => setCoverPhoto((prev) => (prev ? { ...prev, ...c } : prev))}
-                    />
-                  ) : (
-                    <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 bg-[var(--color-ivory)] text-center text-xs text-[var(--color-charcoal)]/50">
-                      표지 사진 선택
-                      <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
-                    </label>
-                  )}
-                </div>
-                <div className="flex-1">
-                  {coverPhoto && (
-                    <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                      표지 사진 바꾸기
-                      <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
-                    </label>
-                  )}
-                  <input
-                    type="text"
-                    value={coverTitle}
-                    onChange={(e) => setCoverTitle(e.target.value)}
-                    placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
-                    className="mt-3 w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
-                  />
-                  <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
-                    제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           <label className="mt-8 inline-block cursor-pointer rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
             사진 선택하기
@@ -973,67 +934,202 @@ function UploadPageContent() {
 
           {photos.length > 0 && (
             <div className="mt-12">
-              <h2 className="text-lg font-semibold">스프레드 미리보기</h2>
-              <div className="mt-6 flex flex-col gap-8">
-                {customSpreads.map((spread, i) => {
-                  const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
-                  const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
-                  const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
+              <h2 className="text-lg font-semibold">페이지 편집</h2>
+              <p className="mt-1 text-xs text-[var(--color-charcoal)]/50 break-keep">
+                왼쪽에서 페이지를 골라 오른쪽 큰 화면에서 편집해주세요.
+              </p>
 
-                  return (
-                    <div key={i}>
-                      <p className="mb-2 text-xs text-[var(--color-charcoal)]/50">스프레드 {i + 1}</p>
-                      <div className="flex w-full items-start gap-1 bg-white p-2 shadow-sm">
-                        <div className="group relative w-1/2">
-                          <select
-                            value={spread.left}
-                            onChange={(e) =>
-                              handleChangeLayout(i, "left", e.target.value as PageTemplateId)
-                            }
-                            className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
-                          >
-                            {layoutOptions.map((opt) => (
-                              <option key={opt.id} value={opt.id}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          {renderPage(
-                            spread.left,
-                            leftPhotos,
-                            leftIndexes,
-                            handlePhotoTransform,
-                            handleCaptionChange,
-                            requiredMinPx
-                          )}
-                        </div>
-                        <div className="group relative w-1/2">
-                          <select
-                            value={spread.right}
-                            onChange={(e) =>
-                              handleChangeLayout(i, "right", e.target.value as PageTemplateId)
-                            }
-                            className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
-                          >
-                            {layoutOptions.map((opt) => (
-                              <option key={opt.id} value={opt.id}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          {renderPage(
-                            spread.right,
-                            rightPhotos,
-                            rightIndexes,
-                            handlePhotoTransform,
-                            handleCaptionChange,
-                            requiredMinPx
+              <div className="mt-6 flex flex-col gap-4 lg:flex-row">
+                {/* 왼쪽: 전체 페이지 한눈에 보기 */}
+                <div className="flex gap-2 overflow-x-auto pb-2 lg:w-36 lg:shrink-0 lg:flex-col lg:overflow-visible lg:pb-0">
+                  {isPhotobook && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPageKey("cover")}
+                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                        selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
+                      }`}
+                    >
+                      <div className="pointer-events-none flex aspect-[2/1] w-28 overflow-hidden rounded bg-white shadow-sm lg:w-full">
+                        <div className="w-2/5 bg-[var(--color-ivory)]" />
+                        <div className="w-[6%] bg-[var(--color-hairline)]" />
+                        <div className="relative w-2/5 flex-1 overflow-hidden bg-[var(--color-ivory)]">
+                          {coverPhoto && (
+                            <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" />
                           )}
                         </div>
                       </div>
+                      <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">표지</p>
+                    </button>
+                  )}
+                  {customSpreads.map((spread, i) => {
+                    const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
+                    const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
+                    const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSelectedPageKey(i)}
+                        className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                          selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
+                        }`}
+                      >
+                        <div className="pointer-events-none grid w-28 grid-cols-2 gap-0.5 overflow-hidden rounded bg-white shadow-sm lg:w-full">
+                          <div className="aspect-square overflow-hidden">
+                            {renderPage(spread.left, leftPhotos, leftIndexes, () => {}, () => {}, requiredMinPx)}
+                          </div>
+                          <div className="aspect-square overflow-hidden">
+                            {renderPage(spread.right, rightPhotos, rightIndexes, () => {}, () => {}, requiredMinPx)}
+                          </div>
+                        </div>
+                        <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">
+                          스프레드 {i + 1}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 오른쪽: 선택한 페이지 크게 편집 */}
+                <div className="min-w-0 flex-1">
+                  {selectedPageKey === "cover" ? (
+                    <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
+                      <p className="text-sm font-medium">앞표지 꾸미기</p>
+                      <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
+                        여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. (뒤표지·책등은 우선
+                        무지로 비워둘게요)
+                      </p>
+
+                      <div className="mt-4 flex w-full overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-sm">
+                        <div className="flex w-[38%] items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40">
+                          뒤표지(무지)
+                        </div>
+                        <div
+                          className="flex w-[6%] items-center justify-center bg-[var(--color-hairline)]/60 text-[9px] text-[var(--color-charcoal)]/40"
+                          style={{ writingMode: "vertical-rl" }}
+                        >
+                          책등
+                        </div>
+                        <div className="relative aspect-square w-[56%] overflow-hidden">
+                          {coverPhoto ? (
+                            <PhotoCell
+                              photo={coverPhoto}
+                              requiredMinPx={requiredMinPx}
+                              onChange={(c) => setCoverPhoto((prev) => (prev ? { ...prev, ...c } : prev))}
+                            />
+                          ) : (
+                            <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 bg-[var(--color-ivory)] text-center text-xs text-[var(--color-charcoal)]/50">
+                              표지 사진 선택
+                              <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                            </label>
+                          )}
+                          {coverTitle.trim() && (
+                            <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-sm font-semibold text-white drop-shadow">
+                              {coverTitle}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        {coverPhoto && (
+                          <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                            표지 사진 바꾸기
+                            <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                          </label>
+                        )}
+                        <input
+                          type="text"
+                          value={coverTitle}
+                          onChange={(e) => setCoverTitle(e.target.value)}
+                          placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
+                          className="flex-1 rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
+                        제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요.
+                      </p>
                     </div>
-                  );
-                })}
+                  ) : (
+                    (() => {
+                      const i = selectedPageKey;
+                      const spread = customSpreads[i];
+                      const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
+                      const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
+                      const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
+                      return (
+                        <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">스프레드 {i + 1}</p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={i === 0}
+                                onClick={() => setSelectedPageKey(i - 1)}
+                                className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm disabled:opacity-30"
+                              >
+                                ‹
+                              </button>
+                              <button
+                                type="button"
+                                disabled={i === customSpreads.length - 1}
+                                onClick={() => setSelectedPageKey(i + 1)}
+                                className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm disabled:opacity-30"
+                              >
+                                ›
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex w-full items-start gap-1 bg-white shadow-sm">
+                            <div className="group relative w-1/2">
+                              <select
+                                value={spread.left}
+                                onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
+                                className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
+                              >
+                                {layoutOptions.map((opt) => (
+                                  <option key={opt.id} value={opt.id}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {renderPage(
+                                spread.left,
+                                leftPhotos,
+                                leftIndexes,
+                                handlePhotoTransform,
+                                handleCaptionChange,
+                                requiredMinPx
+                              )}
+                            </div>
+                            <div className="group relative w-1/2">
+                              <select
+                                value={spread.right}
+                                onChange={(e) => handleChangeLayout(i, "right", e.target.value as PageTemplateId)}
+                                className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
+                              >
+                                {layoutOptions.map((opt) => (
+                                  <option key={opt.id} value={opt.id}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {renderPage(
+                                spread.right,
+                                rightPhotos,
+                                rightIndexes,
+                                handlePhotoTransform,
+                                handleCaptionChange,
+                                requiredMinPx
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
               </div>
             </div>
           )}
