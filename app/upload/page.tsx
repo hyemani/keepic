@@ -16,6 +16,7 @@ import {
   innerPaperOptions,
   calcPagesLabel,
   photobookSizes,
+  calcEstimatedSpineWidthMm,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
 
@@ -776,9 +777,15 @@ function UploadPageContent() {
     const innerUrl = supabase.storage.from("order-photos").getPublicUrl(innerPath).data.publicUrl;
     const coverUrl = supabase.storage.from("order-photos").getPublicUrl(coverPath).data.publicUrl;
 
+    const spineIsConfirmed = calcEstimatedSpineWidthMm(innerPaper.weightG, pages, photobookCover === "hard" ? "hard" : "soft")
+      .isConfirmed;
+    const coverNote = spineIsConfirmed
+      ? "[인쇄파일] 표지 PDF (책등 폭: 레드프린팅 실측 확인값 적용)"
+      : "[인쇄파일] 표지 PDF (책등 폭은 참고용 예상치 — 발주 전 재확인 필요)";
+
     return [
       { url: innerUrl, caption: "", note: "[인쇄파일] 내지 PDF" },
-      { url: coverUrl, caption: "", note: "[인쇄파일] 표지 PDF (책등 폭은 참고용 예상치 — 발주 전 재확인 필요)" },
+      { url: coverUrl, caption: "", note: coverNote },
     ];
   }
 

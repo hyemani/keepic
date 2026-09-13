@@ -139,16 +139,35 @@ export const SPINE_CALCULATOR_REFERENCE_URL = "https://wowpress.co.kr/ordr/prod/
 export const SPINE_REFERENCE_NOTE =
   "내지 평량 기준 간편 공식으로 계산한 참고용 예상치예요. 인쇄사·용지에 따라 실제 두께가 달라질 수 있어, 제작 전 제작처 계산기로 꼭 다시 확인해주세요.";
 
+// 레드프린팅에 직접 확인받은 실측 책등(세네카) 폭이에요. (내지 10장·20페이지 기준, 2026-09 확인)
+// 사이즈(S/M/L)에 관계없이 같은 값으로 측정됐어요. 페이지 수가 이 기준과 다르면
+// 아직 실측값이 없어서, 그 경우에만 아래 간편 공식(참고용 예상치)으로 대신 계산해요.
+// 다른 페이지 수 기준값도 확인되면 여기에 추가해주세요.
+export const CONFIRMED_SPINE_WIDTHS_MM: Record<PhotobookCoverId, Record<number, number>> = {
+  soft: { 20: 7.22 },
+  hard: { 20: 9.1 },
+};
+
 function roundTo1Decimal(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-export function calcEstimatedSpineWidthMm(paperWeightG: number, pages: number) {
+export function calcEstimatedSpineWidthMm(
+  paperWeightG: number,
+  pages: number,
+  cover?: PhotobookCoverId
+) {
+  const confirmedMm = cover ? CONFIRMED_SPINE_WIDTHS_MM[cover]?.[pages] : undefined;
+  if (confirmedMm !== undefined) {
+    return { estimateMm: confirmedMm, minMm: confirmedMm, maxMm: confirmedMm, isConfirmed: true as const };
+  }
+
   const raw = (paperWeightG * pages * 0.6) / 1000;
   return {
     estimateMm: roundTo1Decimal(raw),
     minMm: roundTo1Decimal(raw + SPINE_BINDING_MARGIN_MM.min),
     maxMm: roundTo1Decimal(raw + SPINE_BINDING_MARGIN_MM.max),
+    isConfirmed: false as const,
   };
 }
 

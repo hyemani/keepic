@@ -43,8 +43,8 @@ function PhotobookOptions() {
   );
   const selectedPaper = innerPaperOptions.find((o) => o.id === innerPaper)!;
   const spineWidth = useMemo(
-    () => calcEstimatedSpineWidthMm(selectedPaper.weightG, pages),
-    [selectedPaper, pages]
+    () => calcEstimatedSpineWidthMm(selectedPaper.weightG, pages, cover),
+    [selectedPaper, pages, cover]
   );
 
   const total = price.total * quantity;
@@ -250,20 +250,26 @@ function PhotobookOptions() {
           <p>{productionSpec.softCoverPrint}</p>
           <p>{productionSpec.hardCoverPrint}</p>
           <p>내지 인쇄: 양면 컬러 인쇄 ({productionSpec.innerPrint.replace("내지 인쇄: ", "")})</p>
-          <p>
-            책등(세네카) 두께: 약 {spineWidth.minMm}~{spineWidth.maxMm}mm (참고용 예상치)
-          </p>
-          <p className="text-[var(--color-charcoal)]/40">
-            {SPINE_REFERENCE_NOTE}{" "}
-            <a
-              href={SPINE_CALCULATOR_REFERENCE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              참고 계산기 열기
-            </a>
-          </p>
+          {spineWidth.isConfirmed ? (
+            <p>책등(세네카) 두께: {spineWidth.estimateMm}mm (레드프린팅 실측 확인값)</p>
+          ) : (
+            <>
+              <p>
+                책등(세네카) 두께: 약 {spineWidth.minMm}~{spineWidth.maxMm}mm (참고용 예상치)
+              </p>
+              <p className="text-[var(--color-charcoal)]/40">
+                {SPINE_REFERENCE_NOTE}{" "}
+                <a
+                  href={SPINE_CALCULATOR_REFERENCE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  참고 계산기 열기
+                </a>
+              </p>
+            </>
+          )}
         </div>
       )}
 

@@ -344,10 +344,11 @@ export async function buildCoverPrintPdf({
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
   const bleedMm = cover === "hard" ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
-  // 책등 폭은 참고용 예상치라, 여유치(0.5~1mm)까지 포함한 최대값을 써서
+  // 레드프린팅에 실측 확인받은 페이지 수(20p)라면 그 정확한 값을 그대로 쓰고,
+  // 아직 실측값이 없는 페이지 수라면 참고용 예상치의 여유치(0.5~1mm) 포함 최대값을 써서
   // 너무 좁게 잡히는 것보다는 안전하게 맞춰요.
-  const spine = calcEstimatedSpineWidthMm(innerPaperWeightG, pages);
-  const spineMm = spine.maxMm;
+  const spine = calcEstimatedSpineWidthMm(innerPaperWeightG, pages, cover);
+  const spineMm = spine.isConfirmed ? spine.estimateMm : spine.maxMm;
 
   const totalWmm = panelMm * 2 + spineMm + bleedMm * 2;
   const totalHmm = panelMm + bleedMm * 2;
