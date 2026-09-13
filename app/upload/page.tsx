@@ -1135,7 +1135,7 @@ function UploadPageContent() {
                           selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
                         }`}
                       >
-                        <div className="pointer-events-none grid w-28 grid-cols-2 gap-0.5 overflow-hidden rounded bg-white shadow-sm lg:w-full">
+                        <div className="pointer-events-none grid w-28 grid-cols-2 overflow-hidden rounded bg-white shadow-sm lg:w-full">
                           <div className="aspect-square overflow-hidden">
                             {renderPage(spread.left, leftPhotos, leftIndexes, () => {}, () => {}, requiredMinPx)}
                           </div>
@@ -1250,7 +1250,9 @@ function UploadPageContent() {
                               </button>
                             </div>
                           </div>
-                          <div className="mt-3 flex w-full items-start gap-1 bg-white shadow-sm">
+                          <div className="relative mt-3 flex w-full items-start bg-white shadow-sm">
+                            {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만 구분해요. */}
+                            <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                             <div className="group relative w-1/2">
                               <select
                                 value={spread.left}
