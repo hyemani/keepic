@@ -3,8 +3,8 @@
 // 이 파일은 나중에 자유롭게 수정하는 용도예요.
 // - 아래 숫자는 전부 "임시 판매가"예요. 실제 견적(원가)이 바뀌면 여기 숫자를 업데이트해주세요.
 // - 완성 규격(finishedSizeCm)과 제작 파일 규격(productionFileSizeMm)은
-//   서로 다른 값이라 따로 관리해요. 제작 파일 규격은 아직 확인 전이라
-//   productionFileSizeMm을 임의로 채우지 않았어요 (제작처 확인 후 입력).
+//   서로 다른 값이라 따로 관리해요. productionFileSizeMm은 레드프린팅 내지 작업
+//   가이드 기준(재단 사이즈 + 사방 5mm 재단여유) 작업 사이즈예요.
 
 export type PhotobookCoverId = "soft" | "hard";
 export type PhotobookSizeId = "S" | "M" | "L";
@@ -31,10 +31,24 @@ export type PhotobookSize = {
 };
 
 export const photobookSizes: PhotobookSize[] = [
-  { id: "S", label: "S", finishedSizeCm: "20 x 20cm", productionFileSizeMm: null },
-  { id: "M", label: "M", finishedSizeCm: "25 x 25cm", productionFileSizeMm: null },
-  { id: "L", label: "L", finishedSizeCm: "30 x 30cm", productionFileSizeMm: null },
+  { id: "S", label: "S", finishedSizeCm: "20 x 20cm", productionFileSizeMm: "210 x 210mm" },
+  { id: "M", label: "M", finishedSizeCm: "25 x 25cm", productionFileSizeMm: "260 x 260mm" },
+  { id: "L", label: "L", finishedSizeCm: "30 x 30cm", productionFileSizeMm: "310 x 310mm" },
 ];
+
+// 인쇄 파일 규격 (레드프린팅 작업 가이드 기준, 2026-09 확인)
+// - 내지: 재단 사이즈(완성 규격) 기준 사방 5mm 재단여유를 더한 값이 작업(제작 파일) 사이즈예요.
+//   예) L(30x30cm) 내지 → 재단 300x300mm / 작업 310x310mm.
+// - 표지: 소프트커버는 사방 5mm, 하드커버는 사방 20mm(보드를 감싸는 여유) 재단여유가 붙어요.
+//   하드커버 앞/뒤판은 내지보다 살짝 커요(레드프린팅 예시 기준 L: 내지 300mm → 하드커버 판 306mm,
+//   한 변당 +3mm 여유). 책등(세네카) 폭은 페이지 수에 따라 달라지므로
+//   calcEstimatedSpineWidthMm로 계산한 값을 그대로 써요.
+export const printFileSpec = {
+  innerTrimBleedMm: 5,
+  softCoverBleedMm: 5,
+  hardCoverWrapBleedMm: 20,
+  hardCoverPanelOverhangMm: 3,
+};
 
 // 커버 x 사이즈별 기본 판매가 (임시 판매가 — 특히 S 하드커버는 실제 견적 확인 전)
 export const photobookBasePrice: Record<PhotobookCoverId, Record<PhotobookSizeId, number>> = {
