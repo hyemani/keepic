@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useRef, useEffect } from "react";
+import type { CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { supabase } from "@/lib/supabase";
@@ -18,7 +19,6 @@ import {
   photobookSizes,
   calcEstimatedSpineWidthMm,
   printFileSpec,
-  SPINE_SAFETY_BUFFER_MM,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
 
@@ -268,15 +268,24 @@ function GuideLines({
   trimYPct,
   safetyXPct,
   safetyYPct,
+  hideEdge,
 }: {
   trimXPct: number;
   trimYPct: number;
   safetyXPct: number;
   safetyYPct: number;
+  // 책등(세네카)처럼 실제로 잘리는 자리가 아닌 쪽은 그쪽 변만 빼고 그려요.
+  hideEdge?: "left" | "right";
 }) {
+  const edgeStyle: CSSProperties =
+    hideEdge === "left"
+      ? { borderLeftStyle: "none" }
+      : hideEdge === "right"
+      ? { borderRightStyle: "none" }
+      : {};
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
-      <div className="absolute inset-0 border border-dashed" style={{ borderColor: "#22a559" }} />
+      <div className="absolute inset-0 border border-dashed" style={{ borderColor: "#22a559", ...edgeStyle }} />
       <div
         className="absolute border border-dashed"
         style={{
@@ -285,6 +294,7 @@ function GuideLines({
           top: `${trimYPct}%`,
           bottom: `${trimYPct}%`,
           borderColor: "#ff2fb0",
+          ...edgeStyle,
         }}
       />
       <div
@@ -295,6 +305,7 @@ function GuideLines({
           top: `${safetyYPct}%`,
           bottom: `${safetyYPct}%`,
           borderColor: "#2f7bff",
+          ...edgeStyle,
         }}
       />
     </div>
@@ -1001,17 +1012,19 @@ function UploadPageContent() {
       : coverInnerTrimMm;
     const coverBleedMm = coverIsHard ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
     const coverSpineInfo = calcEstimatedSpineWidthMm(coverInnerPaper.weightG, coverPages, coverIsHard ? "hard" : "soft");
-    const coverSpineMm = (coverSpineInfo.isConfirmed ? coverSpineInfo.estimateMm : coverSpineInfo.maxMm) + SPINE_SAFETY_BUFFER_MM;
+    const coverSpineMm = coverSpineInfo.isConfirmed ? coverSpineInfo.estimateMm : coverSpineInfo.maxMm;
     const coverTotalWmm = coverPanelMm * 2 + coverSpineMm + coverBleedMm * 2;
     const coverTotalHmm = coverPanelMm + coverBleedMm * 2;
     const coverBackPct = (coverPanelMm / coverTotalWmm) * 100;
     const coverSpinePct = (coverSpineMm / coverTotalWmm) * 100;
     const coverFrontPct = (coverPanelMm / coverTotalWmm) * 100;
-    // 표지 전체(뒤표지-책등-앞표지)를 감싸는 작업선·재단선·안전선 비율이에요.
-    const coverTrimXPct = (coverBleedMm / coverTotalWmm) * 100;
-    const coverTrimYPct = (coverBleedMm / coverTotalHmm) * 100;
-    const coverSafetyXPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverTotalWmm) * 100;
-    const coverSafetyYPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverTotalHmm) * 100;
+    // 뒤표지·앞표지 각 패널 기준 작업선·재단선·안전선 비율이에요. (책등 쪽 변은 감춰서
+    // 페이지 기준으로 따로 표시해요. 책등에는 안전선을 표시하지 않아요.)
+    const coverPanelWorkMm = coverPanelMm + coverBleedMm * 2;
+    const coverPanelTrimXPct = (coverBleedMm / coverPanelWorkMm) * 100;
+    const coverPanelTrimYPct = (coverBleedMm / coverPanelWorkMm) * 100;
+    const coverPanelSafetyXPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverPanelWorkMm) * 100;
+    const coverPanelSafetyYPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverPanelWorkMm) * 100;
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -1177,10 +1190,19 @@ function UploadPageContent() {
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
                         <div
-                          className="flex h-full items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40"
+                          className="relative flex h-full items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40"
                           style={{ width: `${coverBackPct}%` }}
                         >
                           뒤표지(무지)
+                          {showGuidelines && (
+                            <GuideLines
+                              trimXPct={coverPanelTrimXPct}
+                              trimYPct={coverPanelTrimYPct}
+                              safetyXPct={coverPanelSafetyXPct}
+                              safetyYPct={coverPanelSafetyYPct}
+                              hideEdge="right"
+                            />
+                          )}
                         </div>
                         <div
                           className="flex h-full items-center justify-center bg-[var(--color-hairline)]/60 text-[9px] text-[var(--color-charcoal)]/40"
@@ -1206,15 +1228,16 @@ function UploadPageContent() {
                               {coverTitle}
                             </p>
                           )}
+                          {showGuidelines && (
+                            <GuideLines
+                              trimXPct={coverPanelTrimXPct}
+                              trimYPct={coverPanelTrimYPct}
+                              safetyXPct={coverPanelSafetyXPct}
+                              safetyYPct={coverPanelSafetyYPct}
+                              hideEdge="left"
+                            />
+                          )}
                         </div>
-                        {showGuidelines && (
-                          <GuideLines
-                            trimXPct={coverTrimXPct}
-                            trimYPct={coverTrimYPct}
-                            safetyXPct={coverSafetyXPct}
-                            safetyYPct={coverSafetyYPct}
-                          />
-                        )}
                       </div>
 
                       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">

@@ -16,7 +16,6 @@ import {
   PhotobookCoverId,
   printFileSpec,
   calcEstimatedSpineWidthMm,
-  SPINE_SAFETY_BUFFER_MM,
 } from "@/lib/photobookPricing";
 
 export type PrintPhoto = {
@@ -531,7 +530,7 @@ export async function buildCoverPrintPdf({
   // 아직 실측값이 없는 페이지 수라면 참고용 예상치의 여유치(0.5~1mm) 포함 최대값을 써서
   // 너무 좁게 잡히는 것보다는 안전하게 맞춰요.
   const spine = calcEstimatedSpineWidthMm(innerPaperWeightG, pages, cover);
-  const spineMm = (spine.isConfirmed ? spine.estimateMm : spine.maxMm) + SPINE_SAFETY_BUFFER_MM;
+  const spineMm = spine.isConfirmed ? spine.estimateMm : spine.maxMm;
 
   const totalWmm = panelMm * 2 + spineMm + bleedMm * 2;
   const totalHmm = panelMm + bleedMm * 2;
@@ -577,15 +576,23 @@ export async function buildCoverPrintPdf({
 
   const cleanDataUrl = canvasToJpegDataUrl(canvas);
 
-  // 가이드용: 표지 전체 재단선/안전선 + 뒤표지·책등·앞표지 경계선을 함께 표시해요.
+  // 가이드용: 뒤표지·앞표지는 각각 "페이지 기준"으로 작업선·재단선·안전선을 따로 표시해요.
+  // 책등 쪽 변은 실제로 잘리는 자리가 아니라서 그 변만 생략하고, 책등 경계는 아래
+  // 옅은 점선(책등 안내선)으로만 표시해요. (책등 자체에는 안전선을 넣지 않아요)
+  const spineNote = `책등 ${spineMm}mm(${spine.isConfirmed ? "실측" : "예상치"})`;
   drawGuideOverlay(
     ctx,
-    pxW,
+    spineX,
     pxH,
     bleedPx,
     safetyPx,
-    `작업 ${roundMm(totalWmm)}×${roundMm(totalHmm)}mm / 책등 ${spineMm}mm(${spine.isConfirmed ? "실측" : "예상치"})`
+    `뒤표지 · 작업 ${roundMm(totalWmm)}×${roundMm(totalHmm)}mm / ${spineNote}`,
+    "right"
   );
+  ctx.save();
+  ctx.translate(frontX - bleedPx, 0);
+  drawGuideOverlay(ctx, panelPx + bleedPx, pxH, bleedPx, safetyPx, "앞표지", "left");
+  ctx.restore();
   ctx.save();
   ctx.strokeStyle = "#8a7f66";
   ctx.setLineDash([mmToPx(1.5), mmToPx(1.5)]);
