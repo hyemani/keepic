@@ -39,6 +39,8 @@ type Photo = {
   // 화면에서 본 위치와 똑같은 자리에 사진이 오도록 맞춰줘요.
   containerW: number;
   containerH: number;
+  rotation: number; // 0/90/180/270도
+  flipX: boolean; // 좌우 반전
 };
 
 const captionSizeClass: Record<Photo["size"], string> = {
@@ -316,6 +318,11 @@ function PhotoCell({
     };
   }, [isDragging]);
 
+  function stopThenRun(e: React.MouseEvent, fn: () => void) {
+    e.stopPropagation();
+    fn();
+  }
+
   return (
     <div ref={cellRef} className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]">
       <img
@@ -323,7 +330,9 @@ function PhotoCell({
         onMouseDown={handleMouseDown}
         draggable={false}
         style={{
-          transform: `translate(${photo.x}px, ${photo.y}px) scale(${photo.scale})`,
+          transform: `translate(${photo.x}px, ${photo.y}px) rotate(${photo.rotation}deg) scale(${
+            photo.flipX ? -photo.scale : photo.scale
+          }, ${photo.scale})`,
         }}
         className="h-full w-full cursor-grab select-none object-cover active:cursor-grabbing"
         alt=""
@@ -336,6 +345,52 @@ function PhotoCell({
           저해상도
         </span>
       )}
+
+      <div className="absolute inset-x-1 bottom-8 flex items-center justify-center gap-1 opacity-0 transition group-hover:opacity-100">
+        <button
+          type="button"
+          title="축소"
+          onMouseDown={(e) => stopThenRun(e, () => onChange({ scale: Math.max(1, photo.scale - 0.1) }))}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          title="확대"
+          onMouseDown={(e) => stopThenRun(e, () => onChange({ scale: Math.min(2.5, photo.scale + 0.1) }))}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          title="회전"
+          onMouseDown={(e) => stopThenRun(e, () => onChange({ rotation: (photo.rotation + 90) % 360 }))}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+        >
+          ⟳
+        </button>
+        <button
+          type="button"
+          title="좌우 반전"
+          onMouseDown={(e) => stopThenRun(e, () => onChange({ flipX: !photo.flipX }))}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+        >
+          ⇋
+        </button>
+        <button
+          type="button"
+          title="원래대로"
+          onMouseDown={(e) =>
+            stopThenRun(e, () => onChange({ x: 0, y: 0, scale: 1, rotation: 0, flipX: false }))
+          }
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+        >
+          ↺
+        </button>
+      </div>
+
       <input
         type="range"
         min={1}
@@ -639,6 +694,8 @@ function UploadPageContent() {
   const [selectedPageKey, setSelectedPageKey] = useState<"cover" | number>(
     isPhotobook ? "cover" : 0
   );
+  // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
+  const [showGuidelines, setShowGuidelines] = useState(false);
 
   async function handleCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -662,6 +719,8 @@ function UploadPageContent() {
         position: "below",
         containerW: 0,
         containerH: 0,
+        rotation: 0,
+        flipX: false,
       });
     };
     img.src = url;
@@ -692,6 +751,8 @@ function UploadPageContent() {
             position: "below",
             containerW: 0,
             containerH: 0,
+            rotation: 0,
+            flipX: false,
           });
         };
         img.src = url;
@@ -866,6 +927,16 @@ function UploadPageContent() {
 
     const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
 
+    // 재단선·안전선 미리보기용 비율이에요. (실제 발주 파일의 수치와 같은 값을 써요:
+    // lib/printCompose.ts의 printFileSpec.innerTrimBleedMm / GUIDE_SAFETY_MARGIN_MM)
+    const guideSizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+    const guideWorkMatch = (guideSizeInfo?.productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)/);
+    const guideWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
+    const GUIDE_BLEED_MM = 5;
+    const GUIDE_SAFETY_MM = 5;
+    const trimInsetPct = (GUIDE_BLEED_MM / guideWorkMm) * 100;
+    const safetyInsetPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideWorkMm) * 100;
+
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
         <header className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-8 sm:px-10">
@@ -934,7 +1005,18 @@ function UploadPageContent() {
 
           {photos.length > 0 && (
             <div className="mt-12">
-              <h2 className="text-lg font-semibold">페이지 편집</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold">페이지 편집</h2>
+                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
+                  <input
+                    type="checkbox"
+                    checked={showGuidelines}
+                    onChange={(e) => setShowGuidelines(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                  />
+                  재단선·안전선 미리보기
+                </label>
+              </div>
               <p className="mt-1 text-xs text-[var(--color-charcoal)]/50 break-keep">
                 왼쪽에서 페이지를 골라 오른쪽 큰 화면에서 편집해주세요.
               </p>
@@ -1102,6 +1184,24 @@ function UploadPageContent() {
                                 handleCaptionChange,
                                 requiredMinPx
                               )}
+                              {showGuidelines && (
+                                <div className="pointer-events-none absolute inset-0 z-10">
+                                  <div
+                                    className="absolute border border-dashed"
+                                    style={{
+                                      inset: `${trimInsetPct}%`,
+                                      borderColor: "#ff2fb0",
+                                    }}
+                                  />
+                                  <div
+                                    className="absolute border border-dashed"
+                                    style={{
+                                      inset: `${safetyInsetPct}%`,
+                                      borderColor: "#2f7bff",
+                                    }}
+                                  />
+                                </div>
+                              )}
                             </div>
                             <div className="group relative w-1/2">
                               <select
@@ -1122,6 +1222,24 @@ function UploadPageContent() {
                                 handlePhotoTransform,
                                 handleCaptionChange,
                                 requiredMinPx
+                              )}
+                              {showGuidelines && (
+                                <div className="pointer-events-none absolute inset-0 z-10">
+                                  <div
+                                    className="absolute border border-dashed"
+                                    style={{
+                                      inset: `${trimInsetPct}%`,
+                                      borderColor: "#ff2fb0",
+                                    }}
+                                  />
+                                  <div
+                                    className="absolute border border-dashed"
+                                    style={{
+                                      inset: `${safetyInsetPct}%`,
+                                      borderColor: "#2f7bff",
+                                    }}
+                                  />
+                                </div>
                               )}
                             </div>
                           </div>

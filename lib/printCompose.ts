@@ -34,6 +34,8 @@ export type PrintPhoto = {
   position: "below" | "overlayBottom" | "overlayCenter";
   containerW: number;
   containerH: number;
+  rotation: number;
+  flipX: boolean;
 };
 
 const PRINT_DPI = 300;
@@ -93,17 +95,22 @@ function drawPhotoInCell(
 
   const drawW = baseW * photo.scale;
   const drawH = baseH * photo.scale;
-  let drawX = cellX + (cellW - drawW) / 2;
-  let drawY = cellY + (cellH - drawH) / 2;
 
   // 화면에서 드래그했던 픽셀 거리(x, y)를, 그 사진칸의 화면 크기 대비 비율로 환산해서
   // 인쇄용 캔버스 크기에 똑같이 적용해요.
   const fx = photo.containerW > 0 ? cellW / photo.containerW : 0;
   const fy = photo.containerH > 0 ? cellH / photo.containerH : 0;
-  drawX += photo.x * fx;
-  drawY += photo.y * fy;
 
-  ctx.drawImage(img, drawX, drawY, drawW, drawH);
+  const centerX = cellX + cellW / 2;
+  const centerY = cellY + cellH / 2;
+
+  // 화면과 같은 순서로 적용해요: 드래그 이동(바깥, 회전/반전 영향 없음) → 칸 중심 기준 회전 → 좌우반전.
+  ctx.translate(photo.x * fx, photo.y * fy);
+  ctx.translate(centerX, centerY);
+  ctx.rotate((photo.rotation * Math.PI) / 180);
+  if (photo.flipX) ctx.scale(-1, 1);
+
+  ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
   ctx.restore();
 }
 
