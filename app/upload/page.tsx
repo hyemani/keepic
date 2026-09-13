@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useRef, useEffect } from "react";
+import type { CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { supabase } from "@/lib/supabase";
@@ -262,26 +263,34 @@ function CaptionSettingsPopover({
 function GuideLines({
   trimPct,
   safetyPct,
-  hideSafetyEdge,
+  hideEdge,
 }: {
   trimPct: number;
   safetyPct: number;
-  // 스프레드로 붙는 쪽(접히는 안쪽 면)은 실제로 잘리는 자리가 아니라서,
-  // 그쪽 안전선만 보이지 않게 해요. (좌우로 나뉜 페이지가 이어지는 그 경계선이에요)
-  hideSafetyEdge?: "left" | "right";
+  // 스프레드로 붙는 쪽(접히는 안쪽 면)은 실제로 잘리는 자리가 아니에요.
+  // 그쪽에는 작업선·재단선·안전선을 전부 표시하지 않고, 스프레드 전체를 하나로 감싸는
+  // 바깥쪽 테두리만 보이게 해요. (좌우로 나뉜 페이지가 이어지는 그 경계선이에요)
+  hideEdge?: "left" | "right";
 }) {
+  const edgeStyle: CSSProperties =
+    hideEdge === "left"
+      ? { borderLeftStyle: "none" }
+      : hideEdge === "right"
+      ? { borderRightStyle: "none" }
+      : {};
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
-      <div className="absolute inset-0 border border-dashed" style={{ borderColor: "#22a559" }} />
-      <div className="absolute border border-dashed" style={{ inset: `${trimPct}%`, borderColor: "#ff2fb0" }} />
+      <div
+        className="absolute inset-0 border border-dashed"
+        style={{ borderColor: "#22a559", ...edgeStyle }}
+      />
       <div
         className="absolute border border-dashed"
-        style={{
-          inset: `${safetyPct}%`,
-          borderColor: "#2f7bff",
-          ...(hideSafetyEdge === "left" ? { borderLeftStyle: "none" } : {}),
-          ...(hideSafetyEdge === "right" ? { borderRightStyle: "none" } : {}),
-        }}
+        style={{ inset: `${trimPct}%`, borderColor: "#ff2fb0", ...edgeStyle }}
+      />
+      <div
+        className="absolute border border-dashed"
+        style={{ inset: `${safetyPct}%`, borderColor: "#2f7bff", ...edgeStyle }}
       />
     </div>
   );
@@ -1263,7 +1272,7 @@ function UploadPageContent() {
                                 requiredMinPx
                               )}
                               {showGuidelines && (
-                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideSafetyEdge="right" />
+                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideEdge="right" />
                               )}
                             </div>
                             <div className="group relative w-1/2">
@@ -1287,7 +1296,7 @@ function UploadPageContent() {
                                 requiredMinPx
                               )}
                               {showGuidelines && (
-                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideSafetyEdge="left" />
+                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} hideEdge="left" />
                               )}
                             </div>
                           </div>

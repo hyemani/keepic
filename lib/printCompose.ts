@@ -340,26 +340,30 @@ function drawCornerMarks(
   h: number,
   armPx: number,
   color: string,
-  lineWidthPx: number
+  lineWidthPx: number,
+  hideEdge?: "left" | "right"
 ) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = lineWidthPx;
   ctx.setLineDash([]);
-  const corners: [number, number, number, number][] = [
-    [x, y, 1, 1],
-    [x + w, y, -1, 1],
-    [x, y + h, 1, -1],
-    [x + w, y + h, -1, -1],
+  // side: 접힘면 쪽 모서리는 크롭마크도 생략해요.
+  const corners: [number, number, number, number, "left" | "right"][] = [
+    [x, y, 1, 1, "left"],
+    [x + w, y, -1, 1, "right"],
+    [x, y + h, 1, -1, "left"],
+    [x + w, y + h, -1, -1, "right"],
   ];
-  corners.forEach(([cx, cy, dx, dy]) => {
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + dx * armPx, cy);
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx, cy + dy * armPx);
-    ctx.stroke();
-  });
+  corners
+    .filter(([, , , , side]) => side !== hideEdge)
+    .forEach(([cx, cy, dx, dy]) => {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + dx * armPx, cy);
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx, cy + dy * armPx);
+      ctx.stroke();
+    });
   ctx.restore();
 }
 
@@ -372,25 +376,43 @@ function drawGuideOverlay(
   bleedPx: number,
   safetyPx: number,
   label: string,
-  hideSafetyEdge?: "left" | "right"
+  // 스프레드로 이어지는 접힘면(가운데) 쪽은 실제로 잘리는 자리가 아니라서,
+  // 작업선·재단선·안전선을 전부 그쪽 변만 빼고 그려요. (스프레드 전체를 하나로 감싸는 형태)
+  hideEdge?: "left" | "right"
 ) {
   const lineW = Math.max(2, Math.round(mmToPx(0.25)));
   const armPx = mmToPx(3);
 
   // 작업선 - 파일(작업 사이즈) 맨 바깥 경계예요. 재단 오차 때문에 정확히 이 선까지 잘리진 않지만,
   // 배경이 꽉 찬 페이지는 이 선까지 사진/배경을 채워야 흰 여백 없이 재단돼요.
-  strokeDashedRect(ctx, 0, 0, pxW, pxH, GUIDE_WORK_COLOR, lineW);
+  if (hideEdge) {
+    strokeDashedRectSkipSide(ctx, 0, 0, pxW, pxH, GUIDE_WORK_COLOR, lineW, hideEdge);
+  } else {
+    strokeDashedRect(ctx, 0, 0, pxW, pxH, GUIDE_WORK_COLOR, lineW);
+  }
 
   // 재단선 - 작업(전체 캔버스) 안쪽으로 재단여유(bleed)만큼 들어간, 실제로 잘리는 자리
-  strokeDashedRect(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, GUIDE_TRIM_COLOR, lineW);
-  drawCornerMarks(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, armPx, GUIDE_TRIM_COLOR, lineW);
+  if (hideEdge) {
+    strokeDashedRectSkipSide(
+      ctx,
+      bleedPx,
+      bleedPx,
+      pxW - bleedPx * 2,
+      pxH - bleedPx * 2,
+      GUIDE_TRIM_COLOR,
+      lineW,
+      hideEdge
+    );
+  } else {
+    strokeDashedRect(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, GUIDE_TRIM_COLOR, lineW);
+  }
+  drawCornerMarks(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, armPx, GUIDE_TRIM_COLOR, lineW, hideEdge);
 
   // 안전선 - 재단선에서 다시 안쪽으로 들어간 자리 (사진/글자가 이 안쪽에 있어야 잘려도 안전해요)
-  // 스프레드로 이어지는 접힘면 쪽은 실제 절단선이 아니라서 안전선을 표시하지 않아요.
   const sx = bleedPx + safetyPx;
   const sy = bleedPx + safetyPx;
-  if (hideSafetyEdge) {
-    strokeDashedRectSkipSide(ctx, sx, sy, pxW - sx * 2, pxH - sy * 2, GUIDE_SAFETY_COLOR, lineW, hideSafetyEdge);
+  if (hideEdge) {
+    strokeDashedRectSkipSide(ctx, sx, sy, pxW - sx * 2, pxH - sy * 2, GUIDE_SAFETY_COLOR, lineW, hideEdge);
   } else {
     strokeDashedRect(ctx, sx, sy, pxW - sx * 2, pxH - sy * 2, GUIDE_SAFETY_COLOR, lineW);
   }
@@ -450,9 +472,9 @@ export async function buildInnerPrintPdf({
   for (let i = 0; i < customSpreads.length; i++) {
     const spread = customSpreads[i];
     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
-    const sides: { templateId: PageTemplateId; indexes: number[]; hideSafetyEdge: "left" | "right" }[] = [
-      { templateId: spread.left, indexes: leftIndexes, hideSafetyEdge: "right" },
-      { templateId: spread.right, indexes: rightIndexes, hideSafetyEdge: "left" },
+    const sides: { templateId: PageTemplateId; indexes: number[]; hideEdge: "left" | "right" }[] = [
+      { templateId: spread.left, indexes: leftIndexes, hideEdge: "right" },
+      { templateId: spread.right, indexes: rightIndexes, hideEdge: "left" },
     ];
 
     for (const side of sides) {
@@ -460,7 +482,7 @@ export async function buildInnerPrintPdf({
       // 페이지를 순서대로(1p, 2p, ...) 그려야 해서 일부러 순차적으로 기다려요.
       await drawPage(ctx, side.templateId, sidePhotos, pxW, pxH);
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
-      drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideSafetyEdge);
+      drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideEdge);
       const guideDataUrl = canvasToJpegDataUrl(canvas);
 
       if (!pdf || !guidePdf) {
