@@ -17,6 +17,7 @@ import {
   calcPagesLabel,
   photobookSizes,
   calcEstimatedSpineWidthMm,
+  printFileSpec,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
 
@@ -253,6 +254,18 @@ function CaptionSettingsPopover({
         </div>
       )}
     </>
+  );
+}
+
+// 작업선(초록)·재단선(마젠타)·안전선(파랑) 미리보기 오버레이예요.
+// 실제 인쇄 파일(lib/printCompose.ts의 drawGuideOverlay)과 같은 세 겹 구조를 화면에서도 보여줘요.
+function GuideLines({ trimPct, safetyPct }: { trimPct: number; safetyPct: number }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10">
+      <div className="absolute inset-0 border border-dashed" style={{ borderColor: "#22a559" }} />
+      <div className="absolute border border-dashed" style={{ inset: `${trimPct}%`, borderColor: "#ff2fb0" }} />
+      <div className="absolute border border-dashed" style={{ inset: `${safetyPct}%`, borderColor: "#2f7bff" }} />
+    </div>
   );
 }
 
@@ -927,15 +940,40 @@ function UploadPageContent() {
 
     const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
 
-    // 재단선·안전선 미리보기용 비율이에요. (실제 발주 파일의 수치와 같은 값을 써요:
+    // 작업선·재단선·안전선 미리보기용 비율이에요. (실제 발주 파일의 수치와 같은 값을 써요:
     // lib/printCompose.ts의 printFileSpec.innerTrimBleedMm / GUIDE_SAFETY_MARGIN_MM)
     const guideSizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
     const guideWorkMatch = (guideSizeInfo?.productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)/);
     const guideWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
     const GUIDE_BLEED_MM = 5;
-    const GUIDE_SAFETY_MM = 5;
+    const GUIDE_SAFETY_MM = 8; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
     const trimInsetPct = (GUIDE_BLEED_MM / guideWorkMm) * 100;
     const safetyInsetPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideWorkMm) * 100;
+
+    // 표지(뒤표지-책등-앞표지) 실제 비율이에요. lib/printCompose.ts의 buildCoverPrintPdf와
+    // 같은 계산식을 그대로 써서, 화면 미리보기가 실제 표지 인쇄 파일 비율과 일치하도록 해요.
+    const coverIsHard = photobookCover === "hard";
+    const coverSizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+    const coverTrimMatch = (coverSizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
+    const coverTrimCm = coverTrimMatch ? parseFloat(coverTrimMatch[1]) : 30;
+    const coverInnerTrimMm = coverTrimCm * 10;
+    const coverInnerPaper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
+    const coverPages = photobookPages ? Number(photobookPages) : 20;
+    const coverPanelMm = coverIsHard
+      ? coverInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2
+      : coverInnerTrimMm;
+    const coverBleedMm = coverIsHard ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
+    const coverSpineInfo = calcEstimatedSpineWidthMm(coverInnerPaper.weightG, coverPages, coverIsHard ? "hard" : "soft");
+    const coverSpineMm = coverSpineInfo.isConfirmed ? coverSpineInfo.estimateMm : coverSpineInfo.maxMm;
+    const coverTotalWmm = coverPanelMm * 2 + coverSpineMm + coverBleedMm * 2;
+    const coverTotalHmm = coverPanelMm + coverBleedMm * 2;
+    const coverBackPct = (coverPanelMm / coverTotalWmm) * 100;
+    const coverSpinePct = (coverSpineMm / coverTotalWmm) * 100;
+    const coverFrontPct = (coverPanelMm / coverTotalWmm) * 100;
+    // 앞표지 패널 안에서의 작업선·재단선·안전선 비율이에요. (앞표지 패널 자체 크기 기준)
+    const coverPanelWorkMm = coverPanelMm + coverBleedMm * 2;
+    const coverTrimInsetPct = (coverBleedMm / coverPanelWorkMm) * 100;
+    const coverSafetyInsetPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverPanelWorkMm) * 100;
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -1014,12 +1052,19 @@ function UploadPageContent() {
                     onChange={(e) => setShowGuidelines(e.target.checked)}
                     className="h-3.5 w-3.5 accent-[var(--color-sky)]"
                   />
-                  재단선·안전선 미리보기
+                  작업선·재단선·안전선 미리보기
                 </label>
               </div>
               <p className="mt-1 text-xs text-[var(--color-charcoal)]/50 break-keep">
                 왼쪽에서 페이지를 골라 오른쪽 큰 화면에서 편집해주세요.
               </p>
+              {showGuidelines && (
+                <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                  <span style={{ color: "#22a559" }}>■ 작업선</span>(파일 맨 끝, 배경은 이 선까지 채워주세요) ·{" "}
+                  <span style={{ color: "#ff2fb0" }}>■ 재단선</span>(실제로 잘리는 선) ·{" "}
+                  <span style={{ color: "#2f7bff" }}>■ 안전선</span>(글자·중요 사진은 이 안쪽에 배치해주세요)
+                </p>
+              )}
 
               <div className="mt-6 flex flex-col gap-4 lg:flex-row">
                 {/* 왼쪽: 전체 페이지 한눈에 보기 */}
@@ -1032,10 +1077,16 @@ function UploadPageContent() {
                         selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
                       }`}
                     >
-                      <div className="pointer-events-none flex aspect-[2/1] w-28 overflow-hidden rounded bg-white shadow-sm lg:w-full">
-                        <div className="w-2/5 bg-[var(--color-ivory)]" />
-                        <div className="w-[6%] bg-[var(--color-hairline)]" />
-                        <div className="relative w-2/5 flex-1 overflow-hidden bg-[var(--color-ivory)]">
+                      <div
+                        className="pointer-events-none flex w-28 overflow-hidden rounded bg-white shadow-sm lg:w-full"
+                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
+                      >
+                        <div className="h-full bg-[var(--color-ivory)]" style={{ width: `${coverBackPct}%` }} />
+                        <div className="h-full bg-[var(--color-hairline)]" style={{ width: `${coverSpinePct}%` }} />
+                        <div
+                          className="relative h-full overflow-hidden bg-[var(--color-ivory)]"
+                          style={{ width: `${coverFrontPct}%` }}
+                        >
                           {coverPhoto && (
                             <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" />
                           )}
@@ -1083,17 +1134,23 @@ function UploadPageContent() {
                         무지로 비워둘게요)
                       </p>
 
-                      <div className="mt-4 flex w-full overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-sm">
-                        <div className="flex w-[38%] items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40">
+                      <div
+                        className="mt-4 flex w-full overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-sm"
+                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
+                      >
+                        <div
+                          className="flex h-full items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40"
+                          style={{ width: `${coverBackPct}%` }}
+                        >
                           뒤표지(무지)
                         </div>
                         <div
-                          className="flex w-[6%] items-center justify-center bg-[var(--color-hairline)]/60 text-[9px] text-[var(--color-charcoal)]/40"
-                          style={{ writingMode: "vertical-rl" }}
+                          className="flex h-full items-center justify-center bg-[var(--color-hairline)]/60 text-[9px] text-[var(--color-charcoal)]/40"
+                          style={{ width: `${coverSpinePct}%`, writingMode: "vertical-rl" }}
                         >
                           책등
                         </div>
-                        <div className="relative aspect-square w-[56%] overflow-hidden">
+                        <div className="relative h-full overflow-hidden" style={{ width: `${coverFrontPct}%` }}>
                           {coverPhoto ? (
                             <PhotoCell
                               photo={coverPhoto}
@@ -1110,6 +1167,9 @@ function UploadPageContent() {
                             <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-sm font-semibold text-white drop-shadow">
                               {coverTitle}
                             </p>
+                          )}
+                          {showGuidelines && (
+                            <GuideLines trimPct={coverTrimInsetPct} safetyPct={coverSafetyInsetPct} />
                           )}
                         </div>
                       </div>
@@ -1185,22 +1245,7 @@ function UploadPageContent() {
                                 requiredMinPx
                               )}
                               {showGuidelines && (
-                                <div className="pointer-events-none absolute inset-0 z-10">
-                                  <div
-                                    className="absolute border border-dashed"
-                                    style={{
-                                      inset: `${trimInsetPct}%`,
-                                      borderColor: "#ff2fb0",
-                                    }}
-                                  />
-                                  <div
-                                    className="absolute border border-dashed"
-                                    style={{
-                                      inset: `${safetyInsetPct}%`,
-                                      borderColor: "#2f7bff",
-                                    }}
-                                  />
-                                </div>
+                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} />
                               )}
                             </div>
                             <div className="group relative w-1/2">
@@ -1224,22 +1269,7 @@ function UploadPageContent() {
                                 requiredMinPx
                               )}
                               {showGuidelines && (
-                                <div className="pointer-events-none absolute inset-0 z-10">
-                                  <div
-                                    className="absolute border border-dashed"
-                                    style={{
-                                      inset: `${trimInsetPct}%`,
-                                      borderColor: "#ff2fb0",
-                                    }}
-                                  />
-                                  <div
-                                    className="absolute border border-dashed"
-                                    style={{
-                                      inset: `${safetyInsetPct}%`,
-                                      borderColor: "#2f7bff",
-                                    }}
-                                  />
-                                </div>
+                                <GuideLines trimPct={trimInsetPct} safetyPct={safetyInsetPct} />
                               )}
                             </div>
                           </div>

@@ -277,7 +277,8 @@ function canvasToJpegDataUrl(canvas: HTMLCanvasElement) {
 // 재단선/안전선을 보여주는 "확인용 가이드" 파일에서만 쓰는 값이에요.
 // (레드프린팅에서 공식적으로 확인받은 수치가 아니라, 업계에서 흔히 쓰는 안전여백 기준이에요.
 //  실제 안전여백 기준을 제작처에서 알려주면 이 값을 그 값으로 바꿔주세요.)
-const GUIDE_SAFETY_MARGIN_MM = 5;
+const GUIDE_SAFETY_MARGIN_MM = 8; // 혜민님 확인 기준(2026-09): 재단선 안쪽 안전여백 약 8mm
+const GUIDE_WORK_COLOR = "#22a559"; // 작업선(파일 바깥 여유분 경계) - 초록
 const GUIDE_TRIM_COLOR = "#ff2fb0"; // 재단선 - 마젠타
 const GUIDE_SAFETY_COLOR = "#2f7bff"; // 안전선 - 파랑
 
@@ -342,7 +343,11 @@ function drawGuideOverlay(
   const lineW = Math.max(2, Math.round(mmToPx(0.25)));
   const armPx = mmToPx(3);
 
-  // 재단선 - 작업(전체 캔버스) 안쪽으로 재단여유(bleed)만큼 들어간 자리
+  // 작업선 - 파일(작업 사이즈) 맨 바깥 경계예요. 재단 오차 때문에 정확히 이 선까지 잘리진 않지만,
+  // 배경이 꽉 찬 페이지는 이 선까지 사진/배경을 채워야 흰 여백 없이 재단돼요.
+  strokeDashedRect(ctx, 0, 0, pxW, pxH, GUIDE_WORK_COLOR, lineW);
+
+  // 재단선 - 작업(전체 캔버스) 안쪽으로 재단여유(bleed)만큼 들어간, 실제로 잘리는 자리
   strokeDashedRect(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, GUIDE_TRIM_COLOR, lineW);
   drawCornerMarks(ctx, bleedPx, bleedPx, pxW - bleedPx * 2, pxH - bleedPx * 2, armPx, GUIDE_TRIM_COLOR, lineW);
 
@@ -356,8 +361,12 @@ function drawGuideOverlay(
   ctx.font = `${fontPx}px Pretendard, sans-serif`;
   ctx.textBaseline = "top";
   ctx.textAlign = "left";
-  ctx.fillStyle = GUIDE_TRIM_COLOR;
-  ctx.fillText(`재단선(마젠타) · 안전선(파랑, ${GUIDE_SAFETY_MARGIN_MM}mm)`, mmToPx(2), mmToPx(2));
+  ctx.fillStyle = GUIDE_WORK_COLOR;
+  ctx.fillText(
+    `작업선(초록) · 재단선(마젠타) · 안전선(파랑, ${GUIDE_SAFETY_MARGIN_MM}mm)`,
+    mmToPx(2),
+    mmToPx(2)
+  );
   ctx.fillStyle = "#333333";
   ctx.fillText(label, mmToPx(2), mmToPx(2) + fontPx * 1.3);
   ctx.restore();
