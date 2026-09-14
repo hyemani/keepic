@@ -1434,24 +1434,35 @@ function UploadPageContent() {
                           )}
                         </div>
                         <div
-                          className="relative flex h-full items-center justify-center overflow-hidden bg-[var(--color-hairline)]/60"
+                          className="relative flex h-full flex-col items-center bg-[var(--color-hairline)]/60"
                           style={{ width: `${coverSpinePct}%` }}
                         >
                           {spineTitle.trim() ? (
+                            // 실제 인쇄 파일에서는 책등 제목이 옆으로 눕혀져 들어가지만, 화면
+                            // 미리보기는 혜민님이 읽기 편하도록 가로쓰기로, 살짝 위쪽에 보여줘요.
+                            // (책등 폭이 좁아서 글자가 옆 칸까지 살짝 넘칠 수 있어요 — 편집
+                            // 확인용 표시일 뿐, 실제 인쇄 파일의 재단 위치와는 무관해요.)
                             <span
-                              className="whitespace-nowrap text-[9px] font-semibold text-[var(--color-charcoal)]/70"
-                              style={{ transform: "rotate(-90deg)" }}
+                              className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap text-[9px] font-semibold text-[var(--color-charcoal)]/70"
                             >
                               {spineTitle}
                             </span>
                           ) : (
                             <span
-                              className="text-[9px] text-[var(--color-charcoal)]/40"
+                              className="absolute inset-0 flex items-center justify-center text-[9px] text-[var(--color-charcoal)]/40"
                               style={{ writingMode: "vertical-rl" }}
                             >
                               책등
                             </span>
                           )}
+                          {/* Keepic 로고 미리보기 — 실제 인쇄 파일과 같은 방향(옆으로 눕힘,
+                              K가 위)으로 책등 아래쪽에 고정 표시해요. */}
+                          <img
+                            src="/logo.svg"
+                            alt="Keepic"
+                            className="pointer-events-none absolute bottom-3 left-1/2 h-auto w-6 -translate-x-1/2 opacity-70"
+                            style={{ transform: "translateX(-50%) rotate(-90deg)" }}
+                          />
                         </div>
                         <div className="relative h-full overflow-hidden" style={{ width: `${coverFrontPct}%` }}>
                           {coverPhoto ? (
