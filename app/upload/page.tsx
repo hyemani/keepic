@@ -328,6 +328,17 @@ function GuideLines({
   );
 }
 
+// 사진 프레임(칸)을 "원본 전체 보이기(contain, scale 1)" 기준에서 "프레임 꽉 채우기
+// (cover)" 기준으로 바꿀 때 필요한 scale 배율을 계산해요. 칸과 사진의 가로세로 비율만
+// 있으면 되고, 절대 픽셀 크기는 필요 없어요. (lib/printCompose.ts의 drawPhotoInCell과
+// 같은 공식이에요 — 화면과 인쇄 파일이 항상 같은 구도로 나오게 하기 위해서예요.)
+function computeFillScale(imgW: number, imgH: number, containerW: number, containerH: number) {
+  if (!imgW || !imgH || !containerW || !containerH) return 1;
+  const imgRatio = imgW / imgH;
+  const cellRatio = containerW / containerH;
+  return imgRatio > cellRatio ? imgRatio / cellRatio : cellRatio / imgRatio;
+}
+
 function PhotoCell({
   photo,
   requiredMinPx,
@@ -390,6 +401,19 @@ function PhotoCell({
     };
   }, [isDragging]);
 
+  // "프레임 채우기" 버튼이 처음부터(드래그를 한 번도 안 해도) 정확히 동작하도록, 칸이 화면에
+  // 그려지자마자 실제 픽셀 크기를 한 번 재서 저장해둬요.
+  useEffect(() => {
+    const rect = cellRef.current?.getBoundingClientRect();
+    if (rect && (rect.width !== photo.containerW || rect.height !== photo.containerH)) {
+      onChange({ containerW: rect.width, containerH: rect.height });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fillScale = computeFillScale(photo.width, photo.height, photo.containerW, photo.containerH);
+  const sliderMax = Math.max(2.5, fillScale);
+
   function stopThenRun(e: React.MouseEvent, fn: () => void) {
     e.stopPropagation();
     fn();
@@ -406,7 +430,7 @@ function PhotoCell({
             photo.flipX ? -photo.scale : photo.scale
           }, ${photo.scale})`,
         }}
-        className="h-full w-full cursor-grab select-none object-cover active:cursor-grabbing"
+        className="h-full w-full cursor-grab select-none object-contain active:cursor-grabbing"
         alt=""
       />
       {isLowRes(photo, requiredMinPx) && (
@@ -421,6 +445,22 @@ function PhotoCell({
       <div className="absolute inset-x-1 bottom-8 flex items-center justify-center gap-1 opacity-0 transition group-hover:opacity-100">
         <button
           type="button"
+          title="사진 전체 맞추기 (여백이 생길 수 있어요)"
+          onMouseDown={(e) => stopThenRun(e, () => onChange({ scale: 1 }))}
+          className="flex h-6 items-center justify-center rounded-full bg-black/60 px-2 text-[10px] text-white"
+        >
+          전체
+        </button>
+        <button
+          type="button"
+          title="프레임 채우기 (여백 없이 채우고, 프레임 밖은 가려져요)"
+          onMouseDown={(e) => stopThenRun(e, () => onChange({ scale: fillScale }))}
+          className="flex h-6 items-center justify-center rounded-full bg-black/60 px-2 text-[10px] text-white"
+        >
+          채우기
+        </button>
+        <button
+          type="button"
           title="축소"
           onMouseDown={(e) => stopThenRun(e, () => onChange({ scale: Math.max(1, photo.scale - 0.1) }))}
           className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
@@ -430,7 +470,7 @@ function PhotoCell({
         <button
           type="button"
           title="확대"
-          onMouseDown={(e) => stopThenRun(e, () => onChange({ scale: Math.min(2.5, photo.scale + 0.1) }))}
+          onMouseDown={(e) => stopThenRun(e, () => onChange({ scale: Math.min(sliderMax + 1, photo.scale + 0.1) }))}
           className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
         >
           +
@@ -466,7 +506,7 @@ function PhotoCell({
       <input
         type="range"
         min={1}
-        max={2.5}
+        max={sliderMax + 1}
         step={0.05}
         value={photo.scale}
         onChange={(e) => onChange({ scale: Number(e.target.value) })}

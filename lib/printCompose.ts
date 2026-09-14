@@ -83,14 +83,18 @@ export function drawPhotoInCell(
 
   const imgRatio = img.naturalWidth / img.naturalHeight;
   const cellRatio = cellW / cellH;
+  // "프레임 채우기"(cover, 칸을 꽉 채우고 넘치는 부분은 잘림)가 아니라 "사진 전체
+  // 맞추기"(contain, 원본 전체가 보이고 남는 공간은 여백)를 기본 배치로 써요. 사용자가
+  // scale을 키우면 이 기준에서 확대되고, "프레임 채우기" 버튼을 누르면 scale 값 자체를
+  // 칸을 꽉 채우는 배율로 맞춰줘요(화면 쪽 computeFillScale과 같은 공식).
   let baseW: number;
   let baseH: number;
   if (imgRatio > cellRatio) {
-    baseH = cellH;
-    baseW = cellH * imgRatio;
-  } else {
     baseW = cellW;
     baseH = cellW / imgRatio;
+  } else {
+    baseH = cellH;
+    baseW = cellH * imgRatio;
   }
 
   const drawW = baseW * photo.scale;
