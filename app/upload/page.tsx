@@ -23,7 +23,13 @@ import {
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
 // [테스트용] 새 pdf-lib 기반 PDF 생성기예요. ?pdftest=1 일 때만 화면에 테스트 버튼이 보여요.
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
-import { buildInnerPrintPdfLib, buildCoverPrintPdfLib } from "@/lib/printPdfLib";
+import {
+  buildInnerPrintPdfLib,
+  buildCoverPrintPdfLib,
+  computeSpineLogoLayout,
+  computeSpineTitleLayout,
+} from "@/lib/printPdfLib";
+import { mmToPt } from "@/lib/printGeometry";
 
 type Photo = {
   url: string;
@@ -437,10 +443,19 @@ function PhotoCell({
 
   // "프레임 채우기" 버튼이 처음부터(드래그를 한 번도 안 해도) 정확히 동작하도록, 칸이 화면에
   // 그려지자마자 실제 픽셀 크기를 한 번 재서 저장해둬요.
+  // 새로 추가된 사진(칸 크기를 한 번도 잰 적 없음, containerW/H가 아직 0)은 기본값을
+  // "사진 전체 맞추기"(scale 1)가 아니라 "프레임 채우기"로 시작해요. 원본 파일은 그대로 두고
+  // 화면에서 보여지는 비율(scale)만 바꾸는 거라 원본 손상은 없어요.
   useEffect(() => {
     const rect = cellRef.current?.getBoundingClientRect();
     if (rect && (rect.width !== photo.containerW || rect.height !== photo.containerH)) {
-      onChange({ containerW: rect.width, containerH: rect.height });
+      const isFirstMeasurement = photo.containerW === 0 && photo.containerH === 0;
+      if (isFirstMeasurement) {
+        const initialFillScale = computeFillScale(photo.width, photo.height, rect.width, rect.height);
+        onChange({ containerW: rect.width, containerH: rect.height, scale: initialFillScale });
+      } else {
+        onChange({ containerW: rect.width, containerH: rect.height });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1246,7 +1261,9 @@ function UploadPageContent() {
 
       setCoverPdfLibTestState({
         status: "done",
-        info: `생성 완료 — 2쪽(1p 바깥면/2p 안쪽면) / 펼침면 전체 ${result.outerSizeMm.w}×${result.outerSizeMm.h}mm / 표지판 ${result.panelMm}mm / 책등 ${result.spineMm}mm(${result.spineIsConfirmed ? "실측" : "예상치"}) / 도련 ${result.bleedMm}mm`,
+        info: `생성 완료 — 2쪽(1p 바깥면/2p 안쪽면) / 펼침면 전체 ${result.outerSizeMm.w}×${result.outerSizeMm.h}mm / 표지판 ${result.panelMm}mm / 책등 ${result.spineMm}mm(${result.spineIsConfirmed ? "실측" : "예상치"}) / 도련 ${result.bleedMm}mm` +
+          (result.spineTitleFits === false ? " / ⚠️ 책등 제목이 길어서 최소 크기로도 다 안 들어갔어요" : "") +
+          (result.spineLogoDrawn === false ? " / ⚠️ 책등이 좁아 로고를 생략했어요" : ""),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1385,6 +1402,22 @@ function UploadPageContent() {
     const coverSpineSafetyInsetXPct = Math.min(coverSafetyXPct, coverSpinePct / 2);
     const coverSpineSafetyLeftPct = coverSpineStartPct + coverSpineSafetyInsetXPct;
     const coverSpineSafetyRightPct = coverSpineEndPct - coverSpineSafetyInsetXPct;
+
+    // 책등 제목·로고가 실제 인쇄 PDF(lib/printPdfLib.ts)와 똑같은 기준으로 들어가는지
+    // 화면에서도 미리 계산해요. computeSpineLogoLayout/computeSpineTitleLayout은 그 파일의
+    // 함수를 그대로 가져다 쓰는 거라, "책등이 좁아서 생략/경고"가 필요한 시점이 편집 화면과
+    // 인쇄 PDF에서 항상 일치해요.
+    const coverSpinePt = mmToPt(coverSpineMm);
+    const coverPanelPt = mmToPt(coverPanelMm);
+    const coverSpineLogoLayout = computeSpineLogoLayout(coverSpinePt);
+    const coverSpineTitleLayout = spineTitle.trim()
+      ? computeSpineTitleLayout(
+          Array.from(spineTitle.trim()).length,
+          coverSpinePt,
+          coverPanelPt,
+          coverSpineLogoLayout.fits ? coverSpineLogoLayout.drawnHeightPt : 0
+        )
+      : null;
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -1704,31 +1737,49 @@ function UploadPageContent() {
                           style={{ width: `${coverSpinePct}%` }}
                         >
                           {spineTitle.trim() ? (
-                            // 실제 인쇄 파일에서는 책등 제목이 옆으로 눕혀져 들어가지만, 화면
-                            // 미리보기는 혜민님이 읽기 편하도록 가로쓰기로, 살짝 위쪽에 보여줘요.
-                            // (책등 폭이 좁아서 글자가 옆 칸까지 살짝 넘칠 수 있어요 — 편집
-                            // 확인용 표시일 뿐, 실제 인쇄 파일의 재단 위치와는 무관해요.)
+                            // 실제 인쇄 파일과 같은 방식: 문장 전체를 90도로 눕히지 않고, 한
+                            // 글자씩 정방향으로 위→아래 세로쓰기해요. writingMode: vertical-lr을
+                            // 쓰면 브라우저가 알아서 왼쪽 열부터 채우고(왼쪽 열이 먼저 읽혀요),
+                            // 한 열에 다 못 담을 때만 오른쪽에 새 열을 만들어요 — 요청하신
+                            // "왼쪽 열 → 오른쪽 열" 순서와 같아요.
                             <span
-                              className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap text-[9px] font-semibold text-[var(--color-charcoal)]/70"
+                              className="absolute inset-x-0 top-2 flex items-center justify-center overflow-hidden text-[9px] font-semibold leading-[1.2] text-[var(--color-charcoal)]/70"
+                              style={{
+                                writingMode: "vertical-lr",
+                                textOrientation: "upright",
+                                bottom: coverSpineLogoLayout.fits ? "2.4rem" : "0.5rem",
+                              }}
                             >
                               {spineTitle}
                             </span>
                           ) : (
                             <span
                               className="absolute inset-0 flex items-center justify-center text-[9px] text-[var(--color-charcoal)]/40"
-                              style={{ writingMode: "vertical-rl" }}
+                              style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
                             >
                               책등
                             </span>
                           )}
-                          {/* Keepic 로고 미리보기 — 실제 인쇄 파일과 같은 방향(옆으로 눕힘,
-                              K가 위)으로 책등 아래쪽에 고정 표시해요. */}
-                          <img
-                            src="/logo.svg"
-                            alt="Keepic"
-                            className="pointer-events-none absolute bottom-3 left-1/2 h-auto w-6 -translate-x-1/2 opacity-70"
-                            style={{ transform: "translateX(-50%) rotate(-90deg)" }}
-                          />
+                          {coverSpineTitleLayout && !coverSpineTitleLayout.fits ? (
+                            <span className="absolute inset-x-1 top-1 text-center text-[8px] leading-tight text-[#e0524c]">
+                              제목이 책등보다 길어요
+                            </span>
+                          ) : null}
+                          {/* Keepic 로고 미리보기 — 실제 인쇄 파일과 같은 정방향("Keepic"이
+                              왼쪽→오른쪽으로 읽히는 방향, 회전 없음)으로 책등 아래쪽에 표시해요.
+                              책등이 너무 좁으면(인쇄 PDF와 같은 기준) 로고 대신 생략 안내를
+                              보여줘요. */}
+                          {coverSpineLogoLayout.fits ? (
+                            <img
+                              src="/logo.svg"
+                              alt="Keepic"
+                              className="pointer-events-none absolute bottom-2 left-1/2 h-auto w-[70%] max-w-16 -translate-x-1/2 opacity-70"
+                            />
+                          ) : (
+                            <span className="absolute inset-x-1 bottom-1 text-center text-[7px] leading-tight text-[var(--color-charcoal)]/50">
+                              책등이 좁아 로고 생략
+                            </span>
+                          )}
                         </div>
                         <div className="relative h-full overflow-hidden" style={{ width: `${coverFrontPct}%` }}>
                           {coverPhoto ? (

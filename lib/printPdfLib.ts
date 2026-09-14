@@ -27,7 +27,7 @@
 //    보내달라"고 요구하는 경우도 있어요. 실제 발주 전에 레드프린팅에 재단표시 포함 여부를
 //    확인해주세요. (필요하면 아래 SHOW_TRIM_MARKS를 false로 바꿔서 마크 없이 뽑을 수 있어요)
 
-import { PDFDocument, PDFFont, PDFImage, PDFName, PDFPage, degrees, rgb } from "pdf-lib";
+import { PDFDocument, PDFFont, PDFImage, PDFName, PDFPage, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { PageTemplateId, SpreadDef, pageTemplates } from "@/lib/albumTemplates";
 import { printFileSpec, PhotobookCoverId, calcEstimatedSpineWidthMm } from "@/lib/photobookPricing";
@@ -66,10 +66,15 @@ const OUTER_MARGIN_MM = SHOW_TRIM_MARKS
 // 방향으로 90도 회전) 넣어요 — 책을 책장에 꽂아놓고 옆에서 볼 때 고개를 왼쪽으로 기울이면
 // 정방향으로 읽히는, 가장 흔한 책등 표기 방향이에요.
 const SPINE_TEXT_SIDE_PADDING_MM = 1.5; // 책등 좌우 끝에서 글자/로고까지 남기는 여백
-const SPINE_TITLE_MAX_LENGTH_RATIO = 0.85; // 제목이 책등 길이(패널 높이) 중 차지할 수 있는 최대 비율
-const SPINE_TITLE_MARGIN_RATIO = 0.06; // 제목 위치를 위/아래로 옮길 때, 패널 양 끝에서 반드시 남겨야 하는 여백(패널 높이 대비 비율)
+const SPINE_TITLE_MARGIN_RATIO = 0.06; // 제목 위/아래로 반드시 남겨야 하는 여백(패널 높이 대비 비율)
+const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15; // 세로쓰기 열 사이 간격(글자 크기 대비 비율)
+const SPINE_TITLE_MIN_FONT_PT = 4; // 이보다 작아지면 더 줄이지 않고 "너무 깁니다" 안내로 넘어가요
+const SPINE_TITLE_LOGO_GAP_RATIO = 0.03; // 제목 블록과 로고 사이 최소 간격(패널 높이 대비 비율)
 const SPINE_LOGO_HEIGHT_RATIO = 0.85; // 로고가 책등 폭(여백 제외) 중 차지하는 비율
 const SPINE_LOGO_BOTTOM_MARGIN_MM = 8; // 책등 아래쪽 끝(도련 경계)에서 로고까지 띄우는 고정 여백 — 사용자가 바꿀 수 없음
+// 책등이 이보다 좁으면(양옆 여백 제외 실 폭 기준) 로고를 읽기 어렵다고 보고 생략해요.
+// ⚠️ 추정치예요 — 실제 가독성 최소 폭은 인쇄소·디자인 확인이 필요해요.
+const SPINE_LOGO_MIN_CROSS_MM = 10;
 const KEEPIC_LOGO_ASPECT = 1204 / 416; // public/logo.svg의 원본 가로:세로 비율
 
 function ptToPx(pt: number): number {
@@ -609,6 +614,11 @@ export type CoverPrintPdfLibResult = {
   spineMm: number;
   spineIsConfirmed: boolean;
   bleedMm: number;
+  // 책등 제목이 줄이지 않고도(가독성 최소 크기 이상으로) 책등 안에 다 들어갔는지예요.
+  // 제목이 없으면 undefined예요.
+  spineTitleFits?: boolean;
+  // 책등이 너무 좁아 로고를 생략했으면 false예요.
+  spineLogoDrawn?: boolean;
 };
 
 function drawCoverTitle(
@@ -648,10 +658,72 @@ function drawCoverTitle(
   page.drawText(text, { x: textX, y: baselineY, size, font, color: rgb(1, 1, 1) });
 }
 
+// ---- 책등(spine) 제목 레이아웃 계산(글꼴 폭 측정 제외 순수 기하 계산) ----
+// 화면 미리보기(app/upload/page.tsx)도 이 함수를 그대로 가져다 써서, "제목이 책등 안에
+// 들어가는지"를 인쇄 PDF와 똑같은 기준으로 판단해요(글자 폭 측정은 여기 포함 안 돼요 —
+// 열 개수·글자 크기만으로 판단 가능해서 pdf-lib 글꼴 객체 없이도 계산할 수 있어요).
+export function computeSpineTitleLayout(
+  charCount: number,
+  spinePt: number,
+  panelPt: number,
+  logoReserveHeightPt: number
+): {
+  fits: boolean;
+  size: number;
+  charsPerColumn: number;
+  columnCount: number;
+  gapPt: number;
+  blockCrossPt: number;
+  blockLengthPt: number;
+  marginPt: number;
+  gapBeforeLogoPt: number;
+} {
+  const sidePaddingPt = mmToPt(SPINE_TEXT_SIDE_PADDING_MM);
+  const maxCrossPt = Math.max(4, spinePt - sidePaddingPt * 2); // 책등 폭 방향(열이 늘어나는 방향) 최대치
+
+  const marginPt = panelPt * SPINE_TITLE_MARGIN_RATIO;
+  const gapBeforeLogoPt = logoReserveHeightPt > 0 ? panelPt * SPINE_TITLE_LOGO_GAP_RATIO : 0;
+  const maxLengthPt = Math.max(
+    4,
+    panelPt - marginPt * 2 - logoReserveHeightPt - gapBeforeLogoPt
+  ); // 책등 길이 방향(한 열의 세로 길이) 최대치
+
+  // 큰 글자에서 시작해서, "열 전체 폭(글자 크기 x 필요한 열 개수 + 열 간격)"이 책등 폭
+  // 안에 들어올 때까지 글자 크기를 줄여요. 열 개수는 한 열에 몇 글자가 들어가는지(세로
+  // 길이 기준)로 정해져요.
+  let size = maxCrossPt;
+  let charsPerColumn = Math.max(1, Math.floor(maxLengthPt / size));
+  let columnCount = Math.ceil(charCount / charsPerColumn);
+  let fits = false;
+  while (size >= SPINE_TITLE_MIN_FONT_PT) {
+    charsPerColumn = Math.max(1, Math.floor(maxLengthPt / size));
+    columnCount = Math.ceil(charCount / charsPerColumn);
+    const gapPt = size * SPINE_TITLE_COLUMN_GAP_RATIO;
+    const totalCrossPt = columnCount * size + Math.max(0, columnCount - 1) * gapPt;
+    if (totalCrossPt <= maxCrossPt) {
+      fits = true;
+      break;
+    }
+    size -= 0.5;
+  }
+  if (size < SPINE_TITLE_MIN_FONT_PT) {
+    size = SPINE_TITLE_MIN_FONT_PT;
+    charsPerColumn = Math.max(1, Math.floor(maxLengthPt / size));
+    columnCount = Math.ceil(charCount / charsPerColumn);
+  }
+  const gapPt = size * SPINE_TITLE_COLUMN_GAP_RATIO;
+  const blockCrossPt = columnCount * size + Math.max(0, columnCount - 1) * gapPt;
+  const blockLengthPt = Math.min(maxLengthPt, charsPerColumn * size);
+
+  return { fits, size, charsPerColumn, columnCount, gapPt, blockCrossPt, blockLengthPt, marginPt, gapBeforeLogoPt };
+}
+
 // ---- 책등(spine) 제목 ----
-// 제목은 옆으로 눕혀서(90도 회전) 넣고, 책등 세로 방향(패널 높이) 위치는
-// verticalOffsetRatio(-1~1, 0이 정중앙)로 위/아래 이동할 수 있어요. 로고와 달리 이건
-// 혜민님이 화면에서 조정 가능한 값이에요.
+// 문장 전체를 90도로 눕히지 않고, 한 글자씩 정방향(똑바로 선 채)으로 위→아래로 쌓아요.
+// 기본은 한 열이고, 한 열에 다 못 담으면 오른쪽에 새 열을 추가해요(왼쪽 열부터 읽혀요).
+// 반환값은 "책등 폭·길이 안에 깔끔하게 들어갔는지"예요 — false면 더 줄이지 않고(가독성
+// 최소 크기 SPINE_TITLE_MIN_FONT_PT 유지) 화면에서 "제목이 너무 깁니다" 안내를 보여주는
+// 용도로 써요. logoReserveHeightPt만큼은 제목 블록 아래쪽에 비워둬서 로고와 겹치지 않아요.
 function drawSpineTitle(
   page: PDFPage,
   title: string,
@@ -661,51 +733,48 @@ function drawSpineTitle(
   bleedPt: number,
   offset: Offset,
   fonts: EmbeddedFonts,
-  verticalOffsetRatio: number
-): void {
-  const text = title.trim();
-  if (!text) return;
+  verticalOffsetRatio: number,
+  logoReserveHeightPt: number
+): boolean {
+  const chars = Array.from(title.trim());
+  if (chars.length === 0) return true;
   const font = fonts.bold;
 
-  const sidePaddingPt = mmToPt(SPINE_TEXT_SIDE_PADDING_MM);
-  const maxCrossPt = Math.max(4, spinePt - sidePaddingPt * 2); // 책등 폭 방향(글자 두께) 최대치
-  const maxLengthPt = panelPt * SPINE_TITLE_MAX_LENGTH_RATIO; // 책등 길이 방향(글자가 늘어서는 길이) 최대치
+  const layout = computeSpineTitleLayout(chars.length, spinePt, panelPt, logoReserveHeightPt);
+  const { fits, size, charsPerColumn, gapPt, blockCrossPt, blockLengthPt, marginPt, gapBeforeLogoPt } = layout;
 
-  // 회전된 글자의 "두께"(가로 방향 폭 대비 세로 방향, 대략 size의 90%)가 책등 폭 안에
-  // 들어오면서, 동시에 글자 "길이"(문장 전체 폭)가 책등 길이 최대치도 넘지 않도록 줄여요.
-  let size = Math.min(spinePt * 5, panelPt * 0.05);
-  const minSizePt = 5;
-  while (size > minSizePt) {
-    const crossOk = size * 0.9 <= maxCrossPt;
-    const lengthOk = font.widthOfTextAtSize(text, size) <= maxLengthPt;
-    if (crossOk && lengthOk) break;
-    size -= 0.5;
-  }
-  const textLength = font.widthOfTextAtSize(text, size);
-
-  // 패널(책등 길이) 세로 중앙을 기준으로, verticalOffsetRatio만큼 위/아래로 옮겨요.
-  // 글자 전체가 패널 범위(위아래 여백 SPINE_TITLE_MARGIN_RATIO 제외)를 벗어나지 않도록
-  // 이동 가능한 범위를 먼저 구하고, 그 안에서만 움직이게 잘라요(clamp).
-  const marginPt = panelPt * SPINE_TITLE_MARGIN_RATIO;
-  const halfRangePt = Math.max(0, panelPt / 2 - marginPt - textLength / 2);
+  // 세로 방향(책등 길이) 위치: 로고 위 공간(제목 가능 영역) 안에서, verticalOffsetRatio(-1~1,
+  // 0이 정중앙)만큼 위/아래로 옮겨요. 항상 로고 예약 공간 위쪽(패널 바닥 기준)에서 시작해요.
+  const usableBottomPt = marginPt + logoReserveHeightPt + gapBeforeLogoPt;
+  const usableTopPt = panelPt - marginPt;
+  const usableHeightPt = Math.max(0, usableTopPt - usableBottomPt);
+  const halfRangePt = Math.max(0, usableHeightPt / 2 - blockLengthPt / 2);
   const clampedRatio = Math.max(-1, Math.min(1, verticalOffsetRatio));
-  const centerYCanvasFromPanelBottom = panelPt / 2 + clampedRatio * halfRangePt;
+  const blockCenterFromPanelBottomPt = usableBottomPt + usableHeightPt / 2 + clampedRatio * halfRangePt;
+  const blockTopFromPanelBottomPt = blockCenterFromPanelBottomPt + blockLengthPt / 2;
 
+  // 가로 방향(책등 폭) 위치: 열 블록 전체를 책등 폭 가운데 정렬해요. 왼쪽 열(0번)이 가장
+  // 왼쪽이고, 오른쪽으로 갈수록 열 번호가 커져요(왼쪽 열부터 읽혀요).
   const spineCenterXCanvas = spineXStartCanvas + spinePt / 2;
-  // 회전(반시계 90도) 후: 글자가 "위로" 늘어나는 방향은 원래 가로 방향(폭)이고, 글자
-  // 위/아래 여백(어센더/디센더)은 "왼쪽/오른쪽"으로 눕혀져요. size*0.9를 글자 두께로 보고
-  // 대략 어센더 70%·디센더 20% 비율로 어림해서, 두께의 중심이 책등 폭 중앙에 오도록 해요.
-  const anchorX = offset.x + spineCenterXCanvas - size * 0.25;
-  const anchorY = offset.y + bleedPt + centerYCanvasFromPanelBottom - textLength / 2;
+  const blockLeftXCanvas = spineCenterXCanvas - blockCrossPt / 2;
 
-  page.drawText(text, {
-    x: anchorX,
-    y: anchorY,
-    size,
-    font,
-    color: rgb(0.1, 0.1, 0.1),
-    rotate: degrees(90),
-  });
+  for (let i = 0; i < chars.length; i++) {
+    const col = Math.floor(i / charsPerColumn);
+    const row = i % charsPerColumn;
+    const ch = chars[i];
+    if (ch.trim() === "") continue; // 공백은 자리만 차지하고 그리지 않아요.
+
+    const colCenterXCanvas = blockLeftXCanvas + col * (size + gapPt) + size / 2;
+    const charWidth = font.widthOfTextAtSize(ch, size);
+    const x = offset.x + colCenterXCanvas - charWidth / 2;
+    // row 0이 블록 맨 위 글자예요. 위→아래로 한 글자씩 내려가요.
+    const yFromPanelBottom = blockTopFromPanelBottomPt - (row + 1) * size + size * 0.22;
+    const y = offset.y + bleedPt + yFromPanelBottom;
+
+    page.drawText(ch, { x, y, size, font, color: rgb(0.1, 0.1, 0.1) });
+  }
+
+  return fits;
 }
 
 // ---- 책등(spine) 로고 ----
@@ -730,37 +799,44 @@ async function embedKeepicLogo(pdfDoc: PDFDocument): Promise<PDFImage> {
   return pdfDoc.embedPng(pngBytes);
 }
 
+// 책등 폭(spinePt) 기준으로 로고를 얼마나 크게 그릴지, 혹은 너무 좁아서 생략할지 미리
+// 계산해요. 실제로 이미지를 굽기(embedKeepicLogo) 전에도 크기를 알아야, 제목이 로고
+// 자리를 남겨두고 배치될 수 있어요(drawSpineTitle의 logoReserveHeightPt).
+export function computeSpineLogoLayout(spinePt: number): {
+  fits: boolean;
+  drawnWidthPt: number; // 책등 폭 방향(가로, 로고를 눕히지 않으므로)
+  drawnHeightPt: number; // 책등 길이 방향(세로) — 제목이 피해야 하는 예약 높이
+} {
+  const sidePaddingPt = mmToPt(SPINE_TEXT_SIDE_PADDING_MM);
+  const maxCrossPt = Math.max(0, spinePt - sidePaddingPt * 2);
+  if (maxCrossPt < mmToPt(SPINE_LOGO_MIN_CROSS_MM)) {
+    return { fits: false, drawnWidthPt: 0, drawnHeightPt: 0 };
+  }
+  const drawnWidthPt = maxCrossPt * SPINE_LOGO_HEIGHT_RATIO;
+  const drawnHeightPt = drawnWidthPt / KEEPIC_LOGO_ASPECT;
+  return { fits: true, drawnWidthPt, drawnHeightPt };
+}
+
+// 로고는 회전하거나 글자를 분해하지 않고, "Keepic"이 왼쪽→오른쪽으로 읽히는 정방향
+// 그대로 책등 아래쪽에 넣어요. 원본 가로:세로 비율(KEEPIC_LOGO_ASPECT)은 그대로 유지해요.
 function drawSpineLogo(
   page: PDFPage,
   logoImage: PDFImage,
   spineXStartCanvas: number,
   spinePt: number,
   bleedPt: number,
-  offset: Offset
+  offset: Offset,
+  layout: { drawnWidthPt: number; drawnHeightPt: number }
 ): void {
-  const sidePaddingPt = mmToPt(SPINE_TEXT_SIDE_PADDING_MM);
-  const maxCrossPt = Math.max(4, spinePt - sidePaddingPt * 2);
-
-  // 회전 전 기준으로: drawnHeightPt(로고 원본의 세로)가 회전 후 책등 폭(가로) 방향이 되고,
-  // drawnWidthPt(로고 원본의 가로)가 회전 후 책등 길이(세로) 방향이 돼요.
-  const drawnHeightPt = maxCrossPt * SPINE_LOGO_HEIGHT_RATIO;
-  const drawnWidthPt = drawnHeightPt * KEEPIC_LOGO_ASPECT;
-
   const spineCenterXCanvas = spineXStartCanvas + spinePt / 2;
-  // 혜민님 요청: 로고의 K가 위쪽에서 읽혀야 해서 -90도(시계 방향) 회전을 써요.
-  // 시계 방향 90도 회전 후 이미지는 앵커 지점에서 아래(-y)로 drawnWidthPt만큼, 왼쪽(-x)으로
-  // drawnHeightPt만큼 펼쳐져요. 책등 폭 중앙에 오도록 앵커 x를 왼쪽으로 절반만큼 밀어주고,
-  // 책등 아래쪽 끝(도련 경계)에서 고정 여백만큼 띄운 지점에서 로고 세로 길이(drawnWidthPt)만큼
-  // 더 위로 올라간 지점(=로고 블록의 맨 위)을 앵커 y로 써요.
-  const anchorX = offset.x + spineCenterXCanvas - drawnHeightPt / 2;
-  const anchorY = offset.y + bleedPt + mmToPt(SPINE_LOGO_BOTTOM_MARGIN_MM) + drawnWidthPt;
+  const anchorX = offset.x + spineCenterXCanvas - layout.drawnWidthPt / 2;
+  const anchorY = offset.y + bleedPt + mmToPt(SPINE_LOGO_BOTTOM_MARGIN_MM);
 
   page.drawImage(logoImage, {
     x: anchorX,
     y: anchorY,
-    width: drawnWidthPt,
-    height: drawnHeightPt,
-    rotate: degrees(-90),
+    width: layout.drawnWidthPt,
+    height: layout.drawnHeightPt,
   });
 }
 
@@ -924,9 +1000,12 @@ export async function buildCoverPrintPdfLib({
 
   // 책등 제목·로고는 "바깥면"(실제로 눈에 보이는 책 표지)에만 넣어요 — 안쪽면은 표지
   // 재질의 안쪽 면이라 책등 그래픽이 인쇄되지 않아요.
+  // 로고 자리를 먼저 계산해서(실제로 굽기 전에), 제목이 로고와 겹치지 않게 자리를 비워둬요.
+  const spineLogoLayout = computeSpineLogoLayout(spinePt);
   const spineTitleText = (spineTitle ?? coverTitle ?? "").trim();
+  let spineTitleFits: boolean | undefined = undefined;
   if (spineTitleText) {
-    drawSpineTitle(
+    spineTitleFits = drawSpineTitle(
       outerPage,
       spineTitleText,
       spineXStartCanvas,
@@ -935,11 +1014,14 @@ export async function buildCoverPrintPdfLib({
       bleedPt,
       offset,
       fonts,
-      spineTitleOffsetRatio ?? 0
+      spineTitleOffsetRatio ?? 0,
+      spineLogoLayout.fits ? spineLogoLayout.drawnHeightPt : 0
     );
   }
-  const keepicLogoImage = await embedKeepicLogo(pdfDoc);
-  drawSpineLogo(outerPage, keepicLogoImage, spineXStartCanvas, spinePt, bleedPt, offset);
+  if (spineLogoLayout.fits) {
+    const keepicLogoImage = await embedKeepicLogo(pdfDoc);
+    drawSpineLogo(outerPage, keepicLogoImage, spineXStartCanvas, spinePt, bleedPt, offset, spineLogoLayout);
+  }
 
   // 페이지 2: 안쪽면 — 바깥면과 같은 전체 크기·접힘 위치. 좌우반전 없이 그대로 배치.
   const innerPage = newPage();
@@ -965,5 +1047,7 @@ export async function buildCoverPrintPdfLib({
     spineMm,
     spineIsConfirmed: spine.isConfirmed,
     bleedMm,
+    spineTitleFits,
+    spineLogoDrawn: spineLogoLayout.fits,
   };
 }
