@@ -328,6 +328,40 @@ function GuideLines({
   );
 }
 
+// 표지 안내선 전용 — 사각형/세로선을 "표지 펼침면 전체를 100%로 보는" 좌표(왼쪽 끝
+// left%, 오른쪽 끝 right%, 위 top%, 아래 bottom%)로 그려요. 패널마다 따로 안 그리고,
+// 이 좌표만 맞으면 항상 펼침면 전체 기준으로 하나로 이어져 보여요.
+function CoverGuideBox({
+  left,
+  right,
+  top,
+  bottom,
+  color,
+}: {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  color: string;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute z-20 border border-dashed"
+      style={{ left: `${left}%`, right: `${100 - right}%`, top: `${top}%`, bottom: `${100 - bottom}%`, borderColor: color }}
+    />
+  );
+}
+
+// 책등 좌우 경계(접힘 위치) 전용 세로 점선.
+function CoverSpineGuideLine({ xPct, top, bottom, color }: { xPct: number; top: number; bottom: number; color: string }) {
+  return (
+    <div
+      className="pointer-events-none absolute z-20 border-l border-dashed"
+      style={{ left: `${xPct}%`, top: `${top}%`, bottom: `${100 - bottom}%`, borderColor: color }}
+    />
+  );
+}
+
 // 사진 프레임(칸)을 "원본 전체 보이기(contain, scale 1)" 기준에서 "프레임 꽉 채우기
 // (cover)" 기준으로 바꿀 때 필요한 scale 배율을 계산해요. 칸과 사진의 가로세로 비율만
 // 있으면 되고, 절대 픽셀 크기는 필요 없어요. (lib/printCompose.ts의 drawPhotoInCell과
@@ -852,6 +886,13 @@ function UploadPageContent() {
   );
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   const [showGuidelines, setShowGuidelines] = useState(false);
+  // 표지 편집 화면 전용 안내선 켜기/끄기예요(뒤표지·책등·앞표지를 하나의 펼침면으로 보고
+  // 계산해요 — 도련선/재단선은 펼침면 전체 기준, 안전영역은 뒤표지·책등·앞표지 각각 기준,
+  // 책등 경계는 접힘 위치 전용 안내선이에요). 네 가지를 따로 켜고 끌 수 있어요.
+  const [showCoverBleedGuide, setShowCoverBleedGuide] = useState(false);
+  const [showCoverTrimGuide, setShowCoverTrimGuide] = useState(false);
+  const [showCoverSafetyGuide, setShowCoverSafetyGuide] = useState(false);
+  const [showCoverSpineGuide, setShowCoverSpineGuide] = useState(false);
 
   async function handleCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -1213,16 +1254,40 @@ function UploadPageContent() {
     const coverSpineMm = coverSpineInfo.isConfirmed ? coverSpineInfo.estimateMm : coverSpineInfo.maxMm;
     const coverTotalWmm = coverPanelMm * 2 + coverSpineMm + coverBleedMm * 2;
     const coverTotalHmm = coverPanelMm + coverBleedMm * 2;
-    const coverBackPct = (coverPanelMm / coverTotalWmm) * 100;
     const coverSpinePct = (coverSpineMm / coverTotalWmm) * 100;
-    const coverFrontPct = (coverPanelMm / coverTotalWmm) * 100;
-    // 뒤표지·앞표지 각 패널 기준 작업선·재단선·안전선 비율이에요. (책등 쪽 변은 감춰서
-    // 페이지 기준으로 따로 표시해요. 책등에는 안전선을 표시하지 않아요.)
-    const coverPanelWorkMm = coverPanelMm + coverBleedMm * 2;
-    const coverPanelTrimXPct = (coverBleedMm / coverPanelWorkMm) * 100;
-    const coverPanelTrimYPct = (coverBleedMm / coverPanelWorkMm) * 100;
-    const coverPanelSafetyXPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverPanelWorkMm) * 100;
-    const coverPanelSafetyYPct = ((coverBleedMm + GUIDE_SAFETY_MM) / coverPanelWorkMm) * 100;
+    // 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 계산해요(2026-09 재설계). 뒤표지·
+    // 앞표지 "칸"은 이제 그 바깥쪽 도련까지 포함해요 — 그래야 (1) 화면에 표시되는 칸 크기가
+    // 실제 인쇄 파일의 사진 칸(도련까지 확장됨, 아래 lib/printCompose.ts 참고)과 정확히
+    // 같은 비율이 되고, (2) 세 칸(뒤표지 칸+책등+앞표지 칸)의 폭을 더하면 정확히 100%가
+    // 돼서 오른쪽 끝에 정체불명의 흰 여백이 남지 않아요.
+    const coverBackPct = ((coverBleedMm + coverPanelMm) / coverTotalWmm) * 100;
+    const coverFrontPct = ((coverPanelMm + coverBleedMm) / coverTotalWmm) * 100;
+    // coverBackPct + coverSpinePct + coverFrontPct === 100
+
+    // 아래는 표지 안내선(도련선·재단선·안전영역·책등 경계) 계산이에요. 전부 "표지 펼침면
+    // 전체"를 100%로 보는 같은 좌표계를 써요(패널마다 따로 계산하지 않아요 — 그래야 점선이
+    // 책등에서 끊기지 않고 하나로 이어져요).
+    const coverBleedXPct = (coverBleedMm / coverTotalWmm) * 100; // 도련선(바깥 재단 경계)의 좌우 inset
+    const coverBleedYPct = (coverBleedMm / coverTotalHmm) * 100; // 도련선의 상하 inset
+    const coverSafetyXPct = (GUIDE_SAFETY_MM / coverTotalWmm) * 100;
+    const coverSafetyYPct = (GUIDE_SAFETY_MM / coverTotalHmm) * 100;
+    // 책등 좌우 경계(접힘 위치)의 x% 두 곳
+    const coverSpineStartPct = coverBackPct;
+    const coverSpineEndPct = coverBackPct + coverSpinePct;
+    // 안전영역 상/하 경계는 뒤표지·책등·앞표지 모두 같아요(위아래 도련은 세 구역이 공통).
+    const coverSafetyTopPct = coverBleedYPct + coverSafetyYPct;
+    const coverSafetyBottomPct = 100 - coverBleedYPct - coverSafetyYPct;
+    // 뒤표지 안전영역(재단선 안쪽으로 한 번 더 들어간 영역)
+    const coverBackSafetyLeftPct = coverBleedXPct + coverSafetyXPct;
+    const coverBackSafetyRightPct = coverSpineStartPct - coverSafetyXPct;
+    // 앞표지 안전영역
+    const coverFrontSafetyLeftPct = coverSpineEndPct + coverSafetyXPct;
+    const coverFrontSafetyRightPct = 100 - coverBleedXPct - coverSafetyXPct;
+    // 책등 안전영역 — 책등 폭이 안전여백보다 좁을 수 있어서(작은 책은 책등이 몇 mm뿐), 폭이
+    // 마이너스가 되지 않게 안전여백을 책등 폭의 절반까지만 허용해요.
+    const coverSpineSafetyInsetXPct = Math.min(coverSafetyXPct, coverSpinePct / 2);
+    const coverSpineSafetyLeftPct = coverSpineStartPct + coverSpineSafetyInsetXPct;
+    const coverSpineSafetyRightPct = coverSpineEndPct - coverSpineSafetyInsetXPct;
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -1454,6 +1519,61 @@ function UploadPageContent() {
                         무지로 비워둘게요)
                       </p>
 
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                        <label className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={showCoverBleedGuide}
+                            onChange={(e) => setShowCoverBleedGuide(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                          />
+                          <span style={{ color: "#22a559" }}>■</span> 도련선
+                        </label>
+                        <label className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={showCoverTrimGuide}
+                            onChange={(e) => setShowCoverTrimGuide(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                          />
+                          <span style={{ color: "#ff2fb0" }}>■</span> 재단선
+                        </label>
+                        <label className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={showCoverSafetyGuide}
+                            onChange={(e) => setShowCoverSafetyGuide(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                          />
+                          <span style={{ color: "#2f7bff" }}>■</span> 안전영역
+                        </label>
+                        <label className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={showCoverSpineGuide}
+                            onChange={(e) => setShowCoverSpineGuide(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                          />
+                          <span style={{ color: "#8a5cf6" }}>■</span> 책등 경계
+                        </label>
+                      </div>
+                      {(showCoverBleedGuide || showCoverTrimGuide || showCoverSafetyGuide || showCoverSpineGuide) && (
+                        <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                          <span style={{ color: "#22a559" }}>도련선</span>(뒤표지·책등·앞표지를 합친 펼침면 전체의
+                          바깥 끝, 배경은 이 선까지 채워주세요) ·{" "}
+                          <span style={{ color: "#ff2fb0" }}>재단선</span>(실제로 잘리는 선, 펼침면 전체 기준으로
+                          하나로 이어져요) ·{" "}
+                          <span style={{ color: "#2f7bff" }}>안전영역</span>(뒤표지·책등·앞표지 각각 이 안쪽에
+                          글자·중요 사진을 배치해주세요) ·{" "}
+                          <span style={{ color: "#8a5cf6" }}>책등 경계</span>(책등이 접히는 두 위치예요, 실제로
+                          잘리는 선이 아니에요)
+                        </p>
+                      )}
+
+                      {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
+                          패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
+                          좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
+                          포함되지 않아요) */}
                       <div
                         className="relative mt-4 flex w-full overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-sm"
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
@@ -1463,15 +1583,6 @@ function UploadPageContent() {
                           style={{ width: `${coverBackPct}%` }}
                         >
                           뒤표지(무지)
-                          {showGuidelines && (
-                            <GuideLines
-                              trimXPct={coverPanelTrimXPct}
-                              trimYPct={coverPanelTrimYPct}
-                              safetyXPct={coverPanelSafetyXPct}
-                              safetyYPct={coverPanelSafetyYPct}
-                              hideEdge="right"
-                            />
-                          )}
                         </div>
                         <div
                           className="relative flex h-full flex-col items-center bg-[var(--color-hairline)]/60"
@@ -1525,16 +1636,59 @@ function UploadPageContent() {
                               {coverTitle}
                             </p>
                           )}
-                          {showGuidelines && (
-                            <GuideLines
-                              trimXPct={coverPanelTrimXPct}
-                              trimYPct={coverPanelTrimYPct}
-                              safetyXPct={coverPanelSafetyXPct}
-                              safetyYPct={coverPanelSafetyYPct}
-                              hideEdge="left"
-                            />
-                          )}
                         </div>
+
+                        {showCoverBleedGuide && <CoverGuideBox left={0} right={100} top={0} bottom={100} color="#22a559" />}
+                        {showCoverTrimGuide && (
+                          <CoverGuideBox
+                            left={coverBleedXPct}
+                            right={100 - coverBleedXPct}
+                            top={coverBleedYPct}
+                            bottom={100 - coverBleedYPct}
+                            color="#ff2fb0"
+                          />
+                        )}
+                        {showCoverSafetyGuide && (
+                          <>
+                            <CoverGuideBox
+                              left={coverBackSafetyLeftPct}
+                              right={coverBackSafetyRightPct}
+                              top={coverSafetyTopPct}
+                              bottom={coverSafetyBottomPct}
+                              color="#2f7bff"
+                            />
+                            <CoverGuideBox
+                              left={coverSpineSafetyLeftPct}
+                              right={coverSpineSafetyRightPct}
+                              top={coverSafetyTopPct}
+                              bottom={coverSafetyBottomPct}
+                              color="#2f7bff"
+                            />
+                            <CoverGuideBox
+                              left={coverFrontSafetyLeftPct}
+                              right={coverFrontSafetyRightPct}
+                              top={coverSafetyTopPct}
+                              bottom={coverSafetyBottomPct}
+                              color="#2f7bff"
+                            />
+                          </>
+                        )}
+                        {showCoverSpineGuide && (
+                          <>
+                            <CoverSpineGuideLine
+                              xPct={coverSpineStartPct}
+                              top={coverBleedYPct}
+                              bottom={100 - coverBleedYPct}
+                              color="#8a5cf6"
+                            />
+                            <CoverSpineGuideLine
+                              xPct={coverSpineEndPct}
+                              top={coverBleedYPct}
+                              bottom={100 - coverBleedYPct}
+                              color="#8a5cf6"
+                            />
+                          </>
+                        )}
                       </div>
 
                       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">

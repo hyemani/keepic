@@ -729,8 +729,20 @@ async function drawCoverSpreadPage(
   }
 
   // 바깥면 전용: 앞표지 사진 + 제목
+  // 사진 칸을 재단 패널(panelPt)이 아니라 패널+바깥쪽 도련까지 넓게 잡아요 — 앞표지의
+  // 오른쪽·위·아래는 실제로 재단되는 바깥 경계라서, 사진이 도련 끝까지 채워져 있어야
+  // 재단 위치가 살짝 밀려도 흰 여백이 보이지 않아요(책등 쪽은 접히는 자리라 도련이
+  // 필요 없어요). lib/printCompose.ts의 buildCoverPrintPdf, 화면 편집기(app/upload/page.tsx)
+  // 앞표지 칸과 같은 비율이에요.
   if (frontPhoto?.url) {
-    await embedPhotoCell(pdfDoc, page, frontPhoto, { x: frontX, y: bleedPt, w: panelPt, h: panelPt }, workHpt, offset);
+    await embedPhotoCell(
+      pdfDoc,
+      page,
+      frontPhoto,
+      { x: frontX, y: 0, w: panelPt + bleedPt, h: panelPt + bleedPt * 2 },
+      workHpt,
+      offset
+    );
   }
   if (frontTitle) {
     drawCoverTitle(page, frontTitle, frontX, panelPt, bleedPt, fonts, offset, frontTitleFontScale ?? 1);

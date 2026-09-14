@@ -564,9 +564,17 @@ export async function buildCoverPrintPdf({
 
   // 앞표지(오른쪽) 영역에 사진 + 제목
   const frontX = spineX + spinePx;
+  // 사진 칸을 "재단 패널(panelPx)"이 아니라 "패널 + 바깥쪽 도련"까지 넓게 잡아요. 앞표지의
+  // 오른쪽·위·아래는 실제로 종이가 재단되는 바깥 경계라서, 사진이 도련 끝까지 채워져
+  // 있어야 재단 위치가 살짝 밀려도 흰 여백이 보이지 않아요(책등 쪽은 접히는 자리일 뿐
+  // 재단되지 않아서 도련이 필요 없어요). 이 칸 크기는 화면 편집기(app/upload/page.tsx의
+  // 앞표지 칸)와 반드시 같은 비율이어야, 화면에서 "프레임 채우기"로 맞춘 구도가 인쇄
+  // 파일에도 그대로 나와요.
+  const frontCellWpx = panelPx + bleedPx;
+  const frontCellHpx = panelPx + bleedPx * 2;
   if (coverPhoto?.url) {
     const img = await loadImage(coverPhoto.url);
-    drawPhotoInCell(ctx, img, coverPhoto, frontX, bleedPx, panelPx, panelPx);
+    drawPhotoInCell(ctx, img, coverPhoto, frontX, 0, frontCellWpx, frontCellHpx);
   }
   if (coverTitle.trim()) {
     const titlePx = Math.round(panelPx * 0.07 * coverTitleFontScale);
