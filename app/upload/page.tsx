@@ -21,6 +21,9 @@ import {
   printFileSpec,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
+// [테스트용] 새 pdf-lib 기반 PDF 생성기예요. ?pdftest=1 일 때만 화면에 테스트 버튼이 보여요.
+// 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
+import { buildInnerPrintPdfLib, buildCoverPrintPdfLib } from "@/lib/printPdfLib";
 
 type Photo = {
   url: string;
@@ -88,6 +91,19 @@ const fontOptions = [
 ];
 
 const PRINT_DPI = 200;
+
+// 책등(세네카) 제목 기본값 후보예요. 사용자가 앞표지 제목을 따로 입력하지 않으면
+// 새 프로젝트에 들어올 때마다 이 중 하나를 무작위로 골라 기본값으로 넣어요.
+const SPINE_TITLE_CANDIDATES = [
+  "나의 소중한 순간들",
+  "우리의 오늘",
+  "오래 간직할 순간",
+  "한 권의 추억",
+  "내가 좋아하는 장면들",
+  "지금, 이 순간",
+  "우리의 계절",
+  "소중한 날의 기록",
+];
 
 function parseSizeCm(detail: string) {
   const match = detail.match(/(\d+(\.\d+)?)\s*x\s*(\d+(\.\d+)?)/i);
@@ -738,13 +754,54 @@ function UploadPageContent() {
     template ? template.spreads.map((s) => ({ ...s })) : []
   );
   const [isSaving, setIsSaving] = useState(false);
+  // [테스트용] 새 pdf-lib PDF 생성기 테스트 버튼 상태예요. (?pdftest=1 일 때만 노출)
+  const isPdfLibTestMode = searchParams.get("pdftest") === "1";
+  const [pdfLibTestState, setPdfLibTestState] = useState<
+    { status: "idle" } | { status: "running" } | { status: "done"; info: string } | { status: "error"; message: string }
+  >({ status: "idle" });
+  const [coverPdfLibTestState, setCoverPdfLibTestState] = useState<
+    { status: "idle" } | { status: "running" } | { status: "done"; info: string } | { status: "error"; message: string }
+  >({ status: "idle" });
+  // [테스트용] 책등 제목 위/아래 위치 (-1~1, 0이 정중앙). 혜민님이 화면에서 조정 가능하게 해달라고
+  // 요청한 값이에요. 로고는 이 값과 무관하게 항상 책등 아래쪽 고정 위치에 들어가요.
+  const [coverSpineTitleOffset, setCoverSpineTitleOffset] = useState(0);
   // 이전 단계에서 남긴 요청사항이에요. 이 페이지에서 바로 고칠 수 있어요.
   const [requestNote, setRequestNote] = useState(searchParams.get("note") ?? "");
   // 포토북 표지(앞표지 사진 + 제목)예요. 표지 종류(소프트/하드)는 이전 단계에서 이미
   // 골랐고, 여기서는 표지에 들어갈 사진과 제목만 정해요.
   const [coverPhoto, setCoverPhoto] = useState<Photo | null>(null);
   const [coverTitle, setCoverTitle] = useState("");
+  // 책등(세네카) 제목이에요. 앞표지 제목과는 별도로 관리해요 — 앞표지 제목을 입력하면
+  // 자동으로 같이 채워지지만, 혜민님/사용자가 책등 제목을 직접 수정하면 그 뒤로는
+  // 앞표지 제목을 따라가지 않고 독립적으로 유지돼요.
+  const [spineTitle, setSpineTitle] = useState("");
+  const [spineTitleTouched, setSpineTitleTouched] = useState(false);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
+
+  // 이 화면에 처음 들어왔을 때(새 프로젝트) 책등 제목 기본값을 후보 중 무작위로 하나 골라요.
+  // 서버 렌더링과 다른 값이 나오면 안 되니, 마운트된 뒤(브라우저에서만) 한 번만 실행해요.
+  useEffect(() => {
+    // 서버 렌더링 때는 무작위 값을 고를 수 없어서(Math.random 결과가 서버/클라이언트마다
+    // 달라져 화면 깜빡임 오류가 날 수 있어요) 마운트 직후 한 번만 클라이언트에서 골라요.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSpineTitle((prev) =>
+      prev ? prev : SPINE_TITLE_CANDIDATES[Math.floor(Math.random() * SPINE_TITLE_CANDIDATES.length)]
+    );
+  }, []);
+
+  // 앞표지 제목을 입력하면 책등 제목도 자동으로 같이 채워요. 단, 사용자가 책등 제목을
+  // 직접 수정한 적이 있으면(spineTitleTouched) 더 이상 앞표지 제목을 따라가지 않아요.
+  function handleCoverTitleChange(value: string) {
+    setCoverTitle(value);
+    if (!spineTitleTouched && value.trim()) {
+      setSpineTitle(value);
+    }
+  }
+
+  function handleSpineTitleChange(value: string) {
+    setSpineTitle(value);
+    setSpineTitleTouched(true);
+  }
   // 지금 화면 오른쪽 큰 미리보기에 어떤 페이지를 보여줄지예요.
   // "cover"면 표지(뒤표지-세네카-앞표지)를, 숫자면 그 번째 스프레드를 보여줘요.
   const [selectedPageKey, setSelectedPageKey] = useState<"cover" | number>(
@@ -920,6 +977,102 @@ function UploadPageContent() {
     ];
   }
 
+  // [테스트용] 지금 화면에 편집 중인 내용(photos, customSpreads)을 그대로 새 pdf-lib
+  // 생성기에 넣어서 샘플 PDF를 만들고 바로 다운로드해요. Storage 업로드나 주문 흐름과는
+  // 완전히 분리되어 있어서, 여러 번 눌러봐도 실제 주문/데이터에는 아무 영향이 없어요.
+  async function handlePdfLibTest() {
+    setPdfLibTestState({ status: "running" });
+    try {
+      const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
+      const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+      const result = await buildInnerPrintPdfLib({
+        customSpreads,
+        spreadPhotoGroups,
+        photos,
+        productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
+      });
+
+      const objectUrl = URL.createObjectURL(result.printBlob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `pdflib-test-inner-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+
+      setPdfLibTestState({
+        status: "done",
+        info: `생성 완료 — ${result.pageCount}쪽 / 용지(재단표시 포함) ${result.mediaSizeMm.w}×${result.mediaSizeMm.h}mm / 도련 포함 작업사이즈 ${result.workSizeMm.w}×${result.workSizeMm.h}mm / 재단(완성) ${result.trimSizeMm.w}×${result.trimSizeMm.h}mm / 도련폭 ${result.bleedMm}mm`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setPdfLibTestState({ status: "error", message });
+      // eslint-disable-next-line no-console
+      console.error("[pdflib-test]", err);
+    }
+  }
+
+  // [테스트용] 표지 펼침면 2페이지(바깥면+안쪽면) 샘플 PDF를 만들어서 바로 다운로드해요.
+  // 안쪽면에 들어갈 "첫 내지/마지막 내지" 내용은 지금 화면의 customSpreads 맨 처음 면(왼쪽)과
+  // 맨 마지막 면(오른쪽)을 그대로 가져와요. Storage 업로드·주문 흐름과는 무관해요.
+  async function handleCoverPdfLibTest() {
+    setCoverPdfLibTestState({ status: "running" });
+    try {
+      const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
+      const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+      const innerPaper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
+      const pages = photobookPages ? Number(photobookPages) : 20;
+      const trimMatch = (sizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
+      const trimCm = trimMatch ? parseFloat(trimMatch[1]) : 30;
+
+      const firstSpread = customSpreads[0];
+      const lastSpread = customSpreads[customSpreads.length - 1];
+      const firstGroup = spreadPhotoGroups[0];
+      const lastGroup = spreadPhotoGroups[spreadPhotoGroups.length - 1];
+      const firstPage =
+        firstSpread && firstGroup
+          ? { templateId: firstSpread.left, photos: firstGroup.leftIndexes.map((idx) => photos[idx]).filter(Boolean) }
+          : null;
+      const lastPage =
+        lastSpread && lastGroup
+          ? { templateId: lastSpread.right, photos: lastGroup.rightIndexes.map((idx) => photos[idx]).filter(Boolean) }
+          : null;
+
+      const result = await buildCoverPrintPdfLib({
+        cover: photobookCover === "hard" ? "hard" : "soft",
+        sizeInnerTrimMm: trimCm * 10,
+        coverPhoto,
+        coverTitle,
+        innerPaperWeightG: innerPaper.weightG,
+        pages,
+        firstPage,
+        lastPage,
+        spineTitle,
+        spineTitleOffsetRatio: coverSpineTitleOffset,
+      });
+
+      const objectUrl = URL.createObjectURL(result.printBlob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `pdflib-test-cover-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+
+      setCoverPdfLibTestState({
+        status: "done",
+        info: `생성 완료 — 2쪽(1p 바깥면/2p 안쪽면) / 펼침면 전체 ${result.outerSizeMm.w}×${result.outerSizeMm.h}mm / 표지판 ${result.panelMm}mm / 책등 ${result.spineMm}mm(${result.spineIsConfirmed ? "실측" : "예상치"}) / 도련 ${result.bleedMm}mm`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setCoverPdfLibTestState({ status: "error", message });
+      // eslint-disable-next-line no-console
+      console.error("[pdflib-cover-test]", err);
+    }
+  }
+
   async function handleProceed(nextUrl: string, photosToUpload: Photo[], note?: string) {
     setIsSaving(true);
     try {
@@ -1053,6 +1206,77 @@ function UploadPageContent() {
           <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
             각 페이지 왼쪽 위 배치 메뉴로 구성을 바꿀 수 있어요. 사진 오른쪽 위 "Aa" 버튼으로 그 캡션만의 서체·크기·색상·정렬·위치를 따로 정할 수 있어요.
           </p>
+
+          {isPdfLibTestMode && (
+            <div className="mt-4 rounded-xl border border-dashed border-[var(--color-charcoal)]/30 bg-white/60 p-4">
+              <p className="text-sm font-medium">🧪 새 PDF 생성기 테스트 (pdf-lib) — 주문/저장과 무관해요</p>
+              <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
+                지금 화면에 있는 사진·캡션 편집 내용 그대로 샘플 PDF(내지만)를 만들어서 바로
+                다운로드해요. 기존 &quot;다음&quot; 진행이나 주문 저장과는 전혀 연결되어 있지 않아요.
+              </p>
+              <button
+                type="button"
+                onClick={handlePdfLibTest}
+                disabled={pdfLibTestState.status === "running"}
+                className="mt-3 rounded-full bg-[var(--color-charcoal)] px-4 py-2 text-sm text-white transition disabled:opacity-50"
+              >
+                {pdfLibTestState.status === "running" ? "생성 중…" : "테스트 샘플 PDF 만들기"}
+              </button>
+              {pdfLibTestState.status === "done" && (
+                <p className="mt-2 text-xs text-emerald-700 break-keep">✅ {pdfLibTestState.info}</p>
+              )}
+              {pdfLibTestState.status === "error" && (
+                <p className="mt-2 text-xs text-red-600 break-keep">
+                  ❌ 에러: {pdfLibTestState.message}
+                </p>
+              )}
+
+              <div className="mt-4 border-t border-dashed border-[var(--color-charcoal)]/20 pt-4">
+                <p className="text-sm font-medium">🧪 표지 펼침면 테스트 (바깥면+안쪽면 2쪽)</p>
+                <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
+                  표지 사진·제목 + 지금 화면의 맨 처음/맨 마지막 페이지 내용으로 표지 펼침면
+                  샘플 PDF(2쪽)를 만들어요. 이것도 주문·저장과 무관해요. 책등에는 위 제목과
+                  Keepic 로고가 옆으로 눕혀서 들어가요(제목은 아래 슬라이더로 위/아래 위치만
+                  조정 가능, 로고는 책등 아래쪽에 고정).
+                </p>
+                <div className="mt-3">
+                  <label className="text-xs text-[var(--color-charcoal)]/70">
+                    책등 제목 위치 (위 ↔ 아래)
+                  </label>
+                  <input
+                    type="range"
+                    min={-1}
+                    max={1}
+                    step={0.05}
+                    value={coverSpineTitleOffset}
+                    onChange={(e) => setCoverSpineTitleOffset(Number(e.target.value))}
+                    className="mt-1 w-full"
+                  />
+                  <div className="flex justify-between text-[10px] text-[var(--color-charcoal)]/40">
+                    <span>위쪽</span>
+                    <span>정중앙</span>
+                    <span>아래쪽</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCoverPdfLibTest}
+                  disabled={coverPdfLibTestState.status === "running"}
+                  className="mt-3 rounded-full bg-[var(--color-charcoal)] px-4 py-2 text-sm text-white transition disabled:opacity-50"
+                >
+                  {coverPdfLibTestState.status === "running" ? "생성 중…" : "표지 테스트 샘플 PDF 만들기"}
+                </button>
+                {coverPdfLibTestState.status === "done" && (
+                  <p className="mt-2 text-xs text-emerald-700 break-keep">✅ {coverPdfLibTestState.info}</p>
+                )}
+                {coverPdfLibTestState.status === "error" && (
+                  <p className="mt-2 text-xs text-red-600 break-keep">
+                    ❌ 에러: {coverPdfLibTestState.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           <label className="mt-8 inline-block cursor-pointer rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
             사진 선택하기
@@ -1250,7 +1474,7 @@ function UploadPageContent() {
                         <input
                           type="text"
                           value={coverTitle}
-                          onChange={(e) => setCoverTitle(e.target.value)}
+                          onChange={(e) => handleCoverTitleChange(e.target.value)}
                           placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
                           className="flex-1 rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
                         />
@@ -1258,6 +1482,22 @@ function UploadPageContent() {
                       <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
                         제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요.
                       </p>
+
+                      <div className="mt-4">
+                        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                          책등 제목
+                        </label>
+                        <input
+                          type="text"
+                          value={spineTitle}
+                          onChange={(e) => handleSpineTitleChange(e.target.value)}
+                          placeholder="책등에 넣을 제목"
+                          className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+                        />
+                        <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
+                          책등에 들어갈 제목이에요. 원하는 문구로 바꿔보세요.
+                        </p>
+                      </div>
                     </div>
                   ) : (
                     (() => {

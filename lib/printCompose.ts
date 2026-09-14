@@ -49,13 +49,13 @@ function pxToMm(px: number) {
   return (px / PRINT_DPI) * MM_PER_INCH;
 }
 
-function parseWorkSizeMm(productionFileSizeMm: string | null): { w: number; h: number } {
+export function parseWorkSizeMm(productionFileSizeMm: string | null): { w: number; h: number } {
   const match = (productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)\s*x\s*(\d+(\.\d+)?)/i);
   if (!match) return { w: 310, h: 310 }; // 혹시 규격을 못 읽으면 L사이즈 기준으로 안전하게
   return { w: parseFloat(match[1]), h: parseFloat(match[3]) };
 }
 
-function loadImage(url: string): Promise<HTMLImageElement> {
+export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -67,7 +67,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 // 화면(PhotoCell)에서 CSS로 그리던 것과 최대한 같은 결과가 나오도록,
 // object-fit: cover + translate(x,y) + scale(s)를 캔버스에 그대로 재현해요.
-function drawPhotoInCell(
+export function drawPhotoInCell(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   photo: PrintPhoto,
