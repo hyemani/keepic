@@ -37,6 +37,7 @@ import {
   loadImage,
   drawPhotoInCell,
   parseWorkSizeMm,
+  GUIDE_SAFETY_MARGIN_MM,
 } from "@/lib/printCompose";
 import { computePageLayout, mmToPt, CAPTION_FONT_PT, Rect } from "@/lib/printGeometry";
 
@@ -167,6 +168,74 @@ async function embedPhotoCell(
   const xPdf = cellRectPt.x + offset.x;
   const yPdf = pageHpt - (cellRectPt.y + cellRectPt.h) + offset.y;
   page.drawImage(jpgImage, { x: xPdf, y: yPdf, width: cellRectPt.w, height: cellRectPt.h });
+}
+
+// ---- 마지막 소개 페이지(발행 정보) ----
+// lib/printCompose.ts의 drawIntroPage와 같은 배치 계산(캔버스 좌표, 왼쪽 위 0,0 기준)을
+// 그대로 쓰고, 마지막에 pdf-lib 좌표(왼쪽 아래 0,0)로 한 번만 변환해요. 사진 칸은 이미
+// 검증된 embedPhotoCell을 그대로 재사용해서, 화면 미리보기(IntroPhotoMirror)·jsPDF
+// 발주 파일과 같은 크롭 계산을 공유해요.
+async function drawIntroPageLib(
+  pdfDoc: PDFDocument,
+  page: PDFPage,
+  coverPhoto: PrintPhoto | null,
+  coverTitle: string,
+  introDate: string,
+  introMaker: string,
+  workWpt: number,
+  workHpt: number,
+  fonts: EmbeddedFonts,
+  offset: Offset
+): Promise<void> {
+  const safetyPt = mmToPt(GUIDE_SAFETY_MARGIN_MM);
+  const stackWpt = workWpt * 0.32;
+  const stackXCanvas = safetyPt;
+  const infoFontPt = workHpt * 0.018;
+  const titleFontPt = workHpt * 0.03;
+  const lineHeightPt = infoFontPt * 1.7;
+
+  const makerLabel = introMaker.trim() || "신규 작성자";
+  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`, `제작 : KEEPIC`];
+
+  // 캔버스 기준(위→아래로 증가) 커서를 먼저 계산하고, drawText 호출마다
+  // "workHpt - 캔버스y"로 pdf-lib y(아래→위)로 바꿔서 넣어요.
+  let cursorYCanvas = workHpt - safetyPt;
+  for (let i = infoLines.length - 1; i >= 0; i--) {
+    page.drawText(infoLines[i], {
+      x: offset.x + stackXCanvas,
+      y: offset.y + (workHpt - cursorYCanvas),
+      size: infoFontPt,
+      font: fonts.regular,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+    cursorYCanvas -= lineHeightPt;
+  }
+
+  cursorYCanvas -= infoFontPt * 0.6;
+  const title = coverTitle.trim();
+  if (title) {
+    let size = titleFontPt;
+    while (size > 8 && fonts.bold.widthOfTextAtSize(title, size) > stackWpt) size -= 0.5;
+    page.drawText(title, {
+      x: offset.x + stackXCanvas,
+      y: offset.y + (workHpt - cursorYCanvas),
+      size,
+      font: fonts.bold,
+      color: rgb(0.07, 0.07, 0.07),
+    });
+    cursorYCanvas -= titleFontPt * 1.5;
+  }
+
+  const photoHpt = stackWpt; // 표지 패널이 정사각형이라 같은 비율을 써요.
+  const photoYCanvas = cursorYCanvas - photoHpt;
+  await embedPhotoCell(
+    pdfDoc,
+    page,
+    coverPhoto ?? undefined,
+    { x: stackXCanvas, y: photoYCanvas, w: stackWpt, h: photoHpt },
+    workHpt,
+    offset
+  );
 }
 
 // ---- 캡션(실제 텍스트) ----
@@ -418,11 +487,19 @@ export async function buildInnerPrintPdfLib({
   spreadPhotoGroups,
   photos,
   productionFileSizeMm,
+  introPage,
 }: {
   customSpreads: SpreadDef[];
   spreadPhotoGroups: SpreadPhotoGroup[];
   photos: PrintPhoto[];
   productionFileSizeMm: string | null;
+  // "마지막 소개 페이지"(발행 정보) — 있으면 내지 맨 마지막 장으로 한 장 더 추가해요.
+  introPage?: {
+    coverPhoto: PrintPhoto | null;
+    coverTitle: string;
+    introDate: string;
+    introMaker: string;
+  } | null;
 }): Promise<PrintPdfLibResult> {
   const { w: workW, h: workH } = parseWorkSizeMm(productionFileSizeMm);
   const workWpt = mmToPt(workW); // 도련 포함 작업사이즈 (기존과 동일한 의미)
@@ -464,6 +541,27 @@ export async function buildInnerPrintPdfLib({
       drawTrimMarks(page, workWpt, workHpt, bleedPt, offset);
       pageCount++;
     }
+  }
+
+  if (introPage) {
+    // "마지막 소개 페이지"는 실제로 인쇄되는 내지의 마지막 장이에요. 다른 내지 페이지들과
+    // 같은 방식(재단표시 포함)으로 한 장 더 그려요.
+    const page = drawOnePage();
+    await drawIntroPageLib(
+      pdfDoc,
+      page,
+      introPage.coverPhoto,
+      introPage.coverTitle,
+      introPage.introDate,
+      introPage.introMaker,
+      workWpt,
+      workHpt,
+      fonts,
+      offset
+    );
+    setPdfBoxes(page, workWpt, workHpt, bleedPt, offset);
+    drawTrimMarks(page, workWpt, workHpt, bleedPt, offset);
+    pageCount++;
   }
 
   if (pageCount === 0) {

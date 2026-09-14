@@ -281,7 +281,7 @@ function canvasToJpegDataUrl(canvas: HTMLCanvasElement) {
 // 재단선/안전선을 보여주는 "확인용 가이드" 파일에서만 쓰는 값이에요.
 // (레드프린팅에서 공식적으로 확인받은 수치가 아니라, 업계에서 흔히 쓰는 안전여백 기준이에요.
 //  실제 안전여백 기준을 제작처에서 알려주면 이 값을 그 값으로 바꿔주세요.)
-const GUIDE_SAFETY_MARGIN_MM = 8; // 혜민님 확인 기준(2026-09): 재단선 안쪽 안전여백 약 8mm
+export const GUIDE_SAFETY_MARGIN_MM = 8; // 혜민님 확인 기준(2026-09): 재단선 안쪽 안전여백 약 8mm
 const GUIDE_WORK_COLOR = "#22a559"; // 작업선(파일 바깥 여유분 경계) - 초록
 const GUIDE_TRIM_COLOR = "#ff2fb0"; // 재단선 - 마젠타
 const GUIDE_SAFETY_COLOR = "#2f7bff"; // 안전선 - 파랑
@@ -437,6 +437,63 @@ function drawGuideOverlay(
   ctx.restore();
 }
 
+
+// ---- 마지막 소개 페이지(발행 정보) ----
+// 표지 전체를 꽉 채우는 방식이 아니라, 왼쪽 하단 영역에 위에서부터 "작은 사진 → 제목 →
+// 발행일 → 만든이 → 제작 : KEEPIC" 순서로 쌓아요. 사진은 앞표지에서 쓴 크롭·비율을
+// 그대로 재사용해요(drawPhotoInCell을 그대로 써서, 화면 미리보기의 IntroPhotoMirror와
+// 같은 계산을 공유해요). 안전영역(GUIDE_SAFETY_MARGIN_MM) 안쪽에 들어가도록, 왼쪽·아래
+// 기준을 안전선 위치로 잡아요.
+export async function drawIntroPage(
+  ctx: CanvasRenderingContext2D,
+  pageW: number,
+  pageH: number,
+  coverPhoto: PrintPhoto | null,
+  coverTitle: string,
+  introDate: string,
+  introMaker: string
+): Promise<void> {
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, pageW, pageH);
+
+  const safetyPx = mmToPx(GUIDE_SAFETY_MARGIN_MM);
+  const stackWpx = pageW * 0.32;
+  const stackXpx = safetyPx;
+  const infoFontPx = Math.round(pageH * 0.018);
+  const titleFontPx = Math.round(pageH * 0.03);
+  const lineHeightPx = infoFontPx * 1.7;
+
+  const makerLabel = introMaker.trim() || "신규 작성자";
+  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`, `제작 : KEEPIC`];
+
+  // 아래(제작 : KEEPIC)에서 위(발행일) 순서로 그려요.
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  let cursorY = pageH - safetyPx;
+  for (let i = infoLines.length - 1; i >= 0; i--) {
+    ctx.font = `${infoFontPx}px Pretendard, sans-serif`;
+    ctx.fillStyle = "#333333";
+    ctx.fillText(infoLines[i], stackXpx, cursorY);
+    cursorY -= lineHeightPx;
+  }
+
+  cursorY -= infoFontPx * 0.6;
+  const title = coverTitle.trim();
+  if (title) {
+    ctx.font = `bold ${titleFontPx}px Pretendard, sans-serif`;
+    ctx.fillStyle = "#111111";
+    ctx.fillText(title, stackXpx, cursorY, stackWpx);
+    cursorY -= titleFontPx * 1.5;
+  }
+
+  const photoHpx = stackWpx; // 표지 패널이 정사각형(panelMm x panelMm)이라 같은 비율을 써요.
+  const photoYpx = cursorY - photoHpx;
+  if (coverPhoto?.url) {
+    const img = await loadImage(coverPhoto.url);
+    drawPhotoInCell(ctx, img, coverPhoto, stackXpx, photoYpx, stackWpx, photoHpx);
+  }
+}
+
 export type SpreadPhotoGroup = { leftIndexes: number[]; rightIndexes: number[] };
 export type PrintPdfResult = { printBlob: Blob; guideBlob: Blob };
 
@@ -448,11 +505,20 @@ export async function buildInnerPrintPdf({
   spreadPhotoGroups,
   photos,
   productionFileSizeMm,
+  introPage,
 }: {
   customSpreads: SpreadDef[];
   spreadPhotoGroups: SpreadPhotoGroup[];
   photos: PrintPhoto[];
   productionFileSizeMm: string | null;
+  // "마지막 소개 페이지"(발행 정보) — 있으면 내지 맨 마지막 장으로 한 장 더 추가해요.
+  // 짝을 이루는 스프레드 없이 이 장 혼자 맨 뒤에 붙어요.
+  introPage?: {
+    coverPhoto: PrintPhoto | null;
+    coverTitle: string;
+    introDate: string;
+    introMaker: string;
+  } | null;
 }): Promise<PrintPdfResult> {
   const { w: workW, h: workH } = parseWorkSizeMm(productionFileSizeMm);
   const pxW = mmToPx(workW);
@@ -499,6 +565,33 @@ export async function buildInnerPrintPdf({
       pdf.addImage(cleanDataUrl, "JPEG", 0, 0, workW, workH);
       guidePdf.addImage(guideDataUrl, "JPEG", 0, 0, workW, workH);
     }
+  }
+
+  if (introPage) {
+    // "마지막 소개 페이지"는 실제로 인쇄되는 내지의 마지막 장이라서, 다른 내지 페이지들과
+    // 똑같이 순서대로 이어서 한 장 더 그려요(짝이 되는 스프레드 없이 이 장 혼자예요).
+    await drawIntroPage(
+      ctx,
+      pxW,
+      pxH,
+      introPage.coverPhoto,
+      introPage.coverTitle,
+      introPage.introDate,
+      introPage.introMaker
+    );
+    const introCleanDataUrl = canvasToJpegDataUrl(canvas);
+    drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label);
+    const introGuideDataUrl = canvasToJpegDataUrl(canvas);
+
+    if (!pdf || !guidePdf) {
+      pdf = new jsPDF({ orientation, unit: "mm", format: [workW, workH] });
+      guidePdf = new jsPDF({ orientation, unit: "mm", format: [workW, workH] });
+    } else {
+      pdf.addPage([workW, workH], orientation);
+      guidePdf.addPage([workW, workH], orientation);
+    }
+    pdf.addImage(introCleanDataUrl, "JPEG", 0, 0, workW, workH);
+    guidePdf.addImage(introGuideDataUrl, "JPEG", 0, 0, workW, workH);
   }
 
   if (!pdf || !guidePdf) {

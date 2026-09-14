@@ -551,6 +551,86 @@ function PhotoCell({
   );
 }
 
+function formatKoreanDate(date: Date): string {
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+// "마지막 소개 페이지"에 들어가는 작은 표지 사진이에요. 앞표지 칸(PhotoCell)과 똑같은
+// x/y/scale/rotation/flipX 값을 그대로 쓰되, 이 칸은 훨씬 작아서 드래그로 옮겼던 픽셀
+// 거리(x, y)를 그 칸 크기 비율(cellW/containerW)로 다시 환산해요 — 인쇄 파일 쪽
+// drawPhotoInCell/embedPhotoCell과 같은 계산이라, 화면과 실제 PDF의 크롭이 항상 같아요.
+// 지금 단계는 읽기 전용(표지를 그대로 미러링)이에요 — 이 칸을 따로 드래그/확대할 수는
+// 없고, 표지 사진·제목이 바뀌면 자동으로 같이 바뀌어요.
+function IntroPhotoMirror({ photo }: { photo: Photo | null }) {
+  const cellRef = useRef<HTMLDivElement>(null);
+  const [cellSize, setCellSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = cellRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect) setCellSize({ w: rect.width, h: rect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  if (!photo || !photo.url) {
+    return <div ref={cellRef} className="h-full w-full bg-[var(--color-ivory)]" />;
+  }
+
+  const fx = photo.containerW > 0 && cellSize.w > 0 ? cellSize.w / photo.containerW : 1;
+  const fy = photo.containerH > 0 && cellSize.h > 0 ? cellSize.h / photo.containerH : 1;
+
+  return (
+    <div ref={cellRef} className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]">
+      <img
+        src={photo.url}
+        draggable={false}
+        style={{
+          transform: `translate(${photo.x * fx}px, ${photo.y * fy}px) rotate(${photo.rotation}deg) scale(${
+            photo.flipX ? -photo.scale : photo.scale
+          }, ${photo.scale})`,
+        }}
+        className="pointer-events-none h-full w-full select-none object-contain"
+        alt=""
+      />
+    </div>
+  );
+}
+
+// "마지막 소개 페이지" 화면 미리보기예요. 왼쪽 아래 영역에 위에서부터 작은 표지 사진 →
+// 제목 → 발행일 → 만든이 → 제작 : KEEPIC 순서로 쌓아요. lib/printCompose.ts의
+// drawIntroPage(인쇄용)와 같은 순서·배치 의도를 화면에서도 그대로 따라가요.
+function IntroPagePreview({
+  coverPhoto,
+  coverTitle,
+  introPublishDate,
+  introMakerName,
+}: {
+  coverPhoto: Photo | null;
+  coverTitle: string;
+  introPublishDate: string;
+  introMakerName: string;
+}) {
+  return (
+    <div className="flex h-full w-full flex-col justify-end gap-2 bg-white p-[8%]">
+      <div className="aspect-square w-[34%] overflow-hidden rounded-sm shadow-sm">
+        <IntroPhotoMirror photo={coverPhoto} />
+      </div>
+      {coverTitle.trim() && (
+        <p className="break-keep text-sm font-bold text-[var(--color-charcoal)]">{coverTitle}</p>
+      )}
+      <div className="text-[11px] leading-relaxed text-[var(--color-charcoal)]/70">
+        <p>발행일 : {introPublishDate}</p>
+        <p>만든이 : {introMakerName.trim() || "신규 작성자"}</p>
+        <p>제작 : KEEPIC</p>
+      </div>
+    </div>
+  );
+}
+
 function CaptionField({
   photo,
   onCaptionChange,
@@ -854,6 +934,12 @@ function UploadPageContent() {
   // 그대로 반영돼요(기존 jsPDF 발주 파일 + pdf-lib 테스트 생성기 둘 다).
   const [coverTitleFontScale, setCoverTitleFontScale] = useState(1);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
+  // "마지막 소개 페이지"(발행 정보)예요. 발행일은 최초 생성 시 한국 날짜로 한 번만
+  // 정하고(아래 useEffect), 그 뒤로는 다시 열거나 PDF를 저장해도 자동으로 바뀌지
+  // 않아요 — 혜민님/사용자가 직접 고치기 전까지는요. 만든이는 비어 있으면 인쇄 시
+  // "신규 작성자"를 기본값으로 써요.
+  const [introPublishDate, setIntroPublishDate] = useState("");
+  const [introMakerName, setIntroMakerName] = useState("");
 
   // 이 화면에 처음 들어왔을 때(새 프로젝트) 책등 제목 기본값을 후보 중 무작위로 하나 골라요.
   // 서버 렌더링과 다른 값이 나오면 안 되니, 마운트된 뒤(브라우저에서만) 한 번만 실행해요.
@@ -864,6 +950,14 @@ function UploadPageContent() {
     setSpineTitle((prev) =>
       prev ? prev : SPINE_TITLE_CANDIDATES[Math.floor(Math.random() * SPINE_TITLE_CANDIDATES.length)]
     );
+  }, []);
+
+  // "마지막 소개 페이지"의 발행일 기본값도 마운트된 뒤(브라우저에서만) 한 번만 오늘
+  // 날짜로 채워요. 이미 값이 있으면(다시 방문 등) 그대로 둬서, 사용자가 고친 값이나
+  // 예전에 정해진 최초 생성일이 자동으로 바뀌지 않게 해요.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIntroPublishDate((prev) => (prev ? prev : formatKoreanDate(new Date())));
   }, []);
 
   // 앞표지 제목을 입력하면 책등 제목도 자동으로 같이 채워요. 단, 사용자가 책등 제목을
@@ -881,7 +975,7 @@ function UploadPageContent() {
   }
   // 지금 화면 오른쪽 큰 미리보기에 어떤 페이지를 보여줄지예요.
   // "cover"면 표지(뒤표지-세네카-앞표지)를, 숫자면 그 번째 스프레드를 보여줘요.
-  const [selectedPageKey, setSelectedPageKey] = useState<"cover" | number>(
+  const [selectedPageKey, setSelectedPageKey] = useState<"cover" | "intro" | number>(
     isPhotobook ? "cover" : 0
   );
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
@@ -1017,6 +1111,8 @@ function UploadPageContent() {
       spreadPhotoGroups,
       photos,
       productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
+      // "마지막 소개 페이지"를 내지 맨 마지막 장으로 자동으로 붙여요.
+      introPage: { coverPhoto, coverTitle, introDate: introPublishDate, introMaker: introMakerName },
     });
     const { printBlob: coverBlob, guideBlob: coverGuideBlob } = await buildCoverPrintPdf({
       cover: photobookCover === "hard" ? "hard" : "soft",
@@ -1075,6 +1171,7 @@ function UploadPageContent() {
         spreadPhotoGroups,
         photos,
         productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
+        introPage: { coverPhoto, coverTitle, introDate: introPublishDate, introMaker: introMakerName },
       });
 
       const objectUrl = URL.createObjectURL(result.printBlob);
@@ -1507,6 +1604,24 @@ function UploadPageContent() {
                       </button>
                     );
                   })}
+                  {isPhotobook && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPageKey("intro")}
+                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                        selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
+                      }`}
+                    >
+                      <div className="pointer-events-none flex aspect-square w-28 items-end overflow-hidden rounded bg-white p-1 shadow-sm lg:w-full">
+                        {coverPhoto && (
+                          <img src={coverPhoto.url} alt="" className="h-1/2 w-1/2 rounded-sm object-cover" />
+                        )}
+                      </div>
+                      <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">
+                        소개 페이지
+                      </p>
+                    </button>
+                  )}
                 </div>
 
                 {/* 오른쪽: 선택한 페이지 크게 편집 */}
@@ -1743,6 +1858,53 @@ function UploadPageContent() {
                           />
                           <span className="text-[10px] text-[var(--color-charcoal)]/40">크게</span>
                         </div>
+                      </div>
+                    </div>
+                  ) : selectedPageKey === "intro" ? (
+                    <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
+                      <p className="text-sm font-medium">마지막 소개 페이지</p>
+                      <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
+                        앞표지 사진·제목이 자동으로 반영돼요(여기서 사진 크기·위치를 조절해도 실제
+                        앞표지에는 영향을 주지 않아요). 오른쪽 면은 인쇄되지 않는 빈 면이에요 —
+                        내지 페이지 수·PDF에는 포함되지 않아요.
+                      </p>
+                      <div className="relative mt-3 flex w-full items-stretch bg-white shadow-sm">
+                        <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
+                        <div className="aspect-square w-1/2">
+                          <IntroPagePreview
+                            coverPhoto={coverPhoto}
+                            coverTitle={coverTitle}
+                            introPublishDate={introPublishDate}
+                            introMakerName={introMakerName}
+                          />
+                        </div>
+                        <div className="relative aspect-square w-1/2 overflow-hidden bg-[var(--color-ivory)]">
+                          <div className="pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-black/10 to-transparent" />
+                          <div className="flex h-full w-full items-center justify-center p-4">
+                            <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
+                              인쇄되지 않는 페이지입니다.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <label className="text-xs text-[var(--color-charcoal)]/70">
+                          발행일
+                          <input
+                            value={introPublishDate}
+                            onChange={(e) => setIntroPublishDate(e.target.value)}
+                            className="mt-1 w-full rounded border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-[var(--color-charcoal)]/70">
+                          만든이
+                          <input
+                            value={introMakerName}
+                            onChange={(e) => setIntroMakerName(e.target.value)}
+                            placeholder="신규 작성자"
+                            className="mt-1 w-full rounded border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
+                          />
+                        </label>
                       </div>
                     </div>
                   ) : (
