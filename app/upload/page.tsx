@@ -280,22 +280,19 @@ function CaptionSettingsPopover({
   );
 }
 
-// 작업선(초록)·재단선(마젠타)·안전선(파랑) 미리보기 오버레이예요.
-// 실제 인쇄 파일(lib/printCompose.ts의 drawGuideOverlay)과 같은 세 겹 구조를 화면에서도 보여줘요.
-// 스프레드/표지 전체를 감싸는 작업선(초록)·재단선(마젠타)·안전선(파랑) 가이드 오버레이예요.
+// 작업선(초록)·재단선(마젠타) 미리보기 오버레이예요. 실제 인쇄 파일(lib/printCompose.ts의
+// drawGuideOverlay)과 같은 두 겹 구조를 화면에서도 보여줘요. (안전선은 이제 왼쪽·오른쪽
+// 페이지를 각각 닫힌 사각형으로 따로 그려요 — PageSafetyBox/BindingGuide 참고. 표지의
+// 책등 경계처럼 실제로 잘리는 자리가 아닌 쪽이 있으면 hideEdge로 그 변만 빼고 그려요.)
 // 반드시 스프레드(또는 표지) 전체를 감싸는 딱 하나의 요소로만 그려야 점선이 가운데서
 // 끊기지 않아요. (페이지마다 따로 그리면 이어지는 자리에서 점선 위상이 어긋나 끊겨 보여요)
 function GuideLines({
   trimXPct,
   trimYPct,
-  safetyXPct,
-  safetyYPct,
   hideEdge,
 }: {
   trimXPct: number;
   trimYPct: number;
-  safetyXPct: number;
-  safetyYPct: number;
   // 책등(세네카)처럼 실제로 잘리는 자리가 아닌 쪽은 그쪽 변만 빼고 그려요.
   hideEdge?: "left" | "right";
 }) {
@@ -316,17 +313,6 @@ function GuideLines({
           top: `${trimYPct}%`,
           bottom: `${trimYPct}%`,
           borderColor: "#ff2fb0",
-          ...edgeStyle,
-        }}
-      />
-      <div
-        className="absolute border border-dashed"
-        style={{
-          left: `${safetyXPct}%`,
-          right: `${safetyXPct}%`,
-          top: `${safetyYPct}%`,
-          bottom: `${safetyYPct}%`,
-          borderColor: "#2f7bff",
           ...edgeStyle,
         }}
       />
@@ -365,6 +351,21 @@ function CoverSpineGuideLine({ xPct, top, bottom, color }: { xPct: number; top: 
       className="pointer-events-none absolute z-20 border-l border-dashed"
       style={{ left: `${xPct}%`, top: `${top}%`, bottom: `${100 - bottom}%`, borderColor: color }}
     />
+  );
+}
+
+// 내지 펼침면 가운데의 "제본 경계"예요. 실제로 두 페이지가 만나는 정중앙(50%)에 실선을
+// 하나 긋고, 그 양옆으로 제본 때문에 주의가 필요한 영역을 옅은 음영으로 보여줘요. 화면
+// 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
+function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number }) {
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute inset-y-0 z-10 bg-[#8a5cf6]/10"
+        style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
+      />
+      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[#8a5cf6]" />
+    </>
   );
 }
 
@@ -995,6 +996,10 @@ function UploadPageContent() {
   );
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   const [showGuidelines, setShowGuidelines] = useState(false);
+  // 내지 펼침면 전용 — '안전영역'과 '접힘·제본 경계'를 각각 따로 켜고 끌 수 있어요
+  // (표지는 이미 showCoverSafetyGuide/showCoverSpineGuide로 따로 있어요).
+  const [showInnerSafetyGuide, setShowInnerSafetyGuide] = useState(false);
+  const [showInnerBindingGuide, setShowInnerBindingGuide] = useState(false);
   // 표지 편집 화면 전용 안내선 켜기/끄기예요(뒤표지·책등·앞표지를 하나의 펼침면으로 보고
   // 계산해요 — 도련선/재단선은 펼침면 전체 기준, 안전영역은 뒤표지·책등·앞표지 각각 기준,
   // 책등 경계는 접힘 위치 전용 안내선이에요). 네 가지를 따로 켜고 끌 수 있어요.
@@ -1348,8 +1353,25 @@ function UploadPageContent() {
     const GUIDE_SAFETY_MM = 8; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
     const trimXPct = (GUIDE_BLEED_MM / guideSpreadWorkMm) * 100;
     const trimYPct = (GUIDE_BLEED_MM / guidePageWorkMm) * 100;
-    const safetyXPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideSpreadWorkMm) * 100;
+    // 바깥쪽(재단 기준) 안전 여백 — 위/아래 및 왼쪽 페이지의 왼쪽·오른쪽 페이지의 오른쪽
+    // (제본부 반대쪽) 가장자리에 써요.
+    const safetyOuterXPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideSpreadWorkMm) * 100;
     const safetyYPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guidePageWorkMm) * 100;
+    // 제본부(가운데) 전용 안전 여백 — 바깥쪽 안전 여백과 다른 값을 써요(제본 때문에 접히는
+    // 쪽이라 더 넓은 여백이 필요해요). 표지 책등 폭과는 무관하게, 내지 자체의 여백이에요.
+    // ⚠️ 추정치예요 — 실제 제본 방식(무선철 등) 확인이 필요해요.
+    const GUIDE_BINDING_MARGIN_MM = 15;
+    const bindingHalfPct = (GUIDE_BINDING_MARGIN_MM / guideSpreadWorkMm) * 100;
+    const bindingCenterPct = 50;
+    const bindingLeftEdgePct = bindingCenterPct - bindingHalfPct; // 왼쪽 페이지 안전영역의 오른쪽(제본쪽) 경계
+    const bindingRightEdgePct = bindingCenterPct + bindingHalfPct; // 오른쪽 페이지 안전영역의 왼쪽(제본쪽) 경계
+    // 왼쪽·오른쪽 페이지 각각 닫힌 사각형(재단 기준 3면 + 제본부 1면)이에요. 표지의 책등
+    // 폭은 여기 더하지 않아요 — 내지는 각 페이지 안쪽에서 제본 여백을 확보하는 방식이에요.
+    const leftPageSafetyLeftPct = safetyOuterXPct;
+    const leftPageSafetyRightPct = bindingLeftEdgePct;
+    const rightPageSafetyLeftPct = bindingRightEdgePct;
+    const rightPageSafetyRightPct = 100 - safetyOuterXPct;
+    const innerSafetyFits = leftPageSafetyRightPct > leftPageSafetyLeftPct; // 페이지가 너무 좁으면 박스가 찌그러질 수 있어요
 
     // 표지(뒤표지-책등-앞표지) 실제 비율이에요. lib/printCompose.ts의 buildCoverPrintPdf와
     // 같은 계산식을 그대로 써서, 화면 미리보기가 실제 표지 인쇄 파일 비율과 일치하도록 해요.
@@ -1397,11 +1419,16 @@ function UploadPageContent() {
     // 앞표지 안전영역
     const coverFrontSafetyLeftPct = coverSpineEndPct + coverSafetyXPct;
     const coverFrontSafetyRightPct = 100 - coverBleedXPct - coverSafetyXPct;
-    // 책등 안전영역 — 책등 폭이 안전여백보다 좁을 수 있어서(작은 책은 책등이 몇 mm뿐), 폭이
-    // 마이너스가 되지 않게 안전여백을 책등 폭의 절반까지만 허용해요.
-    const coverSpineSafetyInsetXPct = Math.min(coverSafetyXPct, coverSpinePct / 2);
-    const coverSpineSafetyLeftPct = coverSpineStartPct + coverSpineSafetyInsetXPct;
-    const coverSpineSafetyRightPct = coverSpineEndPct - coverSpineSafetyInsetXPct;
+    // 책등 안전영역 — 앞뒤 표지와 같은 안전 여백(coverSafetyXPct)을 그대로 쓰지 않고,
+    // 책등 전용 값(printFileSpec.spineSafetyMarginMm, 하드커버는 그루브/힌지 여유까지 더함)을
+    // 써요. 절반으로 잘라서 억지로 맞추는 방식(클램프) 대신, 책등이 이 여백을 좌우로 두 번
+    // 확보할 만큼 넓지 않으면 안전영역 박스 자체를 그리지 않고 경고를 보여줘요.
+    const coverSpineSafetyMarginMm =
+      printFileSpec.spineSafetyMarginMm + (coverIsHard ? printFileSpec.hardCoverSpineGrooveSafetyMm : 0);
+    const coverSpineSafetyMarginPct = (coverSpineSafetyMarginMm / coverTotalWmm) * 100;
+    const coverSpineFitsSafety = coverSpinePct > coverSpineSafetyMarginPct * 2;
+    const coverSpineSafetyLeftPct = coverSpineStartPct + coverSpineSafetyMarginPct;
+    const coverSpineSafetyRightPct = coverSpineEndPct - coverSpineSafetyMarginPct;
 
     // 책등 제목·로고가 실제 인쇄 PDF(lib/printPdfLib.ts)와 똑같은 기준으로 들어가는지
     // 화면에서도 미리 계산해요. computeSpineLogoLayout/computeSpineTitleLayout은 그 파일의
@@ -1560,24 +1587,61 @@ function UploadPageContent() {
             <div className="mt-12">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-semibold">페이지 편집</h2>
-                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
-                  <input
-                    type="checkbox"
-                    checked={showGuidelines}
-                    onChange={(e) => setShowGuidelines(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                  />
-                  작업선·재단선·안전선 미리보기
-                </label>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
+                    <input
+                      type="checkbox"
+                      checked={showGuidelines}
+                      onChange={(e) => setShowGuidelines(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                    />
+                    작업선·재단선
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
+                    <input
+                      type="checkbox"
+                      checked={showInnerSafetyGuide}
+                      onChange={(e) => setShowInnerSafetyGuide(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                    />
+                    안전영역
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
+                    <input
+                      type="checkbox"
+                      checked={showInnerBindingGuide}
+                      onChange={(e) => setShowInnerBindingGuide(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                    />
+                    접힘·제본 경계
+                  </label>
+                </div>
               </div>
               <p className="mt-1 text-xs text-[var(--color-charcoal)]/50 break-keep">
                 왼쪽에서 페이지를 골라 오른쪽 큰 화면에서 편집해주세요.
               </p>
-              {showGuidelines && (
+              {(showGuidelines || showInnerSafetyGuide || showInnerBindingGuide) && (
                 <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                  <span style={{ color: "#22a559" }}>■ 작업선</span>(파일 맨 끝, 배경은 이 선까지 채워주세요) ·{" "}
-                  <span style={{ color: "#ff2fb0" }}>■ 재단선</span>(실제로 잘리는 선) ·{" "}
-                  <span style={{ color: "#2f7bff" }}>■ 안전선</span>(글자·중요 사진은 이 안쪽에 배치해주세요)
+                  {showGuidelines && (
+                    <>
+                      <span style={{ color: "#22a559" }}>■ 작업선</span>(파일 맨 끝, 배경은 이 선까지 채워주세요) ·{" "}
+                      <span style={{ color: "#ff2fb0" }}>■ 재단선</span>(실제로 잘리는 선){" "}
+                    </>
+                  )}
+                  {showInnerSafetyGuide && (
+                    <>
+                      {showGuidelines && <>· </>}
+                      <span style={{ color: "#2f7bff" }}>■ 안전영역</span>(왼쪽·오른쪽 페이지 각각, 글자·중요 사진은
+                      이 안쪽에 배치해주세요 — 사진·배경은 밖으로 나가도 괜찮아요){" "}
+                    </>
+                  )}
+                  {showInnerBindingGuide && (
+                    <>
+                      {(showGuidelines || showInnerSafetyGuide) && <>· </>}
+                      <span style={{ color: "#8a5cf6" }}>■ 제본 경계</span>(두 페이지가 만나는 가운데 선, 옅은
+                      음영은 제본 때문에 주의가 필요한 영역이에요)
+                    </>
+                  )}
                 </p>
               )}
 
@@ -1823,13 +1887,29 @@ function UploadPageContent() {
                               bottom={coverSafetyBottomPct}
                               color="#2f7bff"
                             />
-                            <CoverGuideBox
-                              left={coverSpineSafetyLeftPct}
-                              right={coverSpineSafetyRightPct}
-                              top={coverSafetyTopPct}
-                              bottom={coverSafetyBottomPct}
-                              color="#2f7bff"
-                            />
+                            {coverSpineFitsSafety ? (
+                              <CoverGuideBox
+                                left={coverSpineSafetyLeftPct}
+                                right={coverSpineSafetyRightPct}
+                                top={coverSafetyTopPct}
+                                bottom={coverSafetyBottomPct}
+                                color="#2f7bff"
+                              />
+                            ) : (
+                              // 책등이 안전 여백을 두 번(좌우) 확보할 만큼 넓지 않아요. 음수나
+                              // 선처럼 찌그러진 박스를 그리는 대신, 책등 칸에 안내 문구만 띄워요.
+                              <div
+                                className="pointer-events-none absolute z-20 flex items-center justify-center px-0.5 text-center text-[7px] leading-tight text-[#e0524c]"
+                                style={{
+                                  left: `${coverSpineStartPct}%`,
+                                  right: `${100 - coverSpineEndPct}%`,
+                                  top: `${coverSafetyTopPct}%`,
+                                  bottom: `${100 - coverSafetyBottomPct}%`,
+                                }}
+                              >
+                                책등이 좁아 안전영역 확보 불가
+                              </div>
+                            )}
                             <CoverGuideBox
                               left={coverFrontSafetyLeftPct}
                               right={coverFrontSafetyRightPct}
@@ -2033,14 +2113,33 @@ function UploadPageContent() {
                                 requiredMinPx
                               )}
                             </div>
-                            {showGuidelines && (
-                              <GuideLines
-                                trimXPct={trimXPct}
-                                trimYPct={trimYPct}
-                                safetyXPct={safetyXPct}
-                                safetyYPct={safetyYPct}
-                              />
+                            {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}
+                            {showInnerBindingGuide && (
+                              <BindingGuide leftPct={bindingLeftEdgePct} rightPct={bindingRightEdgePct} />
                             )}
+                            {showInnerSafetyGuide &&
+                              (innerSafetyFits ? (
+                                <>
+                                  <CoverGuideBox
+                                    left={leftPageSafetyLeftPct}
+                                    right={leftPageSafetyRightPct}
+                                    top={safetyYPct}
+                                    bottom={100 - safetyYPct}
+                                    color="#2f7bff"
+                                  />
+                                  <CoverGuideBox
+                                    left={rightPageSafetyLeftPct}
+                                    right={rightPageSafetyRightPct}
+                                    top={safetyYPct}
+                                    bottom={100 - safetyYPct}
+                                    color="#2f7bff"
+                                  />
+                                </>
+                              ) : (
+                                <div className="pointer-events-none absolute inset-x-0 top-1 z-20 text-center text-[10px] text-[#e0524c]">
+                                  페이지가 좁아 제본부 안전영역을 확보하지 못했어요
+                                </div>
+                              ))}
                           </div>
                         </div>
                       );

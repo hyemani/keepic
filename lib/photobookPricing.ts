@@ -48,6 +48,15 @@ export const printFileSpec = {
   softCoverBleedMm: 5,
   hardCoverWrapBleedMm: 20,
   hardCoverPanelOverhangMm: 3,
+  // 책등(세네카) 전용 안전 여백이에요. 앞뒤 표지 안전 여백(GUIDE_SAFETY_MARGIN_MM, 8mm)을
+  // 책등에 그대로 적용하면 책등이 좁을 때 음수가 되기 쉬워서, 책등만의 별도 값을 둬요.
+  // 이 값에서 파생(예: 절반으로 자르기)하지 않고, 이 값 자체를 그대로 좌우에 적용해요.
+  // ⚠️ 추정치예요 — 실제 제본 규격은 인쇄소 확인이 필요해요.
+  spineSafetyMarginMm: 4,
+  // 하드커버는 책등 양옆에 접히는 홈(그루브/힌지) 구조가 있어서, 소프트커버보다 더 넓은
+  // 여백이 필요해요. spineSafetyMarginMm에 더해서 적용해요.
+  // ⚠️ 추정치예요 — 실제 하드커버 제본 방식(그루브 폭 등) 확인이 필요해요.
+  hardCoverSpineGrooveSafetyMm: 3,
 };
 
 // 커버 x 사이즈별 기본 판매가 (임시 판매가 — 특히 S 하드커버는 실제 견적 확인 전)
