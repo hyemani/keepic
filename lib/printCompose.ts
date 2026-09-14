@@ -513,6 +513,7 @@ export async function buildCoverPrintPdf({
   sizeInnerTrimMm,
   coverPhoto,
   coverTitle,
+  coverTitleFontScale = 1,
   innerPaperWeightG,
   pages,
 }: {
@@ -520,6 +521,7 @@ export async function buildCoverPrintPdf({
   sizeInnerTrimMm: number; // 내지 재단 사이즈(정사각형 한 변, mm) — 예: L=300
   coverPhoto: PrintPhoto | null;
   coverTitle: string;
+  coverTitleFontScale?: number; // 표지 제목 글자 크기 배율(1이 기본). 혜민님이 화면에서 조절 가능해요.
   innerPaperWeightG: number;
   pages: number;
 }): Promise<PrintPdfResult> {
@@ -563,7 +565,7 @@ export async function buildCoverPrintPdf({
     drawPhotoInCell(ctx, img, coverPhoto, frontX, bleedPx, panelPx, panelPx);
   }
   if (coverTitle.trim()) {
-    const titlePx = Math.round(panelPx * 0.07);
+    const titlePx = Math.round(panelPx * 0.07 * coverTitleFontScale);
     ctx.font = `bold ${titlePx}px Pretendard, sans-serif`;
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";

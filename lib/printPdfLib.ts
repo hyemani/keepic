@@ -520,13 +520,14 @@ function drawCoverTitle(
   panelPt: number,
   bleedPt: number,
   fonts: EmbeddedFonts,
-  offset: Offset
+  offset: Offset,
+  fontScale: number = 1 // 표지 제목 글자 크기 배율(1이 기본)
 ): void {
   const text = title.trim();
   if (!text) return;
   const font = fonts.bold;
   const maxWidthPt = panelPt * 0.86;
-  let size = panelPt * 0.07;
+  let size = panelPt * 0.07 * fontScale;
   while (size > 8 && font.widthOfTextAtSize(text, size) > maxWidthPt) size -= 0.5;
   const textWidth = font.widthOfTextAtSize(text, size);
   const textX = offset.x + panelXCanvas + panelPt / 2 - textWidth / 2;
@@ -680,10 +681,22 @@ async function drawCoverSpreadPage(
     rightContent: CoverPagePhotos | null; // 안쪽면: 첫 내지 / 바깥면: null(앞표지는 frontPhoto로)
     frontPhoto?: PrintPhoto | null; // 바깥면 전용: 앞표지 사진
     frontTitle?: string; // 바깥면 전용: 앞표지 제목
+    frontTitleFontScale?: number; // 바깥면 전용: 앞표지 제목 글자 크기 배율(1이 기본)
   }
 ): Promise<void> {
-  const { workHpt, bleedPt, panelPt, spinePt, offset, fonts, leftContent, rightContent, frontPhoto, frontTitle } =
-    params;
+  const {
+    workHpt,
+    bleedPt,
+    panelPt,
+    spinePt,
+    offset,
+    fonts,
+    leftContent,
+    rightContent,
+    frontPhoto,
+    frontTitle,
+    frontTitleFontScale,
+  } = params;
   const backX = bleedPt; // 캔버스/PDF 공통 x좌표: 왼쪽(뒤표지) 패널 시작 x
   const spineX = bleedPt + panelPt;
   const frontX = spineX + spinePt; // 오른쪽(앞표지) 패널 시작 x
@@ -720,7 +733,7 @@ async function drawCoverSpreadPage(
     await embedPhotoCell(pdfDoc, page, frontPhoto, { x: frontX, y: bleedPt, w: panelPt, h: panelPt }, workHpt, offset);
   }
   if (frontTitle) {
-    drawCoverTitle(page, frontTitle, frontX, panelPt, bleedPt, fonts, offset);
+    drawCoverTitle(page, frontTitle, frontX, panelPt, bleedPt, fonts, offset, frontTitleFontScale ?? 1);
   }
 }
 
@@ -730,6 +743,7 @@ export async function buildCoverPrintPdfLib({
   sizeInnerTrimMm,
   coverPhoto,
   coverTitle,
+  coverTitleFontScale,
   innerPaperWeightG,
   pages,
   firstPage,
@@ -741,6 +755,7 @@ export async function buildCoverPrintPdfLib({
   sizeInnerTrimMm: number; // 내지 재단 사이즈(정사각형 한 변, mm)
   coverPhoto: PrintPhoto | null;
   coverTitle: string;
+  coverTitleFontScale?: number; // 표지 제목 글자 크기 배율(1이 기본)
   innerPaperWeightG: number;
   pages: number;
   firstPage: CoverPagePhotos | null; // 내지 1번째 페이지 내용 (표지 안쪽면 오른쪽에 들어감)
@@ -791,6 +806,7 @@ export async function buildCoverPrintPdfLib({
     rightContent: null,
     frontPhoto: coverPhoto,
     frontTitle: coverTitle,
+    frontTitleFontScale: coverTitleFontScale,
   });
   setPdfBoxes(outerPage, workWpt, workHpt, bleedPt, offset);
   drawTrimMarks(outerPage, workWpt, workHpt, bleedPt, offset);

@@ -776,6 +776,9 @@ function UploadPageContent() {
   // 앞표지 제목을 따라가지 않고 독립적으로 유지돼요.
   const [spineTitle, setSpineTitle] = useState("");
   const [spineTitleTouched, setSpineTitleTouched] = useState(false);
+  // 표지 제목 글자 크기 배율이에요(1이 기본, 화면 슬라이더로 조절). 실제 인쇄 파일에도
+  // 그대로 반영돼요(기존 jsPDF 발주 파일 + pdf-lib 테스트 생성기 둘 다).
+  const [coverTitleFontScale, setCoverTitleFontScale] = useState(1);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
 
   // 이 화면에 처음 들어왔을 때(새 프로젝트) 책등 제목 기본값을 후보 중 무작위로 하나 골라요.
@@ -939,6 +942,7 @@ function UploadPageContent() {
       sizeInnerTrimMm: trimCm * 10,
       coverPhoto,
       coverTitle,
+      coverTitleFontScale,
       innerPaperWeightG: innerPaper.weightG,
       pages,
     });
@@ -1044,6 +1048,7 @@ function UploadPageContent() {
         sizeInnerTrimMm: trimCm * 10,
         coverPhoto,
         coverTitle,
+        coverTitleFontScale,
         innerPaperWeightG: innerPaper.weightG,
         pages,
         firstPage,
@@ -1429,10 +1434,24 @@ function UploadPageContent() {
                           )}
                         </div>
                         <div
-                          className="flex h-full items-center justify-center bg-[var(--color-hairline)]/60 text-[9px] text-[var(--color-charcoal)]/40"
-                          style={{ width: `${coverSpinePct}%`, writingMode: "vertical-rl" }}
+                          className="relative flex h-full items-center justify-center overflow-hidden bg-[var(--color-hairline)]/60"
+                          style={{ width: `${coverSpinePct}%` }}
                         >
-                          책등
+                          {spineTitle.trim() ? (
+                            <span
+                              className="whitespace-nowrap text-[9px] font-semibold text-[var(--color-charcoal)]/70"
+                              style={{ transform: "rotate(-90deg)" }}
+                            >
+                              {spineTitle}
+                            </span>
+                          ) : (
+                            <span
+                              className="text-[9px] text-[var(--color-charcoal)]/40"
+                              style={{ writingMode: "vertical-rl" }}
+                            >
+                              책등
+                            </span>
+                          )}
                         </div>
                         <div className="relative h-full overflow-hidden" style={{ width: `${coverFrontPct}%` }}>
                           {coverPhoto ? (
@@ -1448,7 +1467,10 @@ function UploadPageContent() {
                             </label>
                           )}
                           {coverTitle.trim() && (
-                            <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-sm font-semibold text-white drop-shadow">
+                            <p
+                              className="pointer-events-none absolute inset-x-3 bottom-3 text-center font-semibold text-white drop-shadow"
+                              style={{ fontSize: `${0.875 * coverTitleFontScale}rem` }}
+                            >
                               {coverTitle}
                             </p>
                           )}
@@ -1497,6 +1519,25 @@ function UploadPageContent() {
                         <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
                           책등에 들어갈 제목이에요. 원하는 문구로 바꿔보세요.
                         </p>
+                      </div>
+
+                      <div className="mt-4">
+                        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                          표지 제목 글자 크기
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] text-[var(--color-charcoal)]/40">작게</span>
+                          <input
+                            type="range"
+                            min={0.6}
+                            max={1.6}
+                            step={0.05}
+                            value={coverTitleFontScale}
+                            onChange={(e) => setCoverTitleFontScale(Number(e.target.value))}
+                            className="flex-1"
+                          />
+                          <span className="text-[10px] text-[var(--color-charcoal)]/40">크게</span>
+                        </div>
                       </div>
                     </div>
                   ) : (
