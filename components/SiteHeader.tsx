@@ -47,22 +47,39 @@ export default function SiteHeader({
           ? "border-b border-[var(--color-hairline)] bg-white/95 backdrop-blur-sm"
           : "border-b border-transparent bg-transparent"
       }`
-    : "bg-white";
+    : "relative bg-white";
+
+  // 메뉴 글씨 공통 스타일: PC 16px, 중간 굵기, 진한 차콜색 — 배경 사진 위에서도 잘 읽히도록.
+  const navLinkBase = "font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]";
+  const navLinkActive =
+    "text-[var(--color-sky)] underline underline-offset-4 decoration-2";
 
   return (
     <header className={headerClassName}>
+      {/* 이미지 위에 겹칠 때만: 로고·메뉴 영역에 은은한 반투명 흰색 그라데이션을 깔아요.
+          네모 박스 느낌이 나지 않도록 아래로 갈수록 자연스럽게 투명해지고,
+          스크롤해서 완전한 흰 배경이 되면 이 그라데이션은 사라져요. */}
+      {overlayHero && (
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 top-0 z-0 h-44 bg-gradient-to-b from-white/85 via-white/35 to-transparent transition-opacity duration-300 sm:h-56 ${
+            scrolled ? "opacity-0" : "opacity-100"
+          }`}
+        />
+      )}
+
       {/* 첫째 줄: 로고(화면 정중앙) + 오른쪽 계정 메뉴 — 스크롤하면 이 줄은 같이 올라가요 */}
-      <div className="relative mx-auto flex max-w-7xl items-center justify-end px-6 py-4 sm:px-10">
+      <div className="relative z-10 mx-auto flex max-w-7xl items-center justify-end px-6 py-4 sm:px-10">
         <Link href="/" className="absolute left-1/2 -translate-x-1/2">
           <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
         </Link>
 
         {/* PC 우측: 주문 조회 / 장바구니 / 제작 신청 (작고 간결하게) */}
         <div className="hidden items-center gap-5 text-sm sm:flex">
-          <Link href="/order-lookup" className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]">
+          <Link href="/order-lookup" className="font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]">
             주문 조회
           </Link>
-          <CartBadge className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]" />
+          <CartBadge className="font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]" />
           <Link
             href="/order"
             className="rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[var(--color-sky)] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
@@ -77,11 +94,11 @@ export default function SiteHeader({
             type="button"
             onClick={() => setMenuOpen(true)}
             aria-label="전체 메뉴 열기"
-            className="flex items-center text-[var(--color-charcoal)]/70"
+            className="flex items-center font-medium text-[var(--color-charcoal)]"
           >
             <span className="text-xl leading-none">≡</span>
           </button>
-          <CartBadge className="text-[var(--color-charcoal)]/70" />
+          <CartBadge className="font-medium text-[var(--color-charcoal)]" />
         </div>
       </div>
 
@@ -89,29 +106,27 @@ export default function SiteHeader({
       <nav
         className={
           overlayHero
-            ? `hidden border-t sm:block ${
-                scrolled ? "border-[var(--color-hairline)]" : "border-transparent"
+            ? `relative z-10 hidden border-t sm:block ${
+                scrolled
+                  ? "border-[var(--color-hairline)] bg-white"
+                  : "border-transparent bg-transparent"
               }`
             : "sticky top-0 z-40 hidden border-t border-[var(--color-hairline)] bg-white sm:block"
         }
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-center gap-8 px-6 py-3 text-[15px] sm:px-10">
+        <div className="mx-auto flex max-w-7xl items-center justify-center gap-8 px-6 py-3 text-base sm:px-10">
           {primaryLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={
-                isActive(link.href) ? "text-[var(--color-sky)]" : "hover:text-[var(--color-sky)]"
-              }
+              className={isActive(link.href) ? navLinkActive : navLinkBase}
             >
               {link.label}
             </Link>
           ))}
           <Link
             href="/cases"
-            className={
-              isActive("/cases") ? "text-[var(--color-sky)]" : "hover:text-[var(--color-sky)]"
-            }
+            className={isActive("/cases") ? navLinkActive : navLinkBase}
           >
             디자인 예시
           </Link>
@@ -123,7 +138,7 @@ export default function SiteHeader({
             <button
               type="button"
               onClick={() => setGuideOpen(true)}
-              className="flex items-center gap-1 hover:text-[var(--color-sky)]"
+              className="flex items-center gap-1 font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]"
             >
               이용 안내
               <span
