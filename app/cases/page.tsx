@@ -187,6 +187,17 @@ export default function CasesPage() {
             고객님의 사진으로도 이렇게 만들어드려요.
           </p>
         )}
+        {/* PC에서는 이 버튼이 바로 눈에 띄도록 처음부터 보여줘요(예시 이미지가 많아서 끝까지
+            스크롤해야 하단 버튼이 보였어요). 모바일은 화면 하단에 항상 따라다니는 버튼
+            (StickyOrderBar)이 있어서 여기서는 따로 안 보여줘요. */}
+        <div className="mt-8 hidden sm:block">
+          <Link
+            href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
+            className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
+          >
+            {tab === "photobook" ? "추억을 한 권에 담기" : "추억을 일상에 담기"}
+          </Link>
+        </div>
       </section>
 
       {tab === "photobook" ? (

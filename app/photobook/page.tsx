@@ -50,7 +50,15 @@ export default function PhotobookPage() {
             <br />
             완성된 포토북으로 만들어드려요.
           </p>
-          <div className="mt-10">
+          <div className="mt-10 flex flex-wrap items-center gap-5">
+            {/* PC에서는 이 버튼이 바로 눈에 띄도록 처음부터 보여줘요. 모바일은 화면 하단에
+                항상 따라다니는 버튼(StickyOrderBar)이 있어서 여기서는 따로 안 보여줘요. */}
+            <Link
+              href="/options?product=포토북"
+              className="hidden rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 sm:inline-block"
+            >
+              추억을 한 권에 담기
+            </Link>
             <Link
               href="/guide"
               className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
