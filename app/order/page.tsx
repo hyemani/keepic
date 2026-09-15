@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import Reveal from "@/components/Reveal";
 import { photobookBasePrice, photobookSizes, BASE_PAGES } from "@/lib/photobookPricing";
 
 // 포토북 최저가는 실제 가격 설정 파일(사이즈 S · 소프트커버) 값을 그대로 가져와요.
@@ -59,38 +60,42 @@ export default function OrderPage() {
         </p>
 
         <div className="mt-12 grid gap-10 sm:grid-cols-3 sm:gap-8">
-          {products.map((product) => (
+          {products.map((product, i) => (
             <div key={product.name} className="flex h-full flex-col">
-              <div className="aspect-square overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-[var(--color-hairline)]/20">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <h2 className="mt-6 text-xl font-semibold">{product.name}</h2>
-              <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/70">
-                {product.description.split("\n").map((line, i) => (
-                  <Fragment key={i}>
-                    {i > 0 && <br />}
-                    {line}
-                  </Fragment>
-                ))}
-              </p>
+              {/* 이미지·설명·가격만 스크롤 등장 효과를 적용하고, 주문 버튼은 항상
+                  바로 보이고 바로 눌를 수 있도록 애니메이션 대상에서 제외했어요 */}
+              <Reveal delay={(i % 3) * 80} className="flex flex-1 flex-col">
+                <div className="aspect-square overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-[var(--color-hairline)]/20">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <h2 className="mt-6 text-xl font-semibold">{product.name}</h2>
+                <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/70">
+                  {product.description.split("\n").map((line, i) => (
+                    <Fragment key={i}>
+                      {i > 0 && <br />}
+                      {line}
+                    </Fragment>
+                  ))}
+                </p>
 
-              {/* 설명·가격 영역 높이를 카드마다 맞춰서, 버튼이 같은 가로선에 놓이도록 해요 */}
-              <div className="flex-1">
-                {product.price && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium">{product.price}</p>
-                    {product.priceNote && (
-                      <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/55">
-                        {product.priceNote}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+                {/* 설명·가격 영역 높이를 카드마다 맞춰서, 버튼이 같은 가로선에 놓이도록 해요 */}
+                <div className="flex-1">
+                  {product.price && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium">{product.price}</p>
+                      {product.priceNote && (
+                        <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/55">
+                          {product.priceNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Reveal>
 
               <Link
                 href={product.href}

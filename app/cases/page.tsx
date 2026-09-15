@@ -5,6 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import Link from "next/link";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
+import Reveal from "@/components/Reveal";
 
 const babyCovers = [
   { src: "/photobook/covers/baby-1.png", alt: "베이비 표지 예시 1" },
@@ -254,8 +255,10 @@ export default function CasesPage() {
             <h2 className="text-xl font-semibold">전체 미리보기</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {bigSpreadExamples.map((img) => (
-                <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} aspectSquare={false} />
+              {bigSpreadExamples.map((img, i) => (
+                <Reveal key={img.src} delay={(i % 3) * 80}>
+                  <GridThumb src={img.src} alt={img.alt} onOpen={setLightbox} aspectSquare={false} />
+                </Reveal>
               ))}
             </div>
           </section>
@@ -267,8 +270,10 @@ export default function CasesPage() {
             <div className="mt-6">
               <p className="text-sm font-medium text-[var(--color-charcoal)]/70">아이의 하루, 성장 기록</p>
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {babyCovers.map((img) => (
-                  <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} />
+                {babyCovers.map((img, i) => (
+                  <Reveal key={img.src} delay={(i % 6) * 60}>
+                    <GridThumb src={img.src} alt={img.alt} onOpen={setLightbox} />
+                  </Reveal>
                 ))}
               </div>
             </div>
@@ -276,8 +281,10 @@ export default function CasesPage() {
             <div className="mt-10">
               <p className="text-sm font-medium text-[var(--color-charcoal)]/70">여행, 커플, 가족의 순간</p>
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {travelCovers.map((img) => (
-                  <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} />
+                {travelCovers.map((img, i) => (
+                  <Reveal key={img.src} delay={(i % 6) * 60}>
+                    <GridThumb src={img.src} alt={img.alt} onOpen={setLightbox} />
+                  </Reveal>
                 ))}
               </div>
             </div>
@@ -287,8 +294,10 @@ export default function CasesPage() {
             <h2 className="text-xl font-semibold">내지 펼침 예시</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {spreadExamples.map((img) => (
-                <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} aspectSquare={false} />
+              {spreadExamples.map((img, i) => (
+                <Reveal key={img.src} delay={(i % 2) * 80}>
+                  <GridThumb src={img.src} alt={img.alt} onOpen={setLightbox} aspectSquare={false} />
+                </Reveal>
               ))}
             </div>
           </section>
@@ -327,8 +336,10 @@ export default function CasesPage() {
               <div key={category.id} id={category.id} className="scroll-mt-24">
                 <p className="text-sm font-medium">{category.name}</p>
                 <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {category.images.map((img) => (
-                    <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} />
+                  {category.images.map((img, i) => (
+                    <Reveal key={img.src} delay={(i % 4) * 80}>
+                      <GridThumb src={img.src} alt={img.alt} onOpen={setLightbox} />
+                    </Reveal>
                   ))}
                 </div>
               </div>

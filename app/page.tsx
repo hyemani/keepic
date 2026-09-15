@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
+import Reveal from "@/components/Reveal";
 
 const heroSlides: HeroSlide[] = [
   {
@@ -92,8 +93,8 @@ export default function Home() {
       {/* 이용 과정 3단계 */}
       <section className="mx-auto max-w-[1100px] px-6 pb-20 pt-20 sm:px-10">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-6">
-          {steps.map((step) => (
-            <div key={step.n} className="flex items-center gap-5 sm:block">
+          {steps.map((step, i) => (
+            <Reveal key={step.n} delay={i * 80} className="flex items-center gap-5 sm:block">
               <div className="relative h-24 w-24 shrink-0 overflow-hidden bg-gradient-to-br from-[var(--color-sky)]/10 to-[var(--color-ivory)] shadow-[0_10px_30px_-10px_rgba(45,55,72,0.2)] sm:aspect-square sm:h-auto sm:w-full">
                 {step.img ? (
                   <img
@@ -121,14 +122,14 @@ export default function Home() {
                   ))}
                 </p>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* 디자인 샘플 */}
       <section id="samples" className="mx-auto max-w-7xl scroll-mt-8 px-6 pb-20 sm:px-10">
-        <div className="flex items-end justify-between">
+        <Reveal className="flex items-end justify-between">
           <div>
             <p className="text-sm font-medium text-[var(--color-sky)]">디자인 샘플</p>
             <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -143,7 +144,7 @@ export default function Home() {
           >
             제작 사례 더 보기 →
           </Link>
-        </div>
+        </Reveal>
 
         <div className="mt-8 grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
           {[
@@ -153,13 +154,14 @@ export default function Home() {
             { src: "/photobook/spreads-full/family-autumn-story.png", alt: "가족 포토북 전체 예시 2" },
             { src: "/photobook/spreads-full/seaside-diary.png", alt: "여행 포토북 전체 예시 2" },
             { src: "/photobook/spreads-full/pet-golden-days.png", alt: "반려견 포토북 전체 예시" },
-          ].map((img) => (
-            <div
+          ].map((img, i) => (
+            <Reveal
               key={img.src}
+              delay={(i % 3) * 80}
               className="overflow-hidden"
             >
               <img src={img.src} alt={img.alt} className="w-full object-cover" />
-            </div>
+            </Reveal>
           ))}
         </div>
 
@@ -173,7 +175,7 @@ export default function Home() {
 
       {/* 제작 과정 */}
       <section className="mx-auto max-w-7xl px-6 pb-20 sm:px-10">
-        <div className="flex items-end justify-between">
+        <Reveal className="flex items-end justify-between">
           <div>
             <p className="text-sm font-medium text-[var(--color-sky)]">제작 과정</p>
             <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -186,11 +188,11 @@ export default function Home() {
           >
             전체 과정 보기 →
           </Link>
-        </div>
+        </Reveal>
 
         <div className="mt-8 grid grid-cols-2 gap-6 sm:grid-cols-4">
           {processSteps.map((step, i) => (
-            <div key={step.title}>
+            <Reveal key={step.title} delay={i * 80}>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-sky)]/15 text-sm font-medium text-[var(--color-sky)]">
                 {i + 1}
               </div>
@@ -198,7 +200,7 @@ export default function Home() {
               <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
                 {step.desc}
               </p>
-            </div>
+            </Reveal>
           ))}
         </div>
 
@@ -212,7 +214,7 @@ export default function Home() {
 
       {/* FAQ */}
       <section className="mx-auto max-w-7xl px-6 pb-24 sm:px-10">
-        <div className="flex items-end justify-between">
+        <Reveal className="flex items-end justify-between">
           <div>
             <p className="text-sm font-medium text-[var(--color-sky)]">자주 묻는 질문</p>
             <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">
@@ -225,9 +227,9 @@ export default function Home() {
           >
             전체 질문 보기 →
           </Link>
-        </div>
+        </Reveal>
 
-        <div className="mt-8 flex flex-col divide-y divide-[var(--color-hairline)] rounded-2xl border border-[var(--color-hairline)] bg-white">
+        <Reveal className="mt-8 flex flex-col divide-y divide-[var(--color-hairline)] rounded-2xl border border-[var(--color-hairline)] bg-white">
           {miniFaqs.map((item) => (
             <details key={item.q} className="group p-5 open:pb-5 sm:p-6">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium sm:text-base">
@@ -241,7 +243,7 @@ export default function Home() {
               </p>
             </details>
           ))}
-        </div>
+        </Reveal>
 
         <Link
           href="/faq"

@@ -3,6 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
+import Reveal from "@/components/Reveal";
 
 const topBannerImages: PageTopBannerImage[] = [
   { src: "/hero/top-banner/frame-1.png", alt: "액자 대표 이미지 1" },
@@ -61,9 +62,10 @@ export default function FramesPage() {
 
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-2 sm:px-10">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {frameTypes.map((type) => (
-            <div
+          {frameTypes.map((type, i) => (
+            <Reveal
               key={type.name}
+              delay={(i % 3) * 80}
               className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white"
             >
               <div className="aspect-[3/4] w-full overflow-hidden">
@@ -79,7 +81,7 @@ export default function FramesPage() {
                   {type.desc}
                 </p>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
 

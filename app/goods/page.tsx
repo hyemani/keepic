@@ -2,6 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
 import SiteFooter from "@/components/SiteFooter";
+import Reveal from "@/components/Reveal";
 
 const topBannerImages: PageTopBannerImage[] = [
   { src: "/hero/top-banner/goods-1.png", alt: "나만의 굿즈 대표 이미지 1" },
@@ -72,7 +73,7 @@ export default function GoodsPage() {
 
       <section className="mx-auto max-w-6xl px-6 pb-24 pt-2 sm:px-10">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {goodsTypes.map((type) => {
+          {goodsTypes.map((type, i) => {
             const card = (
               <div className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white transition hover:border-[var(--color-sky)]">
                 <div className="relative aspect-[3/4] w-full overflow-hidden bg-[var(--color-hairline)]/20">
@@ -111,16 +112,19 @@ export default function GoodsPage() {
               </div>
             );
 
-            return type.href ? (
-              <Link
-                key={type.name}
-                href={type.href}
-                className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
-              >
-                {card}
-              </Link>
-            ) : (
-              <div key={type.name}>{card}</div>
+            return (
+              <Reveal key={type.name} delay={(i % 3) * 80}>
+                {type.href ? (
+                  <Link
+                    href={type.href}
+                    className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+                  >
+                    {card}
+                  </Link>
+                ) : (
+                  <div>{card}</div>
+                )}
+              </Reveal>
             );
           })}
         </div>

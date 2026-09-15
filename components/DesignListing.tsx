@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import Reveal from "@/components/Reveal";
 import {
   photobookDesigns,
   designCategoryOrder,
@@ -67,21 +68,23 @@ export default function DesignListing() {
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3">
-        {filtered.map((design) => (
-          <button key={design.id} type="button" onClick={() => setActiveId(design.id)} className="text-left">
-            <div className="overflow-hidden rounded-xl bg-[var(--color-hairline)]/15">
-              <img
-                src={design.image}
-                alt={design.alt}
-                className="aspect-square w-full object-cover transition hover:opacity-90"
-              />
-            </div>
-            <p className="mt-3 font-medium">{design.name}</p>
-            <p className="mt-1 text-sm text-[var(--color-charcoal)]/60">
-              {startPrice.toLocaleString()}원부터
-            </p>
-            <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/45">{specText}</p>
-          </button>
+        {filtered.map((design, i) => (
+          <Reveal key={design.id} delay={(i % 3) * 80}>
+            <button type="button" onClick={() => setActiveId(design.id)} className="text-left">
+              <div className="overflow-hidden rounded-xl bg-[var(--color-hairline)]/15">
+                <img
+                  src={design.image}
+                  alt={design.alt}
+                  className="aspect-square w-full object-cover transition hover:opacity-90"
+                />
+              </div>
+              <p className="mt-3 font-medium">{design.name}</p>
+              <p className="mt-1 text-sm text-[var(--color-charcoal)]/60">
+                {startPrice.toLocaleString()}원부터
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/45">{specText}</p>
+            </button>
+          </Reveal>
         ))}
       </div>
 
