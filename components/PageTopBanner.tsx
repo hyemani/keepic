@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 export type PageTopBannerImage = { src: string; alt: string };
 
@@ -8,13 +8,20 @@ export type PageTopBannerImage = { src: string; alt: string };
 // 화면 가로폭 전체를 쓰는 슬라이더로, 가운데 배너 한 장이 온전히 보이고
 // 양옆으로 이전·다음 배너가 화면 가장자리에서 일부만 보여요(이미지 자체를
 // 잘라내는 게 아니라, 화면 밖으로 자연스럽게 가려지는 것뿐이에요).
-// 문구는 각 배너 이미지 안, 왼쪽 여백 위에 함께 얹혀서 같이 움직여요.
+// 낮고 가로로 긴 배너예요(첫 화면을 다 차지하지 않도록). 카드 안은 왼쪽
+// 문구·오른쪽 제품 이미지로 나뉘고, 이미지는 억지로 늘리거나 위아래를
+// 잘라내지 않고 원본 비율 그대로 축소해서 담아요(object-contain). 남는
+// 자리는 카드 배경색으로 자연스럽게 채워져요.
 const AUTO_PLAY_MS = 4500;
-// 실제 배너 이미지 원본 비율(1983 x 793)에 맞춰서, 세로가 억지로 눌리거나
-// 위아래가 잘리지 않도록 해요.
-const IMAGE_ASPECT = "1983 / 793";
-// SiteHeader가 이미지 위에 투명하게 겹쳐질 때(overlayHero) 배너 콘텐츠가 가려지지
-// 않도록, 아래 JSX에서 pt-16/sm:pt-28로 헤더 높이만큼 띄워줘요.
+// PC/모바일에서 배너 카드의 고정 높이예요. 로고·메뉴(헤더) 영역은 이 카드
+// 바깥(위쪽 여백)에 있어서, 헤더 때문에 카드 높이 자체가 커지지 않아요.
+// 모바일 카드 높이는 Tailwind의 h-[13.5rem]로 직접 쓰고, PC 높이는 아래에서
+// CSS 변수(--card-h-desktop)로 내려줘서 h-[var(--card-h-desktop)]가 참조해요.
+const CARD_HEIGHT_DESKTOP = "20rem"; // 320px
+// SiteHeader가 페이지 맨 위에서 투명하게 떠 있을 때(overlayHero), 배너가 그
+// 헤더에 가리지 않도록 아래 JSX에서 헤더 높이만큼 위쪽 여백(margin-top)을 줘요.
+// 이미지 자체를 위로 당기거나 확대하지 않고, 헤더 뒤로는 페이지 배경색(아이보리)이
+// 그대로 비쳐 보여요.
 
 function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   return (
@@ -60,8 +67,8 @@ export default function PageTopBanner({
   eyebrow?: string;
   titleLines: string[];
   descLines: string[];
-  // true면 배경 이미지가 페이지 맨 위, 즉 투명한 SiteHeader(overlayHero) 뒤까지
-  // 이어져 보여요. 실제 배너(캐러셀) 자체의 위치는 그대로 헤더 아래에 있어요.
+  // true면 투명한 SiteHeader(overlayHero) 아래로 배너가 겹치지 않을 만큼
+  // 위쪽 여백을 확보해요. 헤더 뒤로는 이미지가 아니라 페이지 배경색이 보여요.
   extendBehindHeader?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -153,69 +160,68 @@ export default function PageTopBanner({
     <section
       className={
         extendBehindHeader
-          ? "relative -mt-16 w-full overflow-hidden pt-24 sm:-mt-28 sm:pt-40"
+          ? "relative mt-16 w-full overflow-hidden py-3 sm:mt-28 sm:py-4"
           : "relative w-full overflow-hidden py-3 sm:py-4"
       }
     >
-      {/* 배경 이미지를 페이지 맨 위까지 흐리게 확장해서, 투명한 헤더(로고·메뉴) 뒤로
-          대표 이미지가 자연스럽게 이어져 보이게 해요. 실제 캐러셀 내용은 그 아래,
-          헤더에 가리지 않는 위치에 그대로 있어요. */}
-      {extendBehindHeader && (
-        <>
-          <div className="absolute inset-0 -z-10" aria-hidden="true">
-            <img
-              src={images[index]?.src}
-              alt=""
-              className="h-full w-full scale-110 object-cover object-top opacity-80 blur-md"
-            />
-          </div>
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-24 bg-gradient-to-b from-white/85 via-white/40 to-transparent sm:h-36"
-            aria-hidden="true"
-          />
-        </>
-      )}
-
+      {/* 카드 너비(--banner-card-w)와 좌우 여백을 같은 계산식에서 끌어와요.
+          그래서 화면이 아무리 넓어져서 카드가 최대 너비(1100px)에서 멈추더라도,
+          "카드 폭 + 여백"이 항상 화면 전체 폭과 정확히 맞아떨어져서 가운데 배너가
+          어느 화면 크기에서도, 첫 번째·마지막 슬라이드에서도 정중앙에 와요. */}
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth px-[8vw] [-ms-overflow-style:none] [scrollbar-width:none] sm:px-[12vw] [&::-webkit-scrollbar]:hidden"
+        style={
+          {
+            paddingLeft: "calc((100% - var(--banner-card-w)) / 2)",
+            paddingRight: "calc((100% - var(--banner-card-w)) / 2)",
+            ["--card-h-desktop" as string]: CARD_HEIGHT_DESKTOP,
+          } as CSSProperties
+        }
+        className="flex [--banner-card-w:min(900px,84vw)] snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] sm:[--banner-card-w:min(1100px,76vw)] [&::-webkit-scrollbar]:hidden"
       >
-        {images.map((img) => (
+        {images.map((img, i) => (
           <div
             key={img.src}
-            className="relative w-[84vw] max-w-[1100px] shrink-0 snap-center overflow-hidden rounded-2xl bg-[var(--color-hairline)]/15 sm:w-[76vw]"
+            style={{ width: "var(--banner-card-w)" }}
+            className="relative flex h-[13.5rem] shrink-0 snap-center items-stretch overflow-hidden rounded-2xl bg-[var(--color-hairline)]/12 sm:h-[var(--card-h-desktop)]"
           >
-            <img
-              src={img.src}
-              alt={img.alt}
-              style={{ aspectRatio: IMAGE_ASPECT }}
-              className="w-full object-cover"
-            />
-            {/* 문구는 이 배너 이미지 자신의 왼쪽 여백 위에 함께 얹혀서, 창 너비·확대,
-                슬라이드 이동과 상관없이 항상 이 이미지와 같은 위치를 유지해요. */}
-            <div className="absolute inset-y-0 left-0 flex max-w-[70%] flex-col justify-center px-5 py-4 sm:max-w-[55%] sm:px-9">
-              {eyebrow && (
-                <p className="text-xs font-medium text-[var(--color-charcoal)]/70 sm:text-sm">
-                  {eyebrow}
+            {/* 문구는 현재 가운데(선택된) 배너에만, 왼쪽에 보여요. 양옆에 살짝
+                보이는 배너는 이미지만 보여줘서 화면이 복잡해 보이지 않게 해요. */}
+            {i === index && (
+              <div className="flex w-[42%] shrink-0 flex-col justify-center px-4 sm:w-[36%] sm:px-8">
+                {eyebrow && (
+                  <p className="text-xs font-medium text-[var(--color-charcoal)]/70 sm:text-sm">
+                    {eyebrow}
+                  </p>
+                )}
+                <h1 className="mt-1 break-keep text-base font-semibold leading-tight text-[var(--color-charcoal)] sm:text-2xl lg:text-3xl">
+                  {titleLines.map((line, li) => (
+                    <span key={li}>
+                      {line}
+                      {li < titleLines.length - 1 && <br />}
+                    </span>
+                  ))}
+                </h1>
+                <p className="mt-2 hidden break-keep text-xs leading-relaxed text-[var(--color-charcoal)]/60 sm:block sm:text-sm">
+                  {descLines.map((line, li) => (
+                    <span key={li}>
+                      {line}
+                      {li < descLines.length - 1 && <br />}
+                    </span>
+                  ))}
                 </p>
-              )}
-              <h1 className="mt-1 break-keep text-lg font-semibold leading-tight text-[var(--color-charcoal)] sm:text-2xl lg:text-3xl">
-                {titleLines.map((line, li) => (
-                  <span key={li}>
-                    {line}
-                    {li < titleLines.length - 1 && <br />}
-                  </span>
-                ))}
-              </h1>
-              <p className="mt-2 hidden break-keep text-xs leading-relaxed text-[var(--color-charcoal)]/60 sm:block sm:text-sm">
-                {descLines.map((line, li) => (
-                  <span key={li}>
-                    {line}
-                    {li < descLines.length - 1 && <br />}
-                  </span>
-                ))}
-              </p>
+              </div>
+            )}
+            {/* 제품 이미지: 억지로 늘리거나 위아래를 잘라내지 않고(object-contain),
+                원본 비율 그대로 축소해서 전체가 보이도록 해요. 남는 자리는
+                카드 배경색이 자연스럽게 채워줘요. */}
+            <div className="relative h-full flex-1">
+              <img
+                src={img.src}
+                alt={img.alt}
+                className="h-full w-full object-contain"
+              />
             </div>
           </div>
         ))}
