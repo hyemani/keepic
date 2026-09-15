@@ -59,7 +59,7 @@ export default function FramesPage() {
         ]}
       />
 
-      <section className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">
+      <section className="mx-auto max-w-6xl px-6 pb-16 pt-2 sm:px-10">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {frameTypes.map((type) => (
             <div

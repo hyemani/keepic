@@ -70,7 +70,7 @@ export default function GoodsPage() {
         ]}
       />
 
-      <section className="mx-auto max-w-6xl px-6 pb-24 pt-10 sm:px-10">
+      <section className="mx-auto max-w-6xl px-6 pb-24 pt-2 sm:px-10">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {goodsTypes.map((type) => {
             const card = (
