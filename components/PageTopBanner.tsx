@@ -5,19 +5,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 export type PageTopBannerImage = { src: string; alt: string };
 
 // 포토북/액자/나만의 굿즈 페이지가 공통으로 쓰는 상단 배너예요.
-// 화면 가로폭 전체를 쓰는 슬라이더로, 가운데 배너 한 장이 온전히 보이고
-// 양옆으로 이전·다음 배너가 화면 가장자리에서 일부만 보여요(이미지 자체를
-// 잘라내는 게 아니라, 화면 밖으로 자연스럽게 가려지는 것뿐이에요).
-// 낮고 가로로 긴 배너예요(첫 화면을 다 차지하지 않도록). 카드 안은 왼쪽
-// 문구·오른쪽 제품 이미지로 나뉘고, 이미지는 억지로 늘리거나 위아래를
-// 잘라내지 않고 원본 비율 그대로 축소해서 담아요(object-contain). 남는
-// 자리는 카드 배경색으로 자연스럽게 채워져요.
+// 화면 가로폭 전체를 쓰는 슬라이더로, 가운데 배너 한 장이 크게 보이고
+// 양옆으로 이전·다음 배너가 살짝만 보여요(화면 밖으로 자연스럽게 가려짐).
+// 카드는 낮고 가로로 넓은 비율이고, 이미지가 카드 전체를 채우는 배경이
+// 돼요(object-cover). 문구는 그 위, 이미지의 왼쪽 빈 공간에 바로 얹혀요.
 const AUTO_PLAY_MS = 4500;
 // PC/모바일에서 배너 카드의 고정 높이예요. 로고·메뉴(헤더) 영역은 이 카드
 // 바깥(위쪽 여백)에 있어서, 헤더 때문에 카드 높이 자체가 커지지 않아요.
-// 모바일 카드 높이는 Tailwind의 h-[13.5rem]로 직접 쓰고, PC 높이는 아래에서
+// 모바일 카드 높이는 Tailwind의 h-[8rem]로 직접 쓰고, PC 높이는 아래에서
 // CSS 변수(--card-h-desktop)로 내려줘서 h-[var(--card-h-desktop)]가 참조해요.
-const CARD_HEIGHT_DESKTOP = "20rem"; // 320px
+const CARD_HEIGHT_DESKTOP = "14rem"; // 224px
 // SiteHeader가 페이지 맨 위에서 투명하게 떠 있을 때(overlayHero), 배너가 그
 // 헤더에 가리지 않도록 아래 JSX에서 헤더 높이만큼 위쪽 여백(margin-top)을 줘요.
 // 이미지 자체를 위로 당기거나 확대하지 않고, 헤더 뒤로는 페이지 배경색(아이보리)이
@@ -231,19 +228,25 @@ export default function PageTopBanner({
             ["--card-h-desktop" as string]: CARD_HEIGHT_DESKTOP,
           } as CSSProperties
         }
-        className="flex [--banner-card-w:min(900px,84vw)] snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] sm:[--banner-card-w:min(1100px,76vw)] [&::-webkit-scrollbar]:hidden"
+        className="flex [--banner-card-w:min(960px,92vw)] snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] sm:[--banner-card-w:min(1300px,86vw)] [&::-webkit-scrollbar]:hidden"
       >
         {displayImages.map((img, i) => (
           <div
             key={`${img.src}-${i}`}
             style={{ width: "var(--banner-card-w)" }}
-            className="relative flex h-[13.5rem] shrink-0 snap-center items-stretch overflow-hidden rounded-2xl bg-[var(--color-ivory)] sm:h-[var(--card-h-desktop)]"
+            className="relative h-[8rem] shrink-0 snap-center overflow-hidden rounded-2xl bg-[var(--color-hairline)]/15 sm:h-[var(--card-h-desktop)]"
           >
-            {/* 문구는 지금 정중앙에 있는 배너에만, 왼쪽에 보여요. 양옆에 살짝
-                보이는 배너(복제된 것 포함)는 이미지만 보여줘서 화면이 복잡해
-                보이지 않게 해요. */}
+            {/* 이미지가 카드 전체를 꽉 채우는 배경이 돼요(늘어나지 않게
+                object-cover). 문구는 그 위, 지금 정중앙에 있는 배너에만
+                왼쪽 여백 자리에 올라가요. 양옆에 살짝 보이는 배너(복제된
+                것 포함)는 이미지만 보여줘서 화면이 복잡해 보이지 않게 해요. */}
+            <img
+              src={img.src}
+              alt={img.alt}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
             {i === displayIndex && (
-              <div className="flex w-[38%] shrink-0 flex-col justify-center px-4 sm:w-[30%] sm:px-8">
+              <div className="absolute inset-y-0 left-0 flex max-w-[70%] flex-col justify-center px-4 sm:max-w-[45%] sm:px-9">
                 {eyebrow && (
                   <p className="text-xs font-medium text-[var(--color-charcoal)]/70 sm:text-sm">
                     {eyebrow}
@@ -267,16 +270,6 @@ export default function PageTopBanner({
                 </p>
               </div>
             )}
-            {/* 제품 이미지: 억지로 늘리거나 위아래를 잘라내지 않고(object-contain),
-                원본 비율 그대로 축소해서 전체가 보이도록 해요. 남는 자리는
-                카드 배경색이 자연스럽게 채워줘요. */}
-            <div className="relative h-full flex-1">
-              <img
-                src={img.src}
-                alt={img.alt}
-                className="h-full w-full object-contain"
-              />
-            </div>
           </div>
         ))}
       </div>

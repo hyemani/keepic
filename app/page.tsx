@@ -85,7 +85,7 @@ const miniFaqs = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
-      <SiteHeader />
+      <SiteHeader overlayHero />
 
       {/* 히어로 */}
       <HeroSlideshow slides={heroSlides} />
