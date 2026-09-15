@@ -26,22 +26,50 @@ export default function SiteHeader() {
   const isActive = (href: string) => pathname === href;
 
   return (
-    <header className="relative mx-auto max-w-7xl px-6 py-6 sm:px-10">
-      <div className="flex items-center justify-between">
-        <Link href="/">
+    <header className="bg-white">
+      {/* 첫째 줄: 로고(화면 정중앙) + 오른쪽 계정 메뉴 — 스크롤하면 이 줄은 같이 올라가요 */}
+      <div className="relative mx-auto flex max-w-7xl items-center justify-end px-6 py-4 sm:px-10">
+        <Link href="/" className="absolute left-1/2 -translate-x-1/2">
           <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
         </Link>
 
-        {/* PC 메뉴 */}
-        <nav className="hidden items-center gap-8 text-[15px] sm:flex">
+        {/* PC 우측: 주문 조회 / 장바구니 / 제작 신청 (작고 간결하게) */}
+        <div className="hidden items-center gap-5 text-sm sm:flex">
+          <Link href="/order-lookup" className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]">
+            주문 조회
+          </Link>
+          <CartBadge className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]" />
+          <Link
+            href="/order"
+            className="rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[var(--color-sky)] hover:text-white"
+          >
+            제작 신청
+          </Link>
+        </div>
+
+        {/* 모바일: 왼쪽 메뉴 아이콘 / 오른쪽 장바구니 (로고는 absolute로 가운데 고정) */}
+        <div className="flex w-full items-center justify-between sm:hidden">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="전체 메뉴 열기"
+            className="flex items-center text-[var(--color-charcoal)]/70"
+          >
+            <span className="text-xl leading-none">≡</span>
+          </button>
+          <CartBadge className="text-[var(--color-charcoal)]/70" />
+        </div>
+      </div>
+
+      {/* 둘째 줄: 상품 메뉴 — 스크롤하면 이 줄만 상단에 고정돼요 */}
+      <nav className="sticky top-0 z-40 hidden border-t border-[var(--color-hairline)] bg-white sm:block">
+        <div className="mx-auto flex max-w-7xl items-center justify-center gap-8 px-6 py-3 text-[15px] sm:px-10">
           {primaryLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={
-                isActive(link.href)
-                  ? "text-[var(--color-sky)]"
-                  : "hover:text-[var(--color-sky)]"
+                isActive(link.href) ? "text-[var(--color-sky)]" : "hover:text-[var(--color-sky)]"
               }
             >
               {link.label}
@@ -50,9 +78,7 @@ export default function SiteHeader() {
           <Link
             href="/cases"
             className={
-              isActive("/cases")
-                ? "text-[var(--color-sky)]"
-                : "hover:text-[var(--color-sky)]"
+              isActive("/cases") ? "text-[var(--color-sky)]" : "hover:text-[var(--color-sky)]"
             }
           >
             디자인 샘플
@@ -96,55 +122,10 @@ export default function SiteHeader() {
               </div>
             )}
           </div>
-        </nav>
-
-        {/* PC 우측 */}
-        <div className="hidden items-center gap-5 sm:flex">
-          <Link href="/order-lookup" className="text-[15px] hover:text-[var(--color-sky)]">
-            주문 조회
-          </Link>
-          <CartBadge className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]" />
-          <Link
-            href="/order"
-            className="rounded-full bg-[var(--color-sky)] px-5 py-2.5 text-[15px] font-medium text-white transition hover:opacity-90"
-          >
-            제작 신청
-          </Link>
         </div>
-
-        {/* 모바일: 주문 조회 + 장바구니 + 전체 메뉴 */}
-        <div className="flex items-center gap-4 sm:hidden">
-          <Link href="/order-lookup" className="text-[13px] text-[var(--color-charcoal)]/70">
-            주문 조회
-          </Link>
-          <CartBadge className="text-[var(--color-charcoal)]/70" />
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="전체 메뉴 열기"
-            className="flex items-center text-[var(--color-charcoal)]/70"
-          >
-            <span className="text-xl leading-none">≡</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 모바일 전용: 포토북 / 액자 / 나만의 굿즈 균등 배치 */}
-      <nav className="-mx-6 mt-5 grid grid-cols-3 border-t border-[var(--color-hairline)] px-4 pt-3 text-center text-[12px] tracking-tight text-[var(--color-charcoal)]/70 sm:hidden">
-        {primaryLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={
-              isActive(link.href) ? "text-[var(--color-sky)]" : "hover:text-[var(--color-sky)]"
-            }
-          >
-            {link.label}
-          </Link>
-        ))}
       </nav>
 
-      {/* 모바일 전체 메뉴 오버레이 */}
+      {/* 모바일 전체 메뉴 오버레이: 주문 조회·제작 신청도 이 안에서 찾을 수 있어요 */}
       {menuOpen && (
         <div className="fixed inset-0 z-[70] bg-[var(--color-ivory)] sm:hidden">
           <div className="mx-auto max-w-7xl px-6 py-6">
