@@ -294,6 +294,7 @@ export default function CasesPage() {
       <StickyOrderBar
         label={tab === "photobook" ? "추억을 한 권에 담기" : "추억을 일상에 담기"}
         href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
+        desktopFloating
       />
     </main>
   );

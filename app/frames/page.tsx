@@ -98,7 +98,7 @@ export default function FramesPage() {
       </section>
 
       <SiteFooter />
-      <StickyOrderBar label="좋아하는 순간을 걸어두기" href="/options?product=액자" />
+      <StickyOrderBar label="좋아하는 순간을 걸어두기" href="/options?product=액자" desktopFloating />
     </main>
   );
 }

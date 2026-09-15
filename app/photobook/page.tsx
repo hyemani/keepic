@@ -197,7 +197,7 @@ export default function PhotobookPage() {
       </section>
 
       <SiteFooter />
-      <StickyOrderBar label="추억을 한 권에 담기" href="/options?product=포토북" />
+      <StickyOrderBar label="추억을 한 권에 담기" href="/options?product=포토북" desktopFloating />
     </main>
   );
 }
