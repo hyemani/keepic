@@ -31,15 +31,14 @@ export default function PhotobookPage() {
       <SiteHeader />
 
       {/* 첫 화면 */}
-      <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pb-16 pt-8 sm:px-10 lg:grid-cols-2 lg:gap-16">
-        <div>
+      <section>
+        {/* 모바일: 문구가 위, 사진이 아래 (기존과 동일한 배치) */}
+        <div className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:hidden">
           <p className="text-sm font-medium text-[var(--color-sky)]">포토북</p>
-          <h1 className="mt-2 text-4xl font-semibold leading-tight sm:text-5xl">
+          <h1 className="mt-2 text-4xl font-semibold leading-tight">
             사진을 보내주시면,
             <br />
-            포토북으로
-            <br className="sm:hidden" />
-            {" "}만들어드려요
+            포토북으로 만들어드려요
           </h1>
           <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--color-charcoal)]/80">
             사진을 직접 편집하실 필요 없어요.
@@ -50,15 +49,7 @@ export default function PhotobookPage() {
             <br />
             완성된 포토북으로 만들어드려요.
           </p>
-          <div className="mt-10 flex flex-wrap items-center gap-5">
-            {/* PC에서는 이 버튼이 바로 눈에 띄도록 처음부터 보여줘요. 모바일은 화면 하단에
-                항상 따라다니는 버튼(StickyOrderBar)이 있어서 여기서는 따로 안 보여줘요. */}
-            <Link
-              href="/options?product=포토북"
-              className="hidden rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 sm:inline-block"
-            >
-              추억을 한 권에 담기
-            </Link>
+          <div className="mt-10">
             <Link
               href="/guide"
               className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
@@ -66,13 +57,49 @@ export default function PhotobookPage() {
               제작 과정 보기
             </Link>
           </div>
+          <div className="mt-8 overflow-hidden">
+            <img
+              src="/photobook/covers/collage-1.png"
+              alt="Keepic 포토북 표지와 내지 예시"
+              className="w-full object-cover"
+            />
+          </div>
         </div>
-        <div className="overflow-hidden">
-          <img
-            src="/photobook/covers/collage-1.png"
-            alt="Keepic 포토북 표지와 내지 예시"
-            className="w-full object-cover"
-          />
+
+        {/* PC(sm 이상): 사진이 화면 폭을 꽉 채우고, 그 위에 문구를 얹는 배치 (홈 화면과 동일한 스타일) */}
+        <div className="hidden sm:block">
+          <div className="relative w-full overflow-hidden sm:aspect-[1672/941] sm:max-h-[720px]">
+            <img
+              src="/photobook/covers/collage-1.png"
+              alt="Keepic 포토북 표지와 내지 예시"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-ivory)] from-10% via-[var(--color-ivory)]/70 via-30% to-transparent to-55%" />
+            <div className="absolute inset-0 flex items-center">
+              <div className="mx-auto w-full max-w-7xl px-6 sm:px-10">
+                <div className="max-w-md">
+                  <p className="text-sm font-medium text-[var(--color-sky)]">포토북</p>
+                  <h1 className="mt-2 text-4xl font-semibold leading-tight lg:text-5xl">
+                    사진을 보내주시면,
+                    <br />
+                    포토북으로 만들어드려요
+                  </h1>
+                  <p className="mt-4 max-w-sm break-keep text-base leading-relaxed text-[var(--color-charcoal)]/80 lg:text-lg">
+                    사진을 직접 편집하실 필요 없어요. 사진만 골라 보내주시면
+                    Keepic이 배치부터 디자인까지 맡아서 완성된 포토북으로 만들어드려요.
+                  </p>
+                  <div className="mt-8">
+                    <Link
+                      href="/guide"
+                      className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
+                    >
+                      제작 과정 보기
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -53,17 +53,6 @@ export default function FramesPage() {
           <br />
           다양한 소재의 액자로 만들어드려요.
         </p>
-        {/* PC에서는 이 버튼이 바로 눈에 띄도록 처음부터 보여줘요. 모바일은 화면 하단에
-            항상 따라다니는 버튼(StickyOrderBar)이 있어서 여기서는 따로 안 보여줘요. */}
-        <div className="mt-8 hidden sm:block">
-          <Link
-            href="/options?product=액자"
-            className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-          >
-            좋아하는 순간을 걸어두기
-          </Link>
-        </div>
-
         <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {frameTypes.map((type) => (
             <div
