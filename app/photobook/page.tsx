@@ -35,12 +35,14 @@ export default function PhotobookPage() {
         <div className="relative flex h-full items-center">
           <div className="mx-auto w-full max-w-6xl px-6 sm:px-10">
             <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">
-              어떤 이야기를 담아볼까요?
+              좋아하는 순간을 모아,
+              <br />
+              나만의 포토북으로
             </h1>
             <p className="mt-2 max-w-xs break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/75 sm:max-w-sm sm:text-base">
-              마음에 드는 디자인을 골라,
+              사진을 고르고 원하는 디자인으로 꾸며보세요.
               <br />
-              나만의 사진으로 한 권의 추억을 완성해보세요.
+              직접 편집한 추억을 한 권의 포토북으로 제작해드려요.
             </p>
           </div>
         </div>
@@ -48,7 +50,15 @@ export default function PhotobookPage() {
 
       {/* 디자인 분류 + 목록 */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">
-        <DesignListing />
+        <h2 className="text-2xl font-semibold">표지 디자인 예시</h2>
+        <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
+          사진과 제목이 들어갔을 때의 모습을 확인해보세요.
+          <br />
+          아래 이미지는 디자인 참고용 예시입니다.
+        </p>
+        <div className="mt-8">
+          <DesignListing />
+        </div>
       </section>
 
       {/* 내지 예시 */}

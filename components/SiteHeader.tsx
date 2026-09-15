@@ -41,9 +41,9 @@ export default function SiteHeader() {
           <CartBadge className="text-[var(--color-charcoal)]/70 hover:text-[var(--color-sky)]" />
           <Link
             href="/order"
-            className="rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[var(--color-sky)] hover:text-white"
+            className="rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[var(--color-sky)] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
           >
-            제작 신청
+            만들기 시작
           </Link>
         </div>
 
@@ -81,7 +81,7 @@ export default function SiteHeader() {
               isActive("/cases") ? "text-[var(--color-sky)]" : "hover:text-[var(--color-sky)]"
             }
           >
-            디자인 샘플
+            디자인 예시
           </Link>
           <div
             className="relative"
@@ -145,7 +145,7 @@ export default function SiteHeader() {
               <Link href="/photobook" onClick={() => setMenuOpen(false)}>포토북</Link>
               <Link href="/frames" onClick={() => setMenuOpen(false)}>액자</Link>
               <Link href="/goods" onClick={() => setMenuOpen(false)}>나만의 굿즈</Link>
-              <Link href="/cases" onClick={() => setMenuOpen(false)}>디자인 샘플</Link>
+              <Link href="/cases" onClick={() => setMenuOpen(false)}>디자인 예시</Link>
               <div className="mt-2 border-t border-[var(--color-hairline)] pt-6">
                 <p className="text-sm text-[var(--color-charcoal)]/50">이용 안내</p>
                 <div className="mt-4 flex flex-col gap-5">
@@ -178,7 +178,7 @@ export default function SiteHeader() {
                 onClick={() => setMenuOpen(false)}
                 className="rounded-full bg-[var(--color-sky)] py-3.5 text-center text-sm font-medium text-white"
               >
-                제작 신청
+                만들기 시작
               </Link>
             </div>
           </div>

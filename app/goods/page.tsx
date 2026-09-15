@@ -4,22 +4,22 @@ import SiteFooter from "@/components/SiteFooter";
 
 const goodsTypes = [
   {
-    name: "머그",
-    desc: "좋아하는 순간을 매일 쓰는 컵에",
+    name: "머그컵·유리컵",
+    desc: "좋아하는 사진으로 꾸미는 나만의 컵",
     image: "/goods/mug/main-1.jpg",
     alt: "여행 사진이 담긴 머그컵",
     href: "/goods/mug",
   },
   {
     name: "폰케이스",
-    desc: "늘 곁에 두는 휴대폰에 나만의 사진을",
+    desc: "늘 손에 드는 휴대폰에 나만의 사진을",
     image: "/goods/phone-case/main-1.jpg",
     alt: "커플 사진이 담긴 폰케이스",
     href: "/goods/phone-case",
   },
   {
     name: "텀블러",
-    desc: "매일 함께하는 텀블러에 특별한 순간을",
+    desc: "매일 함께하는 텀블러에 좋아하는 사진과 문구를",
     image: "/goods/tumbler/main-1.jpg",
     alt: "각인과 사진이 담긴 텀블러",
     href: "/goods/tumbler",
@@ -39,7 +39,7 @@ const goodsTypes = [
     href: "/goods/calendar",
   },
   {
-    name: "패브릭포스터",
+    name: "패브릭 포스터",
     desc: "한 장의 사진으로 완성하는 나만의 공간",
     image: "/goods/fabric-poster/main-1.jpg",
     alt: "사진이 담긴 패브릭 포스터",
@@ -55,21 +55,21 @@ export default function GoodsPage() {
       <section className="mx-auto max-w-6xl px-6 pb-24 pt-8 sm:px-10">
         <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
         <h1 className="mt-2 text-4xl font-semibold leading-tight sm:text-5xl">
-          사진으로 만드는,
+          좋아하는 사진을,
           <br />
-          나만의 소품.
+          매일 쓰는 물건에
         </h1>
         <p className="mt-6 max-w-md break-keep text-base leading-relaxed text-[var(--color-charcoal)]/80">
-          머그, 폰케이스, 텀블러, 에코백, 캘린더, 패브릭포스터까지
+          머그컵부터 폰케이스, 텀블러, 에코백까지.
           <br />
-          다양한 굿즈로 만나보실 수 있어요.
+          사진과 문구로 나만의 굿즈를 만들어보세요.
         </p>
 
         <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3">
           {goodsTypes.map((type) => {
             const card = (
-              <div className="overflow-hidden border border-[var(--color-hairline)] bg-white">
-                <div className="aspect-[3/4] w-full overflow-hidden bg-[var(--color-hairline)]/20">
+              <div className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white transition hover:border-[var(--color-sky)]">
+                <div className="relative aspect-[3/4] w-full overflow-hidden bg-[var(--color-hairline)]/20">
                   {type.image ? (
                     <img
                       src={type.image}
@@ -81,18 +81,23 @@ export default function GoodsPage() {
                       이미지 준비중
                     </div>
                   )}
+                  {type.href && (
+                    <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium text-[var(--color-sky)]">
+                      주문 가능
+                    </span>
+                  )}
                 </div>
                 <div className="p-5">
                   <p className="font-medium">{type.name}</p>
-                  <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
+                  <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/70">
                     {type.desc}
                   </p>
                   {type.href ? (
                     <p className="mt-2 text-xs font-medium text-[var(--color-sky)]">
-                      지금 주문 가능 →
+                      상품 자세히 보기 →
                     </p>
                   ) : (
-                    <p className="mt-2 text-xs font-medium text-[var(--color-charcoal)]/40">
+                    <p className="mt-2 text-xs font-medium text-[var(--color-charcoal)]/55">
                       준비 중
                     </p>
                   )}
@@ -101,7 +106,11 @@ export default function GoodsPage() {
             );
 
             return type.href ? (
-              <Link key={type.name} href={type.href} className="block">
+              <Link
+                key={type.name}
+                href={type.href}
+                className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+              >
                 {card}
               </Link>
             ) : (
@@ -112,12 +121,12 @@ export default function GoodsPage() {
 
         <div className="mt-12 border border-dashed border-[var(--color-hairline)] bg-white px-8 py-10 text-center">
           <p className="font-medium">지금 바로 만들 수 있는 Keepic 굿즈</p>
-          <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
-            폰케이스, 텀블러, 에코백, 머그, 캘린더, 패브릭포스터는
+          <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/70">
+            폰케이스, 텀블러, 에코백, 머그컵·유리컵, 캘린더, 패브릭 포스터는
             <br />
             지금 바로 주문하실 수 있어요.
           </p>
-          <p className="mt-4 break-keep text-sm text-[var(--color-charcoal)]/60">
+          <p className="mt-4 break-keep text-sm text-[var(--color-charcoal)]/70">
             새로운 굿즈도 사이즈와 재질, 가격이 확정되는 대로
             <br />
             하나씩 추가될 예정이에요.

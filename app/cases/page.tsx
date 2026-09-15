@@ -53,17 +53,20 @@ const spreadExamples = [
 ];
 
 // "나만의 굿즈" 탭: 이미 제작해둔 굿즈 페이지의 제품 사진들을 상품별로 묶어서 보여줘요.
+// id는 앵커 이동용 (예: #goods-mug), name은 화면에 보이는 상품명이에요.
 const goodsCategories = [
   {
-    name: "머그",
+    id: "goods-mug",
+    name: "머그컵·유리컵",
     images: [
-      { src: "/goods/mug/main-1.jpg", alt: "머그 예시 1" },
-      { src: "/goods/mug/glossy-1.jpg", alt: "머그 예시 2" },
-      { src: "/goods/mug/ice-color-1.jpg", alt: "머그 예시 3" },
-      { src: "/goods/mug/beer-can-1.jpg", alt: "머그 예시 4" },
+      { src: "/goods/mug/main-1.jpg", alt: "머그컵·유리컵 예시 1" },
+      { src: "/goods/mug/glossy-1.jpg", alt: "머그컵·유리컵 예시 2" },
+      { src: "/goods/mug/ice-color-1.jpg", alt: "머그컵·유리컵 예시 3" },
+      { src: "/goods/mug/beer-can-1.jpg", alt: "머그컵·유리컵 예시 4" },
     ],
   },
   {
+    id: "goods-phone-case",
     name: "폰케이스",
     images: [
       { src: "/goods/phone-case/premium-1.jpg", alt: "폰케이스 예시 1" },
@@ -73,6 +76,7 @@ const goodsCategories = [
     ],
   },
   {
+    id: "goods-tumbler",
     name: "텀블러",
     images: [
       { src: "/goods/tumbler/clip-black-1.jpg", alt: "클립진공 텀블러 예시 (블랙)" },
@@ -82,6 +86,7 @@ const goodsCategories = [
     ],
   },
   {
+    id: "goods-ecobag",
     name: "에코백",
     images: [
       { src: "/goods/ecobag/gallery-1.jpg", alt: "에코백 예시 1" },
@@ -91,6 +96,7 @@ const goodsCategories = [
     ],
   },
   {
+    id: "goods-calendar",
     name: "캘린더",
     images: [
       { src: "/goods/calendar/large-1.jpg", alt: "캘린더 예시 1" },
@@ -100,6 +106,7 @@ const goodsCategories = [
     ],
   },
   {
+    id: "goods-fabric-poster",
     name: "패브릭 포스터",
     images: [
       { src: "/goods/fabric-poster/gallery-1.jpg", alt: "패브릭 포스터 예시 1" },
@@ -110,10 +117,42 @@ const goodsCategories = [
   },
 ];
 
-type Tab = "photobook" | "goods";
+type Tab = "photobook" | "frame" | "goods";
+type LightboxImage = { src: string; alt: string };
+
+// 그리드에 쓰는 썸네일 버튼 하나. 렌더 중에 새로 정의되는 컴포넌트가 아니라
+// 모듈 최상단에 선언된 컴포넌트라서 각 그리드에서 그대로 재사용할 수 있어요.
+function GridThumb({
+  src,
+  alt,
+  onOpen,
+  aspectSquare = true,
+}: {
+  src: string;
+  alt: string;
+  onOpen: (img: LightboxImage) => void;
+  aspectSquare?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen({ src, alt })}
+      aria-label={`${alt}, 크게 보기`}
+      className={`group relative overflow-hidden rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
+        aspectSquare ? "aspect-square" : ""
+      }`}
+    >
+      <img src={src} alt={alt} className="h-full w-full object-cover" />
+      <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-sm font-medium text-white opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+        크게 보기
+      </span>
+    </button>
+  );
+}
 
 export default function CasesPage() {
   const [tab, setTab] = useState<Tab>("photobook");
+  const [lightbox, setLightbox] = useState<LightboxImage | null>(null);
 
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
@@ -124,7 +163,7 @@ export default function CasesPage() {
           <button
             type="button"
             onClick={() => setTab("photobook")}
-            className={`rounded-full px-4 py-2 font-medium transition ${
+            className={`rounded-full px-4 py-2 font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
               tab === "photobook"
                 ? "bg-[var(--color-sky)] text-white"
                 : "text-[var(--color-charcoal)]/60"
@@ -132,13 +171,21 @@ export default function CasesPage() {
           >
             포토북
           </button>
-          <span className="cursor-not-allowed rounded-full px-4 py-2 text-[var(--color-charcoal)]/35">
-            액자 (준비중)
-          </span>
+          <button
+            type="button"
+            onClick={() => setTab("frame")}
+            className={`rounded-full px-4 py-2 font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
+              tab === "frame"
+                ? "bg-[var(--color-sky)] text-white"
+                : "text-[var(--color-charcoal)]/60"
+            }`}
+          >
+            액자
+          </button>
           <button
             type="button"
             onClick={() => setTab("goods")}
-            className={`rounded-full px-4 py-2 font-medium transition ${
+            className={`rounded-full px-4 py-2 font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
               tab === "goods"
                 ? "bg-[var(--color-sky)] text-white"
                 : "text-[var(--color-charcoal)]/60"
@@ -150,80 +197,89 @@ export default function CasesPage() {
       </div>
 
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
-        <p className="text-sm font-medium text-[var(--color-sky)]">디자인 샘플</p>
+        <p className="text-sm font-medium text-[var(--color-sky)]">디자인 예시</p>
         <h1 className="mt-2 text-4xl font-semibold leading-tight sm:text-5xl">
-          {tab === "photobook" ? (
+          {tab === "photobook" && (
             <>
-              이런 느낌으로
+              내 사진으로 완성할
               <br />
-              만들어드려요
+              포토북을 만나보세요
             </>
-          ) : (
+          )}
+          {tab === "frame" && (
             <>
-              사진 한 장으로 만드는
+              좋아하는 순간을,
               <br />
-              나만의 굿즈
+              가장 가까운 곳에
+            </>
+          )}
+          {tab === "goods" && (
+            <>
+              내 사진이 담기면,
+              <br />
+              이런 모습이에요
             </>
           )}
         </h1>
-        {tab === "photobook" ? (
+        {tab === "photobook" && (
           <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
-            아래 이미지는 실제 고객님의 사진이 아닌,
+            가족, 여행, 커플, 반려동물까지.
             <br />
-            Keepic이 준비한 디자인 예시예요.
+            담고 싶은 이야기에 어울리는 디자인을 살펴보세요.
             <br />
-            아이의 하루를 담은 앨범부터 여행·커플 사진까지,
-            <br />
-            다양한 주제로 제작할 수 있어요.
+            아래 이미지는 디자인 참고용 예시입니다.
           </p>
-        ) : (
+        )}
+        {tab === "frame" && (
           <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
-            머그, 폰케이스, 텀블러, 에코백, 캘린더, 패브릭 포스터까지
+            액자 디자인 예시를 준비하고 있어요.
+          </p>
+        )}
+        {tab === "goods" && (
+          <p className="mt-4 max-w-lg break-keep text-base leading-relaxed text-[var(--color-charcoal)]/70">
+            사진과 문구가 더해진 굿즈 디자인을 살펴보세요.
             <br />
-            좋아하는 사진으로 만들 수 있는 다양한 굿즈예요.
+            마음에 드는 상품을 골라 나만의 모습으로 꾸며보세요.
             <br />
-            아래 이미지는 실제 제작된 제품 사진이며,
+            아래 이미지는 디자인 참고용 예시입니다.
             <br />
-            고객님의 사진으로도 이렇게 만들어드려요.
+            실제 제품의 형태와 인쇄 가능 영역은 상품 상세에서 확인해주세요.
           </p>
         )}
       </section>
 
-      {tab === "photobook" ? (
+      {tab === "photobook" && (
         <>
           <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
-            <h2 className="text-xl font-semibold">한 권에 담아낸 소중한 순간들</h2>
+            <h2 className="text-xl font-semibold">전체 미리보기</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {bigSpreadExamples.map((img) => (
-                <div key={img.src} className="overflow-hidden rounded-xl">
-                  <img src={img.src} alt={img.alt} className="w-full object-cover" />
-                </div>
+                <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} aspectSquare={false} />
               ))}
             </div>
           </section>
 
           <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
-            <h2 className="text-xl font-semibold">아이의 하루, 성장 기록</h2>
+            <h2 className="text-xl font-semibold">이야기별 포토북 디자인</h2>
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {babyCovers.map((img) => (
-                <div key={img.src} className="aspect-square overflow-hidden rounded-xl">
-                  <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
-                </div>
-              ))}
-            </div>
-          </section>
 
-          <section className="mx-auto max-w-6xl px-6 pb-16 sm:px-10">
-            <h2 className="text-xl font-semibold">여행, 커플, 가족의 순간</h2>
-            <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {travelCovers.map((img) => (
-                <div key={img.src} className="aspect-square overflow-hidden rounded-xl">
-                  <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
-                </div>
-              ))}
+            <div className="mt-6">
+              <p className="text-sm font-medium text-[var(--color-charcoal)]/70">아이의 하루, 성장 기록</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {babyCovers.map((img) => (
+                  <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-10">
+              <p className="text-sm font-medium text-[var(--color-charcoal)]/70">여행, 커플, 가족의 순간</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {travelCovers.map((img) => (
+                  <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} />
+                ))}
+              </div>
             </div>
           </section>
 
@@ -232,59 +288,102 @@ export default function CasesPage() {
             <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {spreadExamples.map((img) => (
-                <div key={img.src} className="overflow-hidden rounded-xl">
-                  <img src={img.src} alt={img.alt} className="w-full object-cover" />
-                </div>
+                <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} aspectSquare={false} />
               ))}
             </div>
-
           </section>
         </>
-      ) : (
+      )}
+
+      {tab === "frame" && (
         <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
-          <h2 className="break-keep text-xl font-semibold">나만의 굿즈, 이렇게 만들어드려요</h2>
-          <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">제품 예시</p>
+          <div className="rounded-xl border border-[var(--color-hairline)] bg-white px-6 py-16 text-center">
+            <p className="break-keep text-sm text-[var(--color-charcoal)]/60">
+              액자 디자인 예시를 준비하고 있어요.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {tab === "goods" && (
+        <section className="mx-auto max-w-6xl px-6 pb-24 sm:px-10">
+          <h2 className="break-keep text-xl font-semibold">상품별 디자인 예시</h2>
+          <p className="mt-1 text-sm text-[var(--color-charcoal)]/50">디자인 예시</p>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {goodsCategories.map((category) => (
+              <a
+                key={category.id}
+                href={`#${category.id}`}
+                className="rounded-full border border-[var(--color-hairline)] px-3 py-1.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+              >
+                {category.name}
+              </a>
+            ))}
+          </div>
 
           <div className="mt-8 flex flex-col gap-10">
             {goodsCategories.map((category) => (
-              <div key={category.name}>
+              <div key={category.id} id={category.id} className="scroll-mt-24">
                 <p className="text-sm font-medium">{category.name}</p>
                 <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {category.images.map((img) => (
-                    <div
-                      key={img.src}
-                      className="aspect-square overflow-hidden rounded-xl"
-                    >
-                      <img
-                        src={img.src}
-                        alt={img.alt}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
+                    <GridThumb key={img.src} src={img.src} alt={img.alt} onOpen={setLightbox} />
                   ))}
                 </div>
               </div>
             ))}
           </div>
-
         </section>
       )}
 
-      <section className="mx-auto hidden max-w-6xl px-6 pb-16 sm:block sm:px-10">
-        <Link
-          href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
-          className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-        >
-          {tab === "photobook" ? "추억을 한 권에 담기" : "추억을 일상에 담기"}
-        </Link>
-      </section>
+      {tab !== "frame" && (
+        <section className="mx-auto hidden max-w-6xl px-6 pb-16 sm:block sm:px-10">
+          <Link
+            href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
+            className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+          >
+            {tab === "photobook" ? "포토북 만들기" : "굿즈 둘러보기"}
+          </Link>
+        </section>
+      )}
 
       <SiteFooter />
-      <StickyOrderBar
-        label={tab === "photobook" ? "추억을 한 권에 담기" : "추억을 일상에 담기"}
-        href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
-        desktopFloating
-      />
+      {tab === "frame" ? (
+        <StickyOrderBar label="액자 둘러보기" href="/frames" desktopFloating />
+      ) : (
+        <StickyOrderBar
+          label={tab === "photobook" ? "포토북 만들기" : "굿즈 둘러보기"}
+          href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
+          desktopFloating
+        />
+      )}
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-6"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightbox.alt}
+        >
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            aria-label="닫기"
+            className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+          >
+            <span className="text-2xl leading-none">×</span>
+          </button>
+          <div className="flex max-h-[85vh] max-w-[90vw] flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={lightbox.src}
+              alt={lightbox.alt}
+              className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

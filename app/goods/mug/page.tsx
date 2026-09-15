@@ -105,7 +105,7 @@ function OptionsForm({
         maxPhotos={1}
         requiredMinPx={requiredMinPx}
         aspect={photoAspect}
-        hint="머그에 인쇄할 사진 1장을 선택해주세요."
+        hint="머그컵·유리컵에 인쇄할 사진 1장을 선택해주세요."
       />
 
       <div>
