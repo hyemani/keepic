@@ -58,9 +58,10 @@ export default function FramesPage() {
           "소중한 사진을 공간에 어울리는 액자로 만들어보세요.",
           "원하는 스타일과 크기를 선택할 수 있어요.",
         ]}
+        primaryCta={{ label: "액자 둘러보기", href: "#frame-list" }}
       />
 
-      <section className="mx-auto max-w-6xl px-6 pb-16 pt-2 sm:px-10">
+      <section id="frame-list" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-16 pt-2 sm:px-10">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {frameTypes.map((type, i) => (
             <Reveal

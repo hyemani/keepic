@@ -69,9 +69,10 @@ export default function GoodsPage() {
           "머그컵부터 폰케이스, 텀블러, 에코백까지.",
           "사진과 문구로 나만의 굿즈를 만들어보세요.",
         ]}
+        primaryCta={{ label: "상품 둘러보기", href: "#goods-list" }}
       />
 
-      <section className="mx-auto max-w-6xl px-6 pb-24 pt-2 sm:px-10">
+      <section id="goods-list" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-24 pt-2 sm:px-10">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {goodsTypes.map((type, i) => {
             const card = (

@@ -38,10 +38,11 @@ export default function PhotobookPage() {
           "사진을 고르고 원하는 디자인으로 꾸며보세요.",
           "직접 편집한 추억을 한 권의 포토북으로 제작해드려요.",
         ]}
+        primaryCta={{ label: "디자인 둘러보기", href: "#design-listing" }}
       />
 
       {/* 디자인 분류 + 목록 */}
-      <section className="mx-auto max-w-6xl px-6 pb-16 pt-2 sm:px-10">
+      <section id="design-listing" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-16 pt-2 sm:px-10">
         <h2 className="text-2xl font-semibold">표지 디자인 예시</h2>
         <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
           사진과 제목이 들어갔을 때의 모습을 확인해보세요.
