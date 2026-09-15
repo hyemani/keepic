@@ -1,16 +1,9 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import StickyOrderBar from "@/components/StickyOrderBar";
+import DesignListing from "@/components/DesignListing";
+import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
-
-const coverExamples = [
-  { src: "/photobook/covers/baby-1.png", alt: "베이비 표지 예시 1" },
-  { src: "/photobook/covers/baby-3.png", alt: "베이비 표지 예시 2" },
-  { src: "/photobook/covers/baby-5.png", alt: "베이비 표지 예시 3" },
-  { src: "/photobook/covers/travel-1.png", alt: "여행·커플 표지 예시 1" },
-  { src: "/photobook/covers/travel-6.png", alt: "여행·커플 표지 예시 2" },
-  { src: "/photobook/covers/travel-9.png", alt: "여행·커플 표지 예시 3" },
-];
 
 const spreadExamples = [
   { src: "/photobook/spreads/spread-2.png", alt: "내지 펼침 예시 1" },
@@ -30,95 +23,32 @@ export default function PhotobookPage() {
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
       <SiteHeader />
 
-      {/* 첫 화면 */}
-      <section>
-        {/* 모바일: 문구가 위, 사진이 아래 (기존과 동일한 배치) */}
-        <div className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:hidden">
-          <p className="text-sm font-medium text-[var(--color-sky)]">포토북</p>
-          <h1 className="mt-2 text-4xl font-semibold leading-tight">
-            사진을 보내주시면,
-            <br />
-            포토북으로 만들어드려요
-          </h1>
-          <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--color-charcoal)]/80">
-            사진을 직접 편집하실 필요 없어요.
-            <br />
-            사진만 골라 보내주시면
-            <br />
-            Keepic이 배치부터 디자인까지 맡아서
-            <br />
-            완성된 포토북으로 만들어드려요.
-          </p>
-          <div className="mt-10">
-            <Link
-              href="/guide"
-              className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
-            >
-              제작 과정 보기
-            </Link>
-          </div>
-          <div className="mt-8 overflow-hidden">
-            <img
-              src="/photobook/covers/collage-1.png"
-              alt="Keepic 포토북 표지와 내지 예시"
-              className="w-full object-cover"
-            />
-          </div>
-        </div>
-
-        {/* PC(sm 이상): 사진이 화면 폭을 꽉 채우고, 그 위에 문구를 얹는 배치 (홈 화면과 동일한 스타일) */}
-        <div className="hidden sm:block">
-          <div className="relative w-full overflow-hidden sm:aspect-[1672/941] sm:max-h-[720px]">
-            <img
-              src="/photobook/covers/collage-1.png"
-              alt="Keepic 포토북 표지와 내지 예시"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-ivory)] from-10% via-[var(--color-ivory)]/70 via-30% to-transparent to-55%" />
-            <div className="absolute inset-0 flex items-center">
-              <div className="mx-auto w-full max-w-7xl px-6 sm:px-10">
-                <div className="max-w-md">
-                  <p className="text-sm font-medium text-[var(--color-sky)]">포토북</p>
-                  <h1 className="mt-2 text-4xl font-semibold leading-tight lg:text-5xl">
-                    사진을 보내주시면,
-                    <br />
-                    포토북으로 만들어드려요
-                  </h1>
-                  <p className="mt-4 max-w-sm break-keep text-base leading-relaxed text-[var(--color-charcoal)]/80 lg:text-lg">
-                    사진을 직접 편집하실 필요 없어요. 사진만 골라 보내주시면
-                    Keepic이 배치부터 디자인까지 맡아서 완성된 포토북으로 만들어드려요.
-                  </p>
-                  <div className="mt-8">
-                    <Link
-                      href="/guide"
-                      className="text-sm underline decoration-[var(--color-hairline)] underline-offset-4 hover:text-[var(--color-sky)]"
-                    >
-                      제작 과정 보기
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
+      {/* 낮은 상단 배너: 화면을 다 차지하지 않고, 바로 아래 디자인 목록 첫 줄이 보이도록 */}
+      <section className="relative h-44 w-full overflow-hidden sm:h-56">
+        <img
+          src="/hero/keepic-hero-2.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-ivory)] from-20% via-[var(--color-ivory)]/70 via-45% to-transparent to-80%" />
+        <div className="relative flex h-full items-center">
+          <div className="mx-auto w-full max-w-6xl px-6 sm:px-10">
+            <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">
+              어떤 이야기를 담아볼까요?
+            </h1>
+            <p className="mt-2 max-w-xs break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/75 sm:max-w-sm sm:text-base">
+              마음에 드는 디자인을 골라,
+              <br />
+              나만의 사진으로 한 권의 추억을 완성해보세요.
+            </p>
           </div>
         </div>
       </section>
 
-      {/* 표지 예시 */}
-      <section className="mx-auto max-w-6xl px-6 pb-16 pt-8 sm:px-10">
-        <h2 className="text-2xl font-semibold">표지 예시</h2>
-        <p className="mt-2 text-sm text-[var(--color-charcoal)]/60 break-keep">
-          디자인 예시예요. 실제 표지 종류는 주문 시 안내드려요.
-        </p>
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {coverExamples.map((img) => (
-            <div
-              key={img.src}
-              className="overflow-hidden"
-            >
-              <img src={img.src} alt={img.alt} className="w-full object-cover" />
-            </div>
-          ))}
-        </div>
+      {/* 디자인 분류 + 목록 */}
+      <section className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">
+        <DesignListing />
       </section>
 
       {/* 내지 예시 */}
@@ -225,6 +155,7 @@ export default function PhotobookPage() {
 
       <SiteFooter />
       <StickyOrderBar label="추억을 한 권에 담기" href="/options?product=포토북" desktopFloating />
+      <ContactWidget />
     </main>
   );
 }
