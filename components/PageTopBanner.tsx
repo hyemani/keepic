@@ -153,7 +153,7 @@ export default function PageTopBanner({
     <section
       className={
         extendBehindHeader
-          ? "relative -mt-16 w-full overflow-hidden pt-16 sm:-mt-28 sm:pt-28"
+          ? "relative -mt-16 w-full overflow-hidden pt-24 sm:-mt-28 sm:pt-40"
           : "relative w-full overflow-hidden py-3 sm:py-4"
       }
     >
