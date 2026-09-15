@@ -1,9 +1,17 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import DesignListing from "@/components/DesignListing";
 import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
+
+const topBannerImages: PageTopBannerImage[] = [
+  { src: "/hero/top-banner/photobook-1.png", alt: "포토북 대표 이미지 1" },
+  { src: "/hero/top-banner/photobook-2.png", alt: "포토북 대표 이미지 2" },
+  { src: "/hero/top-banner/photobook-3.png", alt: "포토북 대표 이미지 3" },
+  { src: "/hero/top-banner/photobook-4.png", alt: "포토북 대표 이미지 4" },
+];
 
 const spreadExamples = [
   { src: "/photobook/spreads/spread-2.png", alt: "내지 펼침 예시 1" },
@@ -23,30 +31,14 @@ export default function PhotobookPage() {
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
       <SiteHeader />
 
-      {/* 낮은 상단 배너: 화면을 다 차지하지 않고, 바로 아래 디자인 목록 첫 줄이 보이도록 */}
-      <section className="relative h-44 w-full overflow-hidden sm:h-56">
-        <img
-          src="/hero/keepic-hero-2.png"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-ivory)] from-20% via-[var(--color-ivory)]/70 via-45% to-transparent to-80%" />
-        <div className="relative flex h-full items-center">
-          <div className="mx-auto w-full max-w-6xl px-6 sm:px-10">
-            <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">
-              좋아하는 순간을 모아,
-              <br />
-              나만의 포토북으로
-            </h1>
-            <p className="mt-2 max-w-xs break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/75 sm:max-w-sm sm:text-base">
-              사진을 고르고 원하는 디자인으로 꾸며보세요.
-              <br />
-              직접 편집한 추억을 한 권의 포토북으로 제작해드려요.
-            </p>
-          </div>
-        </div>
-      </section>
+      <PageTopBanner
+        images={topBannerImages}
+        titleLines={["좋아하는 순간을 모아,", "나만의 포토북으로"]}
+        descLines={[
+          "사진을 고르고 원하는 디자인으로 꾸며보세요.",
+          "직접 편집한 추억을 한 권의 포토북으로 제작해드려요.",
+        ]}
+      />
 
       {/* 디자인 분류 + 목록 */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">

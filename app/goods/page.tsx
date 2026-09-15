@@ -1,6 +1,14 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
 import SiteFooter from "@/components/SiteFooter";
+
+const topBannerImages: PageTopBannerImage[] = [
+  { src: "/hero/top-banner/goods-1.png", alt: "나만의 굿즈 대표 이미지 1" },
+  { src: "/hero/top-banner/goods-2.png", alt: "나만의 굿즈 대표 이미지 2" },
+  { src: "/hero/top-banner/goods-3.png", alt: "나만의 굿즈 대표 이미지 3" },
+  { src: "/hero/top-banner/goods-4.png", alt: "나만의 굿즈 대표 이미지 4" },
+];
 
 const goodsTypes = [
   {
@@ -52,20 +60,18 @@ export default function GoodsPage() {
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
       <SiteHeader />
 
-      <section className="mx-auto max-w-6xl px-6 pb-24 pt-8 sm:px-10">
-        <p className="text-sm font-medium text-[var(--color-sky)]">나만의 굿즈</p>
-        <h1 className="mt-2 text-4xl font-semibold leading-tight sm:text-5xl">
-          좋아하는 사진을,
-          <br />
-          매일 쓰는 물건에
-        </h1>
-        <p className="mt-6 max-w-md break-keep text-base leading-relaxed text-[var(--color-charcoal)]/80">
-          머그컵부터 폰케이스, 텀블러, 에코백까지.
-          <br />
-          사진과 문구로 나만의 굿즈를 만들어보세요.
-        </p>
+      <PageTopBanner
+        images={topBannerImages}
+        eyebrow="나만의 굿즈"
+        titleLines={["좋아하는 사진을,", "매일 쓰는 물건에"]}
+        descLines={[
+          "머그컵부터 폰케이스, 텀블러, 에코백까지.",
+          "사진과 문구로 나만의 굿즈를 만들어보세요.",
+        ]}
+      />
 
-        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <section className="mx-auto max-w-6xl px-6 pb-24 pt-10 sm:px-10">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {goodsTypes.map((type) => {
             const card = (
               <div className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white transition hover:border-[var(--color-sky)]">
