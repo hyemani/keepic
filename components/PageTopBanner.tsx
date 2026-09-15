@@ -243,7 +243,7 @@ export default function PageTopBanner({
             <img
               src={img.src}
               alt={img.alt}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-cover object-bottom"
             />
             {i === displayIndex && (
               <div className="absolute inset-y-0 left-0 flex max-w-[70%] flex-col justify-center px-4 sm:max-w-[45%] sm:px-9">
