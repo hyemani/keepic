@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 export type PageTopBannerImage = { src: string; alt: string };
 
@@ -72,7 +72,19 @@ export default function PageTopBanner({
   extendBehindHeader?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  // 화면에 보여주는 실제 슬라이드 수예요(문구·점 표시·카운터는 전부 이 값 기준).
+  const count = images.length;
+  // 끊김 없이 빙글빙글 도는 것처럼 보이게 하려고, 배열 맨 앞엔 "마지막 이미지"를,
+  // 맨 뒤엔 "첫 이미지"를 복제해서 붙여요. 그래서 실제로는 항상 진짜 이미지들
+  // 사이를 오가지만, 화면상으로는 끝에서 다음으로 자연스럽게 계속 이어져요.
+  const displayImages = useMemo(() => {
+    if (count <= 1) return images;
+    return [images[count - 1], ...images, images[0]];
+  }, [images, count]);
+  // displayIndex: displayImages 안에서의 위치(0 = 복제된 마지막 장, count+1 = 복제된 첫 장).
+  // index: 화면에 보여줄 "진짜" 슬라이드 번호(문구·점 표시·카운터용).
   const [index, setIndex] = useState(0);
+  const [displayIndex, setDisplayIndex] = useState(count > 1 ? 1 : 0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isInteracting, setIsInteracting] = useState(false);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,49 +94,81 @@ export default function PageTopBanner({
   const programmaticRef = useRef(false);
   const programmaticTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   // index state는 비동기라서, 클릭을 연달아 눌렀을 때 최신 값을 바로 읽으려고
-  // ref에도 같은 값을 항상 같이 저장해둬요.
+  // ref에도 같은 값을 항상 같이 저장해둬요. displayIndexRef는 복제본을 포함한
+  // 실제 스크롤 위치, indexRef는 그걸 진짜 슬라이드 번호로 환산한 값이에요.
+  const displayIndexRef = useRef(count > 1 ? 1 : 0);
   const indexRef = useRef(0);
+
+  const toRealIndex = (di: number) => {
+    if (count <= 1) return 0;
+    // displayImages[0]은 "복제된 마지막 장"이라 실제 인덱스로는 count-1,
+    // displayImages[count+1]은 "복제된 첫 장"이라 실제 인덱스로는 0이에요.
+    return ((di - 1) % count + count) % count;
+  };
 
   // 카드의 실시간 화면상 위치(getBoundingClientRect)를 기준으로 얼마나
   // 스크롤해야 그 카드가 컨테이너 정중앙에 오는지 계산해요. offsetLeft는
   // 부모 요소의 position 값에 따라 기준점이 달라질 수 있어 오차가 생기기
   // 쉬운데, 이 방식은 실제 화면 좌표라서 항상 정확해요.
-  const centerOn = (el: HTMLDivElement, card: HTMLElement, behavior: ScrollBehavior) => {
-    programmaticRef.current = true;
-    if (programmaticTimeout.current) clearTimeout(programmaticTimeout.current);
-    // smooth 스크롤 애니메이션이 끝날 시간(넉넉하게)만큼 지난 뒤에만 다시
-    // 손으로 스와이프한 스크롤을 인식하도록 풀어줘요.
-    programmaticTimeout.current = setTimeout(() => {
-      programmaticRef.current = false;
-    }, 600);
+  const centerOnChild = (el: HTMLDivElement, di: number, behavior: ScrollBehavior) => {
+    const card = el.children[di] as HTMLElement | undefined;
+    if (!card) return;
     const cardRect = card.getBoundingClientRect();
     const elRect = el.getBoundingClientRect();
     const delta = cardRect.left + cardRect.width / 2 - (elRect.left + elRect.width / 2);
     el.scrollBy({ left: delta, behavior });
   };
 
-  const goToIndex = (i: number) => {
+  const goToDisplayIndex = (di: number, behavior: ScrollBehavior = "smooth") => {
     const el = scrollerRef.current;
-    indexRef.current = i;
-    setIndex(i);
+    displayIndexRef.current = di;
+    setDisplayIndex(di);
+    const real = toRealIndex(di);
+    indexRef.current = real;
+    setIndex(real);
     if (!el) return;
-    const card = el.children[i] as HTMLElement | undefined;
-    if (card) centerOn(el, card, "smooth");
+
+    programmaticRef.current = true;
+    if (programmaticTimeout.current) clearTimeout(programmaticTimeout.current);
+    centerOnChild(el, di, behavior);
+
+    // smooth 스크롤 애니메이션이 끝날 시간(넉넉하게)만큼 지난 뒤, 복제된
+    // 슬라이드(맨 앞/맨 뒤)에 도착했다면 진짜 슬라이드로 티 안 나게(애니메이션
+    // 없이) 되돌려줘요. 두 이미지가 완전히 같은 사진이라 화면상으론 계속
+    // 같은 방향으로 이어지는 것처럼 보여요.
+    programmaticTimeout.current = setTimeout(() => {
+      programmaticRef.current = false;
+      if (count <= 1) return;
+      if (di === 0) {
+        goToDisplayIndex(count, "instant");
+      } else if (di === count + 1) {
+        goToDisplayIndex(1, "instant");
+      }
+    }, behavior === "smooth" ? 600 : 0);
   };
 
-  const goPrev = () => goToIndex((indexRef.current - 1 + images.length) % images.length);
-  const goNext = () => goToIndex((indexRef.current + 1) % images.length);
+  const goPrev = () => goToDisplayIndex(displayIndexRef.current - 1);
+  const goNext = () => goToDisplayIndex(displayIndexRef.current + 1);
+
+  // 처음 화면에 나타날 때, 복제된 마지막 장이 아니라 진짜 첫 장이 가운데 오도록
+  // 애니메이션 없이 미리 위치를 맞춰둬요(그래서 왼쪽엔 자연스럽게 마지막 장이
+  // 살짝 보여요). useLayoutEffect라서 화면에 그려지기 전에 처리돼요.
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || count <= 1) return;
+    centerOnChild(el, 1, "instant");
+  }, [count]);
 
   // 자동 재생: 일정 시간마다 다음 배너로 넘어가요. 드래그 중이거나 정지 버튼을
   // 눌렀을 때는 멈춰요.
   useEffect(() => {
-    if (images.length <= 1 || !isPlaying || isInteracting) return;
+    if (count <= 1 || !isPlaying || isInteracting) return;
     const timer = setInterval(() => {
-      goToIndex((indexRef.current + 1) % images.length);
+      goToDisplayIndex(displayIndexRef.current + 1);
     }, AUTO_PLAY_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [images.length, isPlaying, isInteracting]);
+  }, [count, isPlaying, isInteracting]);
 
   // 손으로 직접 드래그·스와이프해서 넘겼을 때도 점 인디케이터가 맞게 바뀌도록,
   // 스크롤이 멈추면 가장 가까운 슬라이드를 찾아 index를 맞춰줘요. 단, 화살표
@@ -151,8 +195,17 @@ export default function PageTopBanner({
           closest = i;
         }
       });
-      indexRef.current = closest;
-      setIndex(closest);
+      displayIndexRef.current = closest;
+      setDisplayIndex(closest);
+      indexRef.current = toRealIndex(closest);
+      setIndex(indexRef.current);
+      // 손으로 스와이프해서 복제된 끝 슬라이드까지 가버린 경우에도, 티 안 나게
+      // 진짜 슬라이드로 되돌려줘요.
+      if (count > 1 && closest === 0) {
+        goToDisplayIndex(count, "instant");
+      } else if (count > 1 && closest === count + 1) {
+        goToDisplayIndex(1, "instant");
+      }
     }, 150);
   };
 
@@ -180,16 +233,17 @@ export default function PageTopBanner({
         }
         className="flex [--banner-card-w:min(900px,84vw)] snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] sm:[--banner-card-w:min(1100px,76vw)] [&::-webkit-scrollbar]:hidden"
       >
-        {images.map((img, i) => (
+        {displayImages.map((img, i) => (
           <div
-            key={img.src}
+            key={`${img.src}-${i}`}
             style={{ width: "var(--banner-card-w)" }}
-            className="relative flex h-[13.5rem] shrink-0 snap-center items-stretch overflow-hidden rounded-2xl bg-[var(--color-hairline)]/12 sm:h-[var(--card-h-desktop)]"
+            className="relative flex h-[13.5rem] shrink-0 snap-center items-stretch overflow-hidden rounded-2xl bg-[var(--color-ivory)] sm:h-[var(--card-h-desktop)]"
           >
-            {/* 문구는 현재 가운데(선택된) 배너에만, 왼쪽에 보여요. 양옆에 살짝
-                보이는 배너는 이미지만 보여줘서 화면이 복잡해 보이지 않게 해요. */}
-            {i === index && (
-              <div className="flex w-[42%] shrink-0 flex-col justify-center px-4 sm:w-[36%] sm:px-8">
+            {/* 문구는 지금 정중앙에 있는 배너에만, 왼쪽에 보여요. 양옆에 살짝
+                보이는 배너(복제된 것 포함)는 이미지만 보여줘서 화면이 복잡해
+                보이지 않게 해요. */}
+            {i === displayIndex && (
+              <div className="flex w-[38%] shrink-0 flex-col justify-center px-4 sm:w-[30%] sm:px-8">
                 {eyebrow && (
                   <p className="text-xs font-medium text-[var(--color-charcoal)]/70 sm:text-sm">
                     {eyebrow}
@@ -227,7 +281,7 @@ export default function PageTopBanner({
         ))}
       </div>
 
-      {images.length > 1 && (
+      {count > 1 && (
         <>
           <button
             type="button"
@@ -248,7 +302,7 @@ export default function PageTopBanner({
         </>
       )}
 
-      {images.length > 1 && (
+      {count > 1 && (
         <div className="mt-1 flex items-center justify-center gap-3 text-xs text-[var(--color-charcoal)]/60">
           <button type="button" onClick={goPrev} aria-label="이전 배너" className="p-2 sm:hidden">
             <ChevronIcon direction="left" />
