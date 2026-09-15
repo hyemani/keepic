@@ -1,20 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 export type PageTopBannerImage = { src: string; alt: string };
-export type PageTopBannerCta = { label: string; href: string };
 
 // 포토북/액자/나만의 굿즈 페이지가 공통으로 쓰는 상단 배너예요.
 // 화면 가로폭 전체를 쓰는 슬라이더로, 가운데 배너 한 장이 온전히 보이고
 // 양옆으로 이전·다음 배너가 화면 가장자리에서 일부만 보여요(이미지 자체를
 // 잘라내는 게 아니라, 화면 밖으로 자연스럽게 가려지는 것뿐이에요).
-// 문구·버튼은 가운데 배너의 왼쪽 빈 공간 위에 올라가요.
+// 문구는 각 배너 이미지 안, 왼쪽 여백 위에 함께 얹혀서 같이 움직여요.
 const AUTO_PLAY_MS = 4500;
 // 실제 배너 이미지 원본 비율(1983 x 793)에 맞춰서, 세로가 억지로 눌리거나
 // 위아래가 잘리지 않도록 해요.
 const IMAGE_ASPECT = "1983 / 793";
+// SiteHeader가 이미지 위에 투명하게 겹쳐질 때(overlayHero) 배너 콘텐츠가 가려지지
+// 않도록, 아래 JSX에서 pt-16/sm:pt-28로 헤더 높이만큼 띄워줘요.
 
 function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   return (
@@ -54,13 +54,15 @@ export default function PageTopBanner({
   eyebrow,
   titleLines,
   descLines,
-  primaryCta,
+  extendBehindHeader = false,
 }: {
   images: PageTopBannerImage[];
   eyebrow?: string;
   titleLines: string[];
   descLines: string[];
-  primaryCta?: PageTopBannerCta;
+  // true면 배경 이미지가 페이지 맨 위, 즉 투명한 SiteHeader(overlayHero) 뒤까지
+  // 이어져 보여요. 실제 배너(캐러셀) 자체의 위치는 그대로 헤더 아래에 있어요.
+  extendBehindHeader?: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -148,7 +150,32 @@ export default function PageTopBanner({
   };
 
   return (
-    <section className="relative w-full overflow-hidden py-3 sm:py-4">
+    <section
+      className={
+        extendBehindHeader
+          ? "relative -mt-16 w-full overflow-hidden pt-16 sm:-mt-28 sm:pt-28"
+          : "relative w-full overflow-hidden py-3 sm:py-4"
+      }
+    >
+      {/* 배경 이미지를 페이지 맨 위까지 흐리게 확장해서, 투명한 헤더(로고·메뉴) 뒤로
+          대표 이미지가 자연스럽게 이어져 보이게 해요. 실제 캐러셀 내용은 그 아래,
+          헤더에 가리지 않는 위치에 그대로 있어요. */}
+      {extendBehindHeader && (
+        <>
+          <div className="absolute inset-0 -z-10" aria-hidden="true">
+            <img
+              src={images[index]?.src}
+              alt=""
+              className="h-full w-full scale-110 object-cover object-top opacity-80 blur-md"
+            />
+          </div>
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-24 bg-gradient-to-b from-white/85 via-white/40 to-transparent sm:h-36"
+            aria-hidden="true"
+          />
+        </>
+      )}
+
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
@@ -157,7 +184,7 @@ export default function PageTopBanner({
         {images.map((img) => (
           <div
             key={img.src}
-            className="w-[84vw] max-w-[1100px] shrink-0 snap-center overflow-hidden rounded-2xl bg-[var(--color-hairline)]/15 sm:w-[76vw]"
+            className="relative w-[84vw] max-w-[1100px] shrink-0 snap-center overflow-hidden rounded-2xl bg-[var(--color-hairline)]/15 sm:w-[76vw]"
           >
             <img
               src={img.src}
@@ -165,43 +192,33 @@ export default function PageTopBanner({
               style={{ aspectRatio: IMAGE_ASPECT }}
               className="w-full object-cover"
             />
+            {/* 문구는 이 배너 이미지 자신의 왼쪽 여백 위에 함께 얹혀서, 창 너비·확대,
+                슬라이드 이동과 상관없이 항상 이 이미지와 같은 위치를 유지해요. */}
+            <div className="absolute inset-y-0 left-0 flex max-w-[70%] flex-col justify-center px-5 py-4 sm:max-w-[55%] sm:px-9">
+              {eyebrow && (
+                <p className="text-xs font-medium text-[var(--color-charcoal)]/70 sm:text-sm">
+                  {eyebrow}
+                </p>
+              )}
+              <h1 className="mt-1 break-keep text-lg font-semibold leading-tight text-[var(--color-charcoal)] sm:text-2xl lg:text-3xl">
+                {titleLines.map((line, li) => (
+                  <span key={li}>
+                    {line}
+                    {li < titleLines.length - 1 && <br />}
+                  </span>
+                ))}
+              </h1>
+              <p className="mt-2 hidden break-keep text-xs leading-relaxed text-[var(--color-charcoal)]/60 sm:block sm:text-sm">
+                {descLines.map((line, li) => (
+                  <span key={li}>
+                    {line}
+                    {li < descLines.length - 1 && <br />}
+                  </span>
+                ))}
+              </p>
+            </div>
           </div>
         ))}
-      </div>
-
-      {/* 문구·버튼 오버레이: 가운데 배너와 정확히 같은 위치·크기라서,
-          어떤 배너가 가운데 있든 항상 그 위에 자연스럽게 얹혀요 */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center py-3 sm:py-4">
-        <div className="relative h-full w-[84vw] max-w-[1100px] sm:w-[76vw]">
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-black/55 from-0% via-black/10 via-45% to-transparent to-70%" />
-          <div className="pointer-events-auto absolute inset-y-0 left-0 flex max-w-[75%] flex-col justify-center px-5 py-4 text-white sm:max-w-[60%] sm:px-9">
-            {eyebrow && <p className="text-xs font-medium text-white/85 sm:text-sm">{eyebrow}</p>}
-            <h1 className="mt-1 break-keep text-lg font-semibold leading-tight sm:text-2xl lg:text-3xl">
-              {titleLines.map((line, li) => (
-                <span key={li}>
-                  {line}
-                  {li < titleLines.length - 1 && <br />}
-                </span>
-              ))}
-            </h1>
-            <p className="mt-2 hidden break-keep text-xs leading-relaxed text-white/85 sm:block sm:text-sm">
-              {descLines.map((line, li) => (
-                <span key={li}>
-                  {line}
-                  {li < descLines.length - 1 && <br />}
-                </span>
-              ))}
-            </p>
-            {primaryCta && (
-              <Link
-                href={primaryCta.href}
-                className="mt-3 inline-block w-fit rounded-full bg-white px-4 py-2 text-xs font-medium text-[var(--color-charcoal)] transition hover:opacity-90 sm:mt-5 sm:px-6 sm:py-2.5 sm:text-sm"
-              >
-                {primaryCta.label}
-              </Link>
-            )}
-          </div>
-        </div>
       </div>
 
       {images.length > 1 && (

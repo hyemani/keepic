@@ -2,6 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
 import StickyOrderBar from "@/components/StickyOrderBar";
+import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
 
@@ -48,17 +49,17 @@ const frameTypes = [
 export default function FramesPage() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
-      <SiteHeader />
+      <SiteHeader overlayHero />
 
       <PageTopBanner
         images={topBannerImages}
+        extendBehindHeader
         eyebrow="액자"
         titleLines={["좋아하는 순간을,", "가장 가까운 곳에"]}
         descLines={[
           "소중한 사진을 공간에 어울리는 액자로 만들어보세요.",
           "원하는 스타일과 크기를 선택할 수 있어요.",
         ]}
-        primaryCta={{ label: "액자 둘러보기", href: "#frame-list" }}
       />
 
       <section id="frame-list" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-16 pt-2 sm:px-10">
@@ -97,7 +98,8 @@ export default function FramesPage() {
       </section>
 
       <SiteFooter />
-      <StickyOrderBar label="액자 둘러보기" href="/options?product=액자" desktopFloating />
+      <StickyOrderBar label="좋아하는 순간을 걸어두기" href="/options?product=액자" desktopFloating />
+      <ContactWidget />
     </main>
   );
 }

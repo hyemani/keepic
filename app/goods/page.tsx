@@ -1,6 +1,8 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
+import StickyOrderBar from "@/components/StickyOrderBar";
+import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
 
@@ -59,17 +61,17 @@ const goodsTypes = [
 export default function GoodsPage() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
-      <SiteHeader />
+      <SiteHeader overlayHero />
 
       <PageTopBanner
         images={topBannerImages}
+        extendBehindHeader
         eyebrow="나만의 굿즈"
         titleLines={["좋아하는 사진을,", "매일 쓰는 물건에"]}
         descLines={[
           "머그컵부터 폰케이스, 텀블러, 에코백까지.",
           "사진과 문구로 나만의 굿즈를 만들어보세요.",
         ]}
-        primaryCta={{ label: "상품 둘러보기", href: "#goods-list" }}
       />
 
       <section id="goods-list" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-24 pt-2 sm:px-10">
@@ -146,6 +148,8 @@ export default function GoodsPage() {
       </section>
 
       <SiteFooter />
+      <StickyOrderBar label="추억을 일상에 담기" href="#goods-list" desktopFloating />
+      <ContactWidget />
     </main>
   );
 }

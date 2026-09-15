@@ -92,17 +92,22 @@ export default function ContactWidget() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label="문의하기"
-        className="flex h-12 items-center gap-2 rounded-full bg-[var(--color-sky)] px-4 text-sm font-medium text-white shadow-[0_10px_25px_-8px_rgba(45,55,72,0.45)] transition hover:opacity-90 sm:px-5"
-      >
-        <ChatIcon />
-        <span className="hidden sm:inline">문의하기</span>
-      </button>
+      <div className="group/contact relative">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label="문의하기"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-sky)] text-white shadow-[0_10px_25px_-8px_rgba(45,55,72,0.45)] transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] sm:h-12 sm:w-12"
+        >
+          <ChatIcon />
+        </button>
+        {/* PC에서 마우스를 올리거나 키보드로 포커스했을 때만 보이는 말풍선 안내예요. */}
+        <span className="pointer-events-none absolute right-full top-1/2 mr-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-[var(--color-charcoal)] px-2.5 py-1 text-xs text-white opacity-0 transition-opacity duration-150 group-hover/contact:opacity-100 group-focus-within/contact:opacity-100 sm:block">
+          문의하기
+        </span>
+      </div>
     </div>
   );
 }

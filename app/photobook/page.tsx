@@ -29,16 +29,16 @@ const sizes = [
 export default function PhotobookPage() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
-      <SiteHeader />
+      <SiteHeader overlayHero />
 
       <PageTopBanner
         images={topBannerImages}
+        extendBehindHeader
         titleLines={["좋아하는 순간을 모아,", "나만의 포토북으로"]}
         descLines={[
           "사진을 고르고 원하는 디자인으로 꾸며보세요.",
           "직접 편집한 추억을 한 권의 포토북으로 제작해드려요.",
         ]}
-        primaryCta={{ label: "디자인 둘러보기", href: "#design-listing" }}
       />
 
       {/* 디자인 분류 + 목록 */}

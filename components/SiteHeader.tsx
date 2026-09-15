@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CartBadge from "./CartBadge";
 
 const KAKAO_URL = "https://pf.kakao.com/_FpGfX";
@@ -18,15 +18,39 @@ const guideLinks = [
   { href: "/faq", label: "자주 묻는 질문" },
 ];
 
-export default function SiteHeader() {
+export default function SiteHeader({
+  // true면 포토북/액자/나만의 굿즈 페이지처럼 대표 이미지 위에 헤더가 투명하게
+  // 겹쳐 있다가, 스크롤하면 흰 배경으로 부드럽게 바뀌는 방식으로 동작해요.
+  // 다른 페이지는 지금처럼 항상 흰 배경 고정 헤더로 그대로 있어요.
+  overlayHero = false,
+}: {
+  overlayHero?: boolean;
+} = {}) {
   const pathname = usePathname();
   const [guideOpen, setGuideOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   const isActive = (href: string) => pathname === href;
 
+  useEffect(() => {
+    if (!overlayHero) return;
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [overlayHero]);
+
+  const headerClassName = overlayHero
+    ? `fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+        scrolled
+          ? "border-b border-[var(--color-hairline)] bg-white/95 backdrop-blur-sm"
+          : "border-b border-transparent bg-transparent"
+      }`
+    : "bg-white";
+
   return (
-    <header className="bg-white">
+    <header className={headerClassName}>
       {/* 첫째 줄: 로고(화면 정중앙) + 오른쪽 계정 메뉴 — 스크롤하면 이 줄은 같이 올라가요 */}
       <div className="relative mx-auto flex max-w-7xl items-center justify-end px-6 py-4 sm:px-10">
         <Link href="/" className="absolute left-1/2 -translate-x-1/2">
@@ -62,7 +86,15 @@ export default function SiteHeader() {
       </div>
 
       {/* 둘째 줄: 상품 메뉴 — 스크롤하면 이 줄만 상단에 고정돼요 */}
-      <nav className="sticky top-0 z-40 hidden border-t border-[var(--color-hairline)] bg-white sm:block">
+      <nav
+        className={
+          overlayHero
+            ? `hidden border-t sm:block ${
+                scrolled ? "border-[var(--color-hairline)]" : "border-transparent"
+              }`
+            : "sticky top-0 z-40 hidden border-t border-[var(--color-hairline)] bg-white sm:block"
+        }
+      >
         <div className="mx-auto flex max-w-7xl items-center justify-center gap-8 px-6 py-3 text-[15px] sm:px-10">
           {primaryLinks.map((link) => (
             <Link
