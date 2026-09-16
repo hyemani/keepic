@@ -85,11 +85,11 @@ export default function PageTopBanner({
   const [isPlaying, setIsPlaying] = useState(true);
   const [isInteracting, setIsInteracting] = useState(false);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 화살표 클릭이나 자동재생처럼 우리가 직접 스크롤을 옮길 때는 true로 켜둬요.
-  // 이 값이 true인 동안은 스크롤 중에 발생하는 scroll 이벤트(애니메이션 도중의
-  // 중간 위치)를 보고 index를 잘못 되돌리는 걸 막아줘요.
-  const programmaticRef = useRef(false);
-  const programmaticTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 복제된 끝 슬라이드에서 진짜 슬라이드로 "티 안 나게" 되돌리는 순간에만 잠깐
+  // true로 켜둬요. 이 값이 true인 동안 발생하는 scroll 이벤트는 우리가 직접
+  // 만든 보정 이동일 뿐이라 무시해요(그 외의 모든 스크롤은 사용자든 자동재생
+  // 이든 똑같이 처리해서, 기기마다 다른 스크롤 애니메이션 속도에도 안전해요).
+  const isCorrectingRef = useRef(false);
   // index state는 비동기라서, 클릭을 연달아 눌렀을 때 최신 값을 바로 읽으려고
   // ref에도 같은 값을 항상 같이 저장해둬요. displayIndexRef는 복제본을 포함한
   // 실제 스크롤 위치, indexRef는 그걸 진짜 슬라이드 번호로 환산한 값이에요.
@@ -116,6 +116,29 @@ export default function PageTopBanner({
     el.scrollBy({ left: delta, behavior });
   };
 
+  // 복제된 끝 슬라이드(맨 앞/맨 뒤)에 도착했을 때, 애니메이션 없이 진짜
+  // 슬라이드로 조용히 되돌려요. 두 이미지가 완전히 같은 사진이라 화면상으론
+  // 계속 같은 방향으로 이어지는 것처럼 보여요.
+  const silentlyCorrectBoundary = (di: number) => {
+    const el = scrollerRef.current;
+    if (!el || count <= 1) return;
+    if (di !== 0 && di !== count + 1) return;
+    const target = di === 0 ? count : 1;
+    isCorrectingRef.current = true;
+    displayIndexRef.current = target;
+    setDisplayIndex(target);
+    indexRef.current = toRealIndex(target);
+    setIndex(indexRef.current);
+    centerOnChild(el, target, "instant");
+    // scroll 이벤트가 비동기로 들어올 수 있어서, 최소 한 프레임은 더 기다렸다가
+    // 플래그를 내려요(너무 빨리 내리면 이 보정 자체가 진짜 스크롤로 오인될 수 있어요).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        isCorrectingRef.current = false;
+      });
+    });
+  };
+
   const goToDisplayIndex = (di: number, behavior: ScrollBehavior = "smooth") => {
     const el = scrollerRef.current;
     displayIndexRef.current = di;
@@ -124,24 +147,7 @@ export default function PageTopBanner({
     indexRef.current = real;
     setIndex(real);
     if (!el) return;
-
-    programmaticRef.current = true;
-    if (programmaticTimeout.current) clearTimeout(programmaticTimeout.current);
     centerOnChild(el, di, behavior);
-
-    // smooth 스크롤 애니메이션이 끝날 시간(넉넉하게)만큼 지난 뒤, 복제된
-    // 슬라이드(맨 앞/맨 뒤)에 도착했다면 진짜 슬라이드로 티 안 나게(애니메이션
-    // 없이) 되돌려줘요. 두 이미지가 완전히 같은 사진이라 화면상으론 계속
-    // 같은 방향으로 이어지는 것처럼 보여요.
-    programmaticTimeout.current = setTimeout(() => {
-      programmaticRef.current = false;
-      if (count <= 1) return;
-      if (di === 0) {
-        goToDisplayIndex(count, "instant");
-      } else if (di === count + 1) {
-        goToDisplayIndex(1, "instant");
-      }
-    }, behavior === "smooth" ? 600 : 0);
   };
 
   const goPrev = () => goToDisplayIndex(displayIndexRef.current - 1);
@@ -167,17 +173,21 @@ export default function PageTopBanner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count, isPlaying, isInteracting]);
 
-  // 손으로 직접 드래그·스와이프해서 넘겼을 때도 점 인디케이터가 맞게 바뀌도록,
-  // 스크롤이 멈추면 가장 가까운 슬라이드를 찾아 index를 맞춰줘요. 단, 화살표
-  // 클릭·자동재생으로 우리가 직접 스크롤을 옮기는 중(programmaticRef)에는
-  // 애니메이션 도중의 중간 위치를 잘못 읽지 않도록 건너뛰어요.
+  // 스크롤이 멈추면(사람이 스와이프했든, 화살표·자동재생으로 우리가 코드로
+  // 옮겼든 똑같이) 가장 가까운 슬라이드를 찾아 index를 맞추고, 필요하면 복제된
+  // 끝 슬라이드를 진짜 슬라이드로 조용히 되돌려요. "스크롤이 실제로 멈췄는지"를
+  // 정해진 시간(예: 600ms)으로 미리 추측하지 않고, 매 scroll 이벤트마다 이
+  // 디바운스를 다시 걸어서 실제로 멈춘 시점을 그대로 따라가요. 예전에는 애니메이션
+  // 소요 시간을 고정값으로 가정했는데, 모바일처럼 애니메이션이 더 오래 걸리는
+  // 기기에서는 그 가정이 어긋나서 아직 움직이는 도중에 되돌림이 겹쳐 걸리며
+  // 이미지가 매우 빠르게 튀는 문제가 있었어요.
   const handleScroll = () => {
-    if (programmaticRef.current) return;
+    if (isCorrectingRef.current) return;
     setIsInteracting(true);
     if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
     scrollTimeout.current = setTimeout(() => {
       setIsInteracting(false);
-      if (programmaticRef.current) return;
+      if (isCorrectingRef.current) return;
       const el = scrollerRef.current;
       if (!el) return;
       const elRect = el.getBoundingClientRect();
@@ -196,13 +206,7 @@ export default function PageTopBanner({
       setDisplayIndex(closest);
       indexRef.current = toRealIndex(closest);
       setIndex(indexRef.current);
-      // 손으로 스와이프해서 복제된 끝 슬라이드까지 가버린 경우에도, 티 안 나게
-      // 진짜 슬라이드로 되돌려줘요.
-      if (count > 1 && closest === 0) {
-        goToDisplayIndex(count, "instant");
-      } else if (count > 1 && closest === count + 1) {
-        goToDisplayIndex(1, "instant");
-      }
+      silentlyCorrectBoundary(closest);
     }, 150);
   };
 
