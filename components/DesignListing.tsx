@@ -25,8 +25,8 @@ const startSize = photobookSizes[0];
 const specText = `${startSize.finishedSizeCm} · 기본 ${BASE_PAGES}페이지(${BASE_SHEETS}장)`;
 
 // 전체 탭을 고르면 디자인이 많아서(17장) 아래로 한참 스크롤해야 했어요.
-// 그래서 한 번에 4장씩만 보여주고, 화살표로 다음 4장을 넘겨보는 방식으로 바꿨어요.
-const PAGE_SIZE = 4;
+// 그래서 한 번에 2장씩만 보여주고, 화살표로 다음 2장을 넘겨보는 방식으로 바꿨어요.
+const PAGE_SIZE = 2;
 
 function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   return (
@@ -96,7 +96,7 @@ export default function DesignListing() {
       </div>
 
       <div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-8">
           {pageItems.map((design, i) => (
             <Reveal key={design.id} delay={(i % 4) * 80}>
               <button type="button" onClick={() => setActiveId(design.id)} className="text-left">

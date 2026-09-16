@@ -120,9 +120,11 @@ export default function HeroSlideshow({
           onClick={() => goTo(i)}
           className="p-1 sm:p-2.5"
         >
+          {/* 동그란 점 대신, 참고 화면처럼 짧은 가로 막대(대시) 모양이에요.
+              길이는 전부 같고, 지금 보고 있는 슬라이드만 진하게 채워져요. */}
           <span
-            className={`block h-1.5 rounded-full transition-all ${
-              i === index ? "w-5 bg-[var(--color-sky)]" : "w-1.5 bg-[var(--color-charcoal)]/25"
+            className={`block h-1 w-6 rounded-full transition-colors ${
+              i === index ? "bg-[var(--color-sky)]" : "bg-[var(--color-charcoal)]/25"
             }`}
           />
         </button>
