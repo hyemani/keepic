@@ -96,50 +96,87 @@ export default function DesignListing() {
       </div>
 
       <div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-8">
-          {pageItems.map((design, i) => (
-            <Reveal key={design.id} delay={(i % 4) * 80}>
-              <button type="button" onClick={() => setActiveId(design.id)} className="text-left">
-                <div className="overflow-hidden rounded-xl bg-[var(--color-hairline)]/15">
+        {/* 이미지만 담은 줄이에요. 화살표를 이 줄의 세로 중앙, 양옆에 딱 맞춰
+            놓으려고 이름/가격 문구는 아래에 따로 뒀어요. */}
+        <div className="relative">
+          <div className="grid grid-cols-2 gap-x-4">
+            {pageItems.map((design, i) => (
+              <Reveal key={design.id} delay={(i % 4) * 80}>
+                <button
+                  type="button"
+                  onClick={() => setActiveId(design.id)}
+                  className="block w-full overflow-hidden rounded-xl bg-[var(--color-hairline)]/15"
+                >
                   <img
                     src={design.image}
                     alt={design.alt}
                     className="aspect-square w-full object-cover transition hover:opacity-90"
                   />
-                </div>
-                <p className="mt-3 font-medium">{design.name}</p>
-                <p className="mt-1 text-sm text-[var(--color-charcoal)]/60">
-                  {startPrice.toLocaleString()}원부터
-                </p>
-                <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/45">{specText}</p>
+                </button>
+              </Reveal>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                aria-label="이전 페이지"
+                className="absolute left-0 top-1/2 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[var(--color-charcoal)] shadow-[0_4px_14px_-4px_rgba(45,55,72,0.35)] transition hover:bg-white disabled:pointer-events-none disabled:opacity-30"
+              >
+                <ChevronIcon direction="left" />
               </button>
-            </Reveal>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page === totalPages - 1}
+                aria-label="다음 페이지"
+                className="absolute right-0 top-1/2 z-10 flex h-9 w-9 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[var(--color-charcoal)] shadow-[0_4px_14px_-4px_rgba(45,55,72,0.35)] transition hover:bg-white disabled:pointer-events-none disabled:opacity-30"
+              >
+                <ChevronIcon direction="right" />
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-8">
+          {pageItems.map((design) => (
+            <button
+              key={design.id}
+              type="button"
+              onClick={() => setActiveId(design.id)}
+              className="text-left"
+            >
+              <p className="font-medium">{design.name}</p>
+              <p className="mt-1 text-sm text-[var(--color-charcoal)]/60">
+                {startPrice.toLocaleString()}원부터
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/45">{specText}</p>
+            </button>
           ))}
         </div>
 
+        {/* 번호 대신, 몇 페이지 중 몇 번째인지 짧은 가로 막대로 보여줘요. */}
         {totalPages > 1 && (
-          <div className="mt-6 flex items-center justify-center gap-3 text-xs text-[var(--color-charcoal)]/60">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              aria-label="이전 페이지"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)] disabled:pointer-events-none disabled:opacity-30"
-            >
-              <ChevronIcon direction="left" />
-            </button>
-            <span className="tabular-nums">
-              {page + 1} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page === totalPages - 1}
-              aria-label="다음 페이지"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)] disabled:pointer-events-none disabled:opacity-30"
-            >
-              <ChevronIcon direction="right" />
-            </button>
+          <div className="mt-5 flex justify-center gap-1.5">
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`${i + 1}페이지 보기`}
+                aria-current={i === page}
+                onClick={() => setPage(i)}
+                className="p-1.5"
+              >
+                <span
+                  className={`block h-1 w-6 rounded-full transition-colors ${
+                    i === page ? "bg-[var(--color-sky)]" : "bg-[var(--color-charcoal)]/25"
+                  }`}
+                />
+              </button>
+            ))}
           </div>
         )}
       </div>
