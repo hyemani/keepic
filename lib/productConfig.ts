@@ -10,9 +10,21 @@ import {
   fabricPosterEdgeOptions,
   calcFabricPosterUnitPrice,
 } from "./fabricPosterModels";
+import { DIASEC_PRODUCT_NAME, diasecFrameSizes } from "./diasecFrameModels";
+
+// sizes 목록 항목의 공통 형태예요. price/mount는 판매가가 있는 상품(예: 디아섹 아크릴액자)에만 채워지고,
+// 아직 가격이 붙지 않은 기존 상품들은 그대로 undefined로 남아요(동작 변화 없음).
+export type ProductSizeOption = {
+  id: string;
+  label: string;
+  detail: string;
+  aspect: string;
+  price?: number;
+  mount?: "desk" | "wall";
+};
 
 function buildPhoneCaseSizes() {
-  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  const list: ProductSizeOption[] = [];
   for (const caseType of caseTypes) {
     for (const material of caseType.materials) {
       for (const coating of coatings) {
@@ -33,7 +45,7 @@ function buildPhoneCaseSizes() {
 }
 
 function buildTumblerSizes() {
-  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  const list: ProductSizeOption[] = [];
   for (const type of tumblerTypes) {
     for (const color of type.colors) {
       list.push({
@@ -51,7 +63,7 @@ function buildTumblerSizes() {
 // 후가공 색상(끈/라벨 커스텀 색)은 자유 색상이라 사이즈 목록에 넣지 않고,
 // 폰케이스 배경색상처럼 별도 메모(colorNote)로 전달해요.
 function buildEcobagSizes() {
-  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  const list: ProductSizeOption[] = [];
   for (const shape of ecobagShapes) {
     for (const fabric of ecobagFabrics) {
       for (let strapOn = 0; strapOn < 2; strapOn++) {
@@ -88,7 +100,7 @@ function buildEcobagSizes() {
 }
 
 function buildMugSizes() {
-  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  const list: ProductSizeOption[] = [];
   for (const type of mugTypes) {
     for (const color of type.colors) {
       list.push({
@@ -103,7 +115,7 @@ function buildMugSizes() {
 }
 
 function buildCalendarSizes() {
-  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  const list: ProductSizeOption[] = [];
   for (const shape of calendarShapes) {
     for (const paper of calendarPapers) {
       for (const ring of ringColors) {
@@ -123,7 +135,7 @@ function buildCalendarSizes() {
 
 // 규격 × 원단 × 행잉 가공 × 테두리 가공 조합을 사이즈 목록으로 관리합니다. lib/fabricPosterModels.ts에서 관리합니다.
 function buildFabricPosterSizes() {
-  const list: { id: string; label: string; detail: string; aspect: string }[] = [];
+  const list: ProductSizeOption[] = [];
   for (const size of fabricPosterSizes) {
     for (const fabric of fabricPosterFabrics) {
       for (const hanging of fabricPosterHangingOptions) {
@@ -142,6 +154,17 @@ function buildFabricPosterSizes() {
   return list;
 }
 
+function buildDiasecFrameSizes(): ProductSizeOption[] {
+  return diasecFrameSizes.map((size) => ({
+    id: size.id,
+    label: `${size.finishLabel} · ${size.sizeLabel}`,
+    detail: `${size.sizeLabel} · 판매가 ${size.price.toLocaleString()}원`,
+    aspect: size.mount === "wall" ? "aspect-[279/355]" : "aspect-[4/5]",
+    price: size.price,
+    mount: size.mount,
+  }));
+}
+
 export const productConfig = {
   "액자": {
     minPhotos: 1,
@@ -150,7 +173,13 @@ export const productConfig = {
       { id: "small", label: "스몰", detail: "13 x 18cm", aspect: "aspect-[13/18]" },
       { id: "medium", label: "미디엄", detail: "20 x 25cm", aspect: "aspect-[20/25]" },
       { id: "large", label: "라지", detail: "30 x 40cm", aspect: "aspect-[30/40]" },
-    ],
+    ] as ProductSizeOption[],
+  },
+  [DIASEC_PRODUCT_NAME]: {
+    minPhotos: 1,
+    maxPhotos: 1,
+    // 마감 × 사이즈 조합을 사이즈 목록으로 관리합니다. lib/diasecFrameModels.ts에서 관리합니다.
+    sizes: buildDiasecFrameSizes(),
   },
   "포토북": {
     minPhotos: 10,
@@ -160,7 +189,7 @@ export const productConfig = {
       { id: "S", label: "S", detail: "20 x 20cm", aspect: "aspect-square" },
       { id: "M", label: "M", detail: "25 x 25cm", aspect: "aspect-square" },
       { id: "L", label: "L", detail: "30 x 30cm", aspect: "aspect-square" },
-    ],
+    ] as ProductSizeOption[],
   },
   "폰케이스": {
     minPhotos: 1,

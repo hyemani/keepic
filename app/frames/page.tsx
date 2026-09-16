@@ -5,6 +5,7 @@ import StickyOrderBar from "@/components/StickyOrderBar";
 import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
+import { diasecFrameSizes } from "@/lib/diasecFrameModels";
 
 const topBannerTitleLines = ["좋아하는 순간을,", "가장 가까운 곳에"];
 const topBannerDescLines = [
@@ -52,6 +53,20 @@ const frameTypes = [
   },
 ];
 
+const diasecFinishGroups = Array.from(
+  new Map(diasecFrameSizes.map((s) => [s.finishLabel, s])).values()
+).map((first) => {
+  const sizes = diasecFrameSizes.filter((s) => s.finishLabel === first.finishLabel);
+  const prices = sizes.map((s) => s.price);
+  return {
+    finishLabel: first.finishLabel,
+    mount: first.mount,
+    sizeCount: sizes.length,
+    minPrice: Math.min(...prices),
+    maxPrice: Math.max(...prices),
+  };
+});
+
 export default function FramesPage() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
@@ -98,6 +113,50 @@ export default function FramesPage() {
             className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
           >
             액자 둘러보기
+          </Link>
+        </div>
+      </section>
+
+      <section id="diasec-frame" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-16 pt-2 sm:px-10">
+        <p className="text-sm text-[var(--color-charcoal)]/60">NEW</p>
+        <h2 className="mt-1 text-2xl font-semibold">디아섹 아크릴액자</h2>
+        <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/70">
+          탁상용 유광·무반사·자작나무, 벽걸이 자작나무까지, 사진에 맞는 마감과 크기를 골라보세요.
+        </p>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {diasecFinishGroups.map((group, i) => (
+            <Reveal
+              key={group.finishLabel}
+              delay={(i % 3) * 80}
+              className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white"
+            >
+              <div className="flex aspect-[3/4] w-full items-center justify-center bg-[var(--color-hairline)]/15">
+                <p className="text-sm text-[var(--color-charcoal)]/40">이미지 준비 중</p>
+              </div>
+              <div className="p-6">
+                <p className="font-medium">
+                  {group.finishLabel}
+                  {group.mount === "wall" && (
+                    <span className="ml-2 text-xs text-[var(--color-charcoal)]/50">벽걸이</span>
+                  )}
+                </p>
+                <p className="mt-1 break-keep text-sm text-[var(--color-charcoal)]/70">
+                  {group.sizeCount > 1
+                    ? `${group.minPrice.toLocaleString()}원 ~ ${group.maxPrice.toLocaleString()}원`
+                    : `${group.minPrice.toLocaleString()}원`}
+                </p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+
+        <div className="mt-8">
+          <Link
+            href={`/options?product=${encodeURIComponent("디아섹 아크릴액자")}`}
+            className="inline-block rounded-full bg-[var(--color-charcoal)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-charcoal)]"
+          >
+            디아섹 아크릴액자 보기
           </Link>
         </div>
       </section>

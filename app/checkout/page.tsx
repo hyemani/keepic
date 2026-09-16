@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { supabase } from "@/lib/supabase";
-import { getShippingFee } from "@/lib/shippingConfig";
+import { calcShippingFee } from "@/lib/shippingConfig";
+import { DIASEC_SHIPPING_NOTICE, isDiasecDeskSizeId, isDiasecWallSizeId } from "@/lib/diasecFrameModels";
 import { removeManyFromCart } from "@/lib/cart";
 
 type DraftOrderItem = {
@@ -73,7 +74,17 @@ export default function CheckoutPage() {
 
   const goodsAmount =
     items?.reduce((sum, item) => sum + (item.unitPrice ?? 0) * Number(item.quantity), 0) ?? 0;
-  const shippingFee = getShippingFee(goodsAmount);
+  const shippingFee = calcShippingFee(
+    (items ?? []).map((item) => ({
+      productName: item.productName,
+      sizeId: item.sizeId,
+      quantity: Number(item.quantity),
+      unitPrice: item.unitPrice ?? 0,
+    }))
+  ).totalFee;
+  const hasDiasecItem = (items ?? []).some(
+    (item) => isDiasecDeskSizeId(item.sizeId) || isDiasecWallSizeId(item.sizeId)
+  );
   const finalTotal = goodsAmount + shippingFee;
   // 화면에 보이는 가격은 부가세 포함 금액이라, 최종금액을 기준으로 공급가액·부가세를 역산해요.
   const supplyAmount = Math.round(finalTotal / 1.1);
@@ -215,6 +226,11 @@ export default function CheckoutPage() {
                       {shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}
                     </p>
                   </div>
+                  {hasDiasecItem && (
+                    <p className="break-keep text-xs text-[var(--color-charcoal)]/50">
+                      {DIASEC_SHIPPING_NOTICE}
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-3 flex flex-col gap-1.5 border-t border-[var(--color-hairline)] pt-3">

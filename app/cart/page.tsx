@@ -16,7 +16,8 @@ import {
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { GoodsPhoto, calcRequiredMinPx } from "@/lib/photoUtils";
 import { uploadGoodsPhotoToStorage, saveCartItemsAndGoToCheckout } from "@/lib/orderDraft";
-import { getShippingFee } from "@/lib/shippingConfig";
+import { calcShippingFee } from "@/lib/shippingConfig";
+import { DIASEC_SHIPPING_NOTICE, isDiasecDeskSizeId, isDiasecWallSizeId } from "@/lib/diasecFrameModels";
 import PhotoPickerField from "@/components/PhotoPickerField";
 
 function getItemConfig(item: CartItem) {
@@ -69,7 +70,18 @@ export default function CartPage() {
     (sum, item) => sum + item.unitPrice * item.quantity,
     0
   );
-  const shippingFee = getShippingFee(goodsAmount);
+  const shippingCalc = calcShippingFee(
+    selectedItems.map((item) => ({
+      productName: item.productName,
+      sizeId: item.sizeId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+    }))
+  );
+  const shippingFee = shippingCalc.totalFee;
+  const hasDiasecItem = selectedItems.some(
+    (item) => isDiasecDeskSizeId(item.sizeId) || isDiasecWallSizeId(item.sizeId)
+  );
   const finalTotal = goodsAmount + shippingFee;
   const supplyAmount = Math.round(finalTotal / 1.1);
   const vatAmount = finalTotal - supplyAmount;
@@ -277,6 +289,11 @@ export default function CartPage() {
                 <span className="text-[var(--color-charcoal)]/60">배송비</span>
                 <span>{shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}</span>
               </div>
+              {hasDiasecItem && (
+                <p className="break-keep text-xs text-[var(--color-charcoal)]/50">
+                  {DIASEC_SHIPPING_NOTICE}
+                </p>
+              )}
             </div>
             <div className="mt-3 flex flex-col gap-1.5 border-t border-[var(--color-hairline)] pt-3 text-sm">
               <div className="flex items-center justify-between">

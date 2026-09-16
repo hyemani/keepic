@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { getShippingFee } from "@/lib/shippingConfig";
+import { DIASEC_PRODUCT_NAME, DIASEC_SHIPPING_NOTICE } from "@/lib/diasecFrameModels";
 import {
   photobookCovers,
   photobookSizes,
@@ -290,14 +291,22 @@ function OtherProductOptions({ productName }: { productName: ProductName }) {
   const [selectedSize, setSelectedSize] = useState<string>(config.sizes[1].id);
   const [quantity, setQuantity] = useState(1);
 
+  const isDiasec = productName === DIASEC_PRODUCT_NAME;
+  const selectedSizeInfo = config.sizes.find((s) => s.id === selectedSize);
+  // 판매가가 있는 상품(디아섹 아크릴액자 등)만 unitPrice가 채워져요.
+  // 아직 가격이 붙지 않은 상품은 이전과 동일하게 0으로 넘어가요(동작 변화 없음).
+  const unitPrice = selectedSizeInfo?.price ?? 0;
+  const total = unitPrice * quantity;
+  const shippingFee = isDiasec ? undefined : getShippingFee(total);
+
   const nextUrl =
     config.maxPhotos > 1
       ? `/template?product=${encodeURIComponent(
           productName
-        )}&size=${selectedSize}&quantity=${quantity}`
+        )}&size=${selectedSize}&quantity=${quantity}&unitPrice=${unitPrice}`
       : `/upload?product=${encodeURIComponent(
           productName
-        )}&size=${selectedSize}&quantity=${quantity}`;
+        )}&size=${selectedSize}&quantity=${quantity}&unitPrice=${unitPrice}`;
 
   return (
     <section className="mx-auto max-w-2xl px-6 pb-24 pt-8 sm:px-10">
@@ -305,7 +314,7 @@ function OtherProductOptions({ productName }: { productName: ProductName }) {
       <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">옵션을 선택해주세요</h1>
 
       <h2 className="mt-12 text-lg font-semibold">사이즈</h2>
-      <div className="mt-4 grid grid-cols-3 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {config.sizes.map((size) => (
           <button
             key={size.id}
@@ -338,6 +347,32 @@ function OtherProductOptions({ productName }: { productName: ProductName }) {
           +
         </button>
       </div>
+
+      {unitPrice > 0 && (
+        <div className="mt-10 rounded-2xl border border-[var(--color-hairline)] bg-white p-6">
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[var(--color-charcoal)]/60">판매가</p>
+              <p>{unitPrice.toLocaleString()}원</p>
+            </div>
+            <div className="flex items-center justify-between border-t border-[var(--color-hairline)] pt-3">
+              <p className="text-[var(--color-charcoal)]/60">상품 금액 ({quantity}개)</p>
+              <p className="text-base font-semibold">{total.toLocaleString()}원</p>
+            </div>
+            {!isDiasec && shippingFee !== undefined && (
+              <div className="flex items-center justify-between">
+                <p className="text-[var(--color-charcoal)]/60">배송비</p>
+                <p>{shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}</p>
+              </div>
+            )}
+          </div>
+          {isDiasec && (
+            <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">
+              {DIASEC_SHIPPING_NOTICE}
+            </p>
+          )}
+        </div>
+      )}
 
       <Link
         href={nextUrl}
