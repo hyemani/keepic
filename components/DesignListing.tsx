@@ -24,9 +24,31 @@ const startPrice = photobookBasePrice.soft.S;
 const startSize = photobookSizes[0];
 const specText = `${startSize.finishedSizeCm} · 기본 ${BASE_PAGES}페이지(${BASE_SHEETS}장)`;
 
+// 전체 탭을 고르면 디자인이 많아서(17장) 아래로 한참 스크롤해야 했어요.
+// 그래서 한 번에 4장씩만 보여주고, 화살표로 다음 4장을 넘겨보는 방식으로 바꿨어요.
+const PAGE_SIZE = 4;
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {direction === "left" ? <path d="M15 18l-6-6 6-6" /> : <path d="M9 18l6-6-6-6" />}
+    </svg>
+  );
+}
+
 export default function DesignListing() {
   const [filter, setFilter] = useState<FilterValue>("all");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const availableCategories = useMemo(() => {
     const set = new Set(photobookDesigns.map((d) => d.category));
@@ -41,13 +63,19 @@ export default function DesignListing() {
     [filter]
   );
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
   const activeDesign = photobookDesigns.find((d) => d.id === activeId) ?? null;
 
   const renderTabButton = (value: FilterValue, label: string) => (
     <button
       key={value}
       type="button"
-      onClick={() => setFilter(value)}
+      onClick={() => {
+        setFilter(value);
+        setPage(0);
+      }}
       aria-pressed={filter === value}
       className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
         filter === value
@@ -67,25 +95,53 @@ export default function DesignListing() {
         {availableCategories.map((c) => renderTabButton(c, designCategoryLabels[c]))}
       </div>
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3">
-        {filtered.map((design, i) => (
-          <Reveal key={design.id} delay={(i % 3) * 80}>
-            <button type="button" onClick={() => setActiveId(design.id)} className="text-left">
-              <div className="overflow-hidden rounded-xl bg-[var(--color-hairline)]/15">
-                <img
-                  src={design.image}
-                  alt={design.alt}
-                  className="aspect-square w-full object-cover transition hover:opacity-90"
-                />
-              </div>
-              <p className="mt-3 font-medium">{design.name}</p>
-              <p className="mt-1 text-sm text-[var(--color-charcoal)]/60">
-                {startPrice.toLocaleString()}원부터
-              </p>
-              <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/45">{specText}</p>
+      <div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
+          {pageItems.map((design, i) => (
+            <Reveal key={design.id} delay={(i % 4) * 80}>
+              <button type="button" onClick={() => setActiveId(design.id)} className="text-left">
+                <div className="overflow-hidden rounded-xl bg-[var(--color-hairline)]/15">
+                  <img
+                    src={design.image}
+                    alt={design.alt}
+                    className="aspect-square w-full object-cover transition hover:opacity-90"
+                  />
+                </div>
+                <p className="mt-3 font-medium">{design.name}</p>
+                <p className="mt-1 text-sm text-[var(--color-charcoal)]/60">
+                  {startPrice.toLocaleString()}원부터
+                </p>
+                <p className="mt-0.5 text-xs text-[var(--color-charcoal)]/45">{specText}</p>
+              </button>
+            </Reveal>
+          ))}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-3 text-xs text-[var(--color-charcoal)]/60">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              aria-label="이전 페이지"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)] disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronIcon direction="left" />
             </button>
-          </Reveal>
-        ))}
+            <span className="tabular-nums">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+              aria-label="다음 페이지"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)] disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronIcon direction="right" />
+            </button>
+          </div>
+        )}
       </div>
 
       {activeDesign && (

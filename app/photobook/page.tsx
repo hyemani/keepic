@@ -3,6 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import DesignListing from "@/components/DesignListing";
+import SpreadExamplesPager from "@/components/SpreadExamplesPager";
 import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
 
@@ -60,15 +61,8 @@ export default function PhotobookPage() {
         <p className="mt-2 text-sm text-[var(--color-charcoal)]/60 break-keep">
           사진과 문구를 이렇게 펼침면으로 배치해드려요. 디자인 예시예요.
         </p>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {spreadExamples.map((img) => (
-            <div
-              key={img.src}
-              className="overflow-hidden"
-            >
-              <img src={img.src} alt={img.alt} className="w-full object-cover" />
-            </div>
-          ))}
+        <div className="mt-6">
+          <SpreadExamplesPager images={spreadExamples} />
         </div>
       </section>
 
