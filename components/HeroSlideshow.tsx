@@ -110,7 +110,7 @@ export default function HeroSlideshow({
   };
 
   const renderDots = () => (
-    <div className="flex justify-center gap-1 bg-white pt-3">
+    <div className="flex justify-center gap-0.5 bg-white pt-3 sm:gap-1">
       {slides.map((slide, i) => (
         <button
           key={slide.image}
@@ -118,7 +118,7 @@ export default function HeroSlideshow({
           aria-label={`${i + 1}번째 이미지 보기`}
           aria-current={i === index}
           onClick={() => goTo(i)}
-          className="p-2.5"
+          className="p-1 sm:p-2.5"
         >
           <span
             className={`block h-1.5 rounded-full transition-all ${

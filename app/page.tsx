@@ -2,6 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import { Fragment } from "react";
 import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
+import SampleSpreadCarousel from "@/components/SampleSpreadCarousel";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
@@ -146,23 +147,17 @@ export default function Home() {
           </Link>
         </Reveal>
 
-        <div className="mt-8 grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            { src: "/photobook/spreads-full/travel-collected-days.png", alt: "여행 포토북 전체 예시" },
-            { src: "/photobook/spreads-full/baby-our-little-one.png", alt: "베이비 포토북 전체 예시" },
-            { src: "/photobook/spreads-full/couple-our-kind-of-love.png", alt: "커플 포토북 전체 예시" },
-            { src: "/photobook/spreads-full/family-autumn-story.png", alt: "가족 포토북 전체 예시 2" },
-            { src: "/photobook/spreads-full/seaside-diary.png", alt: "여행 포토북 전체 예시 2" },
-            { src: "/photobook/spreads-full/pet-golden-days.png", alt: "반려견 포토북 전체 예시" },
-          ].map((img, i) => (
-            <Reveal
-              key={img.src}
-              delay={(i % 3) * 80}
-              className="overflow-hidden"
-            >
-              <img src={img.src} alt={img.alt} className="w-full object-cover" />
-            </Reveal>
-          ))}
+        <div className="mt-8">
+          <SampleSpreadCarousel
+            images={[
+              { src: "/photobook/spreads-full/travel-collected-days.png", alt: "여행 포토북 전체 예시" },
+              { src: "/photobook/spreads-full/baby-our-little-one.png", alt: "베이비 포토북 전체 예시" },
+              { src: "/photobook/spreads-full/couple-our-kind-of-love.png", alt: "커플 포토북 전체 예시" },
+              { src: "/photobook/spreads-full/family-autumn-story.png", alt: "가족 포토북 전체 예시 2" },
+              { src: "/photobook/spreads-full/seaside-diary.png", alt: "여행 포토북 전체 예시 2" },
+              { src: "/photobook/spreads-full/pet-golden-days.png", alt: "반려견 포토북 전체 예시" },
+            ]}
+          />
         </div>
 
         <Link
