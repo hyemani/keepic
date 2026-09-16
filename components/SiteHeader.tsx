@@ -172,65 +172,81 @@ export default function SiteHeader({
         </div>
       </nav>
 
-      {/* 모바일 전체 메뉴 오버레이: 주문 조회·제작 신청도 이 안에서 찾을 수 있어요 */}
-      {menuOpen && (
-        <div className="fixed inset-0 z-[70] bg-[var(--color-ivory)] sm:hidden">
-          <div className="mx-auto max-w-7xl px-6 py-6">
-            <div className="flex items-center justify-between">
-              <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
-              <button
-                type="button"
-                onClick={() => setMenuOpen(false)}
-                aria-label="전체 메뉴 닫기"
-                className="text-2xl leading-none text-[var(--color-charcoal)]/70"
-              >
-                ×
-              </button>
-            </div>
+      {/* 모바일 전체 메뉴: 화면 전체를 덮지 않고, 왼쪽에서 화면의 약 3분의 1만큼만
+          슬라이드로 열려요. 뒤쪽은 반투명하게 어둡게 깔려서 원래 있던 이미지가
+          살짝 비쳐 보여요. 열림/닫힘 애니메이션이 자연스럽도록 항상 DOM에 있고,
+          transform/opacity로만 보였다 숨었다 해요. */}
+      <div
+        onClick={() => setMenuOpen(false)}
+        aria-hidden={!menuOpen}
+        className={`fixed inset-0 z-[70] bg-black/40 transition-opacity duration-300 sm:hidden ${
+          menuOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="전체 메뉴"
+        aria-hidden={!menuOpen}
+        className={`fixed inset-y-0 left-0 z-[71] w-1/3 min-w-[180px] max-w-[320px] overflow-y-auto bg-[var(--color-ivory)] shadow-[8px_0_30px_-10px_rgba(45,55,72,0.35)] transition-transform duration-300 ease-out sm:hidden ${
+          menuOpen ? "translate-x-0" : "pointer-events-none -translate-x-full"
+        }`}
+      >
+        <div className="px-4 py-6">
+          <div className="flex items-center justify-between">
+            <img src="/logo.svg" alt="Keepic" className="h-6 w-auto" />
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              aria-label="전체 메뉴 닫기"
+              className="text-xl leading-none text-[var(--color-charcoal)]/70"
+            >
+              ×
+            </button>
+          </div>
 
-            <nav className="mt-10 flex flex-col gap-6 text-lg font-medium">
-              <Link href="/photobook" onClick={() => setMenuOpen(false)}>포토북</Link>
-              <Link href="/frames" onClick={() => setMenuOpen(false)}>액자</Link>
-              <Link href="/goods" onClick={() => setMenuOpen(false)}>나만의 굿즈</Link>
-              <Link href="/cases" onClick={() => setMenuOpen(false)}>디자인 예시</Link>
-              <div className="mt-2 border-t border-[var(--color-hairline)] pt-6">
-                <p className="text-sm text-[var(--color-charcoal)]/50">이용 안내</p>
-                <div className="mt-4 flex flex-col gap-5">
-                  <Link href="/guide" onClick={() => setMenuOpen(false)}>제작 과정</Link>
-                  <Link href="/faq" onClick={() => setMenuOpen(false)}>자주 묻는 질문</Link>
-                  <a href={KAKAO_URL} target="_blank" rel="noopener noreferrer">
-                    문의하기
-                  </a>
-                </div>
+          <nav className="mt-8 flex flex-col gap-5 break-keep text-base font-medium">
+            <Link href="/photobook" onClick={() => setMenuOpen(false)}>포토북</Link>
+            <Link href="/frames" onClick={() => setMenuOpen(false)}>액자</Link>
+            <Link href="/goods" onClick={() => setMenuOpen(false)}>나만의 굿즈</Link>
+            <Link href="/cases" onClick={() => setMenuOpen(false)}>디자인 예시</Link>
+            <div className="mt-2 border-t border-[var(--color-hairline)] pt-5">
+              <p className="text-xs text-[var(--color-charcoal)]/50">이용 안내</p>
+              <div className="mt-3 flex flex-col gap-4">
+                <Link href="/guide" onClick={() => setMenuOpen(false)}>제작 과정</Link>
+                <Link href="/faq" onClick={() => setMenuOpen(false)}>자주 묻는 질문</Link>
+                <a href={KAKAO_URL} target="_blank" rel="noopener noreferrer">
+                  문의하기
+                </a>
               </div>
-            </nav>
-
-            <div className="mt-10 flex flex-col gap-3">
-              <Link
-                href="/cart"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-full border border-[var(--color-hairline)] py-3.5 text-center text-sm font-medium"
-              >
-                장바구니
-              </Link>
-              <Link
-                href="/order-lookup"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-full border border-[var(--color-hairline)] py-3.5 text-center text-sm font-medium"
-              >
-                주문 조회
-              </Link>
-              <Link
-                href="/order"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-full bg-[var(--color-sky)] py-3.5 text-center text-sm font-medium text-white"
-              >
-                만들기 시작
-              </Link>
             </div>
+          </nav>
+
+          <div className="mt-8 flex flex-col gap-2.5">
+            <Link
+              href="/cart"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-full border border-[var(--color-hairline)] py-3 text-center text-xs font-medium"
+            >
+              장바구니
+            </Link>
+            <Link
+              href="/order-lookup"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-full border border-[var(--color-hairline)] py-3 text-center text-xs font-medium"
+            >
+              주문 조회
+            </Link>
+            <Link
+              href="/order"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-full bg-[var(--color-sky)] py-3 text-center text-xs font-medium text-white"
+            >
+              만들기 시작
+            </Link>
           </div>
         </div>
-      )}
+      </div>
     </header>
   );
 }
