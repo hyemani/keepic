@@ -1,16 +1,22 @@
 import SiteHeader from "@/components/SiteHeader";
-import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
+import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import DesignListing from "@/components/DesignListing";
 import SpreadExamplesPager from "@/components/SpreadExamplesPager";
 import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
 
-const topBannerImages: PageTopBannerImage[] = [
-  { src: "/hero/top-banner/photobook-1.png", alt: "포토북 대표 이미지 1" },
-  { src: "/hero/top-banner/photobook-2.png", alt: "포토북 대표 이미지 2" },
-  { src: "/hero/top-banner/photobook-3.png", alt: "포토북 대표 이미지 3" },
-  { src: "/hero/top-banner/photobook-4.png", alt: "포토북 대표 이미지 4" },
+const topBannerTitleLines = ["좋아하는 순간을 모아,", "나만의 포토북으로"];
+const topBannerDescLines = [
+  "사진을 고르고 원하는 디자인으로 꾸며보세요.",
+  "직접 편집한 추억을 한 권의 포토북으로 제작해드려요.",
+];
+
+const topBannerSlides: HeroSlide[] = [
+  { image: "/hero/top-banner/photobook-1.png", alt: "포토북 대표 이미지 1", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
+  { image: "/hero/top-banner/photobook-2.png", alt: "포토북 대표 이미지 2", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
+  { image: "/hero/top-banner/photobook-3.png", alt: "포토북 대표 이미지 3", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
+  { image: "/hero/top-banner/photobook-4.png", alt: "포토북 대표 이미지 4", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
 ];
 
 const spreadExamples = [
@@ -31,15 +37,14 @@ export default function PhotobookPage() {
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
       <SiteHeader overlayHero />
 
-      <PageTopBanner
-        images={topBannerImages}
-        extendBehindHeader
-        eyebrow="포토북"
-        titleLines={["좋아하는 순간을 모아,", "나만의 포토북으로"]}
-        descLines={[
-          "사진을 고르고 원하는 디자인으로 꾸며보세요.",
-          "직접 편집한 추억을 한 권의 포토북으로 제작해드려요.",
-        ]}
+      <HeroSlideshow
+        slides={topBannerSlides}
+        fixedCaption={{
+          eyebrow: "포토북",
+          titleLines: topBannerTitleLines,
+          descLines: topBannerDescLines,
+          primaryCta: { label: "추억을 한 권에 담기", href: "/options?product=포토북" },
+        }}
       />
 
       {/* 디자인 분류 + 목록 */}
@@ -127,7 +132,9 @@ export default function PhotobookPage() {
             </p>
             <p>
               <span className="text-[var(--color-charcoal)]/60">페이지 수 · </span>
-              <span className="font-medium">기본 10장·20페이지 (2페이지 단위로 추가 가능)</span>
+              <span className="font-medium">기본 10장·20페이지</span>
+              <br />
+              <span className="text-[var(--color-charcoal)]/60">(2페이지 단위로 추가 가능)</span>
             </p>
             <p>
               <span className="text-[var(--color-charcoal)]/60">제작 기간 · </span>

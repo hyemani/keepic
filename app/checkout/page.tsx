@@ -314,7 +314,7 @@ export default function CheckoutPage() {
             </p>
             <p className="mt-1">
               <span className="text-[var(--color-charcoal)]/60">예금주</span>{" "}
-              <span className="font-medium">Keepic</span>
+              <span className="font-medium">한혜민(에이치엠38(HM38) 크리에이티브 스튜디오)</span>
             </p>
           </div>
 
