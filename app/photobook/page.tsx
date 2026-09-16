@@ -1,4 +1,3 @@
-import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
 import StickyOrderBar from "@/components/StickyOrderBar";
@@ -35,6 +34,7 @@ export default function PhotobookPage() {
       <PageTopBanner
         images={topBannerImages}
         extendBehindHeader
+        eyebrow="포토북"
         titleLines={["좋아하는 순간을 모아,", "나만의 포토북으로"]}
         descLines={[
           "사진을 고르고 원하는 디자인으로 꾸며보세요.",
@@ -133,21 +133,6 @@ export default function PhotobookPage() {
           모두 임시 판매가이고 배송비 별도예요. 특히 S 하드커버는 아직 실제 견적 확인 전이라
           이후 조정될 수 있어요.
         </p>
-      </section>
-
-      {/* 마지막 신청 영역 */}
-      <section className="mx-auto max-w-6xl px-6 pb-24 pt-8 text-center sm:px-10">
-        <h2 className="break-keep text-2xl font-semibold">
-          사진만 보내주세요,
-          <br />
-          나머지는 저희가 할게요
-        </h2>
-        <Link
-          href="/options?product=포토북"
-          className="mt-8 inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
-        >
-          추억을 한 권에 담기
-        </Link>
       </section>
 
       <SiteFooter />

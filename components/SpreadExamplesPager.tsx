@@ -4,9 +4,9 @@ import { useState } from "react";
 
 export type SpreadExampleImage = { src: string; alt: string };
 
-// 내지 예시 이미지가 많아지면 아래로 계속 스크롤해야 해서, 2장씩만 보여주고
+// 내지 예시 이미지가 많아지면 아래로 계속 스크롤해야 해서, 1장씩만 보여주고
 // 화살표로 다음 장을 넘겨보는 방식으로 만들었어요.
-const PAGE_SIZE = 2;
+const PAGE_SIZE = 1;
 
 function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   return (
@@ -32,7 +32,7 @@ export default function SpreadExamplesPager({ images }: { images: SpreadExampleI
 
   return (
     <div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         {pageItems.map((img) => (
           <div key={img.src} className="overflow-hidden">
             <img src={img.src} alt={img.alt} className="w-full object-cover" />

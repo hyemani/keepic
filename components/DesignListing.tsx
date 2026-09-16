@@ -77,7 +77,7 @@ export default function DesignListing() {
         setPage(0);
       }}
       aria-pressed={filter === value}
-      className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
+      className={`w-full whitespace-nowrap rounded-full px-4 py-2 text-center text-sm font-medium transition ${
         filter === value
           ? "bg-[var(--color-sky)] text-white"
           : "border border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
@@ -89,8 +89,8 @@ export default function DesignListing() {
 
   return (
     <div className="sm:grid sm:grid-cols-[160px_1fr] sm:gap-10">
-      {/* 모바일: 상단 가로 스크롤 분류 탭 / PC: 왼쪽 세로 분류 메뉴 */}
-      <div className="mb-6 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:mb-0 sm:flex-col sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
+      {/* 모바일: 5개 탭이 폭에 맞게 균등하게 나눠지는 그리드 / PC: 왼쪽 세로 분류 메뉴 */}
+      <div className="mb-6 grid grid-cols-5 gap-2 sm:mb-0 sm:flex sm:flex-col">
         {renderTabButton("all", "전체")}
         {availableCategories.map((c) => renderTabButton(c, designCategoryLabels[c]))}
       </div>
