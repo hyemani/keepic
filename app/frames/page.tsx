@@ -1,16 +1,22 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
-import PageTopBanner, { type PageTopBannerImage } from "@/components/PageTopBanner";
+import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
 
-const topBannerImages: PageTopBannerImage[] = [
-  { src: "/hero/top-banner/frame-1.png", alt: "액자 대표 이미지 1" },
-  { src: "/hero/top-banner/frame-2.png", alt: "액자 대표 이미지 2" },
-  { src: "/hero/top-banner/frame-3.png", alt: "액자 대표 이미지 3" },
-  { src: "/hero/top-banner/frame-4.png", alt: "액자 대표 이미지 4" },
+const topBannerTitleLines = ["좋아하는 순간을,", "가장 가까운 곳에"];
+const topBannerDescLines = [
+  "소중한 사진을 공간에 어울리는 액자로 만들어보세요.",
+  "원하는 스타일과 크기를 선택할 수 있어요.",
+];
+
+const topBannerSlides: HeroSlide[] = [
+  { image: "/hero/top-banner/frame-1.png", alt: "액자 대표 이미지 1", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
+  { image: "/hero/top-banner/frame-2.png", alt: "액자 대표 이미지 2", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
+  { image: "/hero/top-banner/frame-3.png", alt: "액자 대표 이미지 3", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
+  { image: "/hero/top-banner/frame-4.png", alt: "액자 대표 이미지 4", titleLines: topBannerTitleLines, descLines: topBannerDescLines },
 ];
 
 const frameTypes = [
@@ -51,15 +57,14 @@ export default function FramesPage() {
     <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)] pb-20 sm:pb-0">
       <SiteHeader overlayHero />
 
-      <PageTopBanner
-        images={topBannerImages}
-        extendBehindHeader
-        eyebrow="액자"
-        titleLines={["좋아하는 순간을,", "가장 가까운 곳에"]}
-        descLines={[
-          "소중한 사진을 공간에 어울리는 액자로 만들어보세요.",
-          "원하는 스타일과 크기를 선택할 수 있어요.",
-        ]}
+      <HeroSlideshow
+        slides={topBannerSlides}
+        fixedCaption={{
+          eyebrow: "액자",
+          titleLines: topBannerTitleLines,
+          descLines: topBannerDescLines,
+          primaryCta: { label: "좋아하는 순간을 걸어두기", href: "/options?product=액자" },
+        }}
       />
 
       <section id="frame-list" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-16 pt-2 sm:px-10">

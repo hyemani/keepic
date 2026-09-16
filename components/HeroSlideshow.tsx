@@ -28,39 +28,6 @@ export type HeroFixedCaption = {
 const AUTO_PLAY_MS = 5000;
 const SWIPE_THRESHOLD_PX = 40;
 
-function ChevronIcon({ direction }: { direction: "left" | "right" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {direction === "left" ? <path d="M15 18l-6-6 6-6" /> : <path d="M9 18l6-6-6-6" />}
-    </svg>
-  );
-}
-
-function PlayPauseIcon({ playing }: { playing: boolean }) {
-  if (playing) {
-    return (
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-        <rect x="6" y="5" width="4" height="14" rx="1" />
-        <rect x="14" y="5" width="4" height="14" rx="1" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-      <path d="M7 5.5v13l11-6.5-11-6.5z" />
-    </svg>
-  );
-}
-
 export default function HeroSlideshow({
   slides,
   fixedCaption,
@@ -69,12 +36,13 @@ export default function HeroSlideshow({
   fixedCaption?: HeroFixedCaption;
 }) {
   const [index, setIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
   const [isHovering, setIsHovering] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
 
-  const isPaused = !isPlaying || isHovering;
+  // 재생/정지 버튼은 없앴지만, 애니메이션 자체는 계속 돌아가요. 다만 마우스를
+  // 올리거나 포커스가 가 있는 동안은(터치 스와이프 중 포함) 자동 전환을 잠깐 멈춰요.
+  const isPaused = isHovering;
 
   useEffect(() => {
     if (slides.length <= 1 || isPaused) return;
@@ -130,39 +98,6 @@ export default function HeroSlideshow({
         </button>
       ))}
     </div>
-  );
-
-  const renderArrows = () => (
-    <>
-      <button
-        type="button"
-        onClick={goPrev}
-        aria-label="이전 이미지"
-        className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-[var(--color-charcoal)] shadow-[0_4px_14px_-4px_rgba(45,55,72,0.35)] transition hover:bg-white sm:left-5 sm:h-11 sm:w-11"
-      >
-        <ChevronIcon direction="left" />
-      </button>
-      <button
-        type="button"
-        onClick={goNext}
-        aria-label="다음 이미지"
-        className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-[var(--color-charcoal)] shadow-[0_4px_14px_-4px_rgba(45,55,72,0.35)] transition hover:bg-white sm:right-5 sm:h-11 sm:w-11"
-      >
-        <ChevronIcon direction="right" />
-      </button>
-    </>
-  );
-
-  const renderPlayPauseButton = () => (
-    <button
-      type="button"
-      onClick={() => setIsPlaying((p) => !p)}
-      aria-label={isPlaying ? "슬라이드 자동 전환 멈추기" : "슬라이드 자동 전환 다시 시작"}
-      aria-pressed={!isPlaying}
-      className="absolute bottom-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-[var(--color-charcoal)] shadow-[0_4px_14px_-4px_rgba(45,55,72,0.35)] transition hover:bg-white sm:bottom-4 sm:right-4"
-    >
-      <PlayPauseIcon playing={isPlaying} />
-    </button>
   );
 
   return (
@@ -268,8 +203,6 @@ export default function HeroSlideshow({
             )}
           </div>
 
-          {slides.length > 1 && renderArrows()}
-          {slides.length > 1 && renderPlayPauseButton()}
         </div>
 
         {/* 이미지 아래(문구와 분리된 자리)에 놓이는 점 인디케이터 */}
@@ -387,8 +320,6 @@ export default function HeroSlideshow({
             </div>
           </div>
 
-          {slides.length > 1 && renderArrows()}
-          {slides.length > 1 && renderPlayPauseButton()}
         </div>
 
         {/* 이미지 아래(모바일과 동일한 자리)에 놓이는 점 인디케이터 */}
