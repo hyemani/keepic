@@ -244,19 +244,21 @@ export default function PageTopBanner({
                 object-cover). 문구는 그 위, 지금 정중앙에 있는 배너에만
                 왼쪽 여백 자리에 올라가요. 양옆에 살짝 보이는 배너(복제된
                 것 포함)는 이미지만 보여줘서 화면이 복잡해 보이지 않게 해요. */}
+            {/* 모바일에서만 사진을 살짝 확대해서(카드 크기는 그대로) 상품이 더
+                크게 보이도록 해요. PC는 확대 없이 원래 그대로예요. */}
             <img
               src={img.src}
               alt={img.alt}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full scale-125 object-cover sm:scale-100"
             />
             {i === displayIndex && (
               <div className="absolute inset-y-0 left-0 flex max-w-[70%] flex-col justify-center px-4 sm:max-w-[45%] sm:px-9">
                 {eyebrow && (
-                  <p className="text-xs font-medium text-[var(--color-charcoal)]/70 sm:text-sm">
+                  <p className="text-sm font-medium text-[var(--color-charcoal)]/70 sm:text-base">
                     {eyebrow}
                   </p>
                 )}
-                <h1 className="mt-1 break-keep text-base font-semibold leading-tight text-[var(--color-charcoal)] sm:text-2xl lg:text-3xl">
+                <h1 className="mt-1 break-keep text-xl font-semibold leading-tight text-[var(--color-charcoal)] sm:text-3xl lg:text-4xl">
                   {titleLines.map((line, li) => (
                     <span key={li}>
                       {line}
@@ -264,7 +266,7 @@ export default function PageTopBanner({
                     </span>
                   ))}
                 </h1>
-                <p className="mt-2 hidden break-keep text-xs leading-relaxed text-[var(--color-charcoal)]/60 sm:block sm:text-sm">
+                <p className="mt-2 hidden break-keep text-sm leading-relaxed text-[var(--color-charcoal)]/60 sm:block sm:text-base">
                   {descLines.map((line, li) => (
                     <span key={li}>
                       {line}
