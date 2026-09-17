@@ -47,13 +47,19 @@ const photobookCoverBadgeEn: Record<string, string> = {
   hard: "Hard cover",
 };
 
+// 보내주신 표지 샘플 중 잘 나온 사진으로 카드 이미지를 골랐어요.
+const photobookCoverImage: Record<string, string> = {
+  soft: "/photobook/covers/size-m-little-hello.jpg",
+  hard: "/photobook/covers/size-l-together-days.jpg",
+};
+
 const productGridItems: ProductGridItem[] = [
   ...photobookCovers.map((cover) => ({
     id: `photobook-${cover.id}`,
     category: "포토북" as const,
     name: "포토북",
     desc: "소중한 사진을 한 권의 책으로",
-    image: "/hero/top-banner/photobook-1.png",
+    image: photobookCoverImage[cover.id],
     priceFrom: photobookMinPriceByCover[cover.id],
     href: `/options?product=${encodeURIComponent("포토북")}&cover=${cover.id}`,
     badge: photobookCoverBadgeEn[cover.id],

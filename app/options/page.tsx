@@ -4,7 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { productConfig, ProductName } from "@/lib/productConfig";
-import { getShippingFee } from "@/lib/shippingConfig";
+import { getShippingFee, calcDiasecShippingFee } from "@/lib/shippingConfig";
 import { DIASEC_PRODUCT_NAME, DIASEC_SHIPPING_NOTICE, diasecFrameSizes, diasecGroups } from "@/lib/diasecFrameModels";
 import {
   photobookCovers,
@@ -312,7 +312,12 @@ function OtherProductOptions({ productName }: { productName: ProductName }) {
   // 아직 가격이 붙지 않은 상품은 이전과 동일하게 0으로 넘어가요(동작 변화 없음).
   const unitPrice = selectedSizeInfo?.price ?? 0;
   const total = unitPrice * quantity;
-  const shippingFee = isDiasec ? undefined : getShippingFee(total);
+  // 디아섹 아크릴액자는 탁상용/벽걸이 구분과 수량에 따라 배송비를 바로 계산해서 보여줘요.
+  const diasecDeskQuantity = isDiasec && selectedSizeInfo?.mount === "desk" ? quantity : 0;
+  const diasecWallQuantity = isDiasec && selectedSizeInfo?.mount === "wall" ? quantity : 0;
+  const shippingFee = isDiasec
+    ? calcDiasecShippingFee(diasecDeskQuantity, diasecWallQuantity)
+    : getShippingFee(total);
 
   const nextUrl =
     config.maxPhotos > 1
@@ -450,12 +455,14 @@ function OtherProductOptions({ productName }: { productName: ProductName }) {
               <p className="text-[var(--color-charcoal)]/60">상품 금액 ({quantity}개)</p>
               <p className="text-base font-semibold">{total.toLocaleString()}원</p>
             </div>
-            {!isDiasec && shippingFee !== undefined && (
-              <div className="flex items-center justify-between">
-                <p className="text-[var(--color-charcoal)]/60">배송비</p>
-                <p>{shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}</p>
-              </div>
-            )}
+            <div className="flex items-center justify-between">
+              <p className="text-[var(--color-charcoal)]/60">배송비</p>
+              <p>{shippingFee === 0 ? "무료" : `${shippingFee.toLocaleString()}원`}</p>
+            </div>
+            <div className="flex items-center justify-between border-t border-[var(--color-hairline)] pt-3">
+              <p className="text-[var(--color-charcoal)]/60">결제 예정 금액</p>
+              <p className="text-base font-semibold">{(total + shippingFee).toLocaleString()}원</p>
+            </div>
           </div>
           {isDiasec && (
             <p className="mt-3 break-keep text-xs text-[var(--color-charcoal)]/50">

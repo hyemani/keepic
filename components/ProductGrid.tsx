@@ -82,7 +82,7 @@ export default function ProductGrid({
                 </div>
               )}
               {item.badge && (
-                <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-medium text-white">
+                <span className="absolute bottom-0 right-0 bg-black/70 px-2 py-1 text-[10px] font-medium text-white">
                   {item.badge}
                 </span>
               )}
