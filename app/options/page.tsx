@@ -283,7 +283,7 @@ function PhotobookOptions() {
         )}&size=${size}&quantity=${quantity}&unitPrice=${price.total}&cover=${cover}&coverCoating=${coverCoating}&innerPaper=${innerPaper}&pages=${pages}`}
         className="mt-12 block w-full rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-center text-sm font-medium text-white transition hover:opacity-90 sm:inline-block sm:w-auto"
       >
-        다음
+        사진 선택하기
       </Link>
     </section>
   );
@@ -292,12 +292,23 @@ function PhotobookOptions() {
 function OtherProductOptions({ productName }: { productName: ProductName }) {
   const config = productConfig[productName];
   const isDiasec = productName === DIASEC_PRODUCT_NAME;
+  const searchParams = useSearchParams();
 
   // 디아섹 아크릴액자는 사이즈가 16개나 돼서 한 화면에 다 보여주면 복잡해요.
   // "거치방식/재질"(3개) → "마감"(2개) → "사이즈" 순으로 단계를 나눠서 골라요.
-  const [diasecGroupKey, setDiasecGroupKey] = useState(diasecGroups[0].key);
+  // /frames에서 특정 마감 카드를 눌러서 들어온 경우, finish 쿼리로 그 마감이
+  // 바로 선택된 상태로 열려요.
+  const finishParam = isDiasec ? searchParams.get("finish") : null;
+  const groupFromFinish = finishParam
+    ? diasecGroups.find((g) => g.finishLabels.includes(finishParam))
+    : undefined;
+  const [diasecGroupKey, setDiasecGroupKey] = useState(
+    groupFromFinish?.key ?? diasecGroups[0].key
+  );
   const diasecGroup = diasecGroups.find((g) => g.key === diasecGroupKey) ?? diasecGroups[0];
-  const [diasecFinishLabel, setDiasecFinishLabel] = useState(diasecGroup.finishLabels[0]);
+  const [diasecFinishLabel, setDiasecFinishLabel] = useState(
+    (groupFromFinish && finishParam) || diasecGroup.finishLabels[0]
+  );
   const diasecSizesForFinish = diasecFrameSizes.filter(
     (s) => s.finishLabel === diasecFinishLabel
   );

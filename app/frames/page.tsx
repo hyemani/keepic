@@ -146,33 +146,31 @@ export default function FramesPage() {
             <Reveal
               key={group.finishLabel}
               delay={(i % 3) * 80}
-              className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white"
+              className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white transition hover:-translate-y-0.5 hover:border-[var(--color-sky)] hover:shadow-[0_10px_24px_-12px_rgba(45,55,72,0.25)]"
             >
-              <GroupPhotoSlider images={group.images} />
-              <div className="p-6">
-                <p className="font-medium">
-                  {group.finishLabel}
-                  {group.mount === "wall" && (
-                    <span className="ml-2 text-xs text-[var(--color-charcoal)]/50">벽걸이</span>
-                  )}
-                </p>
-                <p className="mt-1 break-keep text-sm text-[var(--color-charcoal)]/70">
-                  {group.sizeCount > 1
-                    ? `${group.minPrice.toLocaleString()}원 ~ ${group.maxPrice.toLocaleString()}원`
-                    : `${group.minPrice.toLocaleString()}원`}
-                </p>
-              </div>
+              <Link
+                href={`/options?product=${encodeURIComponent(
+                  "디아섹 아크릴액자"
+                )}&finish=${encodeURIComponent(group.finishLabel)}`}
+                className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+              >
+                <GroupPhotoSlider images={group.images} />
+                <div className="p-6">
+                  <p className="font-medium">
+                    {group.finishLabel}
+                    {group.mount === "wall" && (
+                      <span className="ml-2 text-xs text-[var(--color-charcoal)]/50">벽걸이</span>
+                    )}
+                  </p>
+                  <p className="mt-1 break-keep text-sm text-[var(--color-charcoal)]/70">
+                    {group.sizeCount > 1
+                      ? `${group.minPrice.toLocaleString()}원 ~ ${group.maxPrice.toLocaleString()}원`
+                      : `${group.minPrice.toLocaleString()}원`}
+                  </p>
+                </div>
+              </Link>
             </Reveal>
           ))}
-        </div>
-
-        <div className="mt-8">
-          <Link
-            href={`/options?product=${encodeURIComponent("디아섹 아크릴액자")}`}
-            className="inline-block rounded-full bg-[var(--color-charcoal)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-charcoal)]"
-          >
-            디아섹 아크릴액자 보기
-          </Link>
         </div>
       </section>
 

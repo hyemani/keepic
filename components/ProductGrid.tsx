@@ -19,6 +19,8 @@ export type ProductGridItem = {
   href: string;
   // 이미지 위 오른쪽 아래에 작게 붙는 뱃지(예: "NEW", "Soft cover")
   badge?: string;
+  // 뱃지 배경색을 기본 검정 대신 다르게 쓰고 싶을 때(예: 메인 컬러 그라데이션)
+  badgeClassName?: string;
   // 상품명 옆에 붙는 짧은 태그
   tag?: string;
 };
@@ -48,7 +50,11 @@ function ProductCard({ item }: { item: ProductGridItem }) {
           </div>
         )}
         {item.badge && (
-          <span className="absolute bottom-0 right-0 bg-black/70 px-2 py-1 text-[10px] font-medium text-white">
+          <span
+            className={`absolute bottom-0 right-0 px-2 py-1 text-[10px] font-medium text-white ${
+              item.badgeClassName ?? "bg-black/70"
+            }`}
+          >
             {item.badge}
           </span>
         )}
@@ -115,7 +121,7 @@ export default function ProductGrid({
 
               <div className="mt-4 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {categoryItems.map((item, i) => (
-                  <Reveal key={item.id} delay={(i % 4) * 60} className="w-[46%] shrink-0 sm:w-[calc((100%-3rem)/4)]">
+                  <Reveal key={item.id} delay={(i % 4) * 60} className="w-[calc((100%-1rem)/2)] shrink-0 sm:w-[calc((100%-3rem)/4)]">
                     <ProductCard item={item} />
                   </Reveal>
                 ))}

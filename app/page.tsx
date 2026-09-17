@@ -65,6 +65,7 @@ const productGridItems: ProductGridItem[] = [
     priceFrom: photobookMinPriceByCover[cover.id],
     href: `/options?product=${encodeURIComponent("포토북")}&cover=${cover.id}`,
     badge: photobookCoverBadgeEn[cover.id],
+    badgeClassName: "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]",
   })),
   {
     id: "frame",
@@ -198,15 +199,15 @@ export default function Home() {
               href="/options?product=포토북"
               className="relative block overflow-hidden rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
             >
-              <div className="aspect-[4/3] w-full sm:aspect-[21/6]">
+              <div className="aspect-[4/3] w-full overflow-hidden sm:aspect-[21/9]">
                 <img
                   src={promoBanner.image}
                   alt={promoBanner.alt}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full scale-125 object-cover sm:scale-110"
                 />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/15 to-transparent" />
-              <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10">
+              <div className="absolute inset-0 bg-black/40" />
+              <div className="absolute inset-0 flex flex-col items-center justify-start px-6 pt-8 text-center sm:justify-center sm:pt-0">
                 <h1 className="font-banner break-keep text-3xl leading-tight text-white sm:text-5xl">
                   {promoBanner.titleLines[0]}
                   <br />
