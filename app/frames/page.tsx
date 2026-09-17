@@ -6,6 +6,7 @@ import ContactWidget from "@/components/ContactWidget";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
 import { diasecFrameSizes } from "@/lib/diasecFrameModels";
+import GroupPhotoSlider from "@/components/GroupPhotoSlider";
 
 const topBannerTitleLines = ["좋아하는 순간을,", "가장 가까운 곳에"];
 const topBannerDescLines = [
@@ -53,17 +54,33 @@ const frameTypes = [
   },
 ];
 
+// 마감별 대표 이미지 5장(가족·아기·커플·여행·반려견 컨셉)의 파일명 접두사예요.
+// public/frames/diasec/ 아래 "{key}-1.jpg" ~ "{key}-5.jpg" 로 저장돼 있어요.
+const diasecFinishImageKeys: Record<string, string> = {
+  "탁상용 유광": "desk-glossy",
+  "탁상용 무반사": "desk-antiglare",
+  "탁상용 자작나무 유광": "desk-birch-glossy",
+  "탁상용 자작나무 무광": "desk-birch-matte",
+  "벽걸이 자작나무 유광": "wall-birch-glossy",
+  "벽걸이 자작나무 무광": "wall-birch-matte",
+};
+
 const diasecFinishGroups = Array.from(
   new Map(diasecFrameSizes.map((s) => [s.finishLabel, s])).values()
 ).map((first) => {
   const sizes = diasecFrameSizes.filter((s) => s.finishLabel === first.finishLabel);
   const prices = sizes.map((s) => s.price);
+  const imageKey = diasecFinishImageKeys[first.finishLabel];
   return {
     finishLabel: first.finishLabel,
     mount: first.mount,
     sizeCount: sizes.length,
     minPrice: Math.min(...prices),
     maxPrice: Math.max(...prices),
+    images: Array.from({ length: 5 }, (_, i) => ({
+      src: `/frames/diasec/${imageKey}-${i + 1}.jpg`,
+      alt: `${first.finishLabel} 디아섹 아크릴액자 예시 ${i + 1}`,
+    })),
   };
 });
 
@@ -131,9 +148,7 @@ export default function FramesPage() {
               delay={(i % 3) * 80}
               className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white"
             >
-              <div className="flex aspect-[3/4] w-full items-center justify-center bg-[var(--color-hairline)]/15">
-                <p className="text-sm text-[var(--color-charcoal)]/40">이미지 준비 중</p>
-              </div>
+              <GroupPhotoSlider images={group.images} />
               <div className="p-6">
                 <p className="font-medium">
                   {group.finishLabel}

@@ -69,7 +69,7 @@ const productGridItems: ProductGridItem[] = [
     category: "액자",
     name: DIASEC_PRODUCT_NAME,
     desc: "탁상용·벽걸이, 유광·무반사·자작나무",
-    image: null,
+    image: "/frames/diasec/desk-glossy-1.jpg",
     priceFrom: diasecMinPrice,
     href: `/options?product=${encodeURIComponent(DIASEC_PRODUCT_NAME)}`,
     badge: "NEW",
