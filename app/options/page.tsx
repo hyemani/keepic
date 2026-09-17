@@ -30,7 +30,10 @@ import {
 } from "@/lib/photobookPricing";
 
 function PhotobookOptions() {
-  const [cover, setCover] = useState<PhotobookCoverId>("soft");
+  const searchParams = useSearchParams();
+  const coverParam = searchParams.get("cover");
+  const initialCover: PhotobookCoverId = coverParam === "hard" ? "hard" : "soft";
+  const [cover, setCover] = useState<PhotobookCoverId>(initialCover);
   const [size, setSize] = useState<PhotobookSizeId>("M");
   const [coverCoating, setCoverCoating] = useState<CoverCoatingId>(DEFAULT_COVER_COATING);
   const [innerPaper, setInnerPaper] = useState<InnerPaperId>(DEFAULT_INNER_PAPER);

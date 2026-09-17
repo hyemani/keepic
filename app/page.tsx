@@ -6,7 +6,7 @@ import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
 import ProductGrid, { type ProductGridItem } from "@/components/ProductGrid";
-import { photobookBasePrice } from "@/lib/photobookPricing";
+import { photobookBasePrice, photobookCovers } from "@/lib/photobookPricing";
 import { diasecFrameSizes, DIASEC_PRODUCT_NAME } from "@/lib/diasecFrameModels";
 import { mugTypes } from "@/lib/mugModels";
 import { tumblerTypes } from "@/lib/tumblerModels";
@@ -25,10 +25,10 @@ const promoBanner = {
 // 시작가는 각 상품의 실제 가격 데이터(lib/*)에서 가장 저렴한 조합을 그대로 계산해요.
 // 숫자를 직접 적어두면 나중에 가격이 바뀔 때 여기가 따로 안 맞을 수 있어서,
 // 항상 원본 가격표를 기준으로 최솟값을 구해요.
-const photobookMinPrice = Math.min(
-  ...Object.values(photobookBasePrice.soft),
-  ...Object.values(photobookBasePrice.hard)
-);
+const photobookMinPriceByCover = {
+  soft: Math.min(...Object.values(photobookBasePrice.soft)),
+  hard: Math.min(...Object.values(photobookBasePrice.hard)),
+};
 const diasecMinPrice = Math.min(...diasecFrameSizes.map((s) => s.price));
 const mugMinPrice = Math.min(...mugTypes.map((t) => t.price));
 const tumblerMinPrice = Math.min(...tumblerTypes.map((t) => t.price));
@@ -43,15 +43,15 @@ const fabricPosterMinPrice =
   Math.min(...fabricPosterFabrics.map((f) => f.priceDelta));
 
 const productGridItems: ProductGridItem[] = [
-  {
-    id: "photobook",
-    category: "포토북",
-    name: "포토북",
+  ...photobookCovers.map((cover) => ({
+    id: `photobook-${cover.id}`,
+    category: "포토북" as const,
+    name: `포토북 (${cover.name})`,
     desc: "소중한 사진을 한 권의 책으로",
     image: "/hero/top-banner/photobook-1.png",
-    priceFrom: photobookMinPrice,
-    href: "/options?product=포토북",
-  },
+    priceFrom: photobookMinPriceByCover[cover.id],
+    href: `/options?product=${encodeURIComponent("포토북")}&cover=${cover.id}`,
+  })),
   {
     id: "frame",
     category: "액자",

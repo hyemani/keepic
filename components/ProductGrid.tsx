@@ -19,16 +19,15 @@ export type ProductGridItem = {
   badge?: string;
 };
 
-const TABS: { label: string; value: "전체" | ProductGridCategory }[] = [
-  { label: "전체", value: "전체" },
+const TABS: { label: string; value: ProductGridCategory }[] = [
   { label: "포토북", value: "포토북" },
   { label: "액자", value: "액자" },
   { label: "나만의 굿즈", value: "나만의 굿즈" },
 ];
 
 export default function ProductGrid({ items }: { items: ProductGridItem[] }) {
-  const [filter, setFilter] = useState<"전체" | ProductGridCategory>("전체");
-  const filtered = filter === "전체" ? items : items.filter((item) => item.category === filter);
+  const [filter, setFilter] = useState<ProductGridCategory>("포토북");
+  const filtered = items.filter((item) => item.category === filter);
 
   return (
     <div>
