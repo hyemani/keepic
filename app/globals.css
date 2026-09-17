@@ -18,10 +18,10 @@ body {
   font-family: "Pretendard", sans-serif;
 }
 
-/* 배너 문구용 서체 — 프리텐다드/지마켓산스보다 좀 더 독특하고 귀여운 느낌을
-   원하셔서 골랐어요("Do Hyeon", 구글 폰트, 이미 레이아웃에서 불러오고 있어요). */
+/* 메인 서체 — 여러 후보 중 골라주신 "차이 활짝체"예요. 배너 제목처럼
+   눈에 띄는 문구에 사용해요. */
 .font-banner {
-  font-family: "Do Hyeon", "Pretendard", sans-serif;
+  font-family: "ChaiHwaljjak", "Pretendard", sans-serif;
 }
 
 /* 포토북 문구 편집기에 추가한 한글 폰트예요. 구글 폰트에 없는 폰트라

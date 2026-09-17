@@ -17,9 +17,11 @@ import { fabricPosterSizes, fabricPosterFabrics } from "@/lib/fabricPosterModels
 
 // 홈 화면 맨 위, 예전의 큰 히어로 슬라이드 대신 쓰는 작은 프로모션 배너예요.
 const promoBanner = {
-  image: "/hero/keepic-hero-2.png",
-  alt: "테이블 위에 펼쳐진 Keepic 포토북",
-  titleLines: ["사진 속 순간을,", "한 권의 추억으로"],
+  image: "/hero/keepic-hero-goods.jpg",
+  alt: "포토북, 액자, 머그컵, 키링 등 Keepic 상품 구성",
+  titleLines: ["기억하고 싶은 순간,", "키픽하세요."],
+  eyebrow: "PHOTOBOOK · FRAME · CUSTOM GOODS",
+  caption: "사진을 보내주시면 배치부터 디자인까지 함께합니다.",
 };
 
 // 시작가는 각 상품의 실제 가격 데이터(lib/*)에서 가장 저렴한 조합을 그대로 계산해요.
@@ -203,14 +205,19 @@ export default function Home() {
                   className="h-full w-full object-cover"
                 />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/15 to-transparent" />
               <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10">
-                <p className="text-xs font-medium text-white/80">Keepic</p>
-                <h1 className="font-banner mt-1 break-keep text-3xl leading-tight text-white sm:text-4xl">
+                <h1 className="font-banner break-keep text-3xl leading-tight text-white sm:text-5xl">
                   {promoBanner.titleLines[0]}
                   <br />
                   {promoBanner.titleLines[1]}
                 </h1>
+                <p className="mt-3 text-[11px] font-semibold tracking-[0.18em] text-white/85 sm:text-sm">
+                  {promoBanner.eyebrow}
+                </p>
+                <p className="mt-2 max-w-xs break-keep text-xs text-white/75 sm:text-sm">
+                  {promoBanner.caption}
+                </p>
               </div>
             </Link>
           }
