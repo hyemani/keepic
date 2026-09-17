@@ -7,8 +7,8 @@
      단색으로 쓰이는 모든 곳에서 자동으로 이 톤을 따라가요.
      --color-brand-purple은 그라데이션의 시작색(보라)으로, 큰 버튼 배경 등에서만
      --color-sky와 함께 그라데이션으로 사용해요. */
-  --color-sky: #3E5FEE;
-  --color-brand-purple: #7A3FE0;
+  --color-sky: #2F54EB;
+  --color-brand-purple: #6D28D9;
   --color-hairline: #D6E2EC;
 }
 
