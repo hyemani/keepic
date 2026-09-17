@@ -92,7 +92,7 @@ export default function HeroSlideshow({
               길이는 전부 같고, 지금 보고 있는 슬라이드만 진하게 채워져요. */}
           <span
             className={`block h-1 w-6 rounded-full transition-colors ${
-              i === index ? "bg-[var(--color-sky)]" : "bg-[var(--color-charcoal)]/25"
+              i === index ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]" : "bg-[var(--color-charcoal)]/25"
             }`}
           />
         </button>
@@ -156,7 +156,7 @@ export default function HeroSlideshow({
                 <div className="mt-5 flex flex-wrap items-center gap-4">
                   <Link
                     href={fixedCaption.primaryCta.href}
-                    className="rounded-full bg-[var(--color-sky)] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                    className="rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
                   >
                     {fixedCaption.primaryCta.label}
                   </Link>
@@ -254,7 +254,7 @@ export default function HeroSlideshow({
                     <div className="mt-8 flex items-center gap-6">
                       <Link
                         href={fixedCaption.primaryCta.href}
-                        className="bg-[var(--color-sky)] px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+                        className="bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
                       >
                         {fixedCaption.primaryCta.label}
                       </Link>
@@ -304,7 +304,7 @@ export default function HeroSlideshow({
                   <div className="mt-8 flex items-center gap-6">
                     <Link
                       href="/order"
-                      className="bg-[var(--color-sky)] px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+                      className="bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-6 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
                     >
                       포토북 제작 신청
                     </Link>

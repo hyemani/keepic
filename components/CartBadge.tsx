@@ -32,7 +32,7 @@ export default function CartBadge({ className = "" }: { className?: string }) {
         <path d="M9 8V6a3 3 0 0 1 6 0v2" />
       </svg>
       {count > 0 && (
-        <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-sky)] px-1 text-[10px] font-medium text-white">
+        <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-1 text-[10px] font-medium text-white">
           {count}
         </span>
       )}

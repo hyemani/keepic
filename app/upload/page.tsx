@@ -1545,7 +1545,7 @@ function UploadPageContent() {
             </div>
           )}
 
-          <label className="mt-8 inline-block cursor-pointer rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
+          <label className="mt-8 inline-block cursor-pointer rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
             사진 선택하기
             <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
           </label>
@@ -2236,7 +2236,7 @@ function UploadPageContent() {
           </div>
         )}
 
-        <label className="mt-8 inline-block cursor-pointer rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
+        <label className="mt-8 inline-block cursor-pointer rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
           사진 선택하기
           <input type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
         </label>

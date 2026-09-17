@@ -82,7 +82,7 @@ export default function SiteHeader({
           <CartBadge className="font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]" />
           <Link
             href="/order"
-            className="rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[var(--color-sky)] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+            className="rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
           >
             만들기 시작
           </Link>
@@ -240,7 +240,7 @@ export default function SiteHeader({
             <Link
               href="/order"
               onClick={() => setMenuOpen(false)}
-              className="rounded-full bg-[var(--color-sky)] py-3 text-center text-xs font-medium text-white"
+              className="rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] py-3 text-center text-xs font-medium text-white"
             >
               만들기 시작
             </Link>

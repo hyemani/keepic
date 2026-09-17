@@ -166,7 +166,7 @@ export default function CasesPage() {
             onClick={() => setTab("photobook")}
             className={`rounded-full px-4 py-2 font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
               tab === "photobook"
-                ? "bg-[var(--color-sky)] text-white"
+                ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-white"
                 : "text-[var(--color-charcoal)]/60"
             }`}
           >
@@ -177,7 +177,7 @@ export default function CasesPage() {
             onClick={() => setTab("frame")}
             className={`rounded-full px-4 py-2 font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
               tab === "frame"
-                ? "bg-[var(--color-sky)] text-white"
+                ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-white"
                 : "text-[var(--color-charcoal)]/60"
             }`}
           >
@@ -188,7 +188,7 @@ export default function CasesPage() {
             onClick={() => setTab("goods")}
             className={`rounded-full px-4 py-2 font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
               tab === "goods"
-                ? "bg-[var(--color-sky)] text-white"
+                ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-white"
                 : "text-[var(--color-charcoal)]/60"
             }`}
           >
@@ -352,7 +352,7 @@ export default function CasesPage() {
         <section className="mx-auto hidden max-w-6xl px-6 pb-16 sm:block sm:px-10">
           <Link
             href={tab === "photobook" ? "/options?product=포토북" : "/goods"}
-            className="inline-block rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+            className="inline-block rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
           >
             {tab === "photobook" ? "포토북 만들기" : "굿즈 둘러보기"}
           </Link>

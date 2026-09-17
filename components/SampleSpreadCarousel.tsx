@@ -63,7 +63,7 @@ export default function SampleSpreadCarousel({ images }: { images: SampleSpreadI
             >
               <span
                 className={`block h-1.5 rounded-full transition-all ${
-                  i === index ? "w-5 bg-[var(--color-sky)]" : "w-1.5 bg-[var(--color-charcoal)]/25"
+                  i === index ? "w-5 bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]" : "w-1.5 bg-[var(--color-charcoal)]/25"
                 }`}
               />
             </button>

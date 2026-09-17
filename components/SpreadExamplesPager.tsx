@@ -80,7 +80,7 @@ export default function SpreadExamplesPager({ images }: { images: SpreadExampleI
             >
               <span
                 className={`block h-1 w-6 rounded-full transition-colors ${
-                  i === page ? "bg-[var(--color-sky)]" : "bg-[var(--color-charcoal)]/25"
+                  i === page ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]" : "bg-[var(--color-charcoal)]/25"
                 }`}
               />
             </button>

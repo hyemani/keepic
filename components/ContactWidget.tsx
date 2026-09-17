@@ -99,7 +99,7 @@ export default function ContactWidget() {
           aria-expanded={open}
           aria-haspopup="dialog"
           aria-label="문의하기"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-sky)] text-white shadow-[0_10px_25px_-8px_rgba(45,55,72,0.45)] transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] sm:h-12 sm:w-12"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-white shadow-[0_10px_25px_-8px_rgba(45,55,72,0.45)] transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] sm:h-12 sm:w-12"
         >
           <ChatIcon />
         </button>

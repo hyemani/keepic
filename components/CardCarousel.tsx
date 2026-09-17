@@ -142,7 +142,7 @@ export default function CardCarousel({ items }: { items: CarouselItem[] }) {
             {activeItem.cta && (
               <Link
                 href={activeItem.cta.href}
-                className="mt-5 inline-block rounded-full bg-[var(--color-sky)] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                className="mt-5 inline-block rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
               >
                 {activeItem.cta.label}
               </Link>

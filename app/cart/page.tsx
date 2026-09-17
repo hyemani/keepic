@@ -319,7 +319,7 @@ export default function CartPage() {
               className={`mt-6 block w-full rounded-full px-8 py-4 text-center text-sm font-medium text-white transition sm:inline-block sm:w-auto ${
                 selectedItems.length === 0 || isGoing
                   ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
-                  : "bg-[var(--color-sky)] hover:opacity-90"
+                  : "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:opacity-90"
               }`}
             >
               선택 상품 주문하기 ({selectedItems.length}개)

@@ -106,7 +106,7 @@ function TemplatePageContent() {
 
                 <Link
                   href={nextUrl}
-                  className="mt-4 rounded-full bg-[var(--color-sky)] py-3 text-center text-sm font-medium text-white transition hover:opacity-90"
+                  className="mt-4 rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] py-3 text-center text-sm font-medium text-white transition hover:opacity-90"
                 >
                   이 디자인으로 선택
                 </Link>

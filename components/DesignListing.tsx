@@ -79,7 +79,7 @@ export default function DesignListing() {
       aria-pressed={filter === value}
       className={`w-full whitespace-nowrap rounded-full px-4 py-2 text-center text-sm font-medium transition ${
         filter === value
-          ? "bg-[var(--color-sky)] text-white"
+          ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-white"
           : "border border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
       }`}
     >
@@ -172,7 +172,7 @@ export default function DesignListing() {
               >
                 <span
                   className={`block h-1 w-6 rounded-full transition-colors ${
-                    i === page ? "bg-[var(--color-sky)]" : "bg-[var(--color-charcoal)]/25"
+                    i === page ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]" : "bg-[var(--color-charcoal)]/25"
                   }`}
                 />
               </button>
@@ -221,7 +221,7 @@ export default function DesignListing() {
               </p>
               <Link
                 href={`/options?product=포토북&design=${activeDesign.id}`}
-                className="mt-6 block rounded-full bg-[var(--color-sky)] py-3.5 text-center text-sm font-medium text-white transition hover:opacity-90"
+                className="mt-6 block rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] py-3.5 text-center text-sm font-medium text-white transition hover:opacity-90"
               >
                 추억을 한 권에 담기
               </Link>

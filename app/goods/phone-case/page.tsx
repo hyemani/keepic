@@ -575,7 +575,7 @@ export default function PhoneCasePage() {
                   className={`flex-1 px-6 py-4 text-center text-sm font-medium text-white transition ${
                     isSaving
                       ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
-                      : "bg-[var(--color-sky)] hover:opacity-90"
+                      : "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:opacity-90"
                   }`}
                 >
                   {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
@@ -606,7 +606,7 @@ export default function PhoneCasePage() {
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
-          className="bg-[var(--color-sky)] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+          className="bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
         >
           옵션 선택하기
         </button>
@@ -674,7 +674,7 @@ export default function PhoneCasePage() {
                 className={`px-8 py-4 text-sm font-medium text-white transition ${
                   isSaving
                     ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
-                    : "bg-[var(--color-sky)] hover:opacity-90"
+                    : "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:opacity-90"
                 }`}
               >
                 {isSaving ? "사진 올리는 중..." : "제작 신청하기"}

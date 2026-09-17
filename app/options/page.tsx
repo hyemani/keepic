@@ -278,7 +278,7 @@ function PhotobookOptions() {
         href={`/template?product=${encodeURIComponent(
           "포토북"
         )}&size=${size}&quantity=${quantity}&unitPrice=${price.total}&cover=${cover}&coverCoating=${coverCoating}&innerPaper=${innerPaper}&pages=${pages}`}
-        className="mt-12 block w-full rounded-full bg-[var(--color-sky)] px-8 py-4 text-center text-sm font-medium text-white transition hover:opacity-90 sm:inline-block sm:w-auto"
+        className="mt-12 block w-full rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-center text-sm font-medium text-white transition hover:opacity-90 sm:inline-block sm:w-auto"
       >
         다음
       </Link>

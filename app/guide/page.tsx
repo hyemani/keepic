@@ -91,7 +91,7 @@ export default function GuidePage() {
           {steps.map((step, i) => (
             <div key={step.title} className="flex gap-6">
               <div className="flex flex-col items-center">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-sky)] text-sm font-medium text-white">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-sm font-medium text-white">
                   {i + 1}
                 </div>
                 {i < steps.length - 1 && (
@@ -117,7 +117,7 @@ export default function GuidePage() {
           </Link>
           <Link
             href="/order"
-            className="rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
+            className="rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90"
           >
             추억 제작하러 가기
           </Link>

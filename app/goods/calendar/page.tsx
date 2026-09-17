@@ -138,7 +138,7 @@ function OptionsForm({
               }`}
             >
               {s.badge && (
-                <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[var(--color-sky)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   {s.badge}
                 </span>
               )}
@@ -678,7 +678,7 @@ export default function CalendarPage() {
                   className={`flex-1 px-6 py-4 text-center text-sm font-medium text-white transition ${
                     isSaving
                       ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
-                      : "bg-[var(--color-sky)] hover:opacity-90"
+                      : "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:opacity-90"
                   }`}
                 >
                   {isSaving ? "사진 올리는 중..." : "제작 신청하기"}
@@ -708,7 +708,7 @@ export default function CalendarPage() {
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
-          className="bg-[var(--color-sky)] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
+          className="bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
         >
           옵션 선택하기
         </button>
@@ -780,7 +780,7 @@ export default function CalendarPage() {
                 className={`px-8 py-4 text-center text-sm font-medium text-white transition ${
                   isSaving
                     ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
-                    : "bg-[var(--color-sky)] hover:opacity-90"
+                    : "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:opacity-90"
                 }`}
               >
                 {isSaving ? "사진 올리는 중..." : "제작 신청하기"}

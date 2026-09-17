@@ -281,7 +281,7 @@ export default function OrderLookupPage() {
           <button
             onClick={handleSearch}
             disabled={isLoading}
-            className="mt-4 rounded-full bg-[var(--color-sky)] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-4 rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? "조회 중..." : "주문 조회하기"}
           </button>
@@ -339,7 +339,7 @@ export default function OrderLookupPage() {
                                 <div
                                   className={`h-2.5 w-2.5 rounded-full ${
                                     i <= currentStepIndex
-                                      ? "bg-[var(--color-sky)]"
+                                      ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]"
                                       : "bg-[var(--color-hairline)]"
                                   }`}
                                 />
@@ -357,7 +357,7 @@ export default function OrderLookupPage() {
                                 <div
                                   className={`mx-1 mb-4 h-px flex-1 ${
                                     i < currentStepIndex
-                                      ? "bg-[var(--color-sky)]"
+                                      ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]"
                                       : "bg-[var(--color-hairline)]"
                                   }`}
                                 />
@@ -425,7 +425,7 @@ export default function OrderLookupPage() {
                                   <button
                                     onClick={() => handleApproveProof(order.id)}
                                     disabled={respondingId === order.id}
-                                    className="rounded-full bg-[var(--color-sky)] px-4 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-4 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     확인했어요
                                   </button>
@@ -492,7 +492,7 @@ export default function OrderLookupPage() {
                             <button
                               onClick={() => handleSaveEdit(order.id)}
                               disabled={isSavingPhotos || isAddingPhoto}
-                              className="rounded-full bg-[var(--color-sky)] px-4 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              className="rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-4 py-2 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {isSavingPhotos ? "저장하는 중..." : "저장하기"}
                             </button>

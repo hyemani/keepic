@@ -351,7 +351,7 @@ export default function CheckoutPage() {
           disabled={!isFormValid || isSubmitting}
           className={`mt-10 rounded-full px-8 py-4 text-sm font-medium text-white transition ${
             isFormValid && !isSubmitting
-              ? "bg-[var(--color-sky)] hover:opacity-90"
+              ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:opacity-90"
               : "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
           }`}
         >
