@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { getShippingFee } from "@/lib/shippingConfig";
-import { DIASEC_PRODUCT_NAME, DIASEC_SHIPPING_NOTICE } from "@/lib/diasecFrameModels";
+import { DIASEC_PRODUCT_NAME, DIASEC_SHIPPING_NOTICE, diasecFrameSizes, diasecGroups } from "@/lib/diasecFrameModels";
 import {
   photobookCovers,
   photobookSizes,
@@ -291,10 +291,22 @@ function PhotobookOptions() {
 
 function OtherProductOptions({ productName }: { productName: ProductName }) {
   const config = productConfig[productName];
-  const [selectedSize, setSelectedSize] = useState<string>(config.sizes[1].id);
+  const isDiasec = productName === DIASEC_PRODUCT_NAME;
+
+  // 디아섹 아크릴액자는 사이즈가 16개나 돼서 한 화면에 다 보여주면 복잡해요.
+  // "거치방식/재질"(3개) → "마감"(2개) → "사이즈" 순으로 단계를 나눠서 골라요.
+  const [diasecGroupKey, setDiasecGroupKey] = useState(diasecGroups[0].key);
+  const diasecGroup = diasecGroups.find((g) => g.key === diasecGroupKey) ?? diasecGroups[0];
+  const [diasecFinishLabel, setDiasecFinishLabel] = useState(diasecGroup.finishLabels[0]);
+  const diasecSizesForFinish = diasecFrameSizes.filter(
+    (s) => s.finishLabel === diasecFinishLabel
+  );
+
+  const [selectedSize, setSelectedSize] = useState<string>(
+    isDiasec ? diasecSizesForFinish[0]?.id ?? config.sizes[0].id : config.sizes[1].id
+  );
   const [quantity, setQuantity] = useState(1);
 
-  const isDiasec = productName === DIASEC_PRODUCT_NAME;
   const selectedSizeInfo = config.sizes.find((s) => s.id === selectedSize);
   // 판매가가 있는 상품(디아섹 아크릴액자 등)만 unitPrice가 채워져요.
   // 아직 가격이 붙지 않은 상품은 이전과 동일하게 0으로 넘어가요(동작 변화 없음).
@@ -311,28 +323,104 @@ function OtherProductOptions({ productName }: { productName: ProductName }) {
           productName
         )}&size=${selectedSize}&quantity=${quantity}&unitPrice=${unitPrice}`;
 
+  const handleDiasecGroupSelect = (key: string) => {
+    setDiasecGroupKey(key);
+    const nextGroup = diasecGroups.find((g) => g.key === key);
+    if (!nextGroup) return;
+    const nextFinish = nextGroup.finishLabels[0];
+    setDiasecFinishLabel(nextFinish);
+    const firstSize = diasecFrameSizes.find((s) => s.finishLabel === nextFinish);
+    if (firstSize) setSelectedSize(firstSize.id);
+  };
+
+  const handleDiasecFinishSelect = (label: string) => {
+    setDiasecFinishLabel(label);
+    const firstSize = diasecFrameSizes.find((s) => s.finishLabel === label);
+    if (firstSize) setSelectedSize(firstSize.id);
+  };
+
   return (
     <section className="mx-auto max-w-2xl px-6 pb-24 pt-8 sm:px-10">
       <p className="text-sm text-[var(--color-charcoal)]/60">{productName}</p>
       <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">옵션을 선택해주세요</h1>
 
-      <h2 className="mt-12 text-lg font-semibold">사이즈</h2>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {config.sizes.map((size) => (
-          <button
-            key={size.id}
-            onClick={() => setSelectedSize(size.id)}
-            className={`rounded-xl border px-4 py-4 text-center transition ${
-              selectedSize === size.id
-                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-                : "border-[var(--color-hairline)]"
-            }`}
-          >
-            <p className="font-medium">{size.label}</p>
-            <p className="mt-1 text-xs text-[var(--color-charcoal)]/60">{size.detail}</p>
-          </button>
-        ))}
-      </div>
+      {isDiasec ? (
+        <>
+          <h2 className="mt-12 text-lg font-semibold">종류</h2>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {diasecGroups.map((group) => (
+              <button
+                key={group.key}
+                onClick={() => handleDiasecGroupSelect(group.key)}
+                className={`rounded-xl border px-3 py-4 text-center transition ${
+                  diasecGroupKey === group.key
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                    : "border-[var(--color-hairline)]"
+                }`}
+              >
+                <p className="text-sm font-medium">{group.label}</p>
+              </button>
+            ))}
+          </div>
+
+          <h2 className="mt-10 text-lg font-semibold">마감</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {diasecGroup.finishLabels.map((label) => (
+              <button
+                key={label}
+                onClick={() => handleDiasecFinishSelect(label)}
+                className={`rounded-xl border px-4 py-4 text-center transition ${
+                  diasecFinishLabel === label
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                    : "border-[var(--color-hairline)]"
+                }`}
+              >
+                <p className="text-sm font-medium">{label.replace(diasecGroup.label, "").trim() || label}</p>
+              </button>
+            ))}
+          </div>
+
+          <h2 className="mt-10 text-lg font-semibold">사이즈</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {diasecSizesForFinish.map((size) => (
+              <button
+                key={size.id}
+                onClick={() => setSelectedSize(size.id)}
+                className={`rounded-xl border px-4 py-4 text-center transition ${
+                  selectedSize === size.id
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                    : "border-[var(--color-hairline)]"
+                }`}
+              >
+                <p className="font-medium">{size.sizeLabel}</p>
+                <p className="mt-1 text-xs text-[var(--color-charcoal)]/60">
+                  {size.price.toLocaleString()}원
+                </p>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <h2 className="mt-12 text-lg font-semibold">사이즈</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {config.sizes.map((size) => (
+              <button
+                key={size.id}
+                onClick={() => setSelectedSize(size.id)}
+                className={`rounded-xl border px-4 py-4 text-center transition ${
+                  selectedSize === size.id
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                    : "border-[var(--color-hairline)]"
+                }`}
+              >
+                <p className="font-medium">{size.label}</p>
+                <p className="mt-1 text-xs text-[var(--color-charcoal)]/60">{size.detail}</p>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2 className="mt-10 text-lg font-semibold">수량</h2>
       <div className="mt-4 flex items-center gap-4">

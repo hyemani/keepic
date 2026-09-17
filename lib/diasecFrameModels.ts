@@ -42,6 +42,28 @@ export const diasecFrameSizes: DiasecFrameSizeOption[] = [
   { id: "wall-birch-matte-279x355", finishLabel: "벽걸이 자작나무 무광", sizeLabel: "279×355mm", mount: "wall", price: 99000 },
 ];
 
+// 옵션 선택 화면에서 16개 사이즈를 한 번에 보여주면 복잡해서,
+// "거치방식/재질" 대분류(3개) → 마감(대분류 안 2개) → 사이즈 순으로 나눠 골라요.
+export type DiasecGroup = {
+  key: string;
+  label: string;
+  finishLabels: string[];
+};
+
+export const diasecGroups: DiasecGroup[] = [
+  { key: "desk", label: "탁상용", finishLabels: ["탁상용 유광", "탁상용 무반사"] },
+  {
+    key: "desk-birch",
+    label: "탁상용 자작나무",
+    finishLabels: ["탁상용 자작나무 유광", "탁상용 자작나무 무광"],
+  },
+  {
+    key: "wall-birch",
+    label: "벽걸이 자작나무",
+    finishLabels: ["벽걸이 자작나무 유광", "벽걸이 자작나무 무광"],
+  },
+];
+
 export function isDiasecDeskSizeId(sizeId: string): boolean {
   return sizeId.startsWith("desk-");
 }
