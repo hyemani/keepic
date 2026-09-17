@@ -42,18 +42,21 @@ const fabricPosterMinPrice =
   Math.min(...fabricPosterSizes.map((s) => s.price)) +
   Math.min(...fabricPosterFabrics.map((f) => f.priceDelta));
 
-const photobookTagByCover: Record<string, string> = { soft: "S", hard: "H" };
+const photobookCoverBadgeEn: Record<string, string> = {
+  soft: "Soft cover",
+  hard: "Hard cover",
+};
 
 const productGridItems: ProductGridItem[] = [
   ...photobookCovers.map((cover) => ({
     id: `photobook-${cover.id}`,
     category: "포토북" as const,
-    name: `포토북 (${cover.name})`,
+    name: "포토북",
     desc: "소중한 사진을 한 권의 책으로",
     image: "/hero/top-banner/photobook-1.png",
     priceFrom: photobookMinPriceByCover[cover.id],
     href: `/options?product=${encodeURIComponent("포토북")}&cover=${cover.id}`,
-    tag: photobookTagByCover[cover.id],
+    badge: photobookCoverBadgeEn[cover.id],
   })),
   {
     id: "frame",
