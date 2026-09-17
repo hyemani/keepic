@@ -23,3 +23,26 @@ body {
 .font-banner {
   font-family: "Do Hyeon", "Pretendard", sans-serif;
 }
+
+/* 포토북 문구 편집기에 추가한 한글 폰트예요. 구글 폰트에 없는 폰트라
+   각 폰트 배포처가 제공하는 웹폰트 파일을 직접 불러와요. */
+@font-face {
+  font-family: "HsSantoki20";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2405@1.0/HSSanTokki20-Regular.woff2") format("woff2");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "KkuBulLim";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2410-1@1.0/BMkkubulimTTF-Regular.woff2") format("woff2");
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "GriunDujunDujun";
+  src: url("https://d26ciffk7xlrlz.cloudfront.net/free-fonts/dujundujun/Griun_DUJUNDUJUN-Rg.woff2") format("woff2");
+  font-weight: normal;
+  font-display: swap;
+}
