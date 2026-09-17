@@ -174,6 +174,39 @@ export default function FramesPage() {
         </div>
       </section>
 
+      {/* 액자 디자인 예시 — 우선 디아섹 아크릴액자 사진으로, 마감마다
+          겹치지 않게 한 장씩만 보여줘요. */}
+      <section id="frame-design-examples" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-16 pt-2 sm:px-10">
+        <h2 className="text-2xl">
+          <span className="font-bold">액자</span>
+          <span className="font-normal text-[var(--color-charcoal)]/70"> 디자인 예시</span>
+        </h2>
+        <p className="mt-2 break-keep text-sm text-[var(--color-charcoal)]/60">
+          사진이 액자에 담겼을 때의 모습을 확인해보세요.
+          <br />
+          아래 이미지는 디자인 참고용 예시입니다.
+        </p>
+        <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {diasecFinishGroups.map((group, i) => {
+            const example = group.images[i % group.images.length];
+            return (
+              <Reveal
+                key={group.finishLabel}
+                delay={(i % 3) * 80}
+                className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-white"
+              >
+                <div className="aspect-square w-full overflow-hidden">
+                  <img src={example.src} alt={example.alt} className="h-full w-full object-cover" />
+                </div>
+                <div className="p-4">
+                  <p className="text-sm font-medium">{group.finishLabel}</p>
+                </div>
+              </Reveal>
+            );
+          })}
+        </div>
+      </section>
+
       <SiteFooter />
       <StickyOrderBar label="좋아하는 순간을 걸어두기" href="/options?product=액자" desktopFloating />
       <ContactWidget />

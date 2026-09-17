@@ -200,11 +200,14 @@ function pickChunkSizes(photos: PhotoAspect[]): number[] {
   return sizes;
 }
 
-function sizeToTemplateId(size: number): PageTemplateId {
+// singleIndex: 지금까지 나온 "한 칸에 사진 한 장" 배치 중 몇 번째인지예요.
+// 전부 꽉 찬 사진(full)만 나오면 밋밋해서, 세 번에 한 번은 여백이 있는
+// fullMargin으로 바꿔서 다양하게 보여줘요.
+function sizeToTemplateId(size: number, singleIndex: number): PageTemplateId {
   if (size >= 4) return "quad";
   if (size === 3) return "trio";
   if (size === 2) return "duo";
-  return "full";
+  return singleIndex % 3 === 2 ? "fullMargin" : "full";
 }
 
 // 올린 사진들을 보고 스프레드(왼쪽/오른쪽 페이지) 구성을 자동으로 만들어요.
@@ -213,7 +216,12 @@ function sizeToTemplateId(size: number): PageTemplateId {
 export function generateAutoSpreads(photos: PhotoAspect[]): SpreadDef[] {
   if (photos.length === 0) return [];
 
-  const sideTemplates = pickChunkSizes(photos).map(sizeToTemplateId);
+  let singleIndex = 0;
+  const sideTemplates = pickChunkSizes(photos).map((size) => {
+    const templateId = sizeToTemplateId(size, singleIndex);
+    if (size === 1) singleIndex += 1;
+    return templateId;
+  });
   const spreads: SpreadDef[] = [];
   for (let i = 0; i < sideTemplates.length; i += 2) {
     spreads.push({
