@@ -73,3 +73,11 @@ body {
   font-weight: 900;
   font-display: swap;
 }
+
+/* 이서윤체 — 보내주신 폰트 파일을 public/fonts에 올려서 직접 불러와요. */
+@font-face {
+  font-family: "LeeSeoyoon";
+  src: url("/fonts/LeeSeoyoon.ttf") format("truetype");
+  font-weight: normal;
+  font-display: swap;
+}
