@@ -137,9 +137,9 @@ export default function HeroSlideshow({
                 {fixedCaption.eyebrow && (
                   <p className="text-xs font-medium text-white/80">{fixedCaption.eyebrow}</p>
                 )}
-                <h1 className="font-title break-keep text-3xl leading-tight text-white">
+                <h1 className="break-keep text-3xl font-semibold leading-tight text-white">
                   {fixedCaption.titleLines.map((line, li) => (
-                    <span key={li} className={li === 0 ? "font-light" : "font-bold"}>
+                    <span key={li}>
                       {line}
                       {li < fixedCaption.titleLines.length - 1 && <br />}
                     </span>
@@ -181,9 +181,9 @@ export default function HeroSlideshow({
                       i === index ? "opacity-100" : "pointer-events-none opacity-0"
                     }`}
                   >
-                    <h1 className="font-title break-keep text-3xl leading-tight text-white">
+                    <h1 className="break-keep text-3xl font-semibold leading-tight text-white">
                       {slide.titleLines.map((line, li) => (
-                        <span key={li} className={li === 0 ? "font-light" : "font-bold"}>
+                        <span key={li}>
                           {line}
                           {li < slide.titleLines.length - 1 && <br />}
                         </span>
@@ -235,9 +235,9 @@ export default function HeroSlideshow({
                         {fixedCaption.eyebrow}
                       </p>
                     )}
-                    <h1 className="font-title mt-2 break-keep text-3xl leading-tight lg:text-4xl xl:text-5xl">
+                    <h1 className="mt-2 break-keep text-3xl font-semibold leading-tight lg:text-4xl xl:text-5xl">
                       {fixedCaption.titleLines.map((line, li) => (
-                        <span key={li} className={li === 0 ? "font-light" : "font-bold"}>
+                        <span key={li}>
                           {line}
                           {li < fixedCaption.titleLines.length - 1 && <br />}
                         </span>
@@ -279,9 +279,9 @@ export default function HeroSlideshow({
                           i === index ? "opacity-100" : "pointer-events-none opacity-0"
                         }`}
                       >
-                        <h1 className="font-title break-keep text-3xl leading-tight lg:text-4xl xl:text-5xl">
+                        <h1 className="break-keep text-3xl font-semibold leading-tight lg:text-4xl xl:text-5xl">
                           {slide.titleLines.map((line, li) => (
-                            <span key={li} className={li === 0 ? "font-light" : "font-bold"}>
+                            <span key={li}>
                               {line}
                               {li < slide.titleLines.length - 1 && <br />}
                             </span>
