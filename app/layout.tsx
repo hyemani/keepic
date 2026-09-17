@@ -19,6 +19,11 @@ export default function RootLayout({
           as="style"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
         />
+        {/* 사이트 전체 기본 서체: G마켓 산스(굵고 각진 느낌). 300/500/700 세 가지 굵기만 있어요. */}
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/fonts-archive/GmarketSans/GmarketSans.css"
+        />
         <link
   rel="stylesheet"
   href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&family=Nanum+Myeongjo&family=Gowun+Batang&family=Gowun+Dodum&family=Gaegu&family=Nanum+Pen+Script&family=Dongle&family=Gamja+Flower&family=East+Sea+Dokdo&family=Black+Han+Sans&family=Cinzel+Decorative&family=Cinzel&family=Castoro&family=Pinyon+Script&family=Amatic+SC&family=Luckiest+Guy&family=Julius+Sans+One&family=Poor+Story&family=Do+Hyeon&family=Gloock&family=Pompiere&family=Boogaloo&family=Henny+Penny&family=Nosifer&family=DM+Serif+Display&family=Bodoni+Moda&display=swap"
