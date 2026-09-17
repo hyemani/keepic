@@ -206,7 +206,7 @@ export default function Home() {
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
               <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10">
                 <p className="text-xs font-medium text-white/80">Keepic</p>
-                <h1 className="mt-1 break-keep text-2xl font-semibold leading-tight text-white sm:text-3xl">
+                <h1 className="font-banner mt-1 break-keep text-3xl leading-tight text-white sm:text-4xl">
                   {promoBanner.titleLines[0]}
                   <br />
                   {promoBanner.titleLines[1]}
