@@ -10,6 +10,8 @@ import {
   pageTemplates,
   PageTemplateId,
   SpreadDef,
+  AI_AUTO_LAYOUT_TEMPLATE_ID,
+  generateAutoSpreads,
 } from "@/lib/albumTemplates";
 import {
   photobookCovers,
@@ -923,6 +925,18 @@ function UploadPageContent() {
   const [customSpreads, setCustomSpreads] = useState<SpreadDef[]>(() =>
     template ? template.spreads.map((s) => ({ ...s })) : []
   );
+
+  // "AI 맞춤 레이아웃"을 선택했을 때만: 사진 개수가 바뀔 때마다(추가/삭제)
+  // 사진 비율에 맞춰 스프레드 구성을 자동으로 다시 만들어요. 캡션 수정이나
+  // 드래그처럼 개수가 그대로인 편집에는 반응하지 않아서, 사용자가 손으로
+  // 바꾼 배치를 건드리지 않아요. (렌더링 도중 상태를 맞추는 React 권장 패턴 —
+  // effect 대신 써서 불필요한 리렌더 한 번을 줄여요.)
+  const isAiAuto = isPhotobook && templateId === AI_AUTO_LAYOUT_TEMPLATE_ID;
+  const [autoLayoutPhotoCount, setAutoLayoutPhotoCount] = useState(0);
+  if (isAiAuto && photos.length !== autoLayoutPhotoCount) {
+    setAutoLayoutPhotoCount(photos.length);
+    setCustomSpreads(generateAutoSpreads(photos));
+  }
   const [isSaving, setIsSaving] = useState(false);
   // [테스트용] 새 pdf-lib PDF 생성기 테스트 버튼 상태예요. (?pdftest=1 일 때만 노출)
   const isPdfLibTestMode = searchParams.get("pdftest") === "1";
@@ -1468,7 +1482,9 @@ function UploadPageContent() {
           </p>
           <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">사진을 골라주세요</h1>
           <p className="mt-3 text-[var(--color-charcoal)]/70 break-keep">
-            이 디자인은 정확히 사진 {requiredCount}장이 필요해요. (현재 {photos.length}장 선택됨)
+            {isAiAuto
+              ? `사진을 올리면 AI가 개수와 비율에 맞춰 자동으로 배치해드려요. (현재 ${photos.length}장 올림)`
+              : `이 디자인은 정확히 사진 ${requiredCount}장이 필요해요. (현재 ${photos.length}장 선택됨)`}
           </p>
           <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
             각 페이지 왼쪽 위 배치 메뉴로 구성을 바꿀 수 있어요. 사진 오른쪽 위 "Aa" 버튼으로 그 캡션만의 서체·크기·색상·정렬·위치를 따로 정할 수 있어요.
@@ -1643,6 +1659,17 @@ function UploadPageContent() {
                     </>
                   )}
                 </p>
+              )}
+
+              {isAiAuto && photos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCustomSpreads(generateAutoSpreads(photos))}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[var(--color-sky)] px-4 py-2 text-sm font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                >
+                  <span aria-hidden>✨</span>
+                  AI가 다시 배치하기
+                </button>
               )}
 
               <div className="mt-6 flex flex-col gap-4 lg:flex-row">

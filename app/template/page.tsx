@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   albumTemplates,
   getTemplatePhotoCount,
+  AI_AUTO_LAYOUT_TEMPLATE_ID,
   PageTemplateId,
 } from "@/lib/albumTemplates";
 
@@ -71,7 +72,10 @@ function TemplatePageContent() {
         </p>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {albumTemplates.map((template) => {
+          {albumTemplates
+            .filter((template) => product === "포토북" || template.id !== AI_AUTO_LAYOUT_TEMPLATE_ID)
+            .map((template) => {
+            const isAiAuto = template.id === AI_AUTO_LAYOUT_TEMPLATE_ID;
             const photoCount = getTemplatePhotoCount(template);
             const nextUrl = `/upload?product=${encodeURIComponent(
               product
@@ -80,28 +84,41 @@ function TemplatePageContent() {
             return (
               <div
                 key={template.id}
-                className="flex flex-col rounded-2xl border border-[var(--color-hairline)] bg-white p-5"
+                className={`flex flex-col rounded-2xl border p-5 ${
+                  isAiAuto
+                    ? "border-transparent bg-[var(--color-sky)]/5 ring-1 ring-[var(--color-sky)]/40"
+                    : "border-[var(--color-hairline)] bg-white"
+                }`}
               >
-                <h2 className="text-lg font-semibold">{template.name}</h2>
+                <h2 className="flex items-center gap-1.5 text-lg font-semibold">
+                  {isAiAuto && <span aria-hidden>✨</span>}
+                  {template.name}
+                </h2>
                 <p className="mt-1 text-sm text-[var(--color-charcoal)]/60">
                   {template.description}
                 </p>
 
-                <div className="mt-4 grid grid-cols-5 gap-1">
-                  {template.spreads.map((spread, i) => (
-                    <div key={i} className="flex gap-px">
-                      <div className="w-1/2">
-                        <MiniPage templateId={spread.left} />
+                {isAiAuto ? (
+                  <div className="mt-4 flex aspect-[5/2] items-center justify-center rounded-lg bg-white/60 text-xs text-[var(--color-charcoal)]/40">
+                    사진을 올리면 자동으로 채워져요
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-5 gap-1">
+                    {template.spreads.map((spread, i) => (
+                      <div key={i} className="flex gap-px">
+                        <div className="w-1/2">
+                          <MiniPage templateId={spread.left} />
+                        </div>
+                        <div className="w-1/2">
+                          <MiniPage templateId={spread.right} />
+                        </div>
                       </div>
-                      <div className="w-1/2">
-                        <MiniPage templateId={spread.right} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
 
                 <p className="mt-4 text-xs text-[var(--color-charcoal)]/50">
-                  필요한 사진: {photoCount}장
+                  {isAiAuto ? "사진 개수에 맞춰 자동으로 배치돼요" : `필요한 사진: ${photoCount}장`}
                 </p>
 
                 <Link

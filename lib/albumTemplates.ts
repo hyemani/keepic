@@ -30,6 +30,13 @@ export type AlbumTemplate = {
 
 export const albumTemplates: AlbumTemplate[] = [
   {
+    id: "ai-auto",
+    name: "AI 맞춤 레이아웃",
+    description: "사진을 올리면 개수와 비율에 맞춰 AI가 자동으로 배치해드려요",
+    // 고정된 스프레드가 없어요 — 사진을 올리면 generateAutoSpreads()가 그때그때 만들어요.
+    spreads: [],
+  },
+  {
     id: "classic",
     name: "클래식",
     description: "사진과 여백이 번갈아 나오는 균형 잡힌 구성",
@@ -141,4 +148,78 @@ export function getTemplatePhotoCount(template: AlbumTemplate) {
       pageTemplates[spread.right].photoCount
     );
   }, 0);
+}
+
+// "AI 맞춤 레이아웃"을 고르면 이 id로 들어와요. 정해진 spreads가 없고,
+// 올린 사진에 맞춰 generateAutoSpreads()로 그때그때 만들어요.
+export const AI_AUTO_LAYOUT_TEMPLATE_ID = "ai-auto";
+
+export type PhotoAspect = { width: number; height: number };
+
+function classifyOrientation(photo: PhotoAspect): "landscape" | "portrait" | "square" {
+  const ratio = photo.width / Math.max(photo.height, 1);
+  if (ratio >= 1.15) return "landscape";
+  if (ratio <= 0.87) return "portrait";
+  return "square";
+}
+
+// 사진 개수와 가로/세로 비율을 보고 몇 장씩 한 칸에 묶을지 정해요.
+// 가로로 긴 사진은 한 장을 크게(full), 세로·정사각 사진은 2~4장씩 묶어서
+// 촘촘하게 배치해요. 같은 구성이 계속 반복되지 않도록 바로 앞 구성과는
+// 다른 크기를 우선 골라요. 실제 사진 인식 기반 AI는 아니고, 사진 개수/비율로
+// 그럴듯한 배치를 자동으로 만들어주는 규칙 기반 로직이에요.
+function pickChunkSizes(photos: PhotoAspect[]): number[] {
+  const sizes: number[] = [];
+  let i = 0;
+  let prevSize = 0;
+
+  while (i < photos.length) {
+    const remaining = photos.length - i;
+    const orientation = classifyOrientation(photos[i]);
+
+    let size: number;
+    if (remaining === 1) {
+      size = 1;
+    } else if (orientation === "landscape") {
+      // 가로 사진은 넓게 보여주고 싶어서, 남은 장수가 딱 2장이 아닌 한 한 장만 써요.
+      size = remaining === 2 ? 2 : 1;
+    } else {
+      const usable = [2, 3, 4].filter((n) => n <= remaining);
+      const pool = usable.length > 0 ? usable : [Math.min(remaining, 4)];
+      const varied = pool.filter((n) => n !== prevSize);
+      const options = varied.length > 0 ? varied : pool;
+      size = options[i % options.length];
+    }
+
+    size = Math.max(1, Math.min(size, remaining));
+    sizes.push(size);
+    prevSize = size;
+    i += size;
+  }
+
+  return sizes;
+}
+
+function sizeToTemplateId(size: number): PageTemplateId {
+  if (size >= 4) return "quad";
+  if (size === 3) return "trio";
+  if (size === 2) return "duo";
+  return "full";
+}
+
+// 올린 사진들을 보고 스프레드(왼쪽/오른쪽 페이지) 구성을 자동으로 만들어요.
+// 만들어지는 슬롯 총합은 항상 photos.length와 정확히 같아서, 기존의
+// "정확히 N장 필요해요" 검사 로직을 그대로 통과해요.
+export function generateAutoSpreads(photos: PhotoAspect[]): SpreadDef[] {
+  if (photos.length === 0) return [];
+
+  const sideTemplates = pickChunkSizes(photos).map(sizeToTemplateId);
+  const spreads: SpreadDef[] = [];
+  for (let i = 0; i < sideTemplates.length; i += 2) {
+    spreads.push({
+      left: sideTemplates[i],
+      right: sideTemplates[i + 1] ?? "blank",
+    });
+  }
+  return spreads;
 }
