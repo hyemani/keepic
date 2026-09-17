@@ -42,6 +42,8 @@ const fabricPosterMinPrice =
   Math.min(...fabricPosterSizes.map((s) => s.price)) +
   Math.min(...fabricPosterFabrics.map((f) => f.priceDelta));
 
+const photobookTagByCover: Record<string, string> = { soft: "S", hard: "H" };
+
 const productGridItems: ProductGridItem[] = [
   ...photobookCovers.map((cover) => ({
     id: `photobook-${cover.id}`,
@@ -51,6 +53,7 @@ const productGridItems: ProductGridItem[] = [
     image: "/hero/top-banner/photobook-1.png",
     priceFrom: photobookMinPriceByCover[cover.id],
     href: `/options?product=${encodeURIComponent("포토북")}&cover=${cover.id}`,
+    tag: photobookTagByCover[cover.id],
   })),
   {
     id: "frame",
@@ -175,34 +178,34 @@ export default function Home() {
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
       <SiteHeader />
 
-      {/* 작은 프로모션 배너 (예전의 큰 히어로 슬라이드 대신) */}
-      <section className="mx-auto max-w-6xl px-6 pt-6 sm:px-10">
-        <Link
-          href="/options?product=포토북"
-          className="relative block overflow-hidden rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
-        >
-          <div className="aspect-[4/3] w-full sm:aspect-[21/6]">
-            <img
-              src={promoBanner.image}
-              alt={promoBanner.alt}
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
-          <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10">
-            <p className="text-xs font-medium text-white/80">Keepic</p>
-            <h1 className="mt-1 break-keep text-2xl font-semibold leading-tight text-white sm:text-3xl">
-              {promoBanner.titleLines[0]}
-              <br />
-              {promoBanner.titleLines[1]}
-            </h1>
-          </div>
-        </Link>
-      </section>
-
-      {/* 카테고리 탭 + 상품 그리드 */}
-      <section id="products" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-4 pt-10 sm:px-10">
-        <ProductGrid items={productGridItems} />
+      {/* 카테고리 탭 + 프로모션 배너 + 상품 그리드 */}
+      <section id="products" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-4 pt-6 sm:px-10">
+        <ProductGrid
+          items={productGridItems}
+          banner={
+            <Link
+              href="/options?product=포토북"
+              className="relative block overflow-hidden rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+            >
+              <div className="aspect-[4/3] w-full sm:aspect-[21/6]">
+                <img
+                  src={promoBanner.image}
+                  alt={promoBanner.alt}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
+              <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10">
+                <p className="text-xs font-medium text-white/80">Keepic</p>
+                <h1 className="mt-1 break-keep text-2xl font-semibold leading-tight text-white sm:text-3xl">
+                  {promoBanner.titleLines[0]}
+                  <br />
+                  {promoBanner.titleLines[1]}
+                </h1>
+              </div>
+            </Link>
+          }
+        />
       </section>
 
       {/* 이용 과정 3단계 */}

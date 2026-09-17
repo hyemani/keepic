@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 export type ProductGridCategory = "포토북" | "액자" | "나만의 굿즈";
 
@@ -16,7 +16,10 @@ export type ProductGridItem = {
   priceFrom?: number;
   priceNote?: string;
   href: string;
+  // 이미지 위 오른쪽 아래에 작게 붙는 뱃지(예: "NEW")
   badge?: string;
+  // 상품명 옆에 붙는 짧은 태그(예: 포토북 커버 종류 "S"/"H")
+  tag?: string;
 };
 
 const TABS: { label: string; value: ProductGridCategory }[] = [
@@ -25,7 +28,14 @@ const TABS: { label: string; value: ProductGridCategory }[] = [
   { label: "나만의 굿즈", value: "나만의 굿즈" },
 ];
 
-export default function ProductGrid({ items }: { items: ProductGridItem[] }) {
+export default function ProductGrid({
+  items,
+  banner,
+}: {
+  items: ProductGridItem[];
+  // 탭과 상품 목록 사이에 끼워 넣을 작은 프로모션 배너
+  banner?: ReactNode;
+}) {
   const [filter, setFilter] = useState<ProductGridCategory>("포토북");
   const filtered = items.filter((item) => item.category === filter);
 
@@ -50,8 +60,13 @@ export default function ProductGrid({ items }: { items: ProductGridItem[] }) {
         ))}
       </div>
 
+      {banner && <div className="mt-4">{banner}</div>}
+
+      {/* 지금 보고 있는 카테고리 이름 */}
+      <p className="mt-6 text-base font-semibold">{filter}</p>
+
       {/* 상품 카드 그리드 */}
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {filtered.map((item) => (
           <Link
             key={item.id}
@@ -67,18 +82,25 @@ export default function ProductGrid({ items }: { items: ProductGridItem[] }) {
                 </div>
               )}
               {item.badge && (
-                <span className="absolute left-2 top-2 rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2.5 py-1 text-[10px] font-medium text-white">
+                <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-medium text-white">
                   {item.badge}
                 </span>
               )}
             </div>
             <div className="p-4">
-              <p className="text-sm font-medium">{item.name}</p>
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                {item.name}
+                {item.tag && (
+                  <span className="rounded bg-[var(--color-charcoal)]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-charcoal)]/70">
+                    {item.tag}
+                  </span>
+                )}
+              </p>
               <p className="mt-1 break-keep text-xs text-[var(--color-charcoal)]/60">
                 {item.desc}
               </p>
               {item.priceFrom !== undefined ? (
-                <p className="mt-2 text-sm font-semibold">
+                <p className="mt-2 text-base font-bold">
                   {item.priceFrom.toLocaleString()}원~
                 </p>
               ) : (
