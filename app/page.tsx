@@ -1,42 +1,129 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import { Fragment } from "react";
-import HeroSlideshow, { type HeroSlide } from "@/components/HeroSlideshow";
 import SampleSpreadCarousel from "@/components/SampleSpreadCarousel";
 import StickyOrderBar from "@/components/StickyOrderBar";
 import SiteFooter from "@/components/SiteFooter";
 import Reveal from "@/components/Reveal";
+import ProductGrid, { type ProductGridItem } from "@/components/ProductGrid";
+import { photobookBasePrice } from "@/lib/photobookPricing";
+import { diasecFrameSizes, DIASEC_PRODUCT_NAME } from "@/lib/diasecFrameModels";
+import { mugTypes } from "@/lib/mugModels";
+import { tumblerTypes } from "@/lib/tumblerModels";
+import { ECOBAG_BASE_PRICE } from "@/lib/ecobagModels";
+import { calendarShapes } from "@/lib/calendarModels";
+import { caseTypes } from "@/lib/phoneCaseModels";
+import { fabricPosterSizes, fabricPosterFabrics } from "@/lib/fabricPosterModels";
 
-const heroSlides: HeroSlide[] = [
+// 홈 화면 맨 위, 예전의 큰 히어로 슬라이드 대신 쓰는 작은 프로모션 배너예요.
+const promoBanner = {
+  image: "/hero/keepic-hero-2.png",
+  alt: "테이블 위에 펼쳐진 Keepic 포토북",
+  titleLines: ["사진 속 순간을,", "한 권의 추억으로"],
+};
+
+// 시작가는 각 상품의 실제 가격 데이터(lib/*)에서 가장 저렴한 조합을 그대로 계산해요.
+// 숫자를 직접 적어두면 나중에 가격이 바뀔 때 여기가 따로 안 맞을 수 있어서,
+// 항상 원본 가격표를 기준으로 최솟값을 구해요.
+const photobookMinPrice = Math.min(
+  ...Object.values(photobookBasePrice.soft),
+  ...Object.values(photobookBasePrice.hard)
+);
+const diasecMinPrice = Math.min(...diasecFrameSizes.map((s) => s.price));
+const mugMinPrice = Math.min(...mugTypes.map((t) => t.price));
+const tumblerMinPrice = Math.min(...tumblerTypes.map((t) => t.price));
+const calendarMinPrice = Math.min(
+  ...calendarShapes.flatMap((s) => Object.values(s.prices))
+);
+const phoneCaseMinPrice = Math.min(
+  ...caseTypes.flatMap((t) => t.materials.map((m) => m.price))
+);
+const fabricPosterMinPrice =
+  Math.min(...fabricPosterSizes.map((s) => s.price)) +
+  Math.min(...fabricPosterFabrics.map((f) => f.priceDelta));
+
+const productGridItems: ProductGridItem[] = [
   {
-    image: "/hero/keepic-hero-2.png",
-    alt: "테이블 위에 펼쳐진 Keepic 포토북",
-    titleLines: ["사진 속 순간을,", "한 권의 추억으로."],
-    descLines: ["사진을 올려주시면 디자이너가 직접 편집해", "나만의 포토북으로 완성해드려요."],
+    id: "photobook",
+    category: "포토북",
+    name: "포토북",
+    desc: "소중한 사진을 한 권의 책으로",
+    image: "/hero/top-banner/photobook-1.png",
+    priceFrom: photobookMinPrice,
+    href: "/options?product=포토북",
   },
   {
-    image: "/hero/hero-slide-1.jpg",
-    alt: "강아지와 고양이 사진이 담긴 아크릴 액자와 포토북",
-    titleLines: ["함께한 순간들이,", "사랑스러운 기록으로."],
-    descLines: ["우리 댕댕이, 냥이와의 하루를", "한 권의 포토북에 담아드려요."],
+    id: "frame",
+    category: "액자",
+    name: "액자",
+    desc: "원목·화이트·아크릴 등 다양한 스타일",
+    image: "/frames/frame-wood.jpg",
+    priceNote: "다양한 사이즈로 제작",
+    href: "/frames",
   },
   {
-    image: "/hero/hero-slide-2.jpg",
-    alt: "아기 사진이 담긴 핑크색 포토북",
-    titleLines: ["작은 손과 발이,", "소중한 이야기로."],
-    descLines: ["우리 아이의 첫 순간들을", "한 권의 포토북으로 완성해요."],
+    id: "diasec-frame",
+    category: "액자",
+    name: DIASEC_PRODUCT_NAME,
+    desc: "탁상용·벽걸이, 유광·무반사·자작나무",
+    image: null,
+    priceFrom: diasecMinPrice,
+    href: `/options?product=${encodeURIComponent(DIASEC_PRODUCT_NAME)}`,
+    badge: "NEW",
   },
   {
-    image: "/hero/hero-slide-3.jpg",
-    alt: "여행 사진이 담긴 초록색 포토북",
-    titleLines: ["낯선 풍경도,", "특별한 한 권으로."],
-    descLines: ["여행에서 담은 사진들을", "근사한 포토북으로 만들어드려요."],
+    id: "mug",
+    category: "나만의 굿즈",
+    name: "머그컵·유리컵",
+    desc: "매일 쓰는 컵에 담는 사진",
+    image: "/goods/mug/main-1.jpg",
+    priceFrom: mugMinPrice,
+    href: "/goods/mug",
   },
   {
-    image: "/hero/hero-slide-4.jpg",
-    alt: "웨딩 사진이 담긴 포토북과 원목 액자",
-    titleLines: ["평생 간직할 하루를,", "아름다운 한 권으로."],
-    descLines: ["결혼식의 순간들을", "웨딩 포토북으로 소중하게 남겨요."],
+    id: "phone-case",
+    category: "나만의 굿즈",
+    name: "폰케이스",
+    desc: "늘 손에 드는 휴대폰에",
+    image: "/goods/phone-case/main-1.jpg",
+    priceFrom: phoneCaseMinPrice,
+    href: "/goods/phone-case",
+  },
+  {
+    id: "tumbler",
+    category: "나만의 굿즈",
+    name: "텀블러",
+    desc: "각인과 사진을 함께 담아",
+    image: "/goods/tumbler/main-1.jpg",
+    priceFrom: tumblerMinPrice,
+    href: "/goods/tumbler",
+  },
+  {
+    id: "ecobag",
+    category: "나만의 굿즈",
+    name: "에코백",
+    desc: "좋아하는 사진을 담아 만드는 가방",
+    image: "/goods/ecobag/main-1.jpg",
+    priceFrom: ECOBAG_BASE_PRICE,
+    href: "/goods/ecobag",
+  },
+  {
+    id: "calendar",
+    category: "나만의 굿즈",
+    name: "캘린더",
+    desc: "매달 꺼내보는 탁상 캘린더",
+    image: "/goods/calendar/main-1.jpg",
+    priceFrom: calendarMinPrice,
+    href: "/goods/calendar",
+  },
+  {
+    id: "fabric-poster",
+    category: "나만의 굿즈",
+    name: "패브릭 포스터",
+    desc: "한 장의 사진으로 완성하는 공간",
+    image: "/goods/fabric-poster/main-1.jpg",
+    priceFrom: fabricPosterMinPrice,
+    href: "/goods/fabric-poster",
   },
 ];
 
@@ -86,10 +173,37 @@ const miniFaqs = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
-      <SiteHeader overlayHero />
+      <SiteHeader />
 
-      {/* 히어로 */}
-      <HeroSlideshow slides={heroSlides} />
+      {/* 작은 프로모션 배너 (예전의 큰 히어로 슬라이드 대신) */}
+      <section className="mx-auto max-w-6xl px-6 pt-6 sm:px-10">
+        <Link
+          href="/options?product=포토북"
+          className="relative block overflow-hidden rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+        >
+          <div className="aspect-[4/3] w-full sm:aspect-[21/6]">
+            <img
+              src={promoBanner.image}
+              alt={promoBanner.alt}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
+          <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-10">
+            <p className="text-xs font-medium text-white/80">Keepic</p>
+            <h1 className="font-title mt-1 break-keep text-2xl leading-tight text-white sm:text-3xl">
+              <span className="font-light">{promoBanner.titleLines[0]}</span>
+              <br />
+              <span className="font-bold">{promoBanner.titleLines[1]}</span>
+            </h1>
+          </div>
+        </Link>
+      </section>
+
+      {/* 카테고리 탭 + 상품 그리드 */}
+      <section id="products" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-4 pt-10 sm:px-10">
+        <ProductGrid items={productGridItems} />
+      </section>
 
       {/* 이용 과정 3단계 */}
       <section className="mx-auto max-w-[1100px] px-6 pb-20 pt-20 sm:px-10">
