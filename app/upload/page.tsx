@@ -86,6 +86,7 @@ const fontOptions = [
   { id: "'HsSantoki20', sans-serif", label: "산토끼체" },
   { id: "'KkuBulLim', sans-serif", label: "꾸불림체" },
   { id: "'GriunDujunDujun', sans-serif", label: "두준두준체" },
+  { id: "'ChaiHwaljjak', sans-serif", label: "활짝체" },
   { id: "'Cinzel Decorative', serif", label: "Cinzel Decorative" },
   { id: "'Cinzel', serif", label: "Cinzel" },
   { id: "'Castoro', serif", label: "Castoro" },

@@ -46,3 +46,30 @@ body {
   font-weight: normal;
   font-display: swap;
 }
+
+/* 차이 활짝체 — 산돌구름 무료 폰트라 공개 CDN이 없어서, 보내주신 폰트
+   파일을 그대로 public/fonts에 올려서 직접 불러와요. */
+@font-face {
+  font-family: "ChaiHwaljjak";
+  src: url("/fonts/ChaiHwaljjak-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "ChaiHwaljjak";
+  src: url("/fonts/ChaiHwaljjak-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "ChaiHwaljjak";
+  src: url("/fonts/ChaiHwaljjak-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "ChaiHwaljjak";
+  src: url("/fonts/ChaiHwaljjak-Heavy.otf") format("opentype");
+  font-weight: 900;
+  font-display: swap;
+}
