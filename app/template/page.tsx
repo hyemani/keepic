@@ -73,9 +73,9 @@ function TemplatePageContent() {
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {albumTemplates
-            .filter((template) => product === "포토북" || template.id !== AI_AUTO_LAYOUT_TEMPLATE_ID)
+            .filter((template) => template.id !== AI_AUTO_LAYOUT_TEMPLATE_ID)
             .map((template) => {
-            const isAiAuto = template.id === AI_AUTO_LAYOUT_TEMPLATE_ID;
+            const isAiAuto = false;
             const photoCount = getTemplatePhotoCount(template);
             const nextUrl = `/upload?product=${encodeURIComponent(
               product

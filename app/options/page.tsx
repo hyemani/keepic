@@ -32,6 +32,9 @@ import {
 function PhotobookOptions() {
   const searchParams = useSearchParams();
   const coverParam = searchParams.get("cover");
+  // "포토북(AI 맞춤 레이아웃)" 카드로 들어온 경우, 레이아웃 고르는 화면을
+  // 건너뛰고 바로 사진 업로드로 가요(레이아웃은 AI가 자동으로 만들어줘요).
+  const isAiAutoLayout = searchParams.get("layout") === "ai-auto";
   const initialCover: PhotobookCoverId = coverParam === "hard" ? "hard" : "soft";
   const [cover, setCover] = useState<PhotobookCoverId>(initialCover);
   const [size, setSize] = useState<PhotobookSizeId>("M");
@@ -278,9 +281,15 @@ function PhotobookOptions() {
       )}
 
       <Link
-        href={`/template?product=${encodeURIComponent(
-          "포토북"
-        )}&size=${size}&quantity=${quantity}&unitPrice=${price.total}&cover=${cover}&coverCoating=${coverCoating}&innerPaper=${innerPaper}&pages=${pages}`}
+        href={
+          isAiAutoLayout
+            ? `/upload?product=${encodeURIComponent(
+                "포토북"
+              )}&size=${size}&quantity=${quantity}&unitPrice=${price.total}&cover=${cover}&coverCoating=${coverCoating}&innerPaper=${innerPaper}&pages=${pages}&template=ai-auto`
+            : `/template?product=${encodeURIComponent(
+                "포토북"
+              )}&size=${size}&quantity=${quantity}&unitPrice=${price.total}&cover=${cover}&coverCoating=${coverCoating}&innerPaper=${innerPaper}&pages=${pages}`
+        }
         className="mt-12 block w-full rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-center text-sm font-medium text-white transition hover:opacity-90 sm:inline-block sm:w-auto"
       >
         사진 선택하기
