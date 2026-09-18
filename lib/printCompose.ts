@@ -626,8 +626,154 @@ export async function buildInnerPrintPdf({
   return { printBlob: pdf.output("blob"), guideBlob: guidePdf.output("blob") };
 }
 
+// ---- 책등(spine) 제목 · 로고 ----
+// lib/printPdfLib.ts(테스트용 pdf-lib 생성기)의 같은 이름 로직을 캔버스(px) 기준으로
+// 옮긴 거예요. 비율 상수는 동일하게 맞춰서 두 생성기의 책등 결과가 서로 비슷하게 나와요.
+const SPINE_TEXT_SIDE_PADDING_MM = 1.5;
+const SPINE_TITLE_MARGIN_RATIO = 0.06;
+const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15;
+const SPINE_TITLE_MIN_FONT_PX = 6; // printPdfLib.ts의 4pt(≈5.3px)보다 조금 더 여유 있게 잡았어요.
+const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
+const SPINE_LOGO_HEIGHT_RATIO = 0.85;
+const SPINE_LOGO_BOTTOM_MARGIN_MM = 8;
+const SPINE_LOGO_MIN_CROSS_MM = 10;
+
+function computeSpineTitleLayoutPx(
+  charCount: number,
+  spinePx: number,
+  panelPx: number,
+  logoReserveHeightPx: number
+): {
+  fits: boolean;
+  size: number;
+  charsPerColumn: number;
+  gapPx: number;
+  blockCrossPx: number;
+  blockLengthPx: number;
+  marginPx: number;
+  gapBeforeLogoPx: number;
+} {
+  const sidePaddingPx = mmToPx(SPINE_TEXT_SIDE_PADDING_MM);
+  const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2);
+  const marginPx = panelPx * SPINE_TITLE_MARGIN_RATIO;
+  const gapBeforeLogoPx = logoReserveHeightPx > 0 ? panelPx * SPINE_TITLE_LOGO_GAP_RATIO : 0;
+  const maxLengthPx = Math.max(4, panelPx - marginPx * 2 - logoReserveHeightPx - gapBeforeLogoPx);
+
+  let size = maxCrossPx;
+  let charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
+  let fits = false;
+  while (size >= SPINE_TITLE_MIN_FONT_PX) {
+    charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
+    const columnCount = Math.ceil(charCount / charsPerColumn);
+    const gapPx = size * SPINE_TITLE_COLUMN_GAP_RATIO;
+    const totalCrossPx = columnCount * size + Math.max(0, columnCount - 1) * gapPx;
+    if (totalCrossPx <= maxCrossPx) {
+      fits = true;
+      break;
+    }
+    size -= 0.5;
+  }
+  if (size < SPINE_TITLE_MIN_FONT_PX) {
+    size = SPINE_TITLE_MIN_FONT_PX;
+    charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
+  }
+  const columnCount = Math.ceil(charCount / charsPerColumn);
+  const gapPx = size * SPINE_TITLE_COLUMN_GAP_RATIO;
+  const blockCrossPx = columnCount * size + Math.max(0, columnCount - 1) * gapPx;
+  const blockLengthPx = Math.min(maxLengthPx, charsPerColumn * size);
+
+  return { fits, size, charsPerColumn, gapPx, blockCrossPx, blockLengthPx, marginPx, gapBeforeLogoPx };
+}
+
+// 문장 전체를 눕히지 않고, 한 글자씩 정방향으로 위→아래로 쌓아요. 한 열에 다 못 담으면
+// 오른쪽에 새 열을 추가해요(왼쪽 열부터 읽혀요). logoReserveHeightPx만큼은 로고 자리로
+// 비워둬서 겹치지 않아요.
+function drawSpineTitleCanvas(
+  ctx: CanvasRenderingContext2D,
+  title: string,
+  spineXpx: number,
+  spinePx: number,
+  panelPx: number,
+  bleedPx: number,
+  logoReserveHeightPx: number
+): boolean {
+  const chars = Array.from(title.trim());
+  if (chars.length === 0) return true;
+
+  const layout = computeSpineTitleLayoutPx(chars.length, spinePx, panelPx, logoReserveHeightPx);
+  const { fits, size, charsPerColumn, gapPx, blockCrossPx, blockLengthPx, marginPx, gapBeforeLogoPx } = layout;
+
+  // 세로 방향(책등 길이) 위치: 로고 위 공간(제목 가능 영역) 한가운데에 둬요.
+  const usableBottomPx = marginPx + logoReserveHeightPx + gapBeforeLogoPx;
+  const usableTopPx = panelPx - marginPx;
+  const usableHeightPx = Math.max(0, usableTopPx - usableBottomPx);
+  const blockTopFromPanelBottomPx = usableBottomPx + usableHeightPx / 2 + blockLengthPx / 2;
+
+  // 가로 방향(책등 폭) 위치: 열 블록 전체를 책등 폭 가운데 정렬해요.
+  const spineCenterXpx = spineXpx + spinePx / 2;
+  const blockLeftXpx = spineCenterXpx - blockCrossPx / 2;
+
+  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  ctx.fillStyle = "#1a1a1a";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+
+  for (let i = 0; i < chars.length; i++) {
+    const col = Math.floor(i / charsPerColumn);
+    const row = i % charsPerColumn;
+    const ch = chars[i];
+    if (ch.trim() === "") continue;
+
+    const colCenterXpx = blockLeftXpx + col * (size + gapPx) + size / 2;
+    // row 0이 블록 맨 위 글자예요. 캔버스는 y가 아래로 증가해서, panelPx 바닥 기준
+    // 거리(...FromPanelBottomPx)를 "패널 안에서 위에서부터의 y좌표"로 뒤집어요.
+    const yFromPanelBottomPx = blockTopFromPanelBottomPx - row * size;
+    const yPx = bleedPx + (panelPx - yFromPanelBottomPx) + size * 0.78;
+
+    ctx.fillText(ch, colCenterXpx, yPx);
+  }
+
+  return fits;
+}
+
+// 책등 폭(spinePx) 기준으로 로고를 얼마나 크게 그릴지, 혹은 너무 좁아서 생략할지 계산해요.
+function computeSpineLogoLayoutPx(spinePx: number): {
+  fits: boolean;
+  drawnWidthPx: number;
+  drawnHeightPx: number;
+} {
+  const sidePaddingPx = mmToPx(SPINE_TEXT_SIDE_PADDING_MM);
+  const maxCrossPx = Math.max(0, spinePx - sidePaddingPx * 2);
+  if (maxCrossPx < mmToPx(SPINE_LOGO_MIN_CROSS_MM)) {
+    return { fits: false, drawnWidthPx: 0, drawnHeightPx: 0 };
+  }
+  const drawnWidthPx = maxCrossPx * SPINE_LOGO_HEIGHT_RATIO;
+  const drawnHeightPx = drawnWidthPx / KEEPIC_LOGO_ASPECT;
+  return { fits: true, drawnWidthPx, drawnHeightPx };
+}
+
+// 로고는 회전 없이 "Keepic"이 왼쪽→오른쪽으로 읽히는 정방향 그대로, 책등 아래쪽 고정
+// 위치에 넣어요.
+function drawSpineLogoCanvas(
+  ctx: CanvasRenderingContext2D,
+  logoImg: HTMLImageElement,
+  spineXpx: number,
+  spinePx: number,
+  panelPx: number,
+  bleedPx: number,
+  layout: { drawnWidthPx: number; drawnHeightPx: number }
+) {
+  const spineCenterXpx = spineXpx + spinePx / 2;
+  const x = spineCenterXpx - layout.drawnWidthPx / 2;
+  // 캔버스 y는 위에서 아래로 증가하니, "패널 바닥에서 고정 여백만큼 위"는
+  // 패널 맨 아래(bleedPx + panelPx)에서 위로 올라간 자리예요.
+  const y = bleedPx + panelPx - mmToPx(SPINE_LOGO_BOTTOM_MARGIN_MM) - layout.drawnHeightPx;
+  ctx.drawImage(logoImg, x, y, layout.drawnWidthPx, layout.drawnHeightPx);
+}
+
 // 표지 PDF: 뒤표지 - 책등(세네카) - 앞표지가 한 장으로 이어진 펼침 도면 1페이지를 만들어요.
-// 앞표지에는 고객이 고른 사진과 제목을 넣고, 책등/뒤표지는 우선 흰색 배경으로 비워둬요.
+// 앞표지에는 고객이 고른 사진과 제목을 넣고, 책등엔 책등 제목·키픽 로고를, 뒤표지엔
+// 키픽 로고(기본) 또는 작은 사진을 넣어요.
 // printBlob = 실제 발주용, guideBlob = 재단선·안전선·책등 경계가 표시된 확인용 파일이에요.
 export async function buildCoverPrintPdf({
   cover,
@@ -638,6 +784,10 @@ export async function buildCoverPrintPdf({
   coverTitleFontFamily = "Pretendard, sans-serif",
   innerPaperWeightG,
   pages,
+  spineTitle,
+  backCoverMode = "logo",
+  backCoverPhoto = null,
+  backCoverBackgroundColor,
 }: {
   cover: PhotobookCoverId;
   sizeInnerTrimMm: number; // 내지 재단 사이즈(정사각형 한 변, mm) — 예: L=300
@@ -648,6 +798,10 @@ export async function buildCoverPrintPdf({
   // 넣기 때문에, 브라우저에 로드된 폰트라면(화면 편집기의 서체 선택지와 같은 값) 그대로 반영돼요.
   innerPaperWeightG: number;
   pages: number;
+  spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
+  backCoverMode?: "logo" | "photo";
+  backCoverPhoto?: PrintPhoto | null;
+  backCoverBackgroundColor?: string;
 }): Promise<PrintPdfResult> {
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
@@ -677,10 +831,73 @@ export async function buildCoverPrintPdf({
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, pxW, pxH);
 
-  // 책등 영역 표시(옅은 안내선 — 실제 인쇄에는 큰 영향 없는 옅은 색이에요)
+  // 뒤표지(왼쪽) 영역 — 배경색을 채우고, 무지로 비워두지 않도록 키픽 로고(기본) 또는
+  // 작은 사진을 가운데에 배치해요. 바깥쪽(왼쪽)·위·아래는 실제 재단 경계라서 도련까지
+  // 포함해서 채워요(책등 쪽만 접히는 자리라 도련이 필요 없어요).
+  const backCellWpx = bleedPx + panelPx;
+  const backCellHpx = panelPx + bleedPx * 2;
+  if (backCoverBackgroundColor) {
+    ctx.fillStyle = backCoverBackgroundColor;
+    ctx.fillRect(0, 0, backCellWpx, backCellHpx);
+  }
+  const backCenterXpx = backCellWpx / 2;
+  const backCenterYpx = backCellHpx / 2;
+  if (backCoverMode === "photo" && backCoverPhoto?.url) {
+    const backImg = await loadImage(backCoverPhoto.url);
+    const naturalW = backImg.naturalWidth || 1;
+    const naturalH = backImg.naturalHeight || 1;
+    const squarePx = Math.min(backCellWpx, backCellHpx) * 0.46;
+    let sx = 0;
+    let sy = 0;
+    const sSize = Math.min(naturalW, naturalH);
+    if (naturalW > naturalH) sx = (naturalW - sSize) / 2;
+    else sy = (naturalH - sSize) / 2;
+    ctx.drawImage(
+      backImg,
+      sx,
+      sy,
+      sSize,
+      sSize,
+      backCenterXpx - squarePx / 2,
+      backCenterYpx - squarePx / 2,
+      squarePx,
+      squarePx
+    );
+  } else {
+    const backLogoImg = await loadImage("/logo.svg");
+    const backLogoWpx = backCellWpx * 0.34;
+    const backLogoHpx = backLogoWpx / KEEPIC_LOGO_ASPECT;
+    ctx.drawImage(
+      backLogoImg,
+      backCenterXpx - backLogoWpx / 2,
+      backCenterYpx - backLogoHpx / 2,
+      backLogoWpx,
+      backLogoHpx
+    );
+  }
+
+  // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
   const spineX = bleedPx + panelPx;
   ctx.fillStyle = "#f4f1ea";
   ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
+
+  const spineLogoLayout = computeSpineLogoLayoutPx(spinePx);
+  const spineTitleText = (spineTitle ?? coverTitle ?? "").trim();
+  if (spineTitleText) {
+    drawSpineTitleCanvas(
+      ctx,
+      spineTitleText,
+      spineX,
+      spinePx,
+      panelPx,
+      bleedPx,
+      spineLogoLayout.fits ? spineLogoLayout.drawnHeightPx : 0
+    );
+  }
+  if (spineLogoLayout.fits) {
+    const spineLogoImg = await loadImage("/logo.svg");
+    drawSpineLogoCanvas(ctx, spineLogoImg, spineX, spinePx, panelPx, bleedPx, spineLogoLayout);
+  }
 
   // 앞표지(오른쪽) 영역에 사진 + 제목
   const frontX = spineX + spinePx;

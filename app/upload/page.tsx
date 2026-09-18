@@ -1035,6 +1035,11 @@ function UploadPageContent() {
   const [coverTitleFontScale, setCoverTitleFontScale] = useState(1);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
+  // 뒤표지예요 — 무지(흰 배경)로 비워두지 않고, 기본으로 키픽 로고를 가운데에 배치해요.
+  // "사진"을 고르면 작은 사진을 대신 넣을 수 있고, 배경색도 내지처럼 자유롭게 바꿀 수 있어요.
+  const [backCoverMode, setBackCoverMode] = useState<"logo" | "photo">("logo");
+  const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
+  const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
   // "마지막 소개 페이지"(발행 정보)예요. 발행일은 최초 생성 시 한국 날짜로 한 번만
   // 정하고(아래 useEffect), 그 뒤로는 다시 열거나 PDF를 저장해도 자동으로 바뀌지
@@ -1139,6 +1144,36 @@ function UploadPageContent() {
     img.src = url;
   }
 
+  // 뒤표지에 "사진" 모드일 때 넣을 작은 이미지를 골라요. (표지 앞면 사진과는 별개예요)
+  async function handleBackCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      setBackCoverPhoto({
+        url,
+        caption: "",
+        x: 0,
+        y: 0,
+        scale: 1,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        fontFamily: fontOptions[0].id,
+        size: "base",
+        bold: false,
+        color: "#2B2B2B",
+        align: "center",
+        position: "below",
+        containerW: 0,
+        containerH: 0,
+        rotation: 0,
+        flipX: false,
+      });
+    };
+    img.src = url;
+  }
+
   async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const files = event.target.files;
     if (!files) return;
@@ -1174,6 +1209,15 @@ function UploadPageContent() {
 
     const newPhotos = await Promise.all(newPhotosPromises);
     setPhotos((prev) => [...prev, ...newPhotos]);
+
+    // 표지 사진을 아직 안 골랐으면, 처음 올린 사진을 표지 앞면에 자동으로 배치해요.
+    // (직접 고른 표지 사진이 있으면 건드리지 않고, "표지 사진 바꾸기"로 언제든 바꿀 수 있어요.)
+    setCoverPhoto((prev) => {
+      if (prev) return prev;
+      const first = newPhotos[0];
+      if (!first) return prev;
+      return { ...first, caption: "", size: "base", align: "center", position: "below" };
+    });
   }
 
   function handleCaptionChange(photoIndex: number, value: string) {
@@ -1260,6 +1304,10 @@ function UploadPageContent() {
       coverTitleFontFamily,
       innerPaperWeightG: innerPaper.weightG,
       pages,
+      spineTitle,
+      backCoverMode,
+      backCoverPhoto,
+      backCoverBackgroundColor,
     });
 
     const uuid = () => crypto.randomUUID();
@@ -1779,7 +1827,10 @@ function UploadPageContent() {
                         className="pointer-events-none flex w-28 overflow-hidden rounded bg-white shadow-sm lg:w-full"
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
-                        <div className="h-full bg-[var(--color-ivory)]" style={{ width: `${coverBackPct}%` }} />
+                        <div
+                          className="h-full"
+                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
+                        />
                         <div className="h-full bg-[var(--color-hairline)]" style={{ width: `${coverSpinePct}%` }} />
                         <div
                           className="relative h-full overflow-hidden bg-[var(--color-ivory)]"
@@ -1941,10 +1992,32 @@ function UploadPageContent() {
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
                         <div
-                          className="relative flex h-full items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40"
-                          style={{ width: `${coverBackPct}%` }}
+                          className="relative flex h-full items-center justify-center overflow-hidden"
+                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
                         >
-                          뒤표지(무지)
+                          {backCoverMode === "logo" ? (
+                            <img
+                              src="/logo.svg"
+                              alt="Keepic"
+                              className="pointer-events-none w-[34%] max-w-24 opacity-80"
+                            />
+                          ) : backCoverPhoto ? (
+                            <img
+                              src={backCoverPhoto.url}
+                              alt=""
+                              className="h-[46%] w-[46%] rounded-sm object-cover shadow-sm"
+                            />
+                          ) : (
+                            <label className="flex h-[46%] w-[46%] cursor-pointer flex-col items-center justify-center gap-1 rounded-sm border border-dashed border-[var(--color-charcoal)]/30 bg-white text-center text-[9px] text-[var(--color-charcoal)]/50">
+                              사진 선택
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleBackCoverFileSelect}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
                         </div>
                         <div
                           className="relative flex h-full flex-col items-center bg-[var(--color-hairline)]/60"
@@ -2160,6 +2233,84 @@ function UploadPageContent() {
                             </option>
                           ))}
                         </select>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
+                        <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                          뒤표지 꾸미기
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex overflow-hidden rounded-full border border-[var(--color-hairline)]">
+                            <button
+                              type="button"
+                              onClick={() => setBackCoverMode("logo")}
+                              className={`px-3 py-1.5 text-xs transition ${
+                                backCoverMode === "logo"
+                                  ? "bg-[var(--color-sky)] text-white"
+                                  : "bg-white text-[var(--color-charcoal)]/70"
+                              }`}
+                            >
+                              키픽 로고
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBackCoverMode("photo")}
+                              className={`px-3 py-1.5 text-xs transition ${
+                                backCoverMode === "photo"
+                                  ? "bg-[var(--color-sky)] text-white"
+                                  : "bg-white text-[var(--color-charcoal)]/70"
+                              }`}
+                            >
+                              작은 사진
+                            </button>
+                          </div>
+                          {backCoverMode === "photo" && (
+                            <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                              {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleBackCoverFileSelect}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-[var(--color-charcoal)]/60">배경색</span>
+                          {SPREAD_BACKGROUND_PRESETS.map((preset) => {
+                            const isActive =
+                              (backCoverBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase();
+                            return (
+                              <button
+                                key={preset.color}
+                                type="button"
+                                title={preset.label}
+                                onClick={() =>
+                                  setBackCoverBackgroundColor(preset.color === "#ffffff" ? undefined : preset.color)
+                                }
+                                className={`h-6 w-6 rounded-full border transition ${
+                                  isActive
+                                    ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                    : "border-[var(--color-hairline)]"
+                                }`}
+                                style={{ backgroundColor: preset.color }}
+                              />
+                            );
+                          })}
+                          <label
+                            title="색 직접 고르기"
+                            className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
+                          >
+                            +
+                            <input
+                              type="color"
+                              value={backCoverBackgroundColor ?? "#ffffff"}
+                              onChange={(e) => setBackCoverBackgroundColor(e.target.value)}
+                              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                            />
+                          </label>
+                        </div>
                       </div>
                     </div>
                   ) : selectedPageKey === "intro" ? (
