@@ -19,6 +19,22 @@ export const pageTemplates: Record<PageTemplateId, { photoCount: number }> = {
   trioText: { photoCount: 3 },
 };
 
+// 자유 배치 텍스트박스 하나예요(내지 페이지·표지 앞면 공통으로 써요). 위치·너비는 그
+// 텍스트박스가 놓인 "페이지(또는 표지 앞면) 전체"를 100%로 보는 퍼센트 좌표라서, 화면
+// 크기가 달라져도(모바일 등) 항상 같은 자리에 보여요.
+export type TextBoxDef = {
+  id: string;
+  text: string;
+  xPct: number; // 왼쪽 끝 위치 (0~100)
+  yPct: number; // 위쪽 끝 위치 (0~100)
+  widthPct: number; // 박스 너비 (0~100) — 이 너비에서 줄바꿈돼요.
+  fontFamily: string;
+  fontScale: number; // 기본 글자 크기 대비 배율(1이 기본) — 표지 제목 배율(coverTitleFontScale)과 같은 방식이에요.
+  color: string;
+  align: "left" | "center" | "right";
+  bold: boolean;
+};
+
 export type SpreadDef = {
   left: PageTemplateId;
   right: PageTemplateId;
@@ -28,6 +44,9 @@ export type SpreadDef = {
   // 그래픽·패턴·텍스처 배경 꾸미기(lib/backgroundPatterns.ts의 preset id)예요. 지정돼
   // 있으면 backgroundColor보다 우선해요(서로 배타적으로 골라요).
   backgroundPattern?: string;
+  // 자유 배치 텍스트박스예요. 왼쪽·오른쪽 페이지가 서로 다른 낱장이라 각각 따로 가져요.
+  textBoxesLeft?: TextBoxDef[];
+  textBoxesRight?: TextBoxDef[];
 };
 
 export type AlbumTemplate = {

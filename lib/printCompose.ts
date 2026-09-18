@@ -11,7 +11,7 @@
 // 다시 생성해주세요.
 
 import { jsPDF } from "jspdf";
-import { PageTemplateId, SpreadDef, pageTemplates } from "@/lib/albumTemplates";
+import { PageTemplateId, SpreadDef, TextBoxDef, pageTemplates } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import {
   PhotobookCoverId,
@@ -163,7 +163,79 @@ const CAPTION_FONT_PX: Record<PrintPhoto["size"], number> = {
   lg: 40,
 };
 
+// 화면(app/upload/page.tsx의 TextBoxOverlay)과 같은 좌표계로 텍스트박스 하나를 그려요:
+// xPct/yPct/widthPct는 그 페이지 전체를 100%로 보는 퍼센트, fontScale은 coverTitle과
+// 같은 방식의 배율이에요. Canvas는 자동 줄바꿈을 안 해줘서, 지정한 너비를 넘으면
+// 직접 줄을 나눠요(영어 단어 기준으로 먼저 나누고, 그래도 넘치면 한 글자씩 더 나눠요 —
+// 띄어쓰기가 없는 한국어 문장도 자연스럽게 줄바꿈되도록).
+function wrapTextForCanvas(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    if (paragraph === "") {
+      lines.push("");
+      continue;
+    }
+    let current = "";
+    for (const ch of paragraph) {
+      const attempt = current + ch;
+      if (current && ctx.measureText(attempt).width > maxWidth) {
+        lines.push(current);
+        current = ch;
+      } else {
+        current = attempt;
+      }
+    }
+    if (current) lines.push(current);
+  }
+  return lines;
+}
+
+function drawTextBoxOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  box: TextBoxDef,
+  pageW: number,
+  pageH: number,
+  offsetX: number = 0,
+  offsetY: number = 0
+) {
+  const text = box.text.trim();
+  if (!text) return;
+  const x = offsetX + (box.xPct / 100) * pageW;
+  const y = offsetY + (box.yPct / 100) * pageH;
+  const w = (box.widthPct / 100) * pageW;
+  // 화면(app/upload/page.tsx)에서 0.85rem * fontScale로 그리는 것과 같은 비율이 되도록,
+  // 페이지 폭 기준 비율로 환산해요(coverTitle의 titlePx = panelPx * 0.07 * scale와 같은
+  // 방식 — 화면·인쇄가 항상 같은 크기로 보이게 해요).
+  const fontPx = Math.max(8, Math.round(pageW * 0.032 * box.fontScale));
+  ctx.font = `${box.bold ? "bold " : ""}${fontPx}px ${box.fontFamily}`;
+  ctx.fillStyle = box.color;
+  ctx.textAlign = box.align;
+  ctx.textBaseline = "top";
+  const lineHeight = fontPx * 1.35;
+  const lines = wrapTextForCanvas(ctx, text, w);
+  const textX = box.align === "left" ? x : box.align === "right" ? x + w : x + w / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, textX, y + i * lineHeight, w);
+  });
+}
+
 async function drawPage(
+  ctx: CanvasRenderingContext2D,
+  templateId: PageTemplateId,
+  photos: PrintPhoto[],
+  pageW: number,
+  pageH: number,
+  backgroundColor: string = "#ffffff",
+  backgroundPatternId?: string,
+  textBoxes?: TextBoxDef[]
+) {
+  await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId);
+  if (textBoxes) {
+    for (const box of textBoxes) drawTextBoxOnCanvas(ctx, box, pageW, pageH);
+  }
+}
+
+async function drawPageTemplate(
   ctx: CanvasRenderingContext2D,
   templateId: PageTemplateId,
   photos: PrintPhoto[],
@@ -560,10 +632,16 @@ export async function buildInnerPrintPdf({
   for (let i = 0; i < customSpreads.length; i++) {
     const spread = customSpreads[i];
     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
-    // 스프레드 1(i === 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요.
-    const sides: { templateId: PageTemplateId; indexes: number[]; hideEdge: "left" | "right" }[] = [
-      { templateId: i === 0 ? "blank" : spread.left, indexes: leftIndexes, hideEdge: "right" },
-      { templateId: spread.right, indexes: rightIndexes, hideEdge: "left" },
+    // 스프레드 1(i === 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요
+    // (텍스트박스도 함께 생략해요 — 인쇄 안 되는 면이라 화면에서도 편집할 수 없어요).
+    const sides: {
+      templateId: PageTemplateId;
+      indexes: number[];
+      hideEdge: "left" | "right";
+      textBoxes?: TextBoxDef[];
+    }[] = [
+      { templateId: i === 0 ? "blank" : spread.left, indexes: leftIndexes, hideEdge: "right", textBoxes: i === 0 ? undefined : spread.textBoxesLeft },
+      { templateId: spread.right, indexes: rightIndexes, hideEdge: "left", textBoxes: spread.textBoxesRight },
     ];
 
     for (const side of sides) {
@@ -576,7 +654,8 @@ export async function buildInnerPrintPdf({
         pxW,
         pxH,
         spread.backgroundColor ?? "#ffffff",
-        spread.backgroundPattern
+        spread.backgroundPattern,
+        side.textBoxes
       );
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
       drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideEdge);
@@ -803,6 +882,7 @@ export async function buildCoverPrintPdf({
   backCoverMode = "logo",
   backCoverPhoto = null,
   backCoverBackgroundColor,
+  coverTextBoxes,
 }: {
   cover: PhotobookCoverId;
   sizeInnerTrimMm: number; // 내지 재단 사이즈(정사각형 한 변, mm) — 예: L=300
@@ -817,6 +897,7 @@ export async function buildCoverPrintPdf({
   backCoverMode?: "logo" | "photo";
   backCoverPhoto?: PrintPhoto | null;
   backCoverBackgroundColor?: string;
+  coverTextBoxes?: TextBoxDef[]; // 표지 앞면에 자유 배치한 텍스트박스예요.
 }): Promise<PrintPdfResult> {
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
@@ -938,6 +1019,26 @@ export async function buildCoverPrintPdf({
     ctx.shadowBlur = titlePx * 0.4;
     ctx.fillText(coverTitle.trim(), frontX + panelPx / 2, bleedPx + panelPx - panelPx * 0.08, panelPx * 0.86);
     ctx.shadowBlur = 0;
+  }
+
+  // 표지 앞면 텍스트박스예요. 화면(앞표지 칸)과 같은 칸 크기(frontCellWpx/Hpx)를 100%로
+  // 보는 퍼센트 좌표라서, 화면에서 본 자리와 인쇄 파일 자리가 같아요.
+  if (coverTextBoxes && coverTextBoxes.length) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(frontX, 0, frontCellWpx, frontCellHpx);
+    ctx.clip();
+    for (const box of coverTextBoxes) {
+      drawTextBoxOnCanvas(
+        ctx,
+        { ...box, xPct: box.xPct, yPct: box.yPct, widthPct: box.widthPct },
+        frontCellWpx,
+        frontCellHpx,
+        frontX,
+        0
+      );
+    }
+    ctx.restore();
   }
 
   const cleanDataUrl = canvasToJpegDataUrl(canvas);

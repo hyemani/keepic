@@ -10,6 +10,7 @@ import {
   pageTemplates,
   PageTemplateId,
   SpreadDef,
+  TextBoxDef,
   AI_AUTO_LAYOUT_TEMPLATE_ID,
   generateAutoSpreads,
   calcRequiredSpreadCount,
@@ -745,6 +746,219 @@ function CaptionField({
   );
 }
 
+// 자유 배치 텍스트박스 하나예요. 내지 페이지·표지 앞면 어디서나 같은 컴포넌트를 써요.
+// PhotoCell과 같은 방식(mousemove/mouseup을 window에 직접 붙임)으로 드래그해요 — 다만
+// 사진은 px 단위로 옮기고, 텍스트박스는 그 페이지(부모 칸) 크기를 100%로 보는 퍼센트로
+// 옮겨요. 그래야 화면 크기가 달라져도 항상 같은 자리에 보여요.
+function TextBoxOverlay({
+  box,
+  onChange,
+  onDelete,
+}: {
+  box: TextBoxDef;
+  onChange: (changes: Partial<TextBoxDef>) => void;
+  onDelete: () => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
+
+  function handleDragStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    setIsDragging(true);
+    dragStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      xPct: box.xPct,
+      yPct: box.yPct,
+      cellW: cellRect?.width || 1,
+      cellH: cellRect?.height || 1,
+    };
+  }
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    function handleMouseMove(e: MouseEvent) {
+      const dxPct = ((e.clientX - dragStart.current.mouseX) / dragStart.current.cellW) * 100;
+      const dyPct = ((e.clientY - dragStart.current.mouseY) / dragStart.current.cellH) * 100;
+      onChange({
+        xPct: Math.min(96, Math.max(0, dragStart.current.xPct + dxPct)),
+        yPct: Math.min(96, Math.max(0, dragStart.current.yPct + dyPct)),
+      });
+    }
+    function handleMouseUp() {
+      setIsDragging(false);
+    }
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  function cycleAlign() {
+    const order: TextBoxDef["align"][] = ["left", "center", "right"];
+    const next = order[(order.indexOf(box.align) + 1) % order.length];
+    onChange({ align: next });
+  }
+
+  return (
+    <div
+      ref={boxRef}
+      className="group/tb absolute z-30"
+      style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%` }}
+    >
+      <div className="absolute -top-7 left-0 flex items-center gap-1 whitespace-nowrap opacity-0 transition group-hover/tb:opacity-100 group-focus-within/tb:opacity-100">
+        <button
+          type="button"
+          title="끌어서 이동"
+          onMouseDown={handleDragStart}
+          className="flex h-6 w-6 cursor-grab items-center justify-center rounded-full bg-black/60 text-[11px] text-white active:cursor-grabbing"
+        >
+          ⠿
+        </button>
+        <select
+          value={box.fontFamily}
+          onChange={(e) => onChange({ fontFamily: e.target.value })}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="h-6 rounded-full bg-black/60 px-1.5 text-[10px] text-white"
+        >
+          {fontOptions.map((f) => (
+            <option key={f.id} value={f.id} style={{ color: "#000" }}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          title="글자 작게"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onChange({ fontScale: Math.max(0.4, Math.round((box.fontScale - 0.1) * 10) / 10) });
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          title="글자 크게"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onChange({ fontScale: Math.min(4, Math.round((box.fontScale + 0.1) * 10) / 10) });
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          title="정렬 바꾸기"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            cycleAlign();
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-[10px] text-white"
+        >
+          {box.align === "left" ? "좌" : box.align === "center" ? "중" : "우"}
+        </button>
+        <button
+          type="button"
+          title="굵게"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onChange({ bold: !box.bold });
+          }}
+          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs text-white ${
+            box.bold ? "bg-[var(--color-sky)]" : "bg-black/60"
+          }`}
+        >
+          B
+        </button>
+        <input
+          type="color"
+          value={box.color}
+          onChange={(e) => onChange({ color: e.target.value })}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+          title="글자 색"
+        />
+        <button
+          type="button"
+          title="텍스트박스 삭제"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-[11px] text-white"
+        >
+          ✕
+        </button>
+      </div>
+      <textarea
+        value={box.text}
+        onChange={(e) => onChange({ text: e.target.value })}
+        onMouseDown={(e) => e.stopPropagation()}
+        rows={1}
+        placeholder="텍스트 입력"
+        style={{
+          color: box.color,
+          fontFamily: box.fontFamily,
+          fontSize: `${0.85 * box.fontScale}rem`,
+          textAlign: box.align,
+          fontWeight: box.bold ? 700 : 400,
+        }}
+        className="w-full resize-none overflow-hidden border border-dashed border-transparent bg-transparent leading-snug outline-none focus:border-[var(--color-sky)]/70"
+      />
+    </div>
+  );
+}
+
+// 한 페이지(또는 표지 앞면) 안의 텍스트박스들 + "+ 텍스트 추가" 버튼을 함께 그려요.
+// renderPage()가 그리는 사진 레이아웃 위에 얹는 투명한 오버레이라서, 어떤 사진 템플릿을
+// 쓰든 상관없이 항상 같은 방식으로 붙어요.
+function TextBoxLayer({
+  boxes,
+  onAdd,
+  onChange,
+  onDelete,
+}: {
+  boxes: TextBoxDef[];
+  onAdd: () => void;
+  onChange: (boxId: string, changes: Partial<TextBoxDef>) => void;
+  onDelete: (boxId: string) => void;
+}) {
+  return (
+    <>
+      {boxes.map((box) => (
+        <TextBoxOverlay
+          key={box.id}
+          box={box}
+          onChange={(c) => onChange(box.id, c)}
+          onDelete={() => onDelete(box.id)}
+        />
+      ))}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="absolute right-1 top-1 z-20 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
+      >
+        + 텍스트 추가
+      </button>
+    </>
+  );
+}
+
 function renderPage(
   templateId: PageTemplateId,
   photos: Photo[],
@@ -1066,6 +1280,8 @@ function UploadPageContent() {
   const [backCoverMode, setBackCoverMode] = useState<"logo" | "photo">("logo");
   const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
+  // 표지 앞면에 자유롭게 배치하는 텍스트박스예요(제목과는 별개예요).
+  const [coverTextBoxes, setCoverTextBoxes] = useState<TextBoxDef[]>([]);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
   // "마지막 소개 페이지"(발행 정보)예요. 발행일은 최초 생성 시 한국 날짜로 한 번만
   // 정하고(아래 useEffect), 그 뒤로는 다시 열거나 PDF를 저장해도 자동으로 바뀌지
@@ -1307,6 +1523,66 @@ function UploadPageContent() {
     );
   }
 
+  // 새 텍스트박스 하나를 기본값으로 만들어요(항상 페이지 가운데 근처, 기본 서체/검정 글자).
+  function makeTextBox(): TextBoxDef {
+    return {
+      id: crypto.randomUUID(),
+      text: "",
+      xPct: 15,
+      yPct: 42,
+      widthPct: 70,
+      fontFamily: fontOptions[0].id,
+      fontScale: 1,
+      color: "#1a1a1a",
+      align: "center",
+      bold: false,
+    };
+  }
+
+  // 내지 페이지(스프레드 하나의 왼쪽/오른쪽 낱장)에 텍스트박스를 추가·수정·삭제해요.
+  function handleAddTextBox(spreadIndex: number, side: "left" | "right") {
+    const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: [...(s[key] ?? []), makeTextBox()] } : s))
+    );
+  }
+
+  function handleTextBoxChange(
+    spreadIndex: number,
+    side: "left" | "right",
+    boxId: string,
+    changes: Partial<TextBoxDef>
+  ) {
+    const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
+    setCustomSpreads((prev) =>
+      prev.map((s, i) =>
+        i === spreadIndex
+          ? { ...s, [key]: (s[key] ?? []).map((b) => (b.id === boxId ? { ...b, ...changes } : b)) }
+          : s
+      )
+    );
+  }
+
+  function handleDeleteTextBox(spreadIndex: number, side: "left" | "right", boxId: string) {
+    const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: (s[key] ?? []).filter((b) => b.id !== boxId) } : s))
+    );
+  }
+
+  // 표지 앞면 텍스트박스예요. 스프레드가 아니라서 별도 state(coverTextBoxes)로 따로 관리해요.
+  function handleAddCoverTextBox() {
+    setCoverTextBoxes((prev) => [...prev, makeTextBox()]);
+  }
+
+  function handleCoverTextBoxChange(boxId: string, changes: Partial<TextBoxDef>) {
+    setCoverTextBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+  }
+
+  function handleDeleteCoverTextBox(boxId: string) {
+    setCoverTextBoxes((prev) => prev.filter((b) => b.id !== boxId));
+  }
+
   async function uploadPhotoToStorage(photo: Photo): Promise<string> {
     const blob = await fetch(photo.url).then((res) => res.blob());
     const ext = blob.type.split("/")[1]?.split("+")[0] || "jpg";
@@ -1357,6 +1633,7 @@ function UploadPageContent() {
       backCoverMode,
       backCoverPhoto,
       backCoverBackgroundColor,
+      coverTextBoxes,
     });
 
     const uuid = () => crypto.randomUUID();
@@ -2136,7 +2413,7 @@ function UploadPageContent() {
                             </span>
                           )}
                         </div>
-                        <div className="relative h-full overflow-hidden" style={{ width: `${coverFrontPct}%` }}>
+                        <div className="group relative h-full overflow-hidden" style={{ width: `${coverFrontPct}%` }}>
                           {coverPhoto ? (
                             <PhotoCell
                               photo={coverPhoto}
@@ -2160,6 +2437,12 @@ function UploadPageContent() {
                               {coverTitle}
                             </p>
                           )}
+                          <TextBoxLayer
+                            boxes={coverTextBoxes}
+                            onAdd={handleAddCoverTextBox}
+                            onChange={handleCoverTextBoxChange}
+                            onDelete={handleDeleteCoverTextBox}
+                          />
                         </div>
 
                         {showCoverBleedGuide && (
@@ -2592,6 +2875,12 @@ function UploadPageContent() {
                                     requiredMinPx,
                                     resolveSpreadBackgroundCss(spread)
                                   )}
+                                  <TextBoxLayer
+                                    boxes={spread.textBoxesLeft ?? []}
+                                    onAdd={() => handleAddTextBox(i, "left")}
+                                    onChange={(boxId, c) => handleTextBoxChange(i, "left", boxId, c)}
+                                    onDelete={(boxId) => handleDeleteTextBox(i, "left", boxId)}
+                                  />
                                 </>
                               )}
                             </div>
@@ -2616,6 +2905,12 @@ function UploadPageContent() {
                                 requiredMinPx,
                                 resolveSpreadBackgroundCss(spread)
                               )}
+                              <TextBoxLayer
+                                boxes={spread.textBoxesRight ?? []}
+                                onAdd={() => handleAddTextBox(i, "right")}
+                                onChange={(boxId, c) => handleTextBoxChange(i, "right", boxId, c)}
+                                onDelete={(boxId) => handleDeleteTextBox(i, "right", boxId)}
+                              />
                             </div>
                             {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}
                             {showInnerBindingGuide && (
