@@ -45,6 +45,7 @@ import { mmToPt } from "@/lib/printGeometry";
 // 비율 그대로 커지고 작아져요(브라우저 창 크기와는 무관해요).
 const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 0.5;
 const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
+const COVER_TITLE_PT_PRESETS = [12, 18, 24, 30, 36, 48, 60, 72];
 function measureSpineTitleFontSizeMm(
   title: string,
   spineMm: number,
@@ -1149,7 +1150,9 @@ function CoverTitleOverlay({
   xPct,
   yPct,
   widthPct,
-  fontScale,
+  fontSizeCqh,
+  lineHeightEm,
+  letterSpacingEm,
   fontFamily,
   onMove,
 }: {
@@ -1157,7 +1160,9 @@ function CoverTitleOverlay({
   xPct: number;
   yPct: number;
   widthPct: number;
-  fontScale: number;
+  fontSizeCqh: number; // 실제 pt 크기를 컨테이너 높이 대비 %(cqh)로 환산한 값 — 창 크기와 무관하게 항상 같은 실물 크기로 보여요.
+  lineHeightEm: number;
+  letterSpacingEm: number;
   fontFamily: string;
   onMove: (changes: { xPct: number; yPct: number }) => void;
 }) {
@@ -1261,8 +1266,13 @@ function CoverTitleOverlay({
         ⠿
       </button>
       <p
-        className="pointer-events-none text-center font-semibold text-white drop-shadow"
-        style={{ fontSize: `${0.875 * fontScale}rem`, fontFamily }}
+        className="pointer-events-none whitespace-pre-wrap text-center font-semibold text-white drop-shadow"
+        style={{
+          fontSize: `${fontSizeCqh}cqh`,
+          lineHeight: lineHeightEm,
+          letterSpacing: `${letterSpacingEm}em`,
+          fontFamily,
+        }}
       >
         {title}
       </p>
@@ -1695,9 +1705,11 @@ function UploadPageContent() {
   const [coverTitle, setCoverTitle] = useState("");
   // 책등(세네카) 제목은 따로 없어요 — 앞표지 제목을 그대로 책등에도 써요(혜민님 확인,
   // 2026-09: 표지 제목이 곧 책등 제목이라 입력칸을 두 개 둘 필요가 없음).
-  // 표지 제목 글자 크기 배율이에요(1이 기본, 화면 슬라이더로 조절). 실제 인쇄 파일에도
-  // 그대로 반영돼요(기존 jsPDF 발주 파일 + pdf-lib 테스트 생성기 둘 다).
-  const [coverTitleFontScale, setCoverTitleFontScale] = useState(1);
+  // 표지 제목 글자 크기(pt, 실제 인쇄 크기 그대로) · 행간 · 자간이에요. 화면에서
+  // pt 단위로 직접 지정하고, 실제 인쇄 파일에도 그대로 반영돼요.
+  const [coverTitleFontSizePt, setCoverTitleFontSizePt] = useState(36);
+  const [coverTitleLineHeightEm, setCoverTitleLineHeightEm] = useState(1.2);
+  const [coverTitleLetterSpacingEm, setCoverTitleLetterSpacingEm] = useState(0);
   // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트). 기존엔 하단에 고정이었는데,
   // 이제 텍스트박스처럼 끌어서 옮길 수 있어요 — 기본값은 예전 고정 위치(하단 중앙)와
   // 비슷한 자리예요.
@@ -2074,7 +2086,9 @@ function UploadPageContent() {
       customSpreads,
       coverPhoto,
       coverTitle,
-      coverTitleFontScale,
+      coverTitleFontSizePt,
+      coverTitleLineHeightEm,
+      coverTitleLetterSpacingEm,
       coverTitleXPct,
       coverTitleYPct,
       coverTitleFontFamily,
@@ -2097,7 +2111,9 @@ function UploadPageContent() {
     setCustomSpreads(s.customSpreads);
     setCoverPhoto(s.coverPhoto);
     setCoverTitle(s.coverTitle);
-    setCoverTitleFontScale(s.coverTitleFontScale);
+    setCoverTitleFontSizePt(s.coverTitleFontSizePt ?? 36);
+    setCoverTitleLineHeightEm(s.coverTitleLineHeightEm ?? 1.2);
+    setCoverTitleLetterSpacingEm(s.coverTitleLetterSpacingEm ?? 0);
     setCoverTitleXPct(s.coverTitleXPct);
     setCoverTitleYPct(s.coverTitleYPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
@@ -2135,7 +2151,9 @@ function UploadPageContent() {
     customSpreads,
     coverPhoto,
     coverTitle,
-    coverTitleFontScale,
+    coverTitleFontSizePt,
+    coverTitleLineHeightEm,
+    coverTitleLetterSpacingEm,
     coverTitleXPct,
     coverTitleYPct,
     coverTitleFontFamily,
@@ -2321,7 +2339,9 @@ function UploadPageContent() {
       sizeInnerTrimMm: trimCm * 10,
       coverPhoto,
       coverTitle,
-      coverTitleFontScale,
+      coverTitleFontSizePt,
+      coverTitleLineHeightEm,
+      coverTitleLetterSpacingEm,
       coverTitleFontFamily,
       coverTitleXPct,
       coverTitleYPct,
@@ -2441,7 +2461,6 @@ function UploadPageContent() {
         sizeInnerTrimMm: trimCm * 10,
         coverPhoto,
         coverTitle,
-        coverTitleFontScale,
         innerPaperWeightG: innerPaper.weightG,
         pages,
         firstPage,
@@ -2633,8 +2652,16 @@ function UploadPageContent() {
     // 책 제목 글자 크기 — 실제 mm 기준으로 계산해서 cqh(컨테이너 높이 대비 %)로 넣어요.
     // 고정 px이 아니라서 브라우저 창을 늘리거나 줄여도 항상 책 실물 크기 그대로예요.
     const spineTitleMaxLengthMm = (spineTitleHeightPct / 100) * coverTotalHmm;
-    const spineTitleMeasure = measureSpineTitleFontSizeMm(coverTitle.trim(), coverSpineMm, spineTitleMaxLengthMm);
+    const spineTitleMeasure = measureSpineTitleFontSizeMm(
+      coverTitle.replace(/\n/g, " ").trim(),
+      coverSpineMm,
+      spineTitleMaxLengthMm
+    );
     const spineTitleFontSizeCqh = (spineTitleMeasure.sizeMm / coverTotalHmm) * 100;
+    // 표지 제목 글자 크기 — pt를 실제 mm로 환산해서 cqh(컨테이너 높이 대비 %)로 넣어요.
+    // 고정 rem이 아니라서 창 크기가 바뀌어도 항상 pt로 지정한 실제 인쇄 크기 그대로예요.
+    const coverTitleFontSizeMm = (coverTitleFontSizePt * 25.4) / 72;
+    const coverTitleFontSizeCqh = (coverTitleFontSizeMm / coverTotalHmm) * 100;
     // computeSpineLogoLayout이 돌려주는 drawnWidthPt(책등 폭 방향)·drawnHeightPt(책등
     // 길이 방향)는 "눕힌 뒤(화면에 실제로 보이는)" 가로/세로예요. 회전 전 <img> 박스는
     // 가로/세로가 서로 뒤바뀌어야 rotate(90deg) 후 원하는 크기가 나와요. (표지 펼침면은
@@ -3156,7 +3183,7 @@ function UploadPageContent() {
                               90도로 눕히고(글자가 위→아래로 읽혀요), 재단선에서 안전영역과 같은
                               10mm 띄운 자리에 고정으로 둬요(화면에서 위치를 바꿀 수 없어요). */}
                           <SpineTitleOverlay
-                            title={coverTitle}
+                            title={coverTitle.replace(/\n/g, " ")}
                             emptyLabel="책등"
                             yPct={coverSpineTitleYPct}
                             heightPct={spineTitleHeightPct}
@@ -3200,7 +3227,9 @@ function UploadPageContent() {
                             xPct={coverTitleXPct}
                             yPct={coverTitleYPct}
                             widthPct={coverTitleWidthPct}
-                            fontScale={coverTitleFontScale}
+                            fontSizeCqh={coverTitleFontSizeCqh}
+                            lineHeightEm={coverTitleLineHeightEm}
+                            letterSpacingEm={coverTitleLetterSpacingEm}
                             fontFamily={coverTitleFontFamily}
                             onMove={({ xPct, yPct }) => {
                               setCoverTitleXPct(xPct);
@@ -3258,38 +3287,80 @@ function UploadPageContent() {
                             <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
                           </label>
                         )}
-                        <input
-                          type="text"
+                        <textarea
                           value={coverTitle}
                           onChange={(e) => handleCoverTitleChange(e.target.value)}
                           placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
-                          className="flex-1 rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+                          rows={2}
+                          className="flex-1 resize-none rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
                         />
                       </div>
                       <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
-                        제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요.
+                        제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요. Enter를 누르면 줄이
+                        바뀌어요(2줄 이상도 가능해요).
                       </p>
 
                       <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
                         이 제목이 책등에도 그대로 들어가요.
                       </p>
 
-                      <div className="mt-4">
-                        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                          표지 제목 글자 크기
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] text-[var(--color-charcoal)]/40">작게</span>
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                            글자 크기(pt)
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={COVER_TITLE_PT_PRESETS.includes(coverTitleFontSizePt) ? coverTitleFontSizePt : "custom"}
+                              onChange={(e) => {
+                                if (e.target.value !== "custom") setCoverTitleFontSizePt(Number(e.target.value));
+                              }}
+                              className="rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                            >
+                              {COVER_TITLE_PT_PRESETS.map((pt) => (
+                                <option key={pt} value={pt}>
+                                  {pt}pt
+                                </option>
+                              ))}
+                              <option value="custom">직접 입력</option>
+                            </select>
+                            <input
+                              type="number"
+                              min={8}
+                              max={200}
+                              value={coverTitleFontSizePt}
+                              onChange={(e) => setCoverTitleFontSizePt(Math.max(8, Math.min(200, Number(e.target.value) || 8)))}
+                              className="w-16 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                            행간(줄 간격)
+                          </label>
                           <input
-                            type="range"
-                            min={0.6}
-                            max={1.6}
+                            type="number"
+                            min={0.8}
+                            max={2.5}
                             step={0.05}
-                            value={coverTitleFontScale}
-                            onChange={(e) => setCoverTitleFontScale(Number(e.target.value))}
-                            className="flex-1"
+                            value={coverTitleLineHeightEm}
+                            onChange={(e) => setCoverTitleLineHeightEm(Math.max(0.8, Math.min(2.5, Number(e.target.value) || 1.2)))}
+                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                           />
-                          <span className="text-[10px] text-[var(--color-charcoal)]/40">크게</span>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                            자간
+                          </label>
+                          <input
+                            type="number"
+                            min={-0.1}
+                            max={0.5}
+                            step={0.01}
+                            value={coverTitleLetterSpacingEm}
+                            onChange={(e) => setCoverTitleLetterSpacingEm(Math.max(-0.1, Math.min(0.5, Number(e.target.value) || 0)))}
+                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                          />
                         </div>
                       </div>
 

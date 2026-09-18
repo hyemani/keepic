@@ -872,7 +872,9 @@ export async function buildCoverPrintPdf({
   sizeInnerTrimMm,
   coverPhoto,
   coverTitle,
-  coverTitleFontScale = 1,
+  coverTitleFontSizePt = 36,
+  coverTitleLineHeightEm = 1.2,
+  coverTitleLetterSpacingEm = 0,
   coverTitleFontFamily = "Pretendard, sans-serif",
   coverTitleXPct = 8,
   coverTitleYPct = 84,
@@ -895,7 +897,9 @@ export async function buildCoverPrintPdf({
   sizeInnerTrimMm: number; // 내지 재단 사이즈(정사각형 한 변, mm) — 예: L=300
   coverPhoto: PrintPhoto | null;
   coverTitle: string;
-  coverTitleFontScale?: number; // 표지 제목 글자 크기 배율(1이 기본). 혜민님이 화면에서 조절 가능해요.
+  coverTitleFontSizePt?: number; // 표지 제목 글자 크기(pt, 실제 인쇄 크기 그대로). 혜민님이 화면에서 pt 단위로 직접 지정해요.
+  coverTitleLineHeightEm?: number; // 행간 배율(폰트 크기 기준). 제목을 줄바꿈(2줄 이상)해서 넣을 때 줄 간격이에요.
+  coverTitleLetterSpacingEm?: number; // 자간 배율(폰트 크기 기준). 0이면 기본 자간이에요.
   coverTitleFontFamily?: string; // 표지 제목 서체(CSS font-family 값). 캔버스로 그려서 jsPDF에
   // 넣기 때문에, 브라우저에 로드된 폰트라면(화면 편집기의 서체 선택지와 같은 값) 그대로 반영돼요.
   // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트) — 화면에서 끌어서 옮긴 자리
@@ -1010,7 +1014,7 @@ export async function buildCoverPrintPdf({
   ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
 
   const spineLogoLayout = computeSpineLogoLayoutPx(spinePx);
-  const spineTitleText = (spineTitle ?? coverTitle ?? "").trim();
+  const spineTitleText = (spineTitle ?? coverTitle ?? "").replace(/\n/g, " ").trim();
   if (spineTitleText) {
     drawSpineTitleCanvas(
       ctx,
@@ -1051,17 +1055,30 @@ export async function buildCoverPrintPdf({
     // 화면(CoverTitleOverlay)과 같은 칸 크기(frontCellWpx/Hpx)를 100%로 보는 퍼센트
     // 좌표라서, 화면에서 끌어다 놓은 자리와 인쇄 파일 자리가 같아요. 화면은 텍스트박스
     // 위에서 아래로 흐르는 왼쪽위 기준(top-left)이라, 여기서도 textBaseline을 top으로
-    // 맞춰요.
-    const titlePx = Math.round(panelPx * 0.07 * coverTitleFontScale);
+    // 맞춰요. 글자 크기는 슬라이더 배율이 아니라 pt 단위 실제 크기를 그대로 써요(예:
+    // 24pt, 36pt). Enter로 줄바꿈하면 여러 줄로 나눠 그리고, 줄 간격(행간)·자간도
+    // 사용자가 지정한 값을 그대로 반영해요.
+    const titlePx = mmToPx((coverTitleFontSizePt * 25.4) / 72);
     ctx.font = `bold ${titlePx}px ${coverTitleFontFamily}`;
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.shadowColor = "rgba(0,0,0,0.45)";
     ctx.shadowBlur = titlePx * 0.4;
+    if ("letterSpacing" in ctx) {
+      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${titlePx * coverTitleLetterSpacingEm}px`;
+    }
     const titleXpx = frontX + (coverTitleXPct / 100) * frontCellWpx + (coverTitleWidthPct / 100) * frontCellWpx / 2;
     const titleYpx = (coverTitleYPct / 100) * frontCellHpx;
-    ctx.fillText(coverTitle.trim(), titleXpx, titleYpx, (coverTitleWidthPct / 100) * frontCellWpx);
+    const titleMaxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
+    const titleLinePx = titlePx * coverTitleLineHeightEm;
+    const titleLines = coverTitle.trim().split("\n");
+    titleLines.forEach((line, i) => {
+      ctx.fillText(line, titleXpx, titleYpx + i * titleLinePx, titleMaxWidthPx);
+    });
+    if ("letterSpacing" in ctx) {
+      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    }
     ctx.shadowBlur = 0;
   }
 
