@@ -2020,6 +2020,214 @@ function UploadPageContent() {
     ? getTextBoxesForRef(activeTextBox.ref).find((b) => b.id === activeTextBox.boxId) ?? null
     : null;
 
+  // ---- 편집기 단축키: 실행취소/다시실행, 복사/붙여넣기, 확대·축소 ----
+  // 실행취소는 "지금까지 편집한 내용(사진 배치, 텍스트, 배경 등)" 전체를 하나의 스냅샷으로
+  // 찍어뒀다가 되돌리는 방식이에요(필드 하나하나를 따로 추적하지 않아요). 스냅샷에는
+  // 인쇄에 실제로 들어가는 내용만 담고, 화면 전용 설정(가이드선 표시 여부, 확대 배율,
+  // 현재 보고 있는 페이지 등)은 담지 않아요 — 그런 것까지 되돌리면 오히려 헷갈려요.
+  const [canvasZoom, setCanvasZoom] = useState(1);
+  const undoStackRef = useRef<string[]>([]);
+  const redoStackRef = useRef<string[]>([]);
+  const isRestoringHistoryRef = useRef(false);
+  const lastHistorySnapshotRef = useRef<string | null>(null);
+  const copiedTextBoxRef = useRef<TextBoxDef | null>(null);
+  const HISTORY_LIMIT = 60;
+
+  function buildHistorySnapshot() {
+    return JSON.stringify({
+      customSpreads,
+      coverPhoto,
+      coverTitle,
+      coverTitleFontScale,
+      coverTitleXPct,
+      coverTitleYPct,
+      coverTitleFontFamily,
+      spineTitle,
+      spineTitleYPct,
+      spineTitleHeightPct,
+      backCoverMode,
+      backCoverPhoto,
+      backCoverBackgroundColor,
+      backCoverPatternId,
+      backCoverTextBoxes,
+      coverSpineBackgroundColor,
+      coverFrontBackgroundColor,
+      coverTextBoxes,
+    });
+  }
+
+  function restoreHistorySnapshot(snapshotJson: string) {
+    const s = JSON.parse(snapshotJson);
+    isRestoringHistoryRef.current = true;
+    setCustomSpreads(s.customSpreads);
+    setCoverPhoto(s.coverPhoto);
+    setCoverTitle(s.coverTitle);
+    setCoverTitleFontScale(s.coverTitleFontScale);
+    setCoverTitleXPct(s.coverTitleXPct);
+    setCoverTitleYPct(s.coverTitleYPct);
+    setCoverTitleFontFamily(s.coverTitleFontFamily);
+    setSpineTitle(s.spineTitle);
+    setSpineTitleYPct(s.spineTitleYPct);
+    setSpineTitleHeightPct(s.spineTitleHeightPct);
+    setBackCoverMode(s.backCoverMode);
+    setBackCoverPhoto(s.backCoverPhoto);
+    setBackCoverBackgroundColor(s.backCoverBackgroundColor);
+    setBackCoverPatternId(s.backCoverPatternId);
+    setBackCoverTextBoxes(s.backCoverTextBoxes);
+    setCoverSpineBackgroundColor(s.coverSpineBackgroundColor);
+    setCoverFrontBackgroundColor(s.coverFrontBackgroundColor);
+    setCoverTextBoxes(s.coverTextBoxes);
+    setActiveTextBox(null);
+  }
+
+  // 매 렌더마다 지금 상태를 스냅샷으로 찍어서, 직전 스냅샷과 다르면(=혜민님이 뭔가
+  // 바꿨으면) 직전 스냅샷을 실행취소 스택에 쌓아요. 되돌리기/다시하기로 인한 변경은
+  // isRestoringHistoryRef로 표시해서 다시 쌓지 않아요.
+  useEffect(() => {
+    const snap = buildHistorySnapshot();
+    if (isRestoringHistoryRef.current) {
+      isRestoringHistoryRef.current = false;
+      lastHistorySnapshotRef.current = snap;
+      return;
+    }
+    if (lastHistorySnapshotRef.current !== null && lastHistorySnapshotRef.current !== snap) {
+      undoStackRef.current.push(lastHistorySnapshotRef.current);
+      if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+      redoStackRef.current = [];
+    }
+    lastHistorySnapshotRef.current = snap;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    customSpreads,
+    coverPhoto,
+    coverTitle,
+    coverTitleFontScale,
+    coverTitleXPct,
+    coverTitleYPct,
+    coverTitleFontFamily,
+    spineTitle,
+    spineTitleYPct,
+    spineTitleHeightPct,
+    backCoverMode,
+    backCoverPhoto,
+    backCoverBackgroundColor,
+    backCoverPatternId,
+    backCoverTextBoxes,
+    coverSpineBackgroundColor,
+    coverFrontBackgroundColor,
+    coverTextBoxes,
+  ]);
+
+  function handleUndo() {
+    const prevSnap = undoStackRef.current.pop();
+    if (prevSnap === undefined) return;
+    const current = lastHistorySnapshotRef.current ?? buildHistorySnapshot();
+    redoStackRef.current.push(current);
+    restoreHistorySnapshot(prevSnap);
+  }
+
+  function handleRedo() {
+    const nextSnap = redoStackRef.current.pop();
+    if (nextSnap === undefined) return;
+    const current = lastHistorySnapshotRef.current ?? buildHistorySnapshot();
+    undoStackRef.current.push(current);
+    restoreHistorySnapshot(nextSnap);
+  }
+
+  // 텍스트박스가 표지/뒤표지/내지 중 어디 속해있는지에 상관없이 "지금 활성화된 자리에
+  // 새 박스를 하나 더 넣기"를 할 수 있게 해줘요(붙여넣기용).
+  function addTextBoxToRef(ref: TextBoxRef, box: TextBoxDef) {
+    if (ref.scope === "cover") {
+      setCoverTextBoxes((prev) => [...prev, box]);
+    } else if (ref.scope === "backCover") {
+      setBackCoverTextBoxes((prev) => [...prev, box]);
+    } else {
+      const key = ref.side === "left" ? "textBoxesLeft" : "textBoxesRight";
+      setCustomSpreads((prev) =>
+        prev.map((s, i) => (i === ref.spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
+      );
+    }
+    setActiveTextBox({ ref, boxId: box.id });
+  }
+
+  function handleCopyActiveTextBox() {
+    if (!activeTextBoxDef) return;
+    copiedTextBoxRef.current = activeTextBoxDef;
+  }
+
+  function handlePasteTextBox() {
+    const copied = copiedTextBoxRef.current;
+    if (!copied || !activeTextBox) return;
+    const box: TextBoxDef = {
+      ...copied,
+      id: crypto.randomUUID(),
+      xPct: Math.min(90, copied.xPct + 3),
+      yPct: Math.min(90, copied.yPct + 3),
+    };
+    addTextBoxToRef(activeTextBox.ref, box);
+  }
+
+  function handleZoomIn() {
+    setCanvasZoom((z) => Math.min(2, Math.round((z + 0.1) * 100) / 100));
+  }
+  function handleZoomOut() {
+    setCanvasZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 100) / 100));
+  }
+  function handleZoomReset() {
+    setCanvasZoom(1);
+  }
+
+  // 실행취소(Ctrl/Cmd+Z), 다시실행(Ctrl/Cmd+Shift+Z 또는 Ctrl/Cmd+Y), 텍스트박스
+  // 복사·붙여넣기(Ctrl/Cmd+C/V)를 전역 단축키로 등록해요. 텍스트를 직접 입력 중일
+  // 때(input·textarea)는 브라우저 기본 동작(글자 단위 실행취소 등)을 그대로 두고
+  // 가로채지 않아요.
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null) {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      const meta = e.ctrlKey || e.metaKey;
+      if (!meta) return;
+      const key = e.key.toLowerCase();
+      if (isTypingTarget(e.target)) {
+        // 텍스트박스 안에서도 "붙여넣기"는 박스 자체를 복제하는 우리 기능과 헷갈릴 수
+        // 있어서, 실행취소/다시실행만 브라우저 기본값에 맡기고 나머지는 건드리지 않아요.
+        return;
+      }
+      if (key === "z" && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      } else if (key === "z") {
+        e.preventDefault();
+        handleUndo();
+      } else if (key === "y") {
+        e.preventDefault();
+        handleRedo();
+      } else if (key === "c") {
+        e.preventDefault();
+        handleCopyActiveTextBox();
+      } else if (key === "v") {
+        e.preventDefault();
+        handlePasteTextBox();
+      } else if (key === "=" || key === "+") {
+        e.preventDefault();
+        handleZoomIn();
+      } else if (key === "-") {
+        e.preventDefault();
+        handleZoomOut();
+      } else if (key === "0") {
+        e.preventDefault();
+        handleZoomReset();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTextBoxDef, activeTextBox]);
+
   async function uploadPhotoToStorage(photo: Photo): Promise<string> {
     const blob = await fetch(photo.url).then((res) => res.blob());
     const ext = blob.type.split("/")[1]?.split("+")[0] || "jpg";
@@ -2701,16 +2909,72 @@ function UploadPageContent() {
                 {/* 오른쪽: 선택한 페이지 크게 편집 — 미리보기(보기 전용)로 먼저 보여주고,
                     마우스를 올려 "편집하기"를 눌러야 실제로 수정 가능한 편집 화면으로 들어가요 */}
                 <div className="min-w-0 flex-1">
-                  {editorMode === "edit" && (
-                    <button
-                      type="button"
-                      onClick={() => setEditorMode("preview")}
-                      className="mb-3 inline-flex items-center gap-1 text-xs text-[var(--color-charcoal)]/60 underline underline-offset-4 transition hover:text-[var(--color-charcoal)]"
-                    >
-                      ← 미리보기로 돌아가기
-                    </button>
-                  )}
-                  <div className={editorMode === "preview" ? "relative pointer-events-none select-none" : "relative"}>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    {editorMode === "edit" ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditorMode("preview")}
+                        className="inline-flex items-center gap-1 text-xs text-[var(--color-charcoal)]/60 underline underline-offset-4 transition hover:text-[var(--color-charcoal)]"
+                      >
+                        ← 미리보기로 돌아가기
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    <div className="flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs shadow-sm">
+                      <button
+                        type="button"
+                        onClick={handleUndo}
+                        title="실행취소 (Ctrl+Z)"
+                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                      >
+                        ↶ 실행취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRedo}
+                        title="다시실행 (Ctrl+Shift+Z)"
+                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                      >
+                        ↷ 다시실행
+                      </button>
+                      <span className="mx-1 h-4 w-px bg-[var(--color-hairline)]" />
+                      <button
+                        type="button"
+                        onClick={handleZoomOut}
+                        title="축소 (Ctrl+-)"
+                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                      >
+                        −
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleZoomReset}
+                        title="100%로 리셋 (Ctrl+0)"
+                        className="w-12 rounded-full px-1 py-1 text-center text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                      >
+                        {Math.round(canvasZoom * 100)}%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleZoomIn}
+                        title="확대 (Ctrl+=)"
+                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    className={editorMode === "preview" ? "relative pointer-events-none select-none" : "relative"}
+                    style={{ transform: `scale(${canvasZoom})`, transformOrigin: "top center" }}
+                    onWheel={(e) => {
+                      if (!e.ctrlKey && !e.metaKey) return;
+                      e.preventDefault();
+                      if (e.deltaY < 0) handleZoomIn();
+                      else if (e.deltaY > 0) handleZoomOut();
+                    }}
+                  >
                     {editorMode === "preview" && (
                       <button
                         type="button"
