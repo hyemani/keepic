@@ -164,6 +164,10 @@ const layoutOptions: { id: PageTemplateId; label: string }[] = [
 // 내지(스프레드) 배경색 미리 정해둔 팔레트예요. 포토북 인쇄에 무난하게 쓸 수 있는
 // 톤 위주로 골랐어요 — 사용자가 직접 색을 고르고 싶으면 옆의 색상 선택 버튼으로 자유롭게
 // 고를 수도 있어요.
+// "전체 사진 목록" 펼침 패널에서 한 번에 몇 장씩 보여줄지예요. 사진이 많을 때
+// 한꺼번에 다 나열하지 않고, 이 수만큼 나눠서 옆으로 넘겨가며 보게 해요.
+const PHOTO_GRID_PAGE_SIZE = 8;
+
 const SPREAD_BACKGROUND_PRESETS: { color: string; label: string }[] = [
   { color: "#ffffff", label: "흰색(기본)" },
   { color: "#f7f3ec", label: "아이보리" },
@@ -1048,6 +1052,8 @@ function UploadPageContent() {
   const [selectedPageKey, setSelectedPageKey] = useState<"cover" | "intro" | number>(
     isPhotobook ? "cover" : 0
   );
+  // "전체 사진 목록" 펼침 패널의 현재 페이지(0부터 시작, PHOTO_GRID_PAGE_SIZE장씩)예요.
+  const [photoGridPage, setPhotoGridPage] = useState(0);
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -2305,30 +2311,71 @@ function UploadPageContent() {
               <summary className="cursor-pointer text-sm text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)]">
                 전체 사진 목록 보기 (순서 확인 · 삭제)
               </summary>
-              <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6">
-                {photos.map((photo, index) => (
-                  <div
-                    key={index}
-                    className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
-                  >
-                    <img src={photo.url} alt={`선택한 사진 ${index + 1}`} className="h-full w-full object-cover" />
-                    {isLowRes(photo, requiredMinPx / 2) && (
-                      <span
-                        title="인쇄 기준 화질이 낮아요"
-                        className="absolute left-1 top-1 rounded bg-red-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white"
-                      >
-                        저해상도
-                      </span>
+              {(() => {
+                const pageCount = Math.max(1, Math.ceil(photos.length / PHOTO_GRID_PAGE_SIZE));
+                const page = Math.min(photoGridPage, pageCount - 1);
+                const start = page * PHOTO_GRID_PAGE_SIZE;
+                const visiblePhotos = photos.slice(start, start + PHOTO_GRID_PAGE_SIZE);
+                return (
+                  <div className="mt-4">
+                    {pageCount > 1 && (
+                      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-[var(--color-charcoal)]/60">
+                        <button
+                          type="button"
+                          onClick={() => setPhotoGridPage(Math.max(0, page - 1))}
+                          disabled={page === 0}
+                          className="rounded-full border border-[var(--color-hairline)] px-3 py-1 transition disabled:opacity-30"
+                        >
+                          ‹ 이전
+                        </button>
+                        <span>
+                          {page + 1} / {pageCount}페이지 · {start + 1}–
+                          {Math.min(start + PHOTO_GRID_PAGE_SIZE, photos.length)}번째 (전체 {photos.length}장)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPhotoGridPage(Math.min(pageCount - 1, page + 1))}
+                          disabled={page >= pageCount - 1}
+                          className="rounded-full border border-[var(--color-hairline)] px-3 py-1 transition disabled:opacity-30"
+                        >
+                          다음 ›
+                        </button>
+                      </div>
                     )}
-                    <button
-                      onClick={() => handleRemovePhoto(index)}
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                    >
-                      ✕
-                    </button>
+                    <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
+                      {visiblePhotos.map((photo, i) => {
+                        const index = start + i;
+                        return (
+                          <div
+                            key={index}
+                            className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
+                          >
+                            <img
+                              src={photo.url}
+                              alt={`선택한 사진 ${index + 1}`}
+                              className="h-full w-full object-cover"
+                            />
+                            {isLowRes(photo, requiredMinPx / 2) && (
+                              <span
+                                title="인쇄 기준 화질이 낮아요"
+                                className="absolute left-1 top-1 rounded bg-red-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white"
+                              >
+                                저해상도
+                              </span>
+                            )}
+                            <button
+                              onClick={() => handleRemovePhoto(index)}
+                              className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </details>
           )}
 
