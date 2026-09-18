@@ -888,7 +888,7 @@ function drawSpineLogoCanvas(
   const centerYpx = bleedPx + panelPx * SPINE_LOGO_CENTER_Y_RATIO;
   ctx.save();
   ctx.translate(centerXpx, centerYpx);
-  ctx.rotate(-Math.PI / 2);
+  ctx.rotate(Math.PI / 2); // 글자가 위(시작)->아래(끝)로 읽히도록
   // 회전된 좌표계 안에서는 가로·세로가 서로 바뀌어서, drawImage에는 뒤집어서 넘겨요.
   ctx.drawImage(
     logoImg,

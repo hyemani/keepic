@@ -2579,7 +2579,7 @@ function UploadPageContent() {
     const coverSpineLogoLayout = computeSpineLogoLayout(coverSpinePt);
     // 로고는 책등이 좁아서 90도로 눕혀서 넣어요 — computeSpineLogoLayout이 돌려주는
     // drawnWidthPt/drawnHeightPt는 "눕힌 뒤(실제로 화면에 보이는)" 가로/세로예요. 회전 전
-    // <img> 박스의 가로/세로는 서로 뒤바뀌어서 넣어야, rotate(-90deg) 후 원하는 크기가 나와요.
+    // <img> 박스의 가로/세로는 서로 뒤바뀌어서 넣어야, rotate(90deg) 후 원하는 크기가 나와요(위->아래로 읽혀요).
     // (표지 펼침면은 aspectRatio로 실측 mm 비율 그대로 렌더링돼서, 가로·세로 축척이 같아요 —
     // 그래서 "책등 폭 대비 %"와 "표지 전체 높이 대비 %"를 이렇게 서로 변환할 수 있어요.)
     const coverSpineLogoPreRotateWidthPct =
@@ -3124,7 +3124,7 @@ function UploadPageContent() {
                                 left: "50%",
                                 width: `${coverSpineLogoPreRotateWidthPct}%`,
                                 height: `${coverSpineLogoPreRotateHeightPct}%`,
-                                transform: "translate(-50%, -50%) rotate(-90deg)",
+                                transform: "translate(-50%, -50%) rotate(90deg)", // 글자가 위→아래로 읽히도록
                               }}
                             />
                           )}
