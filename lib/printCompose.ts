@@ -744,7 +744,7 @@ export async function buildInnerPrintPdf({
 // ---- 책등(spine) 제목 · 로고 ----
 // lib/printPdfLib.ts(테스트용 pdf-lib 생성기)의 같은 이름 로직을 캔버스(px) 기준으로
 // 옮긴 거예요. 비율 상수는 동일하게 맞춰서 두 생성기의 책등 결과가 서로 비슷하게 나와요.
-const SPINE_TEXT_SIDE_PADDING_MM = 1; // 실측 책등(7.22mm)에서도 글자가 최대한 크게 들어가도록 여백을 좁혔어요.
+const SPINE_TEXT_SIDE_PADDING_MM = 0.5; // 혜민님 확인(2026-09): 여백이 너무 커 보여서 0.5mm로 더 좁혔어요.
 const SPINE_TITLE_TOP_MARGIN_MM = 25; // 책 제목 위쪽 여백 — 혜민님 확인(2026-09): 재단선(책등 맨 위)에서 25mm
 const SPINE_TITLE_MIN_FONT_PX = 50; // 12pt(300dpi 기준 50px) 밑으로는 줄이지 않아요 — 혜민님 확인: 소프트커버 최소 책등(7.22mm)에도 11~12pt가 넉넉히 들어가요.
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
@@ -813,7 +813,7 @@ function drawSpineTitleCanvas(
 // 로고 블록의 아래쪽 끝을 재단선(책등 맨 아래)에서 안전영역과 같은 값만큼 띄운 자리에
 // 고정해요(사용자가 화면에서 위치를 바꿀 수 없어요) — 임의의 비율이 아니라 실제 mm
 // 안전 여백을 기준으로 계산해요.
-const SPINE_LOGO_HEIGHT_RATIO = 0.95; // 책등 폭(여백 제외) 중 로고가 차지하는 비율 — 제목처럼 최대한 크게
+const SPINE_LOGO_HEIGHT_RATIO = 0.98; // 책등 폭(여백 제외) 중 로고가 차지하는 비율 — 혜민님 확인(2026-09): 최대한 크게
 const SPINE_LOGO_BOTTOM_MARGIN_MM = 25; // 재단선에서 로고까지 — 혜민님 확인(2026-09): 아래에서 25mm
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
 

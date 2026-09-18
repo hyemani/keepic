@@ -43,7 +43,7 @@ import { mmToPt } from "@/lib/printGeometry";
 // font-size 숫자로 써요(숫자 단위가 뭐든 비율만 맞으면 결과는 똑같아요). 이렇게 실제
 // mm 크기를 구해서 화면에도 %(cqh) 단위로 넣으면, 창 크기가 바뀌어도 항상 책 실물
 // 비율 그대로 커지고 작아져요(브라우저 창 크기와는 무관해요).
-const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 1;
+const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 0.5;
 const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
 function measureSpineTitleFontSizeMm(
   title: string,
@@ -2803,29 +2803,30 @@ function UploadPageContent() {
                 왼쪽에서 페이지를 골라 오른쪽 큰 화면에서 편집해주세요.
               </p>
               {(showGuidelines || showInnerSafetyGuide || showInnerBindingGuide) && (
-                <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                // 안내선 설명은 앱 전체에서 여기 한 곳에만 둬요(혜민님 확인, 2026-09).
+                // 모바일에서는 항목마다 줄이 바뀌어서 정돈되게, 넓은 화면에서는 한 줄로
+                // 이어붙여요.
+                <ul className="mt-1 flex flex-col gap-0.5 text-[11px] text-[var(--color-charcoal)]/50 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-1.5">
                   {showGuidelines && (
-                    <>
+                    <li className="break-keep">
                       <span className="font-semibold text-[#1a1a1a]">■ 작업선(파선)</span>(파일 맨 끝, 배경은 이
                       선까지 채워주세요) · <span className="font-semibold text-[#1a1a1a]">■ 재단선(실선)</span>
-                      (실제로 잘리는 선){" "}
-                    </>
+                      (실제로 잘리는 선)
+                    </li>
                   )}
                   {showInnerSafetyGuide && (
-                    <>
-                      {showGuidelines && <>· </>}
+                    <li className="break-keep">
                       <span className="font-semibold text-[#1a1a1a]">■ 안전영역(점선)</span>(왼쪽·오른쪽 페이지
-                      각각, 글자·중요 사진은 이 안쪽에 배치해주세요 — 사진·배경은 밖으로 나가도 괜찮아요){" "}
-                    </>
+                      각각, 글자·중요 사진은 이 안쪽에 배치해주세요 — 사진·배경은 밖으로 나가도 괜찮아요)
+                    </li>
                   )}
                   {showInnerBindingGuide && (
-                    <>
-                      {(showGuidelines || showInnerSafetyGuide) && <>· </>}
+                    <li className="break-keep">
                       <span className="font-semibold text-[#1a1a1a]">■ 제본 경계(이중선)</span>(두 페이지가 만나는
                       가운데 선, 옅은 음영은 제본 때문에 주의가 필요한 영역이에요)
-                    </>
+                    </li>
                   )}
-                </p>
+                </ul>
               )}
 
               {isAiAuto && photos.length > 0 && (
@@ -3093,18 +3094,6 @@ function UploadPageContent() {
                           <span className="font-semibold text-[#1a1a1a]">■</span> 책등 경계(이중선)
                         </label>
                       </div>
-                      {(showCoverBleedGuide || showCoverTrimGuide || showCoverSafetyGuide || showCoverSpineGuide) && (
-                        <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                          <span className="font-semibold text-[#1a1a1a]">도련선(파선)</span>(뒤표지·책등·앞표지를
-                          합친 펼침면 전체의 바깥 끝, 배경은 이 선까지 채워주세요) ·{" "}
-                          <span className="font-semibold text-[#1a1a1a]">재단선(실선)</span>(실제로 잘리는 선,
-                          펼침면 전체 기준으로 하나로 이어져요) ·{" "}
-                          <span className="font-semibold text-[#1a1a1a]">안전영역(점선)</span>(뒤표지·책등·앞표지
-                          각각 이 안쪽에 글자·중요 사진을 배치해주세요) ·{" "}
-                          <span className="font-semibold text-[#1a1a1a]">책등 경계(이중선)</span>(책등이 접히는 두
-                          위치예요, 실제로 잘리는 선이 아니에요)
-                        </p>
-                      )}
 
                       {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                           패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준

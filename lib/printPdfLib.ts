@@ -65,12 +65,12 @@ const OUTER_MARGIN_MM = SHOW_TRIM_MARKS
 // 책등 폭이 보통 매우 좁아서(수 mm~수십 mm), 제목·로고 모두 "옆으로 눕혀서"(시계 반대
 // 방향으로 90도 회전) 넣어요 — 책을 책장에 꽂아놓고 옆에서 볼 때 고개를 왼쪽으로 기울이면
 // 정방향으로 읽히는, 가장 흔한 책등 표기 방향이에요.
-const SPINE_TEXT_SIDE_PADDING_MM = 1; // 책등 좌우 끝에서 글자/로고까지 남기는 여백 (lib/printCompose.ts와 같은 값)
+const SPINE_TEXT_SIDE_PADDING_MM = 0.5; // 책등 좌우 끝에서 글자/로고까지 남기는 여백 (lib/printCompose.ts와 같은 값)
 const SPINE_TITLE_MARGIN_RATIO = 0.06; // 제목 위/아래로 반드시 남겨야 하는 여백(패널 높이 대비 비율)
 const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15; // 세로쓰기 열 사이 간격(글자 크기 대비 비율)
 const SPINE_TITLE_MIN_FONT_PT = 4; // 이보다 작아지면 더 줄이지 않고 "너무 깁니다" 안내로 넘어가요
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03; // 제목 블록과 로고 사이 최소 간격(패널 높이 대비 비율)
-const SPINE_LOGO_HEIGHT_RATIO = 0.95; // 로고가 책등 폭(여백 제외) 중 차지하는 비율 (lib/printCompose.ts와 같은 값)
+const SPINE_LOGO_HEIGHT_RATIO = 0.98; // 로고가 책등 폭(여백 제외) 중 차지하는 비율 (lib/printCompose.ts와 같은 값)
 // 책등이 이보다 좁으면(양옆 여백 제외 실 폭 기준) 로고를 읽기 어렵다고 보고 생략해요.
 // ⚠️ 추정치예요 — 실제 가독성 최소 폭은 인쇄소·디자인 확인이 필요해요.
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
