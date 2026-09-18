@@ -746,64 +746,14 @@ export async function buildInnerPrintPdf({
 // 옮긴 거예요. 비율 상수는 동일하게 맞춰서 두 생성기의 책등 결과가 서로 비슷하게 나와요.
 const SPINE_TEXT_SIDE_PADDING_MM = 1; // 실측 책등(7.22mm)에서도 글자가 최대한 크게 들어가도록 여백을 좁혔어요.
 const SPINE_TITLE_TOP_MARGIN_MM = 25; // 책 제목 위쪽 여백 — 혜민님 확인(2026-09): 재단선(책등 맨 위)에서 25mm
-const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15;
 const SPINE_TITLE_MIN_FONT_PX = 50; // 12pt(300dpi 기준 50px) 밑으로는 줄이지 않아요 — 혜민님 확인: 소프트커버 최소 책등(7.22mm)에도 11~12pt가 넉넉히 들어가요.
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
 
-function computeSpineTitleLayoutPx(
-  charCount: number,
-  spinePx: number,
-  panelPx: number,
-  logoReserveHeightPx: number,
-  boxHeightPx?: number // 사용자가 화면에서 끌어서 정한 책등 텍스트박스 높이예요(있으면 이 값을 우선해요).
-): {
-  fits: boolean;
-  size: number;
-  charsPerColumn: number;
-  gapPx: number;
-  blockCrossPx: number;
-  blockLengthPx: number;
-  marginPx: number;
-  gapBeforeLogoPx: number;
-} {
-  const sidePaddingPx = mmToPx(SPINE_TEXT_SIDE_PADDING_MM);
-  const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2);
-  const marginPx = mmToPx(SPINE_TITLE_TOP_MARGIN_MM); // 위쪽 여백 25mm(고정) — 아래쪽은 로고 자리(logoReserveHeightPx)로 이미 나눠져 있어서 여기선 위쪽만 빼요.
-  const gapBeforeLogoPx = logoReserveHeightPx > 0 ? panelPx * SPINE_TITLE_LOGO_GAP_RATIO : 0;
-  const maxLengthPx =
-    boxHeightPx !== undefined
-      ? Math.max(4, boxHeightPx)
-      : Math.max(4, panelPx - marginPx - logoReserveHeightPx - gapBeforeLogoPx);
-
-  let size = maxCrossPx;
-  let charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
-  let fits = false;
-  while (size >= SPINE_TITLE_MIN_FONT_PX) {
-    charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
-    const columnCount = Math.ceil(charCount / charsPerColumn);
-    const gapPx = size * SPINE_TITLE_COLUMN_GAP_RATIO;
-    const totalCrossPx = columnCount * size + Math.max(0, columnCount - 1) * gapPx;
-    if (totalCrossPx <= maxCrossPx) {
-      fits = true;
-      break;
-    }
-    size -= 0.5;
-  }
-  if (size < SPINE_TITLE_MIN_FONT_PX) {
-    size = SPINE_TITLE_MIN_FONT_PX;
-    charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
-  }
-  const columnCount = Math.ceil(charCount / charsPerColumn);
-  const gapPx = size * SPINE_TITLE_COLUMN_GAP_RATIO;
-  const blockCrossPx = columnCount * size + Math.max(0, columnCount - 1) * gapPx;
-  const blockLengthPx = Math.min(maxLengthPx, charsPerColumn * size);
-
-  return { fits, size, charsPerColumn, gapPx, blockCrossPx, blockLengthPx, marginPx, gapBeforeLogoPx };
-}
-
-// 문장 전체를 눕히지 않고, 한 글자씩 정방향으로 위→아래로 쌓아요. 한 열에 다 못 담으면
-// 오른쪽에 새 열을 추가해요(왼쪽 열부터 읽혀요). logoReserveHeightPx만큼은 로고 자리로
-// 비워둬서 겹치지 않아요.
+// 책 제목 — 별도의 "책등 제목" 입력칸 없이 앞표지 제목을 그대로 써요(2026-09, 혜민님
+// 확인). 키픽 로고와 같은 방향으로 90도 눕혀서 한 줄로 그려요(글자를 하나씩 세로로
+// 쌓지 않아요) — 그래야 로고처럼 위(첫 글자)→아래(마지막 글자)로 자연스럽게 읽혀요.
+// 폰트 크기는 책등 폭(cross)에 맞춰 최대한 크게 잡은 뒤, 글자가 다 안 들어가면(length
+// 방향) 줄여요 — 그래서 화면/파일 크기와 무관하게 항상 실제 mm 기준으로 최대 크기예요.
 function drawSpineTitleCanvas(
   ctx: CanvasRenderingContext2D,
   title: string,
@@ -815,42 +765,45 @@ function drawSpineTitleCanvas(
   titleBoxTopPx?: number, // 화면에서 끌어서 정한 텍스트박스의 위쪽 위치(패널 위쪽 기준 px)
   titleBoxHeightPx?: number // 같은 텍스트박스의 높이(px)
 ): boolean {
-  const chars = Array.from(title.trim());
-  if (chars.length === 0) return true;
+  const trimmed = title.trim();
+  if (!trimmed) return true;
 
-  const layout = computeSpineTitleLayoutPx(chars.length, spinePx, panelPx, logoReserveHeightPx, titleBoxHeightPx);
-  const { fits, size, charsPerColumn, gapPx, blockCrossPx, marginPx } = layout;
+  const sidePaddingPx = mmToPx(SPINE_TEXT_SIDE_PADDING_MM);
+  const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2); // 책등 폭 방향 한도 — 폰트 크기(글자 높이)가 이걸 넘지 않아요.
+  const topMarginPx = mmToPx(SPINE_TITLE_TOP_MARGIN_MM);
+  const gapBeforeLogoPx = logoReserveHeightPx > 0 ? panelPx * SPINE_TITLE_LOGO_GAP_RATIO : 0;
+  const maxLengthPx =
+    titleBoxHeightPx !== undefined
+      ? Math.max(4, titleBoxHeightPx)
+      : Math.max(4, panelPx - topMarginPx - logoReserveHeightPx - gapBeforeLogoPx); // 책등 길이 방향 한도(로고 자리는 빼요)
 
-  // 세로 방향(책등 길이) 위치: 화면에서 사용자가 텍스트박스를 끌어서 정한 자리(있으면)를
-  // 그대로 쓰고, 없으면 예전처럼 책등 맨 위(margin만큼 띄운 자리)에 붙여요. 로고는
-  // (drawSpineLogoCanvas에서) 맨 아래에 붙여요 — 위/아래로 나눠서 배치하니 서로 겹칠 일이
-  // 없어요.
-  const usableTopPx = panelPx - marginPx;
-  const blockTopFromPanelBottomPx = titleBoxTopPx !== undefined ? panelPx - titleBoxTopPx : usableTopPx;
-
-  // 가로 방향(책등 폭) 위치: 열 블록 전체를 책등 폭 가운데 정렬해요.
-  const spineCenterXpx = spineXpx + spinePx / 2;
-  const blockLeftXpx = spineCenterXpx - blockCrossPx / 2;
-
+  let size = maxCrossPx;
   ctx.font = `bold ${size}px Pretendard, sans-serif`;
-  ctx.fillStyle = "#1a1a1a";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-
-  for (let i = 0; i < chars.length; i++) {
-    const col = Math.floor(i / charsPerColumn);
-    const row = i % charsPerColumn;
-    const ch = chars[i];
-    if (ch.trim() === "") continue;
-
-    const colCenterXpx = blockLeftXpx + col * (size + gapPx) + size / 2;
-    // row 0이 블록 맨 위 글자예요. 캔버스는 y가 아래로 증가해서, panelPx 바닥 기준
-    // 거리(...FromPanelBottomPx)를 "패널 안에서 위에서부터의 y좌표"로 뒤집어요.
-    const yFromPanelBottomPx = blockTopFromPanelBottomPx - row * size;
-    const yPx = bleedPx + (panelPx - yFromPanelBottomPx) + size * 0.78;
-
-    ctx.fillText(ch, colCenterXpx, yPx);
+  let textWidthPx = ctx.measureText(trimmed).width;
+  while (size > SPINE_TITLE_MIN_FONT_PX && textWidthPx > maxLengthPx) {
+    size -= 0.5;
+    ctx.font = `bold ${size}px Pretendard, sans-serif`;
+    textWidthPx = ctx.measureText(trimmed).width;
   }
+  if (size < SPINE_TITLE_MIN_FONT_PX) size = SPINE_TITLE_MIN_FONT_PX;
+  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  textWidthPx = ctx.measureText(trimmed).width;
+  const fits = textWidthPx <= maxLengthPx;
+
+  // 화면에서 사용자가 텍스트박스를 끌어서 정한 자리(있으면)를 시작점으로 쓰고, 없으면
+  // 책등 맨 위에서 25mm 내려온 자리부터 시작해요. 책등 폭 방향은 항상 가운데 정렬이에요.
+  const spineCenterXpx = spineXpx + spinePx / 2;
+  const startFromPanelTopPx = titleBoxTopPx !== undefined ? titleBoxTopPx : topMarginPx;
+  const startYpx = bleedPx + startFromPanelTopPx;
+
+  ctx.save();
+  ctx.translate(spineCenterXpx, startYpx);
+  ctx.rotate(Math.PI / 2); // 키픽 로고와 같은 방향 — 글자가 위(시작)→아래(끝)로 읽혀요
+  ctx.fillStyle = "#1a1a1a";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(trimmed, 0, 0);
+  ctx.restore();
 
   return fits;
 }

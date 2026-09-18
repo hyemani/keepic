@@ -38,6 +38,37 @@ import {
 import { buildInnerPrintPdfLib, buildCoverPrintPdfLib, computeSpineLogoLayout } from "@/lib/printPdfLib";
 import { mmToPt } from "@/lib/printGeometry";
 
+// 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
+// drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
+// font-size 숫자로 써요(숫자 단위가 뭐든 비율만 맞으면 결과는 똑같아요). 이렇게 실제
+// mm 크기를 구해서 화면에도 %(cqh) 단위로 넣으면, 창 크기가 바뀌어도 항상 책 실물
+// 비율 그대로 커지고 작아져요(브라우저 창 크기와는 무관해요).
+const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 1;
+const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
+function measureSpineTitleFontSizeMm(
+  title: string,
+  spineMm: number,
+  maxLengthMm: number
+): { sizeMm: number; textLengthMm: number } {
+  if (!title || typeof document === "undefined") return { sizeMm: 0, textLengthMm: 0 };
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { sizeMm: 0, textLengthMm: 0 };
+  const maxCrossMm = Math.max(1, spineMm - SPINE_TEXT_SIDE_PADDING_MM_SCREEN * 2);
+  let size = maxCrossMm;
+  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  let textLengthMm = ctx.measureText(title).width;
+  while (size > SPINE_TITLE_MIN_FONT_MM && textLengthMm > maxLengthMm) {
+    size -= 0.05;
+    ctx.font = `bold ${size}px Pretendard, sans-serif`;
+    textLengthMm = ctx.measureText(title).width;
+  }
+  if (size < SPINE_TITLE_MIN_FONT_MM) size = SPINE_TITLE_MIN_FONT_MM;
+  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  textLengthMm = ctx.measureText(title).width;
+  return { sizeMm: size, textLengthMm };
+}
+
 type Photo = {
   url: string;
   caption: string;
@@ -118,18 +149,6 @@ const fontOptions = [
 
 const PRINT_DPI = 200;
 
-// 책등(세네카) 제목 기본값 후보예요. 사용자가 앞표지 제목을 따로 입력하지 않으면
-// 새 프로젝트에 들어올 때마다 이 중 하나를 무작위로 골라 기본값으로 넣어요.
-const SPINE_TITLE_CANDIDATES = [
-  "나의 소중한 순간들",
-  "우리의 오늘",
-  "오래 간직할 순간",
-  "한 권의 추억",
-  "내가 좋아하는 장면들",
-  "지금, 이 순간",
-  "우리의 계절",
-  "소중한 날의 기록",
-];
 
 function parseSizeCm(detail: string) {
   const match = detail.match(/(\d+(\.\d+)?)\s*x\s*(\d+(\.\d+)?)/i);
@@ -1260,6 +1279,7 @@ function SpineTitleOverlay({
   emptyLabel,
   yPct,
   heightPct,
+  fontSizeCqh,
   onMove,
   onResize,
 }: {
@@ -1267,6 +1287,7 @@ function SpineTitleOverlay({
   emptyLabel: string;
   yPct: number;
   heightPct: number;
+  fontSizeCqh: number; // 실제 mm 크기를 컨테이너 높이 대비 %(cqh)로 환산한 값 — 창 크기와 무관하게 항상 같은 실물 비율로 보여요.
   onMove: (yPct: number) => void;
   onResize: (heightPct: number) => void;
 }) {
@@ -1340,9 +1361,12 @@ function SpineTitleOverlay({
       style={{ top: `${yPct}%`, height: `${heightPct}%` }}
     >
       {title.trim() ? (
+        // 키픽 로고와 같은 방향(90도)으로 한 줄로 눕혀서 보여줘요 — 글자를 하나씩 세로로
+        // 쌓지 않아요. font-size는 cqh(컨테이너 높이 기준 %)라서 창 크기가 바뀌어도 항상
+        // 책 실물 크기 그대로 커지고 작아져요(고정 px이 아니에요).
         <span
-          className="text-[11px] font-semibold leading-[1.25] text-[var(--color-charcoal)]"
-          style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
+          className="whitespace-nowrap font-bold text-[var(--color-charcoal)]"
+          style={{ fontSize: `${fontSizeCqh}cqh`, lineHeight: 1, transform: "rotate(90deg)" }}
         >
           {title}
         </span>
@@ -1669,11 +1693,8 @@ function UploadPageContent() {
   // 골랐고, 여기서는 표지에 들어갈 사진과 제목만 정해요.
   const [coverPhoto, setCoverPhoto] = useState<Photo | null>(null);
   const [coverTitle, setCoverTitle] = useState("");
-  // 책등(세네카) 제목이에요. 앞표지 제목과는 별도로 관리해요 — 앞표지 제목을 입력하면
-  // 자동으로 같이 채워지지만, 혜민님/사용자가 책등 제목을 직접 수정하면 그 뒤로는
-  // 앞표지 제목을 따라가지 않고 독립적으로 유지돼요.
-  const [spineTitle, setSpineTitle] = useState("");
-  const [spineTitleTouched, setSpineTitleTouched] = useState(false);
+  // 책등(세네카) 제목은 따로 없어요 — 앞표지 제목을 그대로 책등에도 써요(혜민님 확인,
+  // 2026-09: 표지 제목이 곧 책등 제목이라 입력칸을 두 개 둘 필요가 없음).
   // 표지 제목 글자 크기 배율이에요(1이 기본, 화면 슬라이더로 조절). 실제 인쇄 파일에도
   // 그대로 반영돼요(기존 jsPDF 발주 파일 + pdf-lib 테스트 생성기 둘 다).
   const [coverTitleFontScale, setCoverTitleFontScale] = useState(1);
@@ -1712,17 +1733,6 @@ function UploadPageContent() {
   const [introPublishDate, setIntroPublishDate] = useState("");
   const [introMakerName, setIntroMakerName] = useState("");
 
-  // 이 화면에 처음 들어왔을 때(새 프로젝트) 책등 제목 기본값을 후보 중 무작위로 하나 골라요.
-  // 서버 렌더링과 다른 값이 나오면 안 되니, 마운트된 뒤(브라우저에서만) 한 번만 실행해요.
-  useEffect(() => {
-    // 서버 렌더링 때는 무작위 값을 고를 수 없어서(Math.random 결과가 서버/클라이언트마다
-    // 달라져 화면 깜빡임 오류가 날 수 있어요) 마운트 직후 한 번만 클라이언트에서 골라요.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSpineTitle((prev) =>
-      prev ? prev : SPINE_TITLE_CANDIDATES[Math.floor(Math.random() * SPINE_TITLE_CANDIDATES.length)]
-    );
-  }, []);
-
   // "마지막 소개 페이지"의 발행일 기본값도 마운트된 뒤(브라우저에서만) 한 번만 오늘
   // 날짜로 채워요. 이미 값이 있으면(다시 방문 등) 그대로 둬서, 사용자가 고친 값이나
   // 예전에 정해진 최초 생성일이 자동으로 바뀌지 않게 해요.
@@ -1732,17 +1742,8 @@ function UploadPageContent() {
   }, []);
 
   // 앞표지 제목을 입력하면 책등 제목도 자동으로 같이 채워요. 단, 사용자가 책등 제목을
-  // 직접 수정한 적이 있으면(spineTitleTouched) 더 이상 앞표지 제목을 따라가지 않아요.
   function handleCoverTitleChange(value: string) {
     setCoverTitle(value);
-    if (!spineTitleTouched && value.trim()) {
-      setSpineTitle(value);
-    }
-  }
-
-  function handleSpineTitleChange(value: string) {
-    setSpineTitle(value);
-    setSpineTitleTouched(true);
   }
   // 지금 화면 오른쪽 큰 미리보기에 어떤 페이지를 보여줄지예요.
   // "cover"면 표지(뒤표지-세네카-앞표지)를, 숫자면 그 번째 스프레드를 보여줘요.
@@ -2077,7 +2078,6 @@ function UploadPageContent() {
       coverTitleXPct,
       coverTitleYPct,
       coverTitleFontFamily,
-      spineTitle,
       spineTitleYPct,
       spineTitleHeightPct,
       backCoverMode,
@@ -2101,7 +2101,6 @@ function UploadPageContent() {
     setCoverTitleXPct(s.coverTitleXPct);
     setCoverTitleYPct(s.coverTitleYPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
-    setSpineTitle(s.spineTitle);
     setSpineTitleYPct(s.spineTitleYPct ?? null);
     setSpineTitleHeightPct(s.spineTitleHeightPct);
     setBackCoverMode(s.backCoverMode);
@@ -2140,7 +2139,6 @@ function UploadPageContent() {
     coverTitleXPct,
     coverTitleYPct,
     coverTitleFontFamily,
-    spineTitle,
     spineTitleYPct,
     spineTitleHeightPct,
     backCoverMode,
@@ -2330,7 +2328,6 @@ function UploadPageContent() {
       coverTitleWidthPct,
       innerPaperWeightG: innerPaper.weightG,
       pages,
-      spineTitle,
       spineTitleYPct: spineTitleYPct ?? undefined,
       spineTitleHeightPct,
       backCoverMode,
@@ -2449,7 +2446,6 @@ function UploadPageContent() {
         pages,
         firstPage,
         lastPage,
-        spineTitle,
         spineTitleOffsetRatio: coverSpineTitleOffset,
       });
 
@@ -2634,6 +2630,11 @@ function UploadPageContent() {
     const SPINE_TITLE_TOP_MARGIN_MM = 25; // 책 제목 위쪽 여백 — 혜민님 확인(2026-09): 위에서 25mm
     const coverSpineTitleDefaultYPct = (SPINE_TITLE_TOP_MARGIN_MM / coverTotalHmm) * 100;
     const coverSpineTitleYPct = spineTitleYPct ?? coverSpineTitleDefaultYPct;
+    // 책 제목 글자 크기 — 실제 mm 기준으로 계산해서 cqh(컨테이너 높이 대비 %)로 넣어요.
+    // 고정 px이 아니라서 브라우저 창을 늘리거나 줄여도 항상 책 실물 크기 그대로예요.
+    const spineTitleMaxLengthMm = (spineTitleHeightPct / 100) * coverTotalHmm;
+    const spineTitleMeasure = measureSpineTitleFontSizeMm(coverTitle.trim(), coverSpineMm, spineTitleMaxLengthMm);
+    const spineTitleFontSizeCqh = (spineTitleMeasure.sizeMm / coverTotalHmm) * 100;
     // computeSpineLogoLayout이 돌려주는 drawnWidthPt(책등 폭 방향)·drawnHeightPt(책등
     // 길이 방향)는 "눕힌 뒤(화면에 실제로 보이는)" 가로/세로예요. 회전 전 <img> 박스는
     // 가로/세로가 서로 뒤바뀌어야 rotate(90deg) 후 원하는 크기가 나와요. (표지 펼침면은
@@ -3111,7 +3112,7 @@ function UploadPageContent() {
                           포함되지 않아요) */}
                       <div
                         className="relative mt-4 flex w-full overflow-hidden border border-[var(--color-hairline)] bg-white shadow-sm"
-                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
+                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size" }}
                       >
                         <div
                           className="group relative flex h-full items-center justify-center overflow-hidden"
@@ -3166,10 +3167,11 @@ function UploadPageContent() {
                               90도로 눕히고(글자가 위→아래로 읽혀요), 재단선에서 안전영역과 같은
                               10mm 띄운 자리에 고정으로 둬요(화면에서 위치를 바꿀 수 없어요). */}
                           <SpineTitleOverlay
-                            title={spineTitle}
+                            title={coverTitle}
                             emptyLabel="책등"
                             yPct={coverSpineTitleYPct}
                             heightPct={spineTitleHeightPct}
+                            fontSizeCqh={spineTitleFontSizeCqh}
                             onMove={setSpineTitleYPct}
                             onResize={setSpineTitleHeightPct}
                           />
@@ -3279,21 +3281,9 @@ function UploadPageContent() {
                         제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요.
                       </p>
 
-                      <div className="mt-4">
-                        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                          책등 제목
-                        </label>
-                        <input
-                          type="text"
-                          value={spineTitle}
-                          onChange={(e) => handleSpineTitleChange(e.target.value)}
-                          placeholder="책등에 넣을 제목"
-                          className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
-                        />
-                        <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
-                          책등에 들어갈 제목이에요. 원하는 문구로 바꿔보세요.
-                        </p>
-                      </div>
+                      <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
+                        이 제목이 책등에도 그대로 들어가요.
+                      </p>
 
                       <div className="mt-4">
                         <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
