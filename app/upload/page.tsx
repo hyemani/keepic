@@ -3317,447 +3317,451 @@ function UploadPageContent() {
                         여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. 뒤표지·책등
                         꾸미기는 아래에서 따로 설정할 수 있어요.
                       </p>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--color-charcoal)]/70">
-                        <label className="flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={showCoverBleedGuide}
-                            onChange={(e) => setShowCoverBleedGuide(e.target.checked)}
-                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                          />
-                          <span className="font-semibold text-[#1a1a1a]">■</span> 도련선(파선)
-                        </label>
-                        <label className="flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={showCoverTrimGuide}
-                            onChange={(e) => setShowCoverTrimGuide(e.target.checked)}
-                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                          />
-                          <span className="font-semibold text-[#1a1a1a]">■</span> 재단선(실선)
-                        </label>
-                        <label className="flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={showCoverSafetyGuide}
-                            onChange={(e) => setShowCoverSafetyGuide(e.target.checked)}
-                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                          />
-                          <span className="font-semibold text-[#1a1a1a]">■</span> 안전영역(점선)
-                        </label>
-                        <label className="flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={showCoverSpineGuide}
-                            onChange={(e) => setShowCoverSpineGuide(e.target.checked)}
-                            className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                          />
-                          <span className="font-semibold text-[#1a1a1a]">■</span> 책등 경계(이중선)
-                        </label>
-                      </div>
-
-                      {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
-                          패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
-                          좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
-                          포함되지 않아요) */}
-                      <div
-                        className="relative mt-4 flex w-full overflow-hidden border border-[var(--color-hairline)] bg-white shadow-sm"
-                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size" }}
-                      >
-                        <div
-                          className="group relative flex h-full items-center justify-center overflow-hidden"
-                          style={{
-                            width: `${coverBackPct}%`,
-                            background: backCoverPatternId
-                              ? resolveSpreadBackgroundCss({
-                                  backgroundColor: backCoverBackgroundColor,
-                                  backgroundPattern: backCoverPatternId,
-                                })
-                              : (backCoverBackgroundColor ?? "#ffffff"),
-                          }}
-                        >
-                          {backCoverMode === "logo" ? (
-                            <img
-                              src="/logo.svg"
-                              alt="Keepic"
-                              className="pointer-events-none w-[34%] max-w-24 opacity-80"
+                      
+                      <div className="flex flex-col gap-4 lg:flex-row">
+                        <div className="lg:w-72 lg:shrink-0 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={showCoverBleedGuide}
+                              onChange={(e) => setShowCoverBleedGuide(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-[var(--color-sky)]"
                             />
-                          ) : backCoverPhoto ? (
-                            <img
-                              src={backCoverPhoto.url}
-                              alt=""
-                              className="h-[46%] w-[46%] rounded-sm object-cover shadow-sm"
+                            <span className="font-semibold text-[#1a1a1a]">■</span> 도련선(파선)
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={showCoverTrimGuide}
+                              onChange={(e) => setShowCoverTrimGuide(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-[var(--color-sky)]"
                             />
-                          ) : (
-                            <label className="flex h-[46%] w-[46%] cursor-pointer flex-col items-center justify-center gap-1 rounded-sm border border-dashed border-[var(--color-charcoal)]/30 bg-white text-center text-[9px] text-[var(--color-charcoal)]/50">
-                              사진 선택
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleBackCoverFileSelect}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
-                          <TextBoxLayer
-                            boxes={backCoverTextBoxes}
-                            onAdd={handleAddBackCoverTextBox}
-                            onChange={handleBackCoverTextBoxChange}
-                            activeBoxId={activeTextBox?.ref.scope === "backCover" ? activeTextBox.boxId : null}
-                            onSelect={(boxId) => setActiveTextBox({ ref: { scope: "backCover" }, boxId })}
-                          />
+                            <span className="font-semibold text-[#1a1a1a]">■</span> 재단선(실선)
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={showCoverSafetyGuide}
+                              onChange={(e) => setShowCoverSafetyGuide(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                            />
+                            <span className="font-semibold text-[#1a1a1a]">■</span> 안전영역(점선)
+                          </label>
+                          <label className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={showCoverSpineGuide}
+                              onChange={(e) => setShowCoverSpineGuide(e.target.checked)}
+                              className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                            />
+                            <span className="font-semibold text-[#1a1a1a]">■</span> 책등 경계(이중선)
+                          </label>
                         </div>
-                        <div
-                          className="relative h-full overflow-hidden border-x border-[#1a1a1a]/70 px-1"
-                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
-                        >
-                          {/* 책등엔 책등 제목과 키픽 로고만 보여줘요 — 제목 텍스트박스는 끌어서
-                              위치를, 아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등 폭에
-                              고정, 한 글자씩 정방향으로 위→아래 세로쓰기). 로고는 책등이 좁아서
-                              90도로 눕히고(글자가 위→아래로 읽혀요), 재단선에서 안전영역과 같은
-                              10mm 띄운 자리에 고정으로 둬요(화면에서 위치를 바꿀 수 없어요). */}
-                          <SpineTitleOverlay
-                            title={coverTitle.replace(/\n/g, " ")}
-                            emptyLabel="책등"
-                            yPct={coverSpineTitleYPct}
-                            heightPct={spineTitleHeightPct}
-                            fontSizeCqh={spineTitleFontSizeCqh}
-                            onMove={setSpineTitleYPct}
-                            onResize={setSpineTitleHeightPct}
-                          />
-                          {coverSpineLogoLayout.fits && (
-                            <img
-                              src="/logo.svg"
-                              alt="Keepic"
-                              className="pointer-events-none absolute z-10 opacity-90"
-                              style={{
-                                top: `${coverSpineLogoCenterYPct}%`,
-                                left: "50%",
-                                width: `${coverSpineLogoPreRotateWidthPct}%`,
-                                height: `${coverSpineLogoPreRotateHeightPct}%`,
-                                transform: "translate(-50%, -50%) rotate(90deg)",
-                              }}
-                            />
-                          )}
-                        </div>
-                        <div
-                          className="group relative h-full overflow-hidden"
-                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
-                        >
-                          {coverPhoto ? (
-                            <PhotoCell
-                              photo={coverPhoto}
-                              requiredMinPx={requiredMinPx}
-                              onChange={(c) => setCoverPhoto((prev) => (prev ? { ...prev, ...c } : prev))}
-                            />
-                          ) : (
-                            <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 bg-[var(--color-ivory)] text-center text-xs text-[var(--color-charcoal)]/50">
-                              표지 사진 선택
+                        <div className="mt-4 flex flex-col gap-2">
+                          {coverPhoto && (
+                            <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                              표지 사진 바꾸기
                               <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
                             </label>
                           )}
-                          <CoverTitleOverlay
-                            title={coverTitle}
-                            xPct={coverTitleXPct}
-                            yPct={coverTitleYPct}
-                            widthPct={coverTitleWidthPct}
-                            fontSizeCqh={coverTitleFontSizeCqh}
-                            lineHeightEm={coverTitleLineHeightEm}
-                            letterSpacingEm={coverTitleLetterSpacingEm}
-                            fontFamily={coverTitleFontFamily}
-                            onMove={({ xPct, yPct }) => {
-                              setCoverTitleXPct(xPct);
-                              setCoverTitleYPct(yPct);
-                            }}
-                          />
-                          <TextBoxLayer
-                            boxes={coverTextBoxes}
-                            onAdd={handleAddCoverTextBox}
-                            onChange={handleCoverTextBoxChange}
-                            activeBoxId={activeTextBox?.ref.scope === "cover" ? activeTextBox.boxId : null}
-                            onSelect={(boxId) => setActiveTextBox({ ref: { scope: "cover" }, boxId })}
+                          <textarea
+                            value={coverTitle}
+                            onChange={(e) => handleCoverTitleChange(e.target.value)}
+                            placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
+                            rows={2}
+                            className="flex-1 resize-none rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
                           />
                         </div>
+                        <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
+                          제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요. Enter를 누르면 줄이
+                          바뀌어요(2줄 이상도 가능해요).
+                        </p>
 
-                        {showCoverBleedGuide && (
-                          <CoverGuideBox left={0} right={100} top={0} bottom={100} variant="dashed" />
-                        )}
-                        {showCoverTrimGuide && (
-                          <CoverGuideBox
-                            left={coverBleedXPct}
-                            right={100 - coverBleedXPct}
-                            top={coverBleedYPct}
-                            bottom={100 - coverBleedYPct}
-                            variant="solid"
-                          />
-                        )}
-                        {showCoverSafetyGuide && (
-                          <>
-                            <CoverGuideBox
-                              left={coverBackSafetyLeftPct}
-                              right={coverBackSafetyRightPct}
-                              top={coverSafetyTopPct}
-                              bottom={coverSafetyBottomPct}
-                              variant="dotted"
-                            />
-                            <CoverGuideBox
-                              left={coverFrontSafetyLeftPct}
-                              right={coverFrontSafetyRightPct}
-                              top={coverSafetyTopPct}
-                              bottom={coverSafetyBottomPct}
-                              variant="dotted"
-                            />
-                          </>
-                        )}
-                        {/* 책등 경계는 이제 위 패널 테두리(항상 표시)만으로 보여줘요 — 이중선을 더 그리면
-                            선이 겹쳐 지저분해 보여서, 안내선 체크박스는 그대로 두되 여기서는 더 그리지
-                            않아요. */}
-                      </div>
+                        <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
+                          이 제목이 책등에도 그대로 들어가요.
+                        </p>
 
-                      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-                        {coverPhoto && (
-                          <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                            표지 사진 바꾸기
-                            <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
-                          </label>
-                        )}
-                        <textarea
-                          value={coverTitle}
-                          onChange={(e) => handleCoverTitleChange(e.target.value)}
-                          placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
-                          rows={2}
-                          className="flex-1 resize-none rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
-                        />
-                      </div>
-                      <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
-                        제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요. Enter를 누르면 줄이
-                        바뀌어요(2줄 이상도 가능해요).
-                      </p>
-
-                      <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
-                        이 제목이 책등에도 그대로 들어가요.
-                      </p>
-
-                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                            글자 크기(pt)
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={COVER_TITLE_PT_PRESETS.includes(coverTitleFontSizePt) ? coverTitleFontSizePt : "custom"}
-                              onChange={(e) => {
-                                if (e.target.value !== "custom") setCoverTitleFontSizePt(Number(e.target.value));
-                              }}
-                              className="rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                            >
-                              {COVER_TITLE_PT_PRESETS.map((pt) => (
-                                <option key={pt} value={pt}>
-                                  {pt}pt
-                                </option>
-                              ))}
-                              <option value="custom">직접 입력</option>
-                            </select>
+                        <div className="mt-4 grid grid-cols-1 gap-3">
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                              글자 크기(pt)
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={COVER_TITLE_PT_PRESETS.includes(coverTitleFontSizePt) ? coverTitleFontSizePt : "custom"}
+                                onChange={(e) => {
+                                  if (e.target.value !== "custom") setCoverTitleFontSizePt(Number(e.target.value));
+                                }}
+                                className="rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                              >
+                                {COVER_TITLE_PT_PRESETS.map((pt) => (
+                                  <option key={pt} value={pt}>
+                                    {pt}pt
+                                  </option>
+                                ))}
+                                <option value="custom">직접 입력</option>
+                              </select>
+                              <input
+                                type="number"
+                                min={8}
+                                max={200}
+                                value={coverTitleFontSizePt}
+                                onChange={(e) => setCoverTitleFontSizePt(Math.max(8, Math.min(200, Number(e.target.value) || 8)))}
+                                className="w-16 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                              행간(줄 간격)
+                            </label>
                             <input
                               type="number"
-                              min={8}
-                              max={200}
-                              value={coverTitleFontSizePt}
-                              onChange={(e) => setCoverTitleFontSizePt(Math.max(8, Math.min(200, Number(e.target.value) || 8)))}
-                              className="w-16 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                              min={0.8}
+                              max={2.5}
+                              step={0.05}
+                              value={coverTitleLineHeightEm}
+                              onChange={(e) => setCoverTitleLineHeightEm(Math.max(0.8, Math.min(2.5, Number(e.target.value) || 1.2)))}
+                              className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                              자간
+                            </label>
+                            <input
+                              type="number"
+                              min={-0.1}
+                              max={0.5}
+                              step={0.01}
+                              value={coverTitleLetterSpacingEm}
+                              onChange={(e) => setCoverTitleLetterSpacingEm(Math.max(-0.1, Math.min(0.5, Number(e.target.value) || 0)))}
+                              className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                             />
                           </div>
                         </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                            행간(줄 간격)
-                          </label>
-                          <input
-                            type="number"
-                            min={0.8}
-                            max={2.5}
-                            step={0.05}
-                            value={coverTitleLineHeightEm}
-                            onChange={(e) => setCoverTitleLineHeightEm(Math.max(0.8, Math.min(2.5, Number(e.target.value) || 1.2)))}
-                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                            자간
-                          </label>
-                          <input
-                            type="number"
-                            min={-0.1}
-                            max={0.5}
-                            step={0.01}
-                            value={coverTitleLetterSpacingEm}
-                            onChange={(e) => setCoverTitleLetterSpacingEm(Math.max(-0.1, Math.min(0.5, Number(e.target.value) || 0)))}
-                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                          />
-                        </div>
-                      </div>
 
-                      <div className="mt-4">
-                        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                          표지 제목 서체
-                        </label>
-                        <select
-                          value={coverTitleFontFamily}
-                          onChange={(e) => setCoverTitleFontFamily(e.target.value)}
-                          className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
-                          style={{ fontFamily: coverTitleFontFamily }}
-                        >
-                          {fontOptions.map((f) => (
-                            <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
-                              {f.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="mt-4 rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
-                        <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                          뒤표지 꾸미기
-                        </label>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="flex overflow-hidden rounded-full border border-[var(--color-hairline)]">
-                            <button
-                              type="button"
-                              onClick={() => setBackCoverMode("logo")}
-                              className={`px-3 py-1.5 text-xs transition ${
-                                backCoverMode === "logo"
-                                  ? "bg-[var(--color-sky)] text-white"
-                                  : "bg-white text-[var(--color-charcoal)]/70"
-                              }`}
-                            >
-                              키픽 로고
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setBackCoverMode("photo")}
-                              className={`px-3 py-1.5 text-xs transition ${
-                                backCoverMode === "photo"
-                                  ? "bg-[var(--color-sky)] text-white"
-                                  : "bg-white text-[var(--color-charcoal)]/70"
-                              }`}
-                            >
-                              작은 사진
-                            </button>
-                          </div>
-                          {backCoverMode === "photo" && (
-                            <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                              {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleBackCoverFileSelect}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
+                        <div className="mt-4">
+                          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                            표지 제목 서체
+                          </label>
+                          <select
+                            value={coverTitleFontFamily}
+                            onChange={(e) => setCoverTitleFontFamily(e.target.value)}
+                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+                            style={{ fontFamily: coverTitleFontFamily }}
+                          >
+                            {fontOptions.map((f) => (
+                              <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                        <div className="mt-3">
+
+                        <div className="mt-4 rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
+                          <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                            뒤표지 꾸미기
+                          </label>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-[var(--color-charcoal)]/60">배경색(뒤표지·책등·표지 세트로)</span>
-                            {SPREAD_BACKGROUND_PRESETS.map((preset) => {
-                              const isActive =
-                                (backCoverBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase() &&
-                                (coverSpineBackgroundColor ?? "#f4f1ea").toLowerCase() === preset.color.toLowerCase() &&
-                                (coverFrontBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase();
-                              return (
-                                <button
-                                  key={preset.color}
-                                  type="button"
-                                  title={`${preset.label} — 뒤표지·책등·표지 모두 이 색으로`}
-                                  onClick={() => {
-                                    const next = preset.color === "#ffffff" ? undefined : preset.color;
-                                    setBackCoverBackgroundColor(next);
-                                    setCoverSpineBackgroundColor(next);
-                                    setCoverFrontBackgroundColor(next);
-                                  }}
-                                  className={`h-6 w-6 rounded-full border transition ${
-                                    isActive
-                                      ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                      : "border-[var(--color-hairline)]"
-                                  }`}
-                                  style={{ backgroundColor: preset.color }}
+                            <div className="flex overflow-hidden rounded-full border border-[var(--color-hairline)]">
+                              <button
+                                type="button"
+                                onClick={() => setBackCoverMode("logo")}
+                                className={`px-3 py-1.5 text-xs transition ${
+                                  backCoverMode === "logo"
+                                    ? "bg-[var(--color-sky)] text-white"
+                                    : "bg-white text-[var(--color-charcoal)]/70"
+                                }`}
+                              >
+                                키픽 로고
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBackCoverMode("photo")}
+                                className={`px-3 py-1.5 text-xs transition ${
+                                  backCoverMode === "photo"
+                                    ? "bg-[var(--color-sky)] text-white"
+                                    : "bg-white text-[var(--color-charcoal)]/70"
+                                }`}
+                              >
+                                작은 사진
+                              </button>
+                            </div>
+                            {backCoverMode === "photo" && (
+                              <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                                {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleBackCoverFileSelect}
+                                  className="hidden"
                                 />
-                              );
-                            })}
+                              </label>
+                            )}
                           </div>
-                          <p className="mt-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                            아래에서 뒤표지·책등·표지를 각각 따로 지정할 수도 있어요.
-                          </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-4">
-                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
-                              뒤표지
-                              <input
-                                type="color"
-                                value={backCoverBackgroundColor ?? "#ffffff"}
-                                onChange={(e) => setBackCoverBackgroundColor(e.target.value)}
-                                className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                              />
-                            </label>
-                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
-                              책등
-                              <input
-                                type="color"
-                                value={coverSpineBackgroundColor ?? "#f4f1ea"}
-                                onChange={(e) => setCoverSpineBackgroundColor(e.target.value)}
-                                className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                              />
-                            </label>
-                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
-                              앞표지
-                              <input
-                                type="color"
-                                value={coverFrontBackgroundColor ?? "#ffffff"}
-                                onChange={(e) => setCoverFrontBackgroundColor(e.target.value)}
-                                className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                              />
-                            </label>
+                          <div className="mt-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs text-[var(--color-charcoal)]/60">배경색(뒤표지·책등·표지 세트로)</span>
+                              {SPREAD_BACKGROUND_PRESETS.map((preset) => {
+                                const isActive =
+                                  (backCoverBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase() &&
+                                  (coverSpineBackgroundColor ?? "#f4f1ea").toLowerCase() === preset.color.toLowerCase() &&
+                                  (coverFrontBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase();
+                                return (
+                                  <button
+                                    key={preset.color}
+                                    type="button"
+                                    title={`${preset.label} — 뒤표지·책등·표지 모두 이 색으로`}
+                                    onClick={() => {
+                                      const next = preset.color === "#ffffff" ? undefined : preset.color;
+                                      setBackCoverBackgroundColor(next);
+                                      setCoverSpineBackgroundColor(next);
+                                      setCoverFrontBackgroundColor(next);
+                                    }}
+                                    className={`h-6 w-6 rounded-full border transition ${
+                                      isActive
+                                        ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                        : "border-[var(--color-hairline)]"
+                                    }`}
+                                    style={{ backgroundColor: preset.color }}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <p className="mt-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                              아래에서 뒤표지·책등·표지를 각각 따로 지정할 수도 있어요.
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-4">
+                              <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                                뒤표지
+                                <input
+                                  type="color"
+                                  value={backCoverBackgroundColor ?? "#ffffff"}
+                                  onChange={(e) => setBackCoverBackgroundColor(e.target.value)}
+                                  className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                                />
+                              </label>
+                              <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                                책등
+                                <input
+                                  type="color"
+                                  value={coverSpineBackgroundColor ?? "#f4f1ea"}
+                                  onChange={(e) => setCoverSpineBackgroundColor(e.target.value)}
+                                  className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                                />
+                              </label>
+                              <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                                앞표지
+                                <input
+                                  type="color"
+                                  value={coverFrontBackgroundColor ?? "#ffffff"}
+                                  onChange={(e) => setCoverFrontBackgroundColor(e.target.value)}
+                                  className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                                />
+                              </label>
+                            </div>
+                          </div>
+                          <div className="mt-3">
+                            <span className="text-xs text-[var(--color-charcoal)]/60">
+                              그래픽·패턴·텍스처(뒤표지만)
+                            </span>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setBackCoverPatternId(undefined)}
+                                className={`h-6 rounded-full border px-2 text-[11px] transition ${
+                                  !backCoverPatternId
+                                    ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                                    : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70"
+                                }`}
+                              >
+                                없음
+                              </button>
+                              {backgroundPatterns.map((preset) => {
+                                const isActive = backCoverPatternId === preset.id;
+                                return (
+                                  <button
+                                    key={preset.id}
+                                    type="button"
+                                    title={preset.label}
+                                    onClick={() => setBackCoverPatternId(isActive ? undefined : preset.id)}
+                                    className={`h-6 w-6 rounded-full border transition ${
+                                      isActive
+                                        ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                        : "border-[var(--color-hairline)]"
+                                    }`}
+                                    style={{ background: patternToCssBackground(preset) }}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <p className="mt-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                              뒤표지 미리보기 칸에 마우스를 올리면 뜨는 &quot;+ 텍스트 추가&quot; 버튼으로
+                              글자도 자유롭게 넣을 수 있어요.
+                            </p>
                           </div>
                         </div>
-                        <div className="mt-3">
-                          <span className="text-xs text-[var(--color-charcoal)]/60">
-                            그래픽·패턴·텍스처(뒤표지만)
-                          </span>
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setBackCoverPatternId(undefined)}
-                              className={`h-6 rounded-full border px-2 text-[11px] transition ${
-                                !backCoverPatternId
-                                  ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                                  : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70"
-                              }`}
-                            >
-                              없음
-                            </button>
-                            {backgroundPatterns.map((preset) => {
-                              const isActive = backCoverPatternId === preset.id;
-                              return (
-                                <button
-                                  key={preset.id}
-                                  type="button"
-                                  title={preset.label}
-                                  onClick={() => setBackCoverPatternId(isActive ? undefined : preset.id)}
-                                  className={`h-6 w-6 rounded-full border transition ${
-                                    isActive
-                                      ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                      : "border-[var(--color-hairline)]"
-                                  }`}
-                                  style={{ background: patternToCssBackground(preset) }}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                        {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
+                            패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
+                            좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
+                            포함되지 않아요) */}
+                        <div
+                          className="relative mt-4 flex w-full overflow-hidden border border-[var(--color-hairline)] bg-white shadow-sm"
+                          style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size" }}
+                        >
+                          <div
+                            className="group relative flex h-full items-center justify-center overflow-hidden"
+                            style={{
+                              width: `${coverBackPct}%`,
+                              background: backCoverPatternId
+                                ? resolveSpreadBackgroundCss({
+                                    backgroundColor: backCoverBackgroundColor,
+                                    backgroundPattern: backCoverPatternId,
+                                  })
+                                : (backCoverBackgroundColor ?? "#ffffff"),
+                            }}
+                          >
+                            {backCoverMode === "logo" ? (
+                              <img
+                                src="/logo.svg"
+                                alt="Keepic"
+                                className="pointer-events-none w-[34%] max-w-24 opacity-80"
+                              />
+                            ) : backCoverPhoto ? (
+                              <img
+                                src={backCoverPhoto.url}
+                                alt=""
+                                className="h-[46%] w-[46%] rounded-sm object-cover shadow-sm"
+                              />
+                            ) : (
+                              <label className="flex h-[46%] w-[46%] cursor-pointer flex-col items-center justify-center gap-1 rounded-sm border border-dashed border-[var(--color-charcoal)]/30 bg-white text-center text-[9px] text-[var(--color-charcoal)]/50">
+                                사진 선택
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleBackCoverFileSelect}
+                                  className="hidden"
                                 />
-                              );
-                            })}
+                              </label>
+                            )}
+                            <TextBoxLayer
+                              boxes={backCoverTextBoxes}
+                              onAdd={handleAddBackCoverTextBox}
+                              onChange={handleBackCoverTextBoxChange}
+                              activeBoxId={activeTextBox?.ref.scope === "backCover" ? activeTextBox.boxId : null}
+                              onSelect={(boxId) => setActiveTextBox({ ref: { scope: "backCover" }, boxId })}
+                            />
                           </div>
-                          <p className="mt-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                            뒤표지 미리보기 칸에 마우스를 올리면 뜨는 &quot;+ 텍스트 추가&quot; 버튼으로
-                            글자도 자유롭게 넣을 수 있어요.
-                          </p>
+                          <div
+                            className="relative h-full overflow-hidden border-x border-[#1a1a1a]/70 px-1"
+                            style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
+                          >
+                            {/* 책등엔 책등 제목과 키픽 로고만 보여줘요 — 제목 텍스트박스는 끌어서
+                                위치를, 아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등 폭에
+                                고정, 한 글자씩 정방향으로 위→아래 세로쓰기). 로고는 책등이 좁아서
+                                90도로 눕히고(글자가 위→아래로 읽혀요), 재단선에서 안전영역과 같은
+                                10mm 띄운 자리에 고정으로 둬요(화면에서 위치를 바꿀 수 없어요). */}
+                            <SpineTitleOverlay
+                              title={coverTitle.replace(/\n/g, " ")}
+                              emptyLabel="책등"
+                              yPct={coverSpineTitleYPct}
+                              heightPct={spineTitleHeightPct}
+                              fontSizeCqh={spineTitleFontSizeCqh}
+                              onMove={setSpineTitleYPct}
+                              onResize={setSpineTitleHeightPct}
+                            />
+                            {coverSpineLogoLayout.fits && (
+                              <img
+                                src="/logo.svg"
+                                alt="Keepic"
+                                className="pointer-events-none absolute z-10 opacity-90"
+                                style={{
+                                  top: `${coverSpineLogoCenterYPct}%`,
+                                  left: "50%",
+                                  width: `${coverSpineLogoPreRotateWidthPct}%`,
+                                  height: `${coverSpineLogoPreRotateHeightPct}%`,
+                                  transform: "translate(-50%, -50%) rotate(90deg)",
+                                }}
+                              />
+                            )}
+                          </div>
+                          <div
+                            className="group relative h-full overflow-hidden"
+                            style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
+                          >
+                            {coverPhoto ? (
+                              <PhotoCell
+                                photo={coverPhoto}
+                                requiredMinPx={requiredMinPx}
+                                onChange={(c) => setCoverPhoto((prev) => (prev ? { ...prev, ...c } : prev))}
+                              />
+                            ) : (
+                              <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 bg-[var(--color-ivory)] text-center text-xs text-[var(--color-charcoal)]/50">
+                                표지 사진 선택
+                                <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                              </label>
+                            )}
+                            <CoverTitleOverlay
+                              title={coverTitle}
+                              xPct={coverTitleXPct}
+                              yPct={coverTitleYPct}
+                              widthPct={coverTitleWidthPct}
+                              fontSizeCqh={coverTitleFontSizeCqh}
+                              lineHeightEm={coverTitleLineHeightEm}
+                              letterSpacingEm={coverTitleLetterSpacingEm}
+                              fontFamily={coverTitleFontFamily}
+                              onMove={({ xPct, yPct }) => {
+                                setCoverTitleXPct(xPct);
+                                setCoverTitleYPct(yPct);
+                              }}
+                            />
+                            <TextBoxLayer
+                              boxes={coverTextBoxes}
+                              onAdd={handleAddCoverTextBox}
+                              onChange={handleCoverTextBoxChange}
+                              activeBoxId={activeTextBox?.ref.scope === "cover" ? activeTextBox.boxId : null}
+                              onSelect={(boxId) => setActiveTextBox({ ref: { scope: "cover" }, boxId })}
+                            />
+                          </div>
+
+                          {showCoverBleedGuide && (
+                            <CoverGuideBox left={0} right={100} top={0} bottom={100} variant="dashed" />
+                          )}
+                          {showCoverTrimGuide && (
+                            <CoverGuideBox
+                              left={coverBleedXPct}
+                              right={100 - coverBleedXPct}
+                              top={coverBleedYPct}
+                              bottom={100 - coverBleedYPct}
+                              variant="solid"
+                            />
+                          )}
+                          {showCoverSafetyGuide && (
+                            <>
+                              <CoverGuideBox
+                                left={coverBackSafetyLeftPct}
+                                right={coverBackSafetyRightPct}
+                                top={coverSafetyTopPct}
+                                bottom={coverSafetyBottomPct}
+                                variant="dotted"
+                              />
+                              <CoverGuideBox
+                                left={coverFrontSafetyLeftPct}
+                                right={coverFrontSafetyRightPct}
+                                top={coverSafetyTopPct}
+                                bottom={coverSafetyBottomPct}
+                                variant="dotted"
+                              />
+                            </>
+                          )}
+                          {/* 책등 경계는 이제 위 패널 테두리(항상 표시)만으로 보여줘요 — 이중선을 더 그리면
+                              선이 겹쳐 지저분해 보여서, 안내선 체크박스는 그대로 두되 여기서는 더 그리지
+                              않아요. */}
+                        </div>
                         </div>
                       </div>
                     </div>
@@ -3769,43 +3773,49 @@ function UploadPageContent() {
                         앞표지에는 영향을 주지 않아요). 오른쪽 면은 인쇄되지 않는 빈 면이에요 —
                         내지 페이지 수·PDF에는 포함되지 않아요.
                       </p>
-                      <div className="relative mt-3 flex w-full items-stretch bg-white shadow-sm">
-                        <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
-                        <div className="aspect-square w-1/2">
-                          <IntroPagePreview
-                            coverPhoto={coverPhoto}
-                            coverTitle={coverTitle}
-                            introPublishDate={introPublishDate}
-                            introMakerName={introMakerName}
-                          />
+                      <div className="flex flex-col gap-4 lg:flex-row">
+                        <div className="lg:w-72 lg:shrink-0">
+                        <div className="mt-4 grid grid-cols-1 gap-3">
+                          <label className="text-xs text-[var(--color-charcoal)]/70">
+                            발행일
+                            <input
+                              value={introPublishDate}
+                              onChange={(e) => setIntroPublishDate(e.target.value)}
+                              className="mt-1 w-full rounded border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="text-xs text-[var(--color-charcoal)]/70">
+                            만든이
+                            <input
+                              value={introMakerName}
+                              onChange={(e) => setIntroMakerName(e.target.value)}
+                              placeholder="신규 작성자"
+                              className="mt-1 w-full rounded border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
+                            />
+                          </label>
                         </div>
-                        <div className="relative aspect-square w-1/2 overflow-hidden bg-[var(--color-ivory)]">
-                          <div className="pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-black/10 to-transparent" />
-                          <div className="flex h-full w-full items-center justify-center p-4">
-                            <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
-                              인쇄되지 않는 페이지입니다.
-                            </p>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                        <div className="relative mt-3 flex w-full items-stretch bg-white shadow-sm">
+                          <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
+                          <div className="aspect-square w-1/2">
+                            <IntroPagePreview
+                              coverPhoto={coverPhoto}
+                              coverTitle={coverTitle}
+                              introPublishDate={introPublishDate}
+                              introMakerName={introMakerName}
+                            />
+                          </div>
+                          <div className="relative aspect-square w-1/2 overflow-hidden bg-[var(--color-ivory)]">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-black/10 to-transparent" />
+                            <div className="flex h-full w-full items-center justify-center p-4">
+                              <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
+                                인쇄되지 않는 페이지입니다.
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <label className="text-xs text-[var(--color-charcoal)]/70">
-                          발행일
-                          <input
-                            value={introPublishDate}
-                            onChange={(e) => setIntroPublishDate(e.target.value)}
-                            className="mt-1 w-full rounded border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
-                          />
-                        </label>
-                        <label className="text-xs text-[var(--color-charcoal)]/70">
-                          만든이
-                          <input
-                            value={introMakerName}
-                            onChange={(e) => setIntroMakerName(e.target.value)}
-                            placeholder="신규 작성자"
-                            className="mt-1 w-full rounded border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
-                          />
-                        </label>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -3817,256 +3827,262 @@ function UploadPageContent() {
                       const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
                       return (
                         <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">
-                              {i === 0 ? "표지/1" : formatSpreadPageLabel(i)}페이지
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                disabled={i === 0}
-                                onClick={() => setSelectedPageKey(i - 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm disabled:opacity-30"
-                              >
-                                ‹
-                              </button>
-                              <button
-                                type="button"
-                                disabled={i === customSpreads.length - 1}
-                                onClick={() => setSelectedPageKey(i + 1)}
-                                className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm disabled:opacity-30"
-                              >
-                                ›
-                              </button>
-                            </div>
-                          </div>
-                          <div className="mt-3">
-                            <div className="flex flex-wrap gap-1 text-[11px]">
-                              <button
-                                type="button"
-                                onClick={() => setBackgroundTab("solid")}
-                                className={`rounded-full px-3 py-1 transition ${
-                                  backgroundTab === "solid"
-                                    ? "bg-[var(--color-sky)] text-white"
-                                    : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
-                                }`}
-                              >
-                                단색
-                              </button>
-                              {backgroundPatternCategories.map((cat) => (
+                          <div className="flex flex-col gap-4 lg:flex-row">
+                            <div className="lg:w-64 lg:shrink-0">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium">
+                                {i === 0 ? "표지/1" : formatSpreadPageLabel(i)}페이지
+                              </p>
+                              <div className="flex items-center gap-2">
                                 <button
-                                  key={cat.id}
                                   type="button"
-                                  onClick={() => setBackgroundTab(cat.id)}
+                                  disabled={i === 0}
+                                  onClick={() => setSelectedPageKey(i - 1)}
+                                  className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm disabled:opacity-30"
+                                >
+                                  ‹
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={i === customSpreads.length - 1}
+                                  onClick={() => setSelectedPageKey(i + 1)}
+                                  className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm disabled:opacity-30"
+                                >
+                                  ›
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3">
+                              <div className="flex flex-wrap gap-1 text-[11px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setBackgroundTab("solid")}
                                   className={`rounded-full px-3 py-1 transition ${
-                                    backgroundTab === cat.id
+                                    backgroundTab === "solid"
                                       ? "bg-[var(--color-sky)] text-white"
                                       : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
                                   }`}
                                 >
-                                  {cat.label}
+                                  단색
                                 </button>
-                              ))}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              {backgroundTab === "solid" ? (
-                                <>
-                                  {SPREAD_BACKGROUND_PRESETS.map((preset) => {
-                                    const isActive =
-                                      !spread.backgroundPattern &&
-                                      (spread.backgroundColor ?? "#ffffff").toLowerCase() ===
-                                        preset.color.toLowerCase();
-                                    return (
-                                      <button
-                                        key={preset.color}
-                                        type="button"
-                                        title={preset.label}
-                                        onClick={() =>
-                                          handleChangeBackground(
-                                            i,
-                                            preset.color === "#ffffff" ? undefined : preset.color
-                                          )
-                                        }
-                                        className={`h-6 w-6 rounded-full border transition ${
-                                          isActive
-                                            ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                            : "border-[var(--color-hairline)]"
-                                        }`}
-                                        style={{ backgroundColor: preset.color }}
-                                      />
-                                    );
-                                  })}
-                                  <label
-                                    title="색 직접 고르기"
-                                    className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
+                                {backgroundPatternCategories.map((cat) => (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    onClick={() => setBackgroundTab(cat.id)}
+                                    className={`rounded-full px-3 py-1 transition ${
+                                      backgroundTab === cat.id
+                                        ? "bg-[var(--color-sky)] text-white"
+                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
+                                    }`}
                                   >
-                                    +
-                                    <input
-                                      type="color"
-                                      value={spread.backgroundColor ?? "#ffffff"}
-                                      onChange={(e) => handleChangeBackground(i, e.target.value)}
-                                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                    />
-                                  </label>
-                                </>
-                              ) : (
-                                backgroundPatterns
-                                  .filter((p) => p.category === backgroundTab)
-                                  .map((preset) => {
-                                    const isActive = spread.backgroundPattern === preset.id;
-                                    return (
-                                      <button
-                                        key={preset.id}
-                                        type="button"
-                                        title={preset.label}
-                                        onClick={() =>
-                                          handleChangePattern(i, isActive ? undefined : preset.id)
-                                        }
-                                        className={`h-8 w-8 rounded-full border transition ${
-                                          isActive
-                                            ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                            : "border-[var(--color-hairline)]"
-                                        }`}
-                                        style={{ background: patternToCssBackground(preset) }}
-                                      />
-                                    );
-                                  })
-                              )}
-                            </div>
-                          </div>
-                          <div className="group relative mt-3 flex w-full items-start bg-white shadow-sm">
-                            {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만
-                                구분해요. "접힘·제본 경계" 안내선을 켜면 그 옆으로 옅은 배경(BindingGuide)이
-                                더해질 뿐, 선은 늘지 않아요. */}
-                            <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
-                            {/* 자유 배치 이미지박스 — 왼쪽·오른쪽 낱장이 아니라 스프레드 전체
-                                위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
-                            {i !== 0 && (
-                              <ImageBoxLayer
-                                boxes={spread.imageBoxes ?? []}
-                                onAdd={(file) => handleAddImageBox(i, file)}
-                                onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
-                                onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
-                                activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
-                                onSelect={(boxId) => {
-                                  setActiveTextBox(null);
-                                  setActiveImageBox({ spreadIndex: i, boxId });
-                                }}
-                              />
-                            )}
-                            <div className="group relative w-1/2">
-                              {i === 0 ? (
-                                <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">
-                                  <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
-                                    인쇄되지 않는 페이지입니다.
-                                    <br />
-                                    (표지 안쪽 면이에요)
-                                  </p>
-                                </div>
-                              ) : (
-                                <>
-                                  <select
-                                    value={spread.left}
-                                    onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
-                                    className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
-                                  >
-                                    {layoutOptions.map((opt) => (
-                                      <option key={opt.id} value={opt.id}>
-                                        {opt.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {renderPage(
-                                    spread.left,
-                                    leftPhotos,
-                                    leftIndexes,
-                                    handlePhotoTransform,
-                                    handleCaptionChange,
-                                    requiredMinPx,
-                                    resolveSpreadBackgroundCss(spread, "right")
-                                  )}
-                                  <TextBoxLayer
-                                    boxes={spread.textBoxesLeft ?? []}
-                                    onAdd={() => handleAddTextBox(i, "left")}
-                                    onChange={(boxId, c) => handleTextBoxChange(i, "left", boxId, c)}
-                                    activeBoxId={
-                                      activeTextBox?.ref.scope === "spread" &&
-                                      activeTextBox.ref.spreadIndex === i &&
-                                      activeTextBox.ref.side === "left"
-                                        ? activeTextBox.boxId
-                                        : null
-                                    }
-                                    onSelect={(boxId) =>
-                                      setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "left" }, boxId })
-                                    }
-                                  />
-                                </>
-                              )}
-                            </div>
-                            <div className="group relative w-1/2">
-                              <select
-                                value={spread.right}
-                                onChange={(e) => handleChangeLayout(i, "right", e.target.value as PageTemplateId)}
-                                className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
-                              >
-                                {layoutOptions.map((opt) => (
-                                  <option key={opt.id} value={opt.id}>
-                                    {opt.label}
-                                  </option>
+                                    {cat.label}
+                                  </button>
                                 ))}
-                              </select>
-                              {renderPage(
-                                spread.right,
-                                rightPhotos,
-                                rightIndexes,
-                                handlePhotoTransform,
-                                handleCaptionChange,
-                                requiredMinPx,
-                                resolveSpreadBackgroundCss(spread, "left")
-                              )}
-                              <TextBoxLayer
-                                boxes={spread.textBoxesRight ?? []}
-                                onAdd={() => handleAddTextBox(i, "right")}
-                                onChange={(boxId, c) => handleTextBoxChange(i, "right", boxId, c)}
-                                activeBoxId={
-                                  activeTextBox?.ref.scope === "spread" &&
-                                  activeTextBox.ref.spreadIndex === i &&
-                                  activeTextBox.ref.side === "right"
-                                    ? activeTextBox.boxId
-                                    : null
-                                }
-                                onSelect={(boxId) =>
-                                  setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "right" }, boxId })
-                                }
-                              />
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                {backgroundTab === "solid" ? (
+                                  <>
+                                    {SPREAD_BACKGROUND_PRESETS.map((preset) => {
+                                      const isActive =
+                                        !spread.backgroundPattern &&
+                                        (spread.backgroundColor ?? "#ffffff").toLowerCase() ===
+                                          preset.color.toLowerCase();
+                                      return (
+                                        <button
+                                          key={preset.color}
+                                          type="button"
+                                          title={preset.label}
+                                          onClick={() =>
+                                            handleChangeBackground(
+                                              i,
+                                              preset.color === "#ffffff" ? undefined : preset.color
+                                            )
+                                          }
+                                          className={`h-6 w-6 rounded-full border transition ${
+                                            isActive
+                                              ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                              : "border-[var(--color-hairline)]"
+                                          }`}
+                                          style={{ backgroundColor: preset.color }}
+                                        />
+                                      );
+                                    })}
+                                    <label
+                                      title="색 직접 고르기"
+                                      className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
+                                    >
+                                      +
+                                      <input
+                                        type="color"
+                                        value={spread.backgroundColor ?? "#ffffff"}
+                                        onChange={(e) => handleChangeBackground(i, e.target.value)}
+                                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                      />
+                                    </label>
+                                  </>
+                                ) : (
+                                  backgroundPatterns
+                                    .filter((p) => p.category === backgroundTab)
+                                    .map((preset) => {
+                                      const isActive = spread.backgroundPattern === preset.id;
+                                      return (
+                                        <button
+                                          key={preset.id}
+                                          type="button"
+                                          title={preset.label}
+                                          onClick={() =>
+                                            handleChangePattern(i, isActive ? undefined : preset.id)
+                                          }
+                                          className={`h-8 w-8 rounded-full border transition ${
+                                            isActive
+                                              ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                              : "border-[var(--color-hairline)]"
+                                          }`}
+                                          style={{ background: patternToCssBackground(preset) }}
+                                        />
+                                      );
+                                    })
+                                )}
+                              </div>
                             </div>
-                            {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}
-                            {showInnerBindingGuide && (
-                              <BindingGuide leftPct={bindingLeftEdgePct} rightPct={bindingRightEdgePct} />
-                            )}
-                            {showInnerSafetyGuide &&
-                              (innerSafetyFits ? (
-                                <>
-                                  <CoverGuideBox
-                                    left={leftPageSafetyLeftPct}
-                                    right={leftPageSafetyRightPct}
-                                    top={safetyYPct}
-                                    bottom={100 - safetyYPct}
-                                    variant="dotted"
-                                  />
-                                  <CoverGuideBox
-                                    left={rightPageSafetyLeftPct}
-                                    right={rightPageSafetyRightPct}
-                                    top={safetyYPct}
-                                    bottom={100 - safetyYPct}
-                                    variant="dotted"
-                                  />
-                                </>
-                              ) : (
-                                <div className="pointer-events-none absolute inset-x-0 top-1 z-20 text-center text-[10px] text-[#e0524c]">
-                                  페이지가 좁아 제본부 안전영역을 확보하지 못했어요
-                                </div>
-                              ))}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                            <div className="group relative mt-3 flex w-full items-start bg-white shadow-sm">
+                              {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만
+                                  구분해요. "접힘·제본 경계" 안내선을 켜면 그 옆으로 옅은 배경(BindingGuide)이
+                                  더해질 뿐, 선은 늘지 않아요. */}
+                              <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
+                              {/* 자유 배치 이미지박스 — 왼쪽·오른쪽 낱장이 아니라 스프레드 전체
+                                  위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
+                              {i !== 0 && (
+                                <ImageBoxLayer
+                                  boxes={spread.imageBoxes ?? []}
+                                  onAdd={(file) => handleAddImageBox(i, file)}
+                                  onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
+                                  onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
+                                  activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
+                                  onSelect={(boxId) => {
+                                    setActiveTextBox(null);
+                                    setActiveImageBox({ spreadIndex: i, boxId });
+                                  }}
+                                />
+                              )}
+                              <div className="group relative w-1/2">
+                                {i === 0 ? (
+                                  <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">
+                                    <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
+                                      인쇄되지 않는 페이지입니다.
+                                      <br />
+                                      (표지 안쪽 면이에요)
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <select
+                                      value={spread.left}
+                                      onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
+                                      className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
+                                    >
+                                      {layoutOptions.map((opt) => (
+                                        <option key={opt.id} value={opt.id}>
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {renderPage(
+                                      spread.left,
+                                      leftPhotos,
+                                      leftIndexes,
+                                      handlePhotoTransform,
+                                      handleCaptionChange,
+                                      requiredMinPx,
+                                      resolveSpreadBackgroundCss(spread, "right")
+                                    )}
+                                    <TextBoxLayer
+                                      boxes={spread.textBoxesLeft ?? []}
+                                      onAdd={() => handleAddTextBox(i, "left")}
+                                      onChange={(boxId, c) => handleTextBoxChange(i, "left", boxId, c)}
+                                      activeBoxId={
+                                        activeTextBox?.ref.scope === "spread" &&
+                                        activeTextBox.ref.spreadIndex === i &&
+                                        activeTextBox.ref.side === "left"
+                                          ? activeTextBox.boxId
+                                          : null
+                                      }
+                                      onSelect={(boxId) =>
+                                        setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "left" }, boxId })
+                                      }
+                                    />
+                                  </>
+                                )}
+                              </div>
+                              <div className="group relative w-1/2">
+                                <select
+                                  value={spread.right}
+                                  onChange={(e) => handleChangeLayout(i, "right", e.target.value as PageTemplateId)}
+                                  className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
+                                >
+                                  {layoutOptions.map((opt) => (
+                                    <option key={opt.id} value={opt.id}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {renderPage(
+                                  spread.right,
+                                  rightPhotos,
+                                  rightIndexes,
+                                  handlePhotoTransform,
+                                  handleCaptionChange,
+                                  requiredMinPx,
+                                  resolveSpreadBackgroundCss(spread, "left")
+                                )}
+                                <TextBoxLayer
+                                  boxes={spread.textBoxesRight ?? []}
+                                  onAdd={() => handleAddTextBox(i, "right")}
+                                  onChange={(boxId, c) => handleTextBoxChange(i, "right", boxId, c)}
+                                  activeBoxId={
+                                    activeTextBox?.ref.scope === "spread" &&
+                                    activeTextBox.ref.spreadIndex === i &&
+                                    activeTextBox.ref.side === "right"
+                                      ? activeTextBox.boxId
+                                      : null
+                                  }
+                                  onSelect={(boxId) =>
+                                    setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "right" }, boxId })
+                                  }
+                                />
+                              </div>
+                              {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}
+                              {showInnerBindingGuide && (
+                                <BindingGuide leftPct={bindingLeftEdgePct} rightPct={bindingRightEdgePct} />
+                              )}
+                              {showInnerSafetyGuide &&
+                                (innerSafetyFits ? (
+                                  <>
+                                    <CoverGuideBox
+                                      left={leftPageSafetyLeftPct}
+                                      right={leftPageSafetyRightPct}
+                                      top={safetyYPct}
+                                      bottom={100 - safetyYPct}
+                                      variant="dotted"
+                                    />
+                                    <CoverGuideBox
+                                      left={rightPageSafetyLeftPct}
+                                      right={rightPageSafetyRightPct}
+                                      top={safetyYPct}
+                                      bottom={100 - safetyYPct}
+                                      variant="dotted"
+                                    />
+                                  </>
+                                ) : (
+                                  <div className="pointer-events-none absolute inset-x-0 top-1 z-20 text-center text-[10px] text-[#e0524c]">
+                                    페이지가 좁아 제본부 안전영역을 확보하지 못했어요
+                                  </div>
+                                ))}
+                            </div>
+                            </div>
                           </div>
                         </div>
                       );
