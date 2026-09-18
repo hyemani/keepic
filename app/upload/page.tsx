@@ -1628,33 +1628,6 @@ function UploadPageContent() {
             </p>
           )}
 
-          {photos.length > 0 && (
-            <div className="mt-10 grid grid-cols-4 gap-3 sm:grid-cols-6">
-              {photos.map((photo, index) => (
-                <div
-                  key={index}
-                  className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
-                >
-                  <img src={photo.url} alt={`선택한 사진 ${index + 1}`} className="h-full w-full object-cover" />
-                  {isLowRes(photo, requiredMinPx / 2) && (
-                    <span
-                      title="인쇄 기준 화질이 낮아요"
-                      className="absolute left-1 top-1 rounded bg-red-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white"
-                    >
-                      저해상도
-                    </span>
-                  )}
-                  <button
-                    onClick={() => handleRemovePhoto(index)}
-                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
         </section>
 
         <div className="w-full bg-[var(--color-hairline)]/15 px-4 pb-4 pt-10 sm:px-6 lg:px-8">
@@ -2289,6 +2262,38 @@ function UploadPageContent() {
         </div>
 
         <section className="mx-auto max-w-5xl px-6 pb-24 pt-6 sm:px-10">
+          {photos.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)]">
+                전체 사진 목록 보기 (순서 확인 · 삭제)
+              </summary>
+              <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6">
+                {photos.map((photo, index) => (
+                  <div
+                    key={index}
+                    className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
+                  >
+                    <img src={photo.url} alt={`선택한 사진 ${index + 1}`} className="h-full w-full object-cover" />
+                    {isLowRes(photo, requiredMinPx / 2) && (
+                      <span
+                        title="인쇄 기준 화질이 낮아요"
+                        className="absolute left-1 top-1 rounded bg-red-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white"
+                      >
+                        저해상도
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleRemovePhoto(index)}
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
           {photos.length > 0 && !isPhotoCountValid && (
             <p className="mt-6 text-sm text-red-500">
               {photos.length < requiredCount
