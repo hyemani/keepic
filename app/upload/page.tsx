@@ -1048,6 +1048,20 @@ function UploadPageContent() {
   const [selectedPageKey, setSelectedPageKey] = useState<"cover" | "intro" | number>(
     isPhotobook ? "cover" : 0
   );
+  // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
+  // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
+  // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
+  // "prop이 바뀌면 상태 리셋" 패턴이에요, 불필요한 리렌더를 한 번 줄여줘요)
+  const [editorModeState, setEditorModeState] = useState<{
+    forPageKey: typeof selectedPageKey;
+    mode: "preview" | "edit";
+  }>({ forPageKey: selectedPageKey, mode: "preview" });
+  // 렌더 중에 selectedPageKey가 바뀐 걸 감지해서 같은 렌더에서 바로 미리보기로
+  // 되돌려요(리렌더 한 번을 줄이는, ref 변형 없이 안전한 방식이에요).
+  const editorMode = editorModeState.forPageKey === selectedPageKey ? editorModeState.mode : "preview";
+  function setEditorMode(mode: "preview" | "edit") {
+    setEditorModeState({ forPageKey: selectedPageKey, mode });
+  }
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   const [showGuidelines, setShowGuidelines] = useState(true);
   // 내지 펼침면 전용 — '안전영역'과 '접힘·제본 경계'를 각각 따로 켜고 끌 수 있어요
@@ -1790,8 +1804,31 @@ function UploadPageContent() {
                   )}
                 </div>
 
-                {/* 오른쪽: 선택한 페이지 크게 편집 */}
+                {/* 오른쪽: 선택한 페이지 크게 편집 — 미리보기(보기 전용)로 먼저 보여주고,
+                    마우스를 올려 "편집하기"를 눌러야 실제로 수정 가능한 편집 화면으로 들어가요 */}
                 <div className="min-w-0 flex-1">
+                  {editorMode === "edit" && (
+                    <button
+                      type="button"
+                      onClick={() => setEditorMode("preview")}
+                      className="mb-3 inline-flex items-center gap-1 text-xs text-[var(--color-charcoal)]/60 underline underline-offset-4 transition hover:text-[var(--color-charcoal)]"
+                    >
+                      ← 미리보기로 돌아가기
+                    </button>
+                  )}
+                  <div className={editorMode === "preview" ? "relative pointer-events-none select-none" : "relative"}>
+                    {editorMode === "preview" && (
+                      <button
+                        type="button"
+                        onClick={() => setEditorMode("edit")}
+                        aria-label="편집하기"
+                        className="group pointer-events-auto absolute inset-0 z-30 flex cursor-pointer items-center justify-center"
+                      >
+                        <span className="pointer-events-none rounded-full bg-black/60 px-5 py-2.5 text-sm font-medium text-white opacity-0 shadow-lg transition group-hover:opacity-100">
+                          ✏️ 편집하기
+                        </span>
+                      </button>
+                    )}
                   {selectedPageKey === "cover" ? (
                     <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
                       <p className="text-sm font-medium">앞표지 꾸미기</p>
@@ -2255,6 +2292,7 @@ function UploadPageContent() {
                       );
                     })()
                   )}
+                  </div>
                 </div>
               </div>
             </div>
