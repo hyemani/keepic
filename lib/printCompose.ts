@@ -749,9 +749,6 @@ const SPINE_TITLE_MARGIN_RATIO = 0.06;
 const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15;
 const SPINE_TITLE_MIN_FONT_PX = 50; // 12pt(300dpi 기준 50px) 밑으로는 줄이지 않아요 — 혜민님 확인: 소프트커버 최소 책등(7.22mm)에도 11~12pt가 넉넉히 들어가요.
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
-const SPINE_LOGO_HEIGHT_RATIO = 0.95; // 로고도 제목처럼 책등 폭 안에서 최대한 크게 보이도록 키웠어요.
-const SPINE_LOGO_CENTER_Y_RATIO = 0.62; // 책등 길이 방향으로 로고 중심을 두는 위치(0=맨 위, 1=맨 아래) — 정중앙보다 살짝 아래(일반 책자처럼).
-const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
 
 function computeSpineTitleLayoutPx(
   charCount: number,
@@ -858,50 +855,87 @@ function drawSpineTitleCanvas(
   return fits;
 }
 
-// 책등 폭(spinePx) 기준으로 로고를 얼마나 크게 그릴지, 혹은 너무 좁아서 생략할지 계산해요.
-// 책등이 좁아서(예: 7~9mm) 로고를 눕혀서(90도 회전) 넣기 때문에, 여기서 말하는
-// drawnWidthPx/drawnHeightPx는 "눕힌 뒤(화면에 실제로 보이는) 가로/세로" 크기예요.
-function computeSpineLogoLayoutPx(spinePx: number): {
-  fits: boolean;
-  drawnWidthPx: number; // 눕힌 뒤 가로(=책등 폭 방향) 크기
-  drawnHeightPx: number; // 눕힌 뒤 세로(=책등 길이 방향) 크기 — 원래 로고의 가로가 이쪽으로 와요.
+// "Keepic" 워드마크는 이미지(로고)가 아니라, 책등 제목과 똑같은 방식으로 한 글자씩
+// 정방향으로 위→아래 세로쓰기해요(혜민님이 일러스트레이터로 보내주신 참고 도안 기준,
+// 2026-09 재수정 — 이미지 로고를 90도로 눕히는 방식은 참고 도안과 달라서 되돌렸어요).
+// 책등 맨 아래에 고정(사용자가 화면에서 위치를 바꿀 수 없어요)으로 두고, 제목 글자보다
+// 살짝 작아도 되는 보조 표기라 최소 폰트 크기만 제목보다 낮게 잡았어요.
+const SPINE_WORDMARK_TEXT = "Keepic";
+const SPINE_WORDMARK_BOTTOM_MARGIN_MM = 6; // 책등 맨 아래 끝에서 로고 글자까지 여백
+const SPINE_WORDMARK_MAX_HEIGHT_RATIO = 0.22; // 로고 글자블록이 책등 길이 중 최대로 차지할 수 있는 비율
+const SPINE_WORDMARK_MIN_FONT_PX = 34; // 약 8pt(300dpi 기준) — 보조 표기라 제목(12pt)보다는 조금 작아도 돼요.
+
+function computeSpineWordmarkLayoutPx(
+  spinePx: number,
+  panelPx: number
+): {
+  size: number;
+  charsPerColumn: number;
+  gapPx: number;
+  blockCrossPx: number;
+  blockLengthPx: number;
 } {
+  const chars = Array.from(SPINE_WORDMARK_TEXT);
   const sidePaddingPx = mmToPx(SPINE_TEXT_SIDE_PADDING_MM);
-  const maxCrossPx = Math.max(0, spinePx - sidePaddingPx * 2);
-  if (maxCrossPx < mmToPx(SPINE_LOGO_MIN_CROSS_MM)) {
-    return { fits: false, drawnWidthPx: 0, drawnHeightPx: 0 };
+  const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2);
+  const maxLengthPx = panelPx * SPINE_WORDMARK_MAX_HEIGHT_RATIO;
+
+  let size = maxCrossPx;
+  let charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
+  while (size >= SPINE_WORDMARK_MIN_FONT_PX) {
+    charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
+    const columnCount = Math.ceil(chars.length / charsPerColumn);
+    const gapPx = size * SPINE_TITLE_COLUMN_GAP_RATIO;
+    const totalCrossPx = columnCount * size + Math.max(0, columnCount - 1) * gapPx;
+    if (totalCrossPx <= maxCrossPx) break;
+    size -= 0.5;
   }
-  const drawnWidthPx = maxCrossPx * SPINE_LOGO_HEIGHT_RATIO;
-  const drawnHeightPx = drawnWidthPx * KEEPIC_LOGO_ASPECT; // 눕혔으니 원래 로고의 가로:세로 비율이 뒤집혀요.
-  return { fits: true, drawnWidthPx, drawnHeightPx };
+  if (size < SPINE_WORDMARK_MIN_FONT_PX) {
+    size = SPINE_WORDMARK_MIN_FONT_PX;
+    charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
+  }
+  const columnCount = Math.ceil(chars.length / charsPerColumn);
+  const gapPx = size * SPINE_TITLE_COLUMN_GAP_RATIO;
+  const blockCrossPx = columnCount * size + Math.max(0, columnCount - 1) * gapPx;
+  const blockLengthPx = Math.min(maxLengthPx, charsPerColumn * size);
+
+  return { size, charsPerColumn, gapPx, blockCrossPx, blockLengthPx };
 }
 
-// 책등이 좁아서 로고를 옆으로 눕혀요(90도 회전, "Keepic"이 책등을 따라 세로로 읽혀요).
-// 책등 길이 방향으로는 정중앙이 아니라 살짝 아래쪽(SPINE_LOGO_CENTER_Y_RATIO)에 둬요 —
-// 일반 책자들의 출판사 로고 위치처럼요.
-function drawSpineLogoCanvas(
+// "Keepic" 글자블록을 책등 맨 아래에서 SPINE_WORDMARK_BOTTOM_MARGIN_MM만큼 띄운 자리에
+// 고정으로 그려요. drawSpineTitleCanvas와 같은 좌표 계산 방식을 써요.
+function drawSpineWordmarkCanvas(
   ctx: CanvasRenderingContext2D,
-  logoImg: HTMLImageElement,
   spineXpx: number,
   spinePx: number,
   panelPx: number,
-  bleedPx: number,
-  layout: { drawnWidthPx: number; drawnHeightPx: number }
+  bleedPx: number
 ) {
-  const centerXpx = spineXpx + spinePx / 2;
-  const centerYpx = bleedPx + panelPx * SPINE_LOGO_CENTER_Y_RATIO;
-  ctx.save();
-  ctx.translate(centerXpx, centerYpx);
-  ctx.rotate(Math.PI / 2); // 글자가 위(시작)->아래(끝)로 읽히도록
-  // 회전된 좌표계 안에서는 가로·세로가 서로 바뀌어서, drawImage에는 뒤집어서 넘겨요.
-  ctx.drawImage(
-    logoImg,
-    -layout.drawnHeightPx / 2,
-    -layout.drawnWidthPx / 2,
-    layout.drawnHeightPx,
-    layout.drawnWidthPx
-  );
-  ctx.restore();
+  const chars = Array.from(SPINE_WORDMARK_TEXT);
+  const layout = computeSpineWordmarkLayoutPx(spinePx, panelPx);
+  const { size, charsPerColumn, gapPx, blockCrossPx, blockLengthPx } = layout;
+
+  const blockTopFromPanelBottomPx = mmToPx(SPINE_WORDMARK_BOTTOM_MARGIN_MM) + blockLengthPx;
+  const spineCenterXpx = spineXpx + spinePx / 2;
+  const blockLeftXpx = spineCenterXpx - blockCrossPx / 2;
+
+  ctx.font = `${size}px Pretendard, sans-serif`;
+  ctx.fillStyle = "#1a1a1a";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+
+  for (let i = 0; i < chars.length; i++) {
+    const col = Math.floor(i / charsPerColumn);
+    const row = i % charsPerColumn;
+    const ch = chars[i];
+    if (ch.trim() === "") continue;
+
+    const colCenterXpx = blockLeftXpx + col * (size + gapPx) + size / 2;
+    const yFromPanelBottomPx = blockTopFromPanelBottomPx - row * size;
+    const yPx = bleedPx + (panelPx - yFromPanelBottomPx) + size * 0.78;
+
+    ctx.fillText(ch, colCenterXpx, yPx);
+  }
 }
 
 // 표지 PDF: 뒤표지 - 책등(세네카) - 앞표지가 한 장으로 이어진 펼침 도면 1페이지를 만들어요.
@@ -1050,7 +1084,7 @@ export async function buildCoverPrintPdf({
   ctx.fillStyle = coverSpineBackgroundColor ?? "#f4f1ea";
   ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
 
-  const spineLogoLayout = computeSpineLogoLayoutPx(spinePx);
+  const spineWordmarkLayout = computeSpineWordmarkLayoutPx(spinePx, panelPx);
   const spineTitleText = (spineTitle ?? coverTitle ?? "").trim();
   if (spineTitleText) {
     drawSpineTitleCanvas(
@@ -1060,15 +1094,12 @@ export async function buildCoverPrintPdf({
       spinePx,
       panelPx,
       bleedPx,
-      spineLogoLayout.fits ? spineLogoLayout.drawnHeightPx : 0,
+      spineWordmarkLayout.blockLengthPx + mmToPx(SPINE_WORDMARK_BOTTOM_MARGIN_MM),
       spineTitleYPct !== undefined ? (spineTitleYPct / 100) * panelPx : undefined,
       spineTitleHeightPct !== undefined ? (spineTitleHeightPct / 100) * panelPx : undefined
     );
   }
-  if (spineLogoLayout.fits) {
-    const spineLogoImg = await loadImage("/logo.svg");
-    drawSpineLogoCanvas(ctx, spineLogoImg, spineX, spinePx, panelPx, bleedPx, spineLogoLayout);
-  }
+  drawSpineWordmarkCanvas(ctx, spineX, spinePx, panelPx, bleedPx);
 
   // 앞표지(오른쪽) 영역에 사진 + 제목
   const frontX = spineX + spinePx;
