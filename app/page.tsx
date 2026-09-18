@@ -17,7 +17,7 @@ import { fabricPosterSizes, fabricPosterFabrics } from "@/lib/fabricPosterModels
 
 // 홈 화면 맨 위, 예전의 큰 히어로 슬라이드 대신 쓰는 작은 프로모션 배너예요.
 const promoBanner = {
-  image: "/hero/keepic-hero-goods.jpg",
+  image: "/hero/keepic-hero-goods2.jpg",
   alt: "포토북, 액자, 머그컵, 키링 등 Keepic 상품 구성",
   titleLines: ["기억하고 싶은 순간,", "키픽하세요."],
   eyebrow: "PHOTOBOOK · FRAME · CUSTOM GOODS",
@@ -199,7 +199,7 @@ const miniFaqs = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
-      <SiteHeader />
+      <SiteHeader overlayHero />
 
       {/* 프로모션 배너 — 화면 양옆 끝까지 꽉 차게, 상품 그리드와는 분리해서 보여줘요 */}
       <Link
@@ -214,7 +214,7 @@ export default function Home() {
           />
         </div>
         <div className="absolute inset-0 bg-black/40" />
-        <div className="absolute inset-0 flex flex-col items-center justify-start px-6 pt-8 text-center sm:justify-center sm:pt-0">
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           <h1 className="font-banner break-keep text-3xl leading-tight text-white sm:text-5xl">
             {promoBanner.titleLines[0]}
             <br />
