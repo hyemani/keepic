@@ -723,12 +723,12 @@ export async function buildInnerPrintPdf({
 // ---- 책등(spine) 제목 · 로고 ----
 // lib/printPdfLib.ts(테스트용 pdf-lib 생성기)의 같은 이름 로직을 캔버스(px) 기준으로
 // 옮긴 거예요. 비율 상수는 동일하게 맞춰서 두 생성기의 책등 결과가 서로 비슷하게 나와요.
-const SPINE_TEXT_SIDE_PADDING_MM = 1.5;
+const SPINE_TEXT_SIDE_PADDING_MM = 1; // 실측 책등(7.22mm)에서도 글자가 최대한 크게 들어가도록 여백을 좁혔어요.
 const SPINE_TITLE_MARGIN_RATIO = 0.06;
 const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15;
 const SPINE_TITLE_MIN_FONT_PX = 6; // printPdfLib.ts의 4pt(≈5.3px)보다 조금 더 여유 있게 잡았어요.
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
-const SPINE_LOGO_HEIGHT_RATIO = 0.85;
+const SPINE_LOGO_HEIGHT_RATIO = 0.95; // 로고도 제목처럼 책등 폭 안에서 최대한 크게 보이도록 키웠어요.
 const SPINE_LOGO_BOTTOM_MARGIN_MM = 8;
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
 
@@ -795,13 +795,13 @@ function drawSpineTitleCanvas(
   if (chars.length === 0) return true;
 
   const layout = computeSpineTitleLayoutPx(chars.length, spinePx, panelPx, logoReserveHeightPx);
-  const { fits, size, charsPerColumn, gapPx, blockCrossPx, blockLengthPx, marginPx, gapBeforeLogoPx } = layout;
+  const { fits, size, charsPerColumn, gapPx, blockCrossPx, marginPx } = layout;
 
-  // 세로 방향(책등 길이) 위치: 로고 위 공간(제목 가능 영역) 한가운데에 둬요.
-  const usableBottomPx = marginPx + logoReserveHeightPx + gapBeforeLogoPx;
+  // 세로 방향(책등 길이) 위치: 제목은 책등 맨 위(margin만큼 띄운 자리)에 붙이고, 로고는
+  // (drawSpineLogoCanvas에서) 맨 아래에 붙여요 — 가운데 정렬 대신 위/아래로 나눠서
+  // 배치하니 둘 다 여유 있게 커질 수 있고, 서로 겹칠 일도 없어요.
   const usableTopPx = panelPx - marginPx;
-  const usableHeightPx = Math.max(0, usableTopPx - usableBottomPx);
-  const blockTopFromPanelBottomPx = usableBottomPx + usableHeightPx / 2 + blockLengthPx / 2;
+  const blockTopFromPanelBottomPx = usableTopPx;
 
   // 가로 방향(책등 폭) 위치: 열 블록 전체를 책등 폭 가운데 정렬해요.
   const spineCenterXpx = spineXpx + spinePx / 2;

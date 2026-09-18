@@ -2614,22 +2614,23 @@ function UploadPageContent() {
                           )}
                         </div>
                         <div
-                          className="relative flex h-full flex-col items-center justify-center gap-2 overflow-hidden border-x border-[#1a1a1a]/70 px-1"
+                          className="relative flex h-full flex-col items-center justify-between overflow-hidden border-x border-[#1a1a1a]/70 px-1 py-4"
                           style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
                         >
-                          {/* 책등엔 책등 제목과 로고만, 겹치지 않게 세로로 가운데 정렬해서 보여줘요.
-                              (실제 인쇄 파일과 같은 방식: 문장 전체를 90도로 눕히지 않고, 한 글자씩
-                              정방향으로 위→아래 세로쓰기해요.) */}
+                          {/* 책등엔 책등 제목과 로고만 보여줘요 — 제목은 맨 위, 로고는 맨 아래로 나눠
+                              배치해서(가운데 정렬 대신) 서로 겹치지 않고, 실제 인쇄 파일과 같은
+                              비율로 여유 있게 크게 보여요. (문장 전체를 90도로 눕히지 않고, 한
+                              글자씩 정방향으로 위→아래 세로쓰기해요.) */}
                           {spineTitle.trim() ? (
                             <span
-                              className="flex max-h-[70%] items-center justify-center overflow-hidden text-[9px] font-semibold leading-[1.2] text-[var(--color-charcoal)]/70"
+                              className="flex max-h-[55%] items-center justify-center overflow-hidden text-[11px] font-semibold leading-[1.25] text-[var(--color-charcoal)]"
                               style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
                             >
                               {spineTitle}
                             </span>
                           ) : (
                             <span
-                              className="text-[9px] text-[var(--color-charcoal)]/40"
+                              className="text-[11px] text-[var(--color-charcoal)]/40"
                               style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
                             >
                               책등
@@ -2639,7 +2640,7 @@ function UploadPageContent() {
                             <img
                               src="/logo.svg"
                               alt="Keepic"
-                              className="pointer-events-none h-auto w-[70%] max-w-16 opacity-70"
+                              className="pointer-events-none h-auto w-[92%] max-w-24 opacity-90"
                             />
                           )}
                         </div>
