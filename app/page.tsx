@@ -243,48 +243,51 @@ export default function Home() {
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
       <SiteHeader overlayHero heroTintRgb="84,60,184" />
 
-      {/* 프로모션 배너 — 화면 양옆 끝까지 꽉 차게, 상품 그리드와는 분리해서 보여줘요 */}
+      {/* 프로모션 배너 — 화면 양옆 끝까지 꽉 차게 보여요. 원본 사진 비율(약
+          4:3)을 그대로 유지해서 위아래를 자르는 일도, 옆에 배경색이 남는
+          일도 없이 항상 사진 전체가 화면 너비만큼 꽉 차 보여요. 문구·사진
+          배치 비율이 화면 크기와 상관없이 항상 그대로 유지돼요. */}
       <Link
         href="/options?product=포토북"
         className="relative block w-full overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
       >
-        {/* 원본 사진 비율(약 4:3) 그대로 보여줘서 위쪽 그라데이션 배경이 잘리지 않게 해요.
-            다만 아주 넓은 화면(초광폭 모니터 등)에서는 배너가 한없이 늘어나면서
-            문구와 사진 사이 빈 공간이 너무 커지는 걸 막기 위해 높이 상한을
-            둬서, 그 지점부터는 양옆만 더 잘리고 비율(문구·사진 배치)은 계속
-            일정하게 유지돼요. */}
-        <div className="aspect-[4/3] max-h-[1150px] w-full overflow-hidden">
+        {/* min-h는 아주 좁은 모바일 화면에서 배너가 너무 짧아져서 위에 떠
+            있는 헤더·문구가 사진과 겹치는 걸 막기 위한 최소 높이예요. 데스크톱
+            폭에서는 원본 비율(약 4:3) 쪽 높이가 이미 이보다 커서 이 값은
+            영향을 주지 않아요. */}
+        <div className="relative mx-auto aspect-[4/3] w-full overflow-hidden min-h-[440px]">
           <img
             src={promoBanner.image}
             alt={promoBanner.alt}
             className="h-full w-full object-cover object-top"
           />
-        </div>
-        {/* 글자가 놓이는 위쪽 그라데이션 부분만 살짝 어둡게 해서, 사진 속 제품은 그대로 밝게 보여요 */}
-        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/25 to-transparent" />
-        {/* 사진 속 반짝임과 같은 느낌으로, 문구 주변과 제품 사진 주변까지 은은하게 반짝이는 빛을 깔아요 */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          {bannerSparkles.map((sparkle, i) => (
-            <BannerSparkle key={i} {...sparkle} />
-          ))}
-        </div>
-        {/* 글자 위치를 px 고정값이 아니라 배너 높이의 %로 잡아요. 배너 자체가
-            항상 원본 사진과 같은 비율(가로:세로)로 늘어나고 줄어들기 때문에,
-            이렇게 %로 잡아두면 모바일이든 PC 창을 최대로 넓히든 같은 비율로
-            보여요. 글자 크기도 화면 너비에 맞춰 자연스럽게 커지고 작아지도록
-            clamp()를 사용했어요(중간에 단계가 뚝뚝 끊기지 않게). */}
-        <div className="absolute inset-x-0 top-[22%] flex flex-col items-center px-6 text-center">
-          <h1 className="font-banner break-keep text-[clamp(1.4rem,4.6vw,3.4rem)] leading-tight text-white">
-            {promoBanner.titleLines[0]}
-            <br />
-            {promoBanner.titleLines[1]}
-          </h1>
-          <p className="mt-[1.2%] text-[clamp(0.62rem,1.05vw,0.95rem)] font-semibold tracking-[0.18em] text-white/85">
-            {promoBanner.eyebrow}
-          </p>
-          <p className="mt-[0.8%] max-w-xs break-keep text-[clamp(0.66rem,1vw,0.9rem)] text-white/75">
-            {promoBanner.caption}
-          </p>
+          {/* 글자가 놓이는 위쪽 그라데이션 부분만 살짝 어둡게 해서, 사진 속 제품은 그대로 밝게 보여요 */}
+          <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/25 to-transparent" />
+          {/* 사진 속 반짝임과 같은 느낌으로, 문구 주변과 제품 사진 주변까지 은은하게 반짝이는 빛을 깔아요 */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            {bannerSparkles.map((sparkle, i) => (
+              <BannerSparkle key={i} {...sparkle} />
+            ))}
+          </div>
+          {/* 글자 위치·크기를 px 고정값이 아니라 배너 높이/너비의 %와 clamp()로
+              잡아요. 배너 자체가 항상 원본 사진과 같은 비율로 늘어나고
+              줄어들기 때문에, 이렇게 잡아두면 모바일이든 PC 창을 최대로
+              넓히든 같은 비율로 보여요. 다만 아주 좁은 모바일 화면에서는
+              배너 자체 높이가 얼마 안 되기 때문에, 글자가 사진과 겹치지
+              않도록 시작 위치와 최소 글자 크기를 여유 있게 낮춰뒀어요. */}
+          <div className="absolute inset-x-0 top-[calc(24%+8px)] flex flex-col items-center px-6 text-center">
+            <h1 className="font-banner break-keep text-[clamp(1.1rem,4.4vw,3.3rem)] leading-tight text-white">
+              {promoBanner.titleLines[0]}
+              <br />
+              {promoBanner.titleLines[1]}
+            </h1>
+            <p className="mt-[0.8%] text-[clamp(0.52rem,1vw,0.95rem)] font-semibold tracking-[0.16em] text-white/85">
+              {promoBanner.eyebrow}
+            </p>
+            <p className="mt-[0.5%] max-w-xs break-keep text-[clamp(0.56rem,0.95vw,0.9rem)] text-white/75">
+              {promoBanner.caption}
+            </p>
+          </div>
         </div>
       </Link>
 
