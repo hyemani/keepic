@@ -258,18 +258,21 @@ export default function Home() {
             <BannerSparkle key={i} {...sparkle} />
           ))}
         </div>
-        {/* 글자를 아래쪽 제품과도, 위에 떠 있는 헤더 메뉴와도 겹치지 않도록
-            헤더 높이보다 넉넉히 내려서 그라데이션 배경 가운데쯤에 배치해요 */}
-        <div className="absolute inset-x-0 top-0 flex flex-col items-center px-6 pt-24 text-center sm:pt-40 lg:pt-44">
-          <h1 className="font-banner break-keep text-2xl leading-tight text-white sm:text-4xl lg:text-5xl">
+        {/* 글자 위치를 px 고정값이 아니라 배너 높이의 %로 잡아요. 배너 자체가
+            항상 원본 사진과 같은 비율(가로:세로)로 늘어나고 줄어들기 때문에,
+            이렇게 %로 잡아두면 모바일이든 PC 창을 최대로 넓히든 같은 비율로
+            보여요. 글자 크기도 화면 너비에 맞춰 자연스럽게 커지고 작아지도록
+            clamp()를 사용했어요(중간에 단계가 뚝뚝 끊기지 않게). */}
+        <div className="absolute inset-x-0 top-[22%] flex flex-col items-center px-6 text-center">
+          <h1 className="font-banner break-keep text-[clamp(1.4rem,4.6vw,3.4rem)] leading-tight text-white">
             {promoBanner.titleLines[0]}
             <br />
             {promoBanner.titleLines[1]}
           </h1>
-          <p className="mt-2 text-[10px] font-semibold tracking-[0.18em] text-white/85 sm:mt-3 sm:text-xs lg:text-sm">
+          <p className="mt-[1.2%] text-[clamp(0.62rem,1.05vw,0.95rem)] font-semibold tracking-[0.18em] text-white/85">
             {promoBanner.eyebrow}
           </p>
-          <p className="mt-1.5 max-w-xs break-keep text-[11px] text-white/75 sm:mt-2 sm:text-xs lg:text-sm">
+          <p className="mt-[0.8%] max-w-xs break-keep text-[clamp(0.66rem,1vw,0.9rem)] text-white/75">
             {promoBanner.caption}
           </p>
         </div>
