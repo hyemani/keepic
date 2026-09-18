@@ -1685,7 +1685,7 @@ function UploadPageContent() {
   const coverTitleWidthPct = 84;
   // 책등 텍스트박스예요. 가로폭은 책등 폭에 항상 맞춰지도록 고정이고(따로 조절 안 해요),
   // 세로 위치·높이만 화면에서 끌어서 바꿀 수 있어요(일러스트레이터 텍스트박스처럼요).
-  const [spineTitleYPct, setSpineTitleYPct] = useState(6);
+  const [spineTitleYPct, setSpineTitleYPct] = useState<number | null>(null); // null = 아직 직접 옮기지 않음 → 기본값(위에서 25mm)을 화면에서 계산해서 보여줘요
   const [spineTitleHeightPct, setSpineTitleHeightPct] = useState(50); // 12pt 최소 크기가 여유있게 들어가도록 기본 높이를 늘렸어요(로고 자리와는 안 겹쳐요).
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
@@ -2102,7 +2102,7 @@ function UploadPageContent() {
     setCoverTitleYPct(s.coverTitleYPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
     setSpineTitle(s.spineTitle);
-    setSpineTitleYPct(s.spineTitleYPct);
+    setSpineTitleYPct(s.spineTitleYPct ?? null);
     setSpineTitleHeightPct(s.spineTitleHeightPct);
     setBackCoverMode(s.backCoverMode);
     setBackCoverPhoto(s.backCoverPhoto);
@@ -2331,7 +2331,7 @@ function UploadPageContent() {
       innerPaperWeightG: innerPaper.weightG,
       pages,
       spineTitle,
-      spineTitleYPct,
+      spineTitleYPct: spineTitleYPct ?? undefined,
       spineTitleHeightPct,
       backCoverMode,
       backCoverPhoto,
@@ -2630,7 +2630,10 @@ function UploadPageContent() {
     // 임의의 비율이 아니라, 실제 mm 안전 여백을 기준으로 계산해요.
     const coverSpinePt = mmToPt(coverSpineMm);
     const coverSpineLogoLayout = computeSpineLogoLayout(coverSpinePt);
-    const SPINE_LOGO_BOTTOM_MARGIN_MM = 10; // 재단선에서 로고까지 — 안전영역(GUIDE_SAFETY_MM)과 같은 값
+    const SPINE_LOGO_BOTTOM_MARGIN_MM = 25; // 재단선에서 로고까지 — 혜민님 확인(2026-09): 아래에서 25mm
+    const SPINE_TITLE_TOP_MARGIN_MM = 25; // 책 제목 위쪽 여백 — 혜민님 확인(2026-09): 위에서 25mm
+    const coverSpineTitleDefaultYPct = (SPINE_TITLE_TOP_MARGIN_MM / coverTotalHmm) * 100;
+    const coverSpineTitleYPct = spineTitleYPct ?? coverSpineTitleDefaultYPct;
     // computeSpineLogoLayout이 돌려주는 drawnWidthPt(책등 폭 방향)·drawnHeightPt(책등
     // 길이 방향)는 "눕힌 뒤(화면에 실제로 보이는)" 가로/세로예요. 회전 전 <img> 박스는
     // 가로/세로가 서로 뒤바뀌어야 rotate(90deg) 후 원하는 크기가 나와요. (표지 펼침면은
@@ -3165,7 +3168,7 @@ function UploadPageContent() {
                           <SpineTitleOverlay
                             title={spineTitle}
                             emptyLabel="책등"
-                            yPct={spineTitleYPct}
+                            yPct={coverSpineTitleYPct}
                             heightPct={spineTitleHeightPct}
                             onMove={setSpineTitleYPct}
                             onResize={setSpineTitleHeightPct}

@@ -745,7 +745,7 @@ export async function buildInnerPrintPdf({
 // lib/printPdfLib.ts(테스트용 pdf-lib 생성기)의 같은 이름 로직을 캔버스(px) 기준으로
 // 옮긴 거예요. 비율 상수는 동일하게 맞춰서 두 생성기의 책등 결과가 서로 비슷하게 나와요.
 const SPINE_TEXT_SIDE_PADDING_MM = 1; // 실측 책등(7.22mm)에서도 글자가 최대한 크게 들어가도록 여백을 좁혔어요.
-const SPINE_TITLE_MARGIN_RATIO = 0.06;
+const SPINE_TITLE_TOP_MARGIN_MM = 25; // 책 제목 위쪽 여백 — 혜민님 확인(2026-09): 재단선(책등 맨 위)에서 25mm
 const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15;
 const SPINE_TITLE_MIN_FONT_PX = 50; // 12pt(300dpi 기준 50px) 밑으로는 줄이지 않아요 — 혜민님 확인: 소프트커버 최소 책등(7.22mm)에도 11~12pt가 넉넉히 들어가요.
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
@@ -768,12 +768,12 @@ function computeSpineTitleLayoutPx(
 } {
   const sidePaddingPx = mmToPx(SPINE_TEXT_SIDE_PADDING_MM);
   const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2);
-  const marginPx = panelPx * SPINE_TITLE_MARGIN_RATIO;
+  const marginPx = mmToPx(SPINE_TITLE_TOP_MARGIN_MM); // 위쪽 여백 25mm(고정) — 아래쪽은 로고 자리(logoReserveHeightPx)로 이미 나눠져 있어서 여기선 위쪽만 빼요.
   const gapBeforeLogoPx = logoReserveHeightPx > 0 ? panelPx * SPINE_TITLE_LOGO_GAP_RATIO : 0;
   const maxLengthPx =
     boxHeightPx !== undefined
       ? Math.max(4, boxHeightPx)
-      : Math.max(4, panelPx - marginPx * 2 - logoReserveHeightPx - gapBeforeLogoPx);
+      : Math.max(4, panelPx - marginPx - logoReserveHeightPx - gapBeforeLogoPx);
 
   let size = maxCrossPx;
   let charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
@@ -861,7 +861,7 @@ function drawSpineTitleCanvas(
 // 고정해요(사용자가 화면에서 위치를 바꿀 수 없어요) — 임의의 비율이 아니라 실제 mm
 // 안전 여백을 기준으로 계산해요.
 const SPINE_LOGO_HEIGHT_RATIO = 0.95; // 책등 폭(여백 제외) 중 로고가 차지하는 비율 — 제목처럼 최대한 크게
-const SPINE_LOGO_BOTTOM_MARGIN_MM = 10; // 재단선에서 로고까지 — GUIDE_SAFETY_MARGIN_MM(안전영역)과 같은 값
+const SPINE_LOGO_BOTTOM_MARGIN_MM = 25; // 재단선에서 로고까지 — 혜민님 확인(2026-09): 아래에서 25mm
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
 
 // 책등 폭(spinePx) 기준으로 로고를 얼마나 크게 그릴지, 혹은 너무 좁아서 생략할지 계산해요.
