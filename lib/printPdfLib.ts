@@ -520,11 +520,12 @@ export async function buildInnerPrintPdfLib({
   const pdfDoc = await PDFDocument.create();
   const fonts = await embedPretendardFonts(pdfDoc);
 
-  function drawOnePage() {
+  function drawOnePage(backgroundColor: string = "#ffffff") {
     const page = pdfDoc.addPage([mediaWpt, mediaHpt]);
-    // 용지 전체를 먼저 흰색으로 채워요(여백까지 포함) — 뷰어/인쇄기마다 "칠하지 않은 영역"
-    // 처리가 다를 수 있어서, 흰색인지 확실하게 하려고 명시적으로 칠해요.
-    page.drawRectangle({ x: 0, y: 0, width: mediaWpt, height: mediaHpt, color: rgb(1, 1, 1) });
+    // 용지 전체를 먼저 배경색으로 채워요(여백까지 포함) — 뷰어/인쇄기마다 "칠하지 않은 영역"
+    // 처리가 다를 수 있어서, 명시적으로 칠해요. 지정한 배경색이 없으면 기존처럼 흰색이에요.
+    const { r, g, b } = hexToRgb01(backgroundColor);
+    page.drawRectangle({ x: 0, y: 0, width: mediaWpt, height: mediaHpt, color: rgb(r, g, b) });
     return page;
   }
 
@@ -539,7 +540,7 @@ export async function buildInnerPrintPdfLib({
 
     for (const side of sides) {
       const sidePhotos = side.indexes.map((idx) => photos[idx]).filter(Boolean);
-      const page = drawOnePage();
+      const page = drawOnePage(spread.backgroundColor ?? "#ffffff");
       // 페이지를 순서대로(1p, 2p, ...) 그려야 해서 일부러 순차적으로 기다려요. (기존과 동일)
       await drawPageLib(pdfDoc, page, side.templateId, sidePhotos, workWpt, workHpt, fonts, offset);
       setPdfBoxes(page, workWpt, workHpt, bleedPt, offset);

@@ -161,6 +161,19 @@ const layoutOptions: { id: PageTemplateId; label: string }[] = [
   { id: "blank", label: "빈 페이지" },
 ];
 
+// 내지(스프레드) 배경색 미리 정해둔 팔레트예요. 포토북 인쇄에 무난하게 쓸 수 있는
+// 톤 위주로 골랐어요 — 사용자가 직접 색을 고르고 싶으면 옆의 색상 선택 버튼으로 자유롭게
+// 고를 수도 있어요.
+const SPREAD_BACKGROUND_PRESETS: { color: string; label: string }[] = [
+  { color: "#ffffff", label: "흰색(기본)" },
+  { color: "#f7f3ec", label: "아이보리" },
+  { color: "#f0ece4", label: "베이지" },
+  { color: "#eef1f4", label: "라이트그레이" },
+  { color: "#e9eef2", label: "페일블루" },
+  { color: "#f4ece7", label: "페일핑크" },
+  { color: "#232323", label: "차콜" },
+];
+
 function CaptionSettingsPopover({
   photo,
   onChange,
@@ -392,10 +405,14 @@ function PhotoCell({
   photo,
   requiredMinPx,
   onChange,
+  backgroundColor,
 }: {
   photo: Photo;
   requiredMinPx: number;
   onChange: (changes: Partial<Photo>) => void;
+  // 사진이 프레임을 다 못 채울 때(전체 맞추기 등) 여백에 비치는 색이에요.
+  // 지정 안 하면 기존처럼 아이보리색이에요.
+  backgroundColor?: string;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
@@ -478,7 +495,11 @@ function PhotoCell({
   }
 
   return (
-    <div ref={cellRef} className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]">
+    <div
+      ref={cellRef}
+      className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]"
+      style={backgroundColor ? { backgroundColor } : undefined}
+    >
       <img
         src={photo.url}
         onMouseDown={handleMouseDown}
@@ -684,20 +705,25 @@ function renderPage(
   photoIndexes: number[],
   onPhotoChange: (index: number, changes: Partial<Photo>) => void,
   onCaptionChange: (photoIndex: number, value: string) => void,
-  requiredMinPx: number
+  requiredMinPx: number,
+  // 이 페이지가 속한 스프레드의 배경색(hex)이에요. 지정 안 하면 기존 색 그대로예요.
+  backgroundColor?: string
 ) {
+  const bgStyle = backgroundColor ? { backgroundColor } : undefined;
+
   if (templateId === "blank") {
-    return <div className="aspect-square bg-white" />;
+    return <div className="aspect-square bg-white" style={bgStyle} />;
   }
 
   if (templateId === "full") {
     return (
-      <div className="aspect-square overflow-hidden">
+      <div className="aspect-square overflow-hidden" style={bgStyle}>
         {photos[0] && (
           <PhotoCell
             photo={photos[0]}
             requiredMinPx={requiredMinPx}
             onChange={(c) => onPhotoChange(photoIndexes[0], c)}
+            backgroundColor={backgroundColor}
           />
         )}
       </div>
@@ -706,13 +732,14 @@ function renderPage(
 
   if (templateId === "fullMargin") {
     return (
-      <div className="aspect-square overflow-hidden bg-white p-10">
+      <div className="aspect-square overflow-hidden bg-white p-10" style={bgStyle}>
         <div className="h-full w-full overflow-hidden">
           {photos[0] && (
             <PhotoCell
               photo={photos[0]}
               requiredMinPx={requiredMinPx}
               onChange={(c) => onPhotoChange(photoIndexes[0], c)}
+              backgroundColor={backgroundColor}
             />
           )}
         </div>
@@ -722,7 +749,7 @@ function renderPage(
 
   if (templateId === "duo") {
     return (
-      <div className="grid aspect-square grid-cols-2 gap-1">
+      <div className="grid aspect-square grid-cols-2 gap-1" style={bgStyle}>
         {[0, 1].map((i) => (
           <div key={i} className="overflow-hidden">
             {photos[i] && (
@@ -730,6 +757,7 @@ function renderPage(
                 photo={photos[i]}
                 requiredMinPx={requiredMinPx / 2}
                 onChange={(c) => onPhotoChange(photoIndexes[i], c)}
+                backgroundColor={backgroundColor}
               />
             )}
           </div>
@@ -740,13 +768,14 @@ function renderPage(
 
   if (templateId === "trio") {
     return (
-      <div className="grid aspect-square grid-rows-2 gap-1">
+      <div className="grid aspect-square grid-rows-2 gap-1" style={bgStyle}>
         <div className="overflow-hidden">
           {photos[0] && (
             <PhotoCell
               photo={photos[0]}
               requiredMinPx={requiredMinPx}
               onChange={(c) => onPhotoChange(photoIndexes[0], c)}
+              backgroundColor={backgroundColor}
             />
           )}
         </div>
@@ -758,6 +787,7 @@ function renderPage(
                   photo={photos[i]}
                   requiredMinPx={requiredMinPx / 2}
                   onChange={(c) => onPhotoChange(photoIndexes[i], c)}
+                  backgroundColor={backgroundColor}
                 />
               )}
             </div>
@@ -769,7 +799,7 @@ function renderPage(
 
   if (templateId === "trioText") {
     return (
-      <div className="grid aspect-square grid-cols-3 items-center gap-4 bg-white p-6">
+      <div className="grid aspect-square grid-cols-3 items-center gap-4 bg-white p-6" style={bgStyle}>
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex flex-col gap-2">
             <div className="relative aspect-square overflow-hidden">
@@ -778,6 +808,7 @@ function renderPage(
                   photo={photos[i]}
                   requiredMinPx={requiredMinPx / 3}
                   onChange={(c) => onPhotoChange(photoIndexes[i], c)}
+                  backgroundColor={backgroundColor}
                 />
               )}
               {photos[i] && (
@@ -805,7 +836,7 @@ function renderPage(
 
   if (templateId === "quad") {
     return (
-      <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-1">
+      <div className="grid aspect-square grid-cols-2 grid-rows-2 gap-1" style={bgStyle}>
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="overflow-hidden">
             {photos[i] && (
@@ -813,6 +844,7 @@ function renderPage(
                 photo={photos[i]}
                 requiredMinPx={requiredMinPx / 2}
                 onChange={(c) => onPhotoChange(photoIndexes[i], c)}
+                backgroundColor={backgroundColor}
               />
             )}
           </div>
@@ -824,16 +856,17 @@ function renderPage(
   const photo = photos[0];
   const realIndex = photoIndexes[0];
 
-  if (!photo) return <div className="aspect-square bg-[var(--color-ivory)]" />;
+  if (!photo) return <div className="aspect-square bg-[var(--color-ivory)]" style={bgStyle} />;
 
   if (photo.position === "below") {
     return (
-      <div className="flex aspect-square flex-col bg-[var(--color-ivory)]">
+      <div className="flex aspect-square flex-col bg-[var(--color-ivory)]" style={bgStyle}>
         <div className="relative flex-1 overflow-hidden">
           <PhotoCell
             photo={photo}
             requiredMinPx={requiredMinPx}
             onChange={(c) => onPhotoChange(realIndex, c)}
+            backgroundColor={backgroundColor}
           />
           <div className="absolute right-1 top-1 z-10">
             <CaptionSettingsPopover
@@ -855,11 +888,12 @@ function renderPage(
   }
 
   return (
-    <div className="relative aspect-square overflow-hidden bg-[var(--color-ivory)]">
+    <div className="relative aspect-square overflow-hidden bg-[var(--color-ivory)]" style={bgStyle}>
       <PhotoCell
         photo={photo}
         requiredMinPx={requiredMinPx}
         onChange={(c) => onPhotoChange(realIndex, c)}
+        backgroundColor={backgroundColor}
       />
       <div className="absolute right-1 top-1 z-10">
         <CaptionSettingsPopover
@@ -1113,6 +1147,22 @@ function UploadPageContent() {
   ) {
     setCustomSpreads((prev) =>
       prev.map((s, i) => (i === spreadIndex ? { ...s, [side]: newId } : s))
+    );
+  }
+
+  // 스프레드(왼쪽+오른쪽 펼침면) 배경색을 바꿔요. color가 undefined면 기본값(흰색)으로 되돌려요.
+  function handleChangeBackground(spreadIndex: number, color: string | undefined) {
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => {
+        if (i !== spreadIndex) return s;
+        const next = { ...s };
+        if (color) {
+          next.backgroundColor = color;
+        } else {
+          delete next.backgroundColor;
+        }
+        return next;
+      })
     );
   }
 
@@ -1722,10 +1772,10 @@ function UploadPageContent() {
                       >
                         <div className="pointer-events-none grid w-28 grid-cols-2 overflow-hidden rounded bg-white shadow-sm lg:w-full">
                           <div className="aspect-square overflow-hidden">
-                            {renderPage(spread.left, leftPhotos, leftIndexes, () => {}, () => {}, requiredMinPx)}
+                            {renderPage(spread.left, leftPhotos, leftIndexes, () => {}, () => {}, requiredMinPx, spread.backgroundColor)}
                           </div>
                           <div className="aspect-square overflow-hidden">
-                            {renderPage(spread.right, rightPhotos, rightIndexes, () => {}, () => {}, requiredMinPx)}
+                            {renderPage(spread.right, rightPhotos, rightIndexes, () => {}, () => {}, requiredMinPx, spread.backgroundColor)}
                           </div>
                         </div>
                         <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">
@@ -2101,6 +2151,45 @@ function UploadPageContent() {
                               </button>
                             </div>
                           </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-[var(--color-charcoal)]/60">배경색</span>
+                            {SPREAD_BACKGROUND_PRESETS.map((preset) => {
+                              const isActive =
+                                (spread.backgroundColor ?? "#ffffff").toLowerCase() ===
+                                preset.color.toLowerCase();
+                              return (
+                                <button
+                                  key={preset.color}
+                                  type="button"
+                                  title={preset.label}
+                                  onClick={() =>
+                                    handleChangeBackground(
+                                      i,
+                                      preset.color === "#ffffff" ? undefined : preset.color
+                                    )
+                                  }
+                                  className={`h-6 w-6 rounded-full border transition ${
+                                    isActive
+                                      ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                      : "border-[var(--color-hairline)]"
+                                  }`}
+                                  style={{ backgroundColor: preset.color }}
+                                />
+                              );
+                            })}
+                            <label
+                              title="색 직접 고르기"
+                              className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
+                            >
+                              +
+                              <input
+                                type="color"
+                                value={spread.backgroundColor ?? "#ffffff"}
+                                onChange={(e) => handleChangeBackground(i, e.target.value)}
+                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                              />
+                            </label>
+                          </div>
                           <div className="relative mt-3 flex w-full items-start bg-white shadow-sm">
                             {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만 구분해요. */}
                             <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
@@ -2122,7 +2211,8 @@ function UploadPageContent() {
                                 leftIndexes,
                                 handlePhotoTransform,
                                 handleCaptionChange,
-                                requiredMinPx
+                                requiredMinPx,
+                                spread.backgroundColor
                               )}
                             </div>
                             <div className="group relative w-1/2">
@@ -2143,7 +2233,8 @@ function UploadPageContent() {
                                 rightIndexes,
                                 handlePhotoTransform,
                                 handleCaptionChange,
-                                requiredMinPx
+                                requiredMinPx,
+                                spread.backgroundColor
                               )}
                             </div>
                             {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}

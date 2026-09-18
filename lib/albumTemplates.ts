@@ -19,7 +19,13 @@ export const pageTemplates: Record<PageTemplateId, { photoCount: number }> = {
   trioText: { photoCount: 3 },
 };
 
-export type SpreadDef = { left: PageTemplateId; right: PageTemplateId };
+export type SpreadDef = {
+  left: PageTemplateId;
+  right: PageTemplateId;
+  // 내지 배경색(hex, 예: "#F5E9DA"). 지정 안 하면 기존처럼 흰색이에요.
+  // 왼쪽·오른쪽 페이지가 한 스프레드(펼침면)라서 배경색도 스프레드 단위로 같이 적용돼요.
+  backgroundColor?: string;
+};
 
 export type AlbumTemplate = {
   id: string;
