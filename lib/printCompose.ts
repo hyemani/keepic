@@ -876,12 +876,17 @@ export async function buildCoverPrintPdf({
   coverTitle,
   coverTitleFontScale = 1,
   coverTitleFontFamily = "Pretendard, sans-serif",
+  coverTitleXPct = 8,
+  coverTitleYPct = 84,
+  coverTitleWidthPct = 84,
   innerPaperWeightG,
   pages,
   spineTitle,
   backCoverMode = "logo",
   backCoverPhoto = null,
   backCoverBackgroundColor,
+  coverSpineBackgroundColor,
+  coverFrontBackgroundColor,
   coverTextBoxes,
 }: {
   cover: PhotobookCoverId;
@@ -891,12 +896,19 @@ export async function buildCoverPrintPdf({
   coverTitleFontScale?: number; // 표지 제목 글자 크기 배율(1이 기본). 혜민님이 화면에서 조절 가능해요.
   coverTitleFontFamily?: string; // 표지 제목 서체(CSS font-family 값). 캔버스로 그려서 jsPDF에
   // 넣기 때문에, 브라우저에 로드된 폰트라면(화면 편집기의 서체 선택지와 같은 값) 그대로 반영돼요.
+  // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트) — 화면에서 끌어서 옮긴 자리
+  // 그대로예요. 기본값은 예전 고정 위치(하단 중앙)와 비슷해요.
+  coverTitleXPct?: number;
+  coverTitleYPct?: number;
+  coverTitleWidthPct?: number;
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
   backCoverMode?: "logo" | "photo";
   backCoverPhoto?: PrintPhoto | null;
   backCoverBackgroundColor?: string;
+  coverSpineBackgroundColor?: string; // 지정 안 하면 기존 기본색(아이보리 #f4f1ea) 그대로예요.
+  coverFrontBackgroundColor?: string; // 지정 안 하면 흰색 그대로예요(사진 뒤로 비치는 여백 색).
   coverTextBoxes?: TextBoxDef[]; // 표지 앞면에 자유 배치한 텍스트박스예요.
 }): Promise<PrintPdfResult> {
   const panelMm =
@@ -974,7 +986,7 @@ export async function buildCoverPrintPdf({
 
   // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
   const spineX = bleedPx + panelPx;
-  ctx.fillStyle = "#f4f1ea";
+  ctx.fillStyle = coverSpineBackgroundColor ?? "#f4f1ea";
   ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
 
   const spineLogoLayout = computeSpineLogoLayoutPx(spinePx);
@@ -1005,19 +1017,29 @@ export async function buildCoverPrintPdf({
   // 파일에도 그대로 나와요.
   const frontCellWpx = panelPx + bleedPx;
   const frontCellHpx = panelPx + bleedPx * 2;
+  if (coverFrontBackgroundColor) {
+    ctx.fillStyle = coverFrontBackgroundColor;
+    ctx.fillRect(frontX, 0, frontCellWpx, frontCellHpx);
+  }
   if (coverPhoto?.url) {
     const img = await loadImage(coverPhoto.url);
     drawPhotoInCell(ctx, img, coverPhoto, frontX, 0, frontCellWpx, frontCellHpx);
   }
   if (coverTitle.trim()) {
+    // 화면(CoverTitleOverlay)과 같은 칸 크기(frontCellWpx/Hpx)를 100%로 보는 퍼센트
+    // 좌표라서, 화면에서 끌어다 놓은 자리와 인쇄 파일 자리가 같아요. 화면은 텍스트박스
+    // 위에서 아래로 흐르는 왼쪽위 기준(top-left)이라, 여기서도 textBaseline을 top으로
+    // 맞춰요.
     const titlePx = Math.round(panelPx * 0.07 * coverTitleFontScale);
     ctx.font = `bold ${titlePx}px ${coverTitleFontFamily}`;
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
+    ctx.textBaseline = "top";
     ctx.shadowColor = "rgba(0,0,0,0.45)";
     ctx.shadowBlur = titlePx * 0.4;
-    ctx.fillText(coverTitle.trim(), frontX + panelPx / 2, bleedPx + panelPx - panelPx * 0.08, panelPx * 0.86);
+    const titleXpx = frontX + (coverTitleXPct / 100) * frontCellWpx + (coverTitleWidthPct / 100) * frontCellWpx / 2;
+    const titleYpx = (coverTitleYPct / 100) * frontCellHpx;
+    ctx.fillText(coverTitle.trim(), titleXpx, titleYpx, (coverTitleWidthPct / 100) * frontCellWpx);
     ctx.shadowBlur = 0;
   }
 

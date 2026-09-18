@@ -39,7 +39,6 @@ import {
   buildInnerPrintPdfLib,
   buildCoverPrintPdfLib,
   computeSpineLogoLayout,
-  computeSpineTitleLayout,
 } from "@/lib/printPdfLib";
 import { mmToPt } from "@/lib/printGeometry";
 
@@ -406,31 +405,15 @@ function CoverGuideBox({
   );
 }
 
-// 책등 좌우 경계(접힘 위치) 전용 세로 이중선 — 다른 안내선(파선/실선/점선)과 겹쳐도
-// 헷갈리지 않도록 "이중선"만 책등·제본 경계에 써요.
-function CoverSpineGuideLine({ xPct, top, bottom }: { xPct: number; top: number; bottom: number }) {
-  return (
-    <div
-      className="pointer-events-none absolute z-20 border-l-4 border-double"
-      style={{ left: `${xPct}%`, top: `${top}%`, bottom: `${100 - bottom}%`, borderColor: GUIDE_LINE_COLOR }}
-    />
-  );
-}
-
 // 내지 펼침면 가운데의 "제본 경계"예요. 실제로 두 페이지가 만나는 정중앙(50%)에 검정
 // 이중선을 하나 긋고(책등 경계와 같은 시각 언어), 그 양옆으로 제본 때문에 주의가
 // 필요한 영역을 옅은 음영으로 보여줘요. 화면 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
 function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number }) {
   return (
-    <>
-      <div
-        className="pointer-events-none absolute inset-y-0 z-10 bg-black/5"
-        style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 left-1/2 z-20 -translate-x-1/2 border-l-4 border-double border-[#1a1a1a]"
-      />
-    </>
+    <div
+      className="pointer-events-none absolute inset-y-0 z-10 bg-black/5"
+      style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
+    />
   );
 }
 
@@ -750,6 +733,10 @@ function CaptionField({
 // PhotoCell과 같은 방식(mousemove/mouseup을 window에 직접 붙임)으로 드래그해요 — 다만
 // 사진은 px 단위로 옮기고, 텍스트박스는 그 페이지(부모 칸) 크기를 100%로 보는 퍼센트로
 // 옮겨요. 그래야 화면 크기가 달라져도 항상 같은 자리에 보여요.
+// 드래그 중 박스 중심이 페이지 가운데(가로 50%/세로 50%)에 가까워지면 딱 맞춰 붙여주고,
+// 일러스트레이터의 "스마트 가이드"처럼 그 순간 가운데 십자선을 보여줘요.
+const CENTER_SNAP_THRESHOLD_PCT = 1.6;
+
 function TextBoxOverlay({
   box,
   onChange,
@@ -760,6 +747,11 @@ function TextBoxOverlay({
   onDelete: () => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
+    v: false,
+    h: false,
+    rect: null,
+  });
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
 
@@ -782,15 +774,33 @@ function TextBoxOverlay({
     if (!isDragging) return;
 
     function handleMouseMove(e: MouseEvent) {
+      const parentEl = boxRef.current?.parentElement ?? null;
+      const cellRect = parentEl?.getBoundingClientRect() ?? null;
       const dxPct = ((e.clientX - dragStart.current.mouseX) / dragStart.current.cellW) * 100;
       const dyPct = ((e.clientY - dragStart.current.mouseY) / dragStart.current.cellH) * 100;
-      onChange({
-        xPct: Math.min(96, Math.max(0, dragStart.current.xPct + dxPct)),
-        yPct: Math.min(96, Math.max(0, dragStart.current.yPct + dyPct)),
-      });
+      let nextX = Math.min(96, Math.max(0, dragStart.current.xPct + dxPct));
+      let nextY = Math.min(96, Math.max(0, dragStart.current.yPct + dyPct));
+
+      // 박스 실제 크기(픽셀)를 페이지 크기 대비 %로 환산해서, "박스의 가운데"가 페이지
+      // 가운데(50%)에 오는 자리를 계산해요(왼쪽 위 좌표가 아니라 가운데 기준으로 맞춰야
+      // 자연스럽게 붙어요).
+      const boxRect = boxRef.current?.getBoundingClientRect();
+      const boxWpct = boxRect ? (boxRect.width / dragStart.current.cellW) * 100 : box.widthPct;
+      const boxHpct = boxRect ? (boxRect.height / dragStart.current.cellH) * 100 : 0;
+
+      const centerXTarget = 50 - boxWpct / 2;
+      const centerYTarget = 50 - boxHpct / 2;
+      const snapV = Math.abs(nextX - centerXTarget) < CENTER_SNAP_THRESHOLD_PCT;
+      const snapH = Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
+      if (snapV) nextX = centerXTarget;
+      if (snapH) nextY = centerYTarget;
+
+      setSnapGuide({ v: snapV, h: snapH, rect: cellRect });
+      onChange({ xPct: nextX, yPct: nextY });
     }
     function handleMouseUp() {
       setIsDragging(false);
+      setSnapGuide({ v: false, h: false, rect: null });
     }
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -799,7 +809,7 @@ function TextBoxOverlay({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDragging, box.widthPct]);
 
   function cycleAlign() {
     const order: TextBoxDef["align"][] = ["left", "center", "right"];
@@ -813,6 +823,30 @@ function TextBoxOverlay({
       className="group/tb absolute z-30"
       style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%` }}
     >
+      {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
+        <>
+          {snapGuide.v && (
+            <div
+              className="pointer-events-none fixed z-40 w-px bg-[var(--color-sky)]"
+              style={{
+                left: snapGuide.rect.left + snapGuide.rect.width / 2,
+                top: snapGuide.rect.top,
+                height: snapGuide.rect.height,
+              }}
+            />
+          )}
+          {snapGuide.h && (
+            <div
+              className="pointer-events-none fixed z-40 h-px bg-[var(--color-sky)]"
+              style={{
+                top: snapGuide.rect.top + snapGuide.rect.height / 2,
+                left: snapGuide.rect.left,
+                width: snapGuide.rect.width,
+              }}
+            />
+          )}
+        </>
+      )}
       <div className="absolute -top-7 left-0 flex items-center gap-1 whitespace-nowrap opacity-0 transition group-hover/tb:opacity-100 group-focus-within/tb:opacity-100">
         <button
           type="button"
@@ -956,6 +990,134 @@ function TextBoxLayer({
         + 텍스트 추가
       </button>
     </>
+  );
+}
+
+// 표지 제목이에요. 예전엔 하단에 고정된 텍스트였는데, 이제 텍스트박스처럼 끌어서 원하는
+// 자리로 옮길 수 있어요(가운데로 가져가면 딱 붙는 안내선도 함께 떠요).
+function CoverTitleOverlay({
+  title,
+  xPct,
+  yPct,
+  widthPct,
+  fontScale,
+  fontFamily,
+  onMove,
+}: {
+  title: string;
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  fontScale: number;
+  fontFamily: string;
+  onMove: (changes: { xPct: number; yPct: number }) => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
+    v: false,
+    h: false,
+    rect: null,
+  });
+  const boxRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
+
+  function handleDragStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    setIsDragging(true);
+    dragStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      xPct,
+      yPct,
+      cellW: cellRect?.width || 1,
+      cellH: cellRect?.height || 1,
+    };
+  }
+
+  useEffect(() => {
+    if (!isDragging) return;
+    function handleMouseMove(e: MouseEvent) {
+      const parentEl = boxRef.current?.parentElement ?? null;
+      const cellRect = parentEl?.getBoundingClientRect() ?? null;
+      const dxPct = ((e.clientX - dragStart.current.mouseX) / dragStart.current.cellW) * 100;
+      const dyPct = ((e.clientY - dragStart.current.mouseY) / dragStart.current.cellH) * 100;
+      let nextX = Math.min(98, Math.max(0, dragStart.current.xPct + dxPct));
+      let nextY = Math.min(98, Math.max(0, dragStart.current.yPct + dyPct));
+
+      const boxRect = boxRef.current?.getBoundingClientRect();
+      const boxWpct = boxRect ? (boxRect.width / dragStart.current.cellW) * 100 : widthPct;
+      const boxHpct = boxRect ? (boxRect.height / dragStart.current.cellH) * 100 : 0;
+      const centerXTarget = 50 - boxWpct / 2;
+      const centerYTarget = 50 - boxHpct / 2;
+      const snapV = Math.abs(nextX - centerXTarget) < CENTER_SNAP_THRESHOLD_PCT;
+      const snapH = Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
+      if (snapV) nextX = centerXTarget;
+      if (snapH) nextY = centerYTarget;
+
+      setSnapGuide({ v: snapV, h: snapH, rect: cellRect });
+      onMove({ xPct: nextX, yPct: nextY });
+    }
+    function handleMouseUp() {
+      setIsDragging(false);
+      setSnapGuide({ v: false, h: false, rect: null });
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, widthPct]);
+
+  if (!title.trim()) return null;
+
+  return (
+    <div
+      ref={boxRef}
+      className="group/ct absolute z-20"
+      style={{ left: `${xPct}%`, top: `${yPct}%`, width: `${widthPct}%` }}
+    >
+      {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
+        <>
+          {snapGuide.v && (
+            <div
+              className="pointer-events-none fixed z-40 w-px bg-[var(--color-sky)]"
+              style={{
+                left: snapGuide.rect.left + snapGuide.rect.width / 2,
+                top: snapGuide.rect.top,
+                height: snapGuide.rect.height,
+              }}
+            />
+          )}
+          {snapGuide.h && (
+            <div
+              className="pointer-events-none fixed z-40 h-px bg-[var(--color-sky)]"
+              style={{
+                top: snapGuide.rect.top + snapGuide.rect.height / 2,
+                left: snapGuide.rect.left,
+                width: snapGuide.rect.width,
+              }}
+            />
+          )}
+        </>
+      )}
+      <button
+        type="button"
+        title="끌어서 이동"
+        onMouseDown={handleDragStart}
+        className="absolute -top-7 left-1/2 flex h-6 w-6 -translate-x-1/2 cursor-grab items-center justify-center rounded-full bg-black/60 text-[11px] text-white opacity-0 transition active:cursor-grabbing group-hover/ct:opacity-100"
+      >
+        ⠿
+      </button>
+      <p
+        className="pointer-events-none text-center font-semibold text-white drop-shadow"
+        style={{ fontSize: `${0.875 * fontScale}rem`, fontFamily }}
+      >
+        {title}
+      </p>
+    </div>
   );
 }
 
@@ -1273,6 +1435,12 @@ function UploadPageContent() {
   // 표지 제목 글자 크기 배율이에요(1이 기본, 화면 슬라이더로 조절). 실제 인쇄 파일에도
   // 그대로 반영돼요(기존 jsPDF 발주 파일 + pdf-lib 테스트 생성기 둘 다).
   const [coverTitleFontScale, setCoverTitleFontScale] = useState(1);
+  // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트). 기존엔 하단에 고정이었는데,
+  // 이제 텍스트박스처럼 끌어서 옮길 수 있어요 — 기본값은 예전 고정 위치(하단 중앙)와
+  // 비슷한 자리예요.
+  const [coverTitleXPct, setCoverTitleXPct] = useState(8);
+  const [coverTitleYPct, setCoverTitleYPct] = useState(84);
+  const coverTitleWidthPct = 84;
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
   // 뒤표지예요 — 무지(흰 배경)로 비워두지 않고, 기본으로 키픽 로고를 가운데에 배치해요.
@@ -1280,6 +1448,11 @@ function UploadPageContent() {
   const [backCoverMode, setBackCoverMode] = useState<"logo" | "photo">("logo");
   const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
+  // 책등·앞표지 배경색이에요. 뒤표지와 마찬가지로 지정 안 하면 기존 기본색(책등은 아이보리,
+  // 앞표지는 흰색) 그대로예요. 세 곳 모두 따로 고를 수도, 아래 "배경색" 팔레트에서 한 번에
+  // 세트로 맞출 수도 있어요.
+  const [coverSpineBackgroundColor, setCoverSpineBackgroundColor] = useState<string | undefined>(undefined);
+  const [coverFrontBackgroundColor, setCoverFrontBackgroundColor] = useState<string | undefined>(undefined);
   // 표지 앞면에 자유롭게 배치하는 텍스트박스예요(제목과는 별개예요).
   const [coverTextBoxes, setCoverTextBoxes] = useState<TextBoxDef[]>([]);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
@@ -1627,12 +1800,17 @@ function UploadPageContent() {
       coverTitle,
       coverTitleFontScale,
       coverTitleFontFamily,
+      coverTitleXPct,
+      coverTitleYPct,
+      coverTitleWidthPct,
       innerPaperWeightG: innerPaper.weightG,
       pages,
       spineTitle,
       backCoverMode,
       backCoverPhoto,
       backCoverBackgroundColor,
+      coverSpineBackgroundColor,
+      coverFrontBackgroundColor,
       coverTextBoxes,
     });
 
@@ -1924,21 +2102,11 @@ function UploadPageContent() {
     const coverSpineSafetyLeftPct = coverSpineStartPct + coverSpineSafetyMarginPct;
     const coverSpineSafetyRightPct = coverSpineEndPct - coverSpineSafetyMarginPct;
 
-    // 책등 제목·로고가 실제 인쇄 PDF(lib/printPdfLib.ts)와 똑같은 기준으로 들어가는지
-    // 화면에서도 미리 계산해요. computeSpineLogoLayout/computeSpineTitleLayout은 그 파일의
-    // 함수를 그대로 가져다 쓰는 거라, "책등이 좁아서 생략/경고"가 필요한 시점이 편집 화면과
-    // 인쇄 PDF에서 항상 일치해요.
+    // 책등 로고가 실제 인쇄 PDF(lib/printPdfLib.ts)와 똑같은 기준으로 보이는지 화면에서도
+    // 미리 계산해요. computeSpineLogoLayout은 그 파일의 함수를 그대로 가져다 쓰는 거라,
+    // "책등이 좁아서 로고 생략"이 필요한 시점이 편집 화면과 인쇄 PDF에서 항상 일치해요.
     const coverSpinePt = mmToPt(coverSpineMm);
-    const coverPanelPt = mmToPt(coverPanelMm);
     const coverSpineLogoLayout = computeSpineLogoLayout(coverSpinePt);
-    const coverSpineTitleLayout = spineTitle.trim()
-      ? computeSpineTitleLayout(
-          Array.from(spineTitle.trim()).length,
-          coverSpinePt,
-          coverPanelPt,
-          coverSpineLogoLayout.fits ? coverSpineLogoLayout.drawnHeightPt : 0
-        )
-      : null;
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -2158,10 +2326,13 @@ function UploadPageContent() {
                           className="h-full"
                           style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
                         />
-                        <div className="h-full border-x border-[#1a1a1a]/60 bg-white" style={{ width: `${coverSpinePct}%` }} />
                         <div
-                          className="relative h-full overflow-hidden bg-[var(--color-ivory)]"
-                          style={{ width: `${coverFrontPct}%` }}
+                          className="h-full border-x border-[#1a1a1a]/60"
+                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
+                        />
+                        <div
+                          className="relative h-full overflow-hidden"
+                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
                         >
                           {coverPhoto && (
                             <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" />
@@ -2363,57 +2534,39 @@ function UploadPageContent() {
                           )}
                         </div>
                         <div
-                          className={`relative flex h-full flex-col items-center bg-white ${
-                            showCoverSpineGuide ? "" : "border-x border-[#1a1a1a]/70"
-                          }`}
-                          style={{ width: `${coverSpinePct}%` }}
+                          className="relative flex h-full flex-col items-center justify-center gap-2 overflow-hidden border-x border-[#1a1a1a]/70 px-1"
+                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
                         >
+                          {/* 책등엔 책등 제목과 로고만, 겹치지 않게 세로로 가운데 정렬해서 보여줘요.
+                              (실제 인쇄 파일과 같은 방식: 문장 전체를 90도로 눕히지 않고, 한 글자씩
+                              정방향으로 위→아래 세로쓰기해요.) */}
                           {spineTitle.trim() ? (
-                            // 실제 인쇄 파일과 같은 방식: 문장 전체를 90도로 눕히지 않고, 한
-                            // 글자씩 정방향으로 위→아래 세로쓰기해요. writingMode: vertical-lr을
-                            // 쓰면 브라우저가 알아서 왼쪽 열부터 채우고(왼쪽 열이 먼저 읽혀요),
-                            // 한 열에 다 못 담을 때만 오른쪽에 새 열을 만들어요 — 요청하신
-                            // "왼쪽 열 → 오른쪽 열" 순서와 같아요.
                             <span
-                              className="absolute inset-x-0 top-2 flex items-center justify-center overflow-hidden text-[9px] font-semibold leading-[1.2] text-[var(--color-charcoal)]/70"
-                              style={{
-                                writingMode: "vertical-lr",
-                                textOrientation: "upright",
-                                bottom: coverSpineLogoLayout.fits ? "2.4rem" : "0.5rem",
-                              }}
+                              className="flex max-h-[70%] items-center justify-center overflow-hidden text-[9px] font-semibold leading-[1.2] text-[var(--color-charcoal)]/70"
+                              style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
                             >
                               {spineTitle}
                             </span>
                           ) : (
                             <span
-                              className="absolute inset-0 flex items-center justify-center text-[9px] text-[var(--color-charcoal)]/40"
+                              className="text-[9px] text-[var(--color-charcoal)]/40"
                               style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
                             >
                               책등
                             </span>
                           )}
-                          {coverSpineTitleLayout && !coverSpineTitleLayout.fits ? (
-                            <span className="absolute inset-x-1 top-1 text-center text-[8px] leading-tight text-[#e0524c]">
-                              제목이 책등보다 길어요
-                            </span>
-                          ) : null}
-                          {/* Keepic 로고 미리보기 — 실제 인쇄 파일과 같은 정방향("Keepic"이
-                              왼쪽→오른쪽으로 읽히는 방향, 회전 없음)으로 책등 아래쪽에 표시해요.
-                              책등이 너무 좁으면(인쇄 PDF와 같은 기준) 로고 대신 생략 안내를
-                              보여줘요. */}
-                          {coverSpineLogoLayout.fits ? (
+                          {coverSpineLogoLayout.fits && (
                             <img
                               src="/logo.svg"
                               alt="Keepic"
-                              className="pointer-events-none absolute bottom-2 left-1/2 h-auto w-[70%] max-w-16 -translate-x-1/2 opacity-70"
+                              className="pointer-events-none h-auto w-[70%] max-w-16 opacity-70"
                             />
-                          ) : (
-                            <span className="absolute inset-x-1 bottom-1 text-center text-[7px] leading-tight text-[var(--color-charcoal)]/50">
-                              책등이 좁아 로고 생략
-                            </span>
                           )}
                         </div>
-                        <div className="group relative h-full overflow-hidden" style={{ width: `${coverFrontPct}%` }}>
+                        <div
+                          className="group relative h-full overflow-hidden"
+                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
+                        >
                           {coverPhoto ? (
                             <PhotoCell
                               photo={coverPhoto}
@@ -2426,17 +2579,18 @@ function UploadPageContent() {
                               <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
                             </label>
                           )}
-                          {coverTitle.trim() && (
-                            <p
-                              className="pointer-events-none absolute inset-x-3 bottom-3 text-center font-semibold text-white drop-shadow"
-                              style={{
-                                fontSize: `${0.875 * coverTitleFontScale}rem`,
-                                fontFamily: coverTitleFontFamily,
-                              }}
-                            >
-                              {coverTitle}
-                            </p>
-                          )}
+                          <CoverTitleOverlay
+                            title={coverTitle}
+                            xPct={coverTitleXPct}
+                            yPct={coverTitleYPct}
+                            widthPct={coverTitleWidthPct}
+                            fontScale={coverTitleFontScale}
+                            fontFamily={coverTitleFontFamily}
+                            onMove={({ xPct, yPct }) => {
+                              setCoverTitleXPct(xPct);
+                              setCoverTitleYPct(yPct);
+                            }}
+                          />
                           <TextBoxLayer
                             boxes={coverTextBoxes}
                             onAdd={handleAddCoverTextBox}
@@ -2498,20 +2652,9 @@ function UploadPageContent() {
                             />
                           </>
                         )}
-                        {showCoverSpineGuide && (
-                          <>
-                            <CoverSpineGuideLine
-                              xPct={coverSpineStartPct}
-                              top={coverBleedYPct}
-                              bottom={100 - coverBleedYPct}
-                            />
-                            <CoverSpineGuideLine
-                              xPct={coverSpineEndPct}
-                              top={coverBleedYPct}
-                              bottom={100 - coverBleedYPct}
-                            />
-                          </>
-                        )}
+                        {/* 책등 경계는 이제 위 패널 테두리(항상 표시)만으로 보여줘요 — 이중선을 더 그리면
+                            선이 겹쳐 지저분해 보여서, 안내선 체크박스는 그대로 두되 여기서는 더 그리지
+                            않아요. */}
                       </div>
 
                       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -2627,40 +2770,67 @@ function UploadPageContent() {
                             </label>
                           )}
                         </div>
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-[var(--color-charcoal)]/60">배경색</span>
-                          {SPREAD_BACKGROUND_PRESETS.map((preset) => {
-                            const isActive =
-                              (backCoverBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase();
-                            return (
-                              <button
-                                key={preset.color}
-                                type="button"
-                                title={preset.label}
-                                onClick={() =>
-                                  setBackCoverBackgroundColor(preset.color === "#ffffff" ? undefined : preset.color)
-                                }
-                                className={`h-6 w-6 rounded-full border transition ${
-                                  isActive
-                                    ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                    : "border-[var(--color-hairline)]"
-                                }`}
-                                style={{ backgroundColor: preset.color }}
+                        <div className="mt-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-[var(--color-charcoal)]/60">배경색(뒤표지·책등·표지 세트로)</span>
+                            {SPREAD_BACKGROUND_PRESETS.map((preset) => {
+                              const isActive =
+                                (backCoverBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase() &&
+                                (coverSpineBackgroundColor ?? "#f4f1ea").toLowerCase() === preset.color.toLowerCase() &&
+                                (coverFrontBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase();
+                              return (
+                                <button
+                                  key={preset.color}
+                                  type="button"
+                                  title={`${preset.label} — 뒤표지·책등·표지 모두 이 색으로`}
+                                  onClick={() => {
+                                    const next = preset.color === "#ffffff" ? undefined : preset.color;
+                                    setBackCoverBackgroundColor(next);
+                                    setCoverSpineBackgroundColor(next);
+                                    setCoverFrontBackgroundColor(next);
+                                  }}
+                                  className={`h-6 w-6 rounded-full border transition ${
+                                    isActive
+                                      ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                      : "border-[var(--color-hairline)]"
+                                  }`}
+                                  style={{ backgroundColor: preset.color }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <p className="mt-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                            아래에서 뒤표지·책등·표지를 각각 따로 지정할 수도 있어요.
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-4">
+                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                              뒤표지
+                              <input
+                                type="color"
+                                value={backCoverBackgroundColor ?? "#ffffff"}
+                                onChange={(e) => setBackCoverBackgroundColor(e.target.value)}
+                                className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
                               />
-                            );
-                          })}
-                          <label
-                            title="색 직접 고르기"
-                            className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
-                          >
-                            +
-                            <input
-                              type="color"
-                              value={backCoverBackgroundColor ?? "#ffffff"}
-                              onChange={(e) => setBackCoverBackgroundColor(e.target.value)}
-                              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                            />
-                          </label>
+                            </label>
+                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                              책등
+                              <input
+                                type="color"
+                                value={coverSpineBackgroundColor ?? "#f4f1ea"}
+                                onChange={(e) => setCoverSpineBackgroundColor(e.target.value)}
+                                className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                              />
+                            </label>
+                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
+                              앞표지
+                              <input
+                                type="color"
+                                value={coverFrontBackgroundColor ?? "#ffffff"}
+                                onChange={(e) => setCoverFrontBackgroundColor(e.target.value)}
+                                className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                              />
+                            </label>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2838,12 +3008,10 @@ function UploadPageContent() {
                             </div>
                           </div>
                           <div className="relative mt-3 flex w-full items-start bg-white shadow-sm">
-                            {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 해요. "접힘·제본 경계" 안내선이
-                                켜져 있으면 BindingGuide가 같은 자리에 이중선을 그리므로, 겹치지 않게 이 얇은
-                                구분선은 안내선이 꺼져 있을 때만 보여줘요. */}
-                            {!showInnerBindingGuide && (
-                              <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
-                            )}
+                            {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만
+                                구분해요. "접힘·제본 경계" 안내선을 켜면 그 옆으로 옅은 배경(BindingGuide)이
+                                더해질 뿐, 선은 늘지 않아요. */}
+                            <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                             <div className="group relative w-1/2">
                               {i === 0 ? (
                                 <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">
