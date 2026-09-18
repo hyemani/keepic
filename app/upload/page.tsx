@@ -35,7 +35,8 @@ import {
 } from "@/lib/backgroundPatterns";
 // [테스트용] 새 pdf-lib 기반 PDF 생성기예요. ?pdftest=1 일 때만 화면에 테스트 버튼이 보여요.
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
-import { buildInnerPrintPdfLib, buildCoverPrintPdfLib } from "@/lib/printPdfLib";
+import { buildInnerPrintPdfLib, buildCoverPrintPdfLib, computeSpineLogoLayout } from "@/lib/printPdfLib";
+import { mmToPt } from "@/lib/printGeometry";
 
 type Photo = {
   url: string;
@@ -2226,10 +2227,16 @@ function UploadPageContent() {
       const meta = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
 
-      // 백스페이스·ESC: 텍스트를 입력하는 중이 아니라(=박스만 선택된 상태) 때 눌리면
-      // 선택된 텍스트박스를 통째로 지워요. 입력 중일 때는 글자 지우기/한글 조합 취소 같은
-      // 원래 동작을 건드리지 않아요.
-      if (!meta && (key === "backspace" || key === "escape") && !isTypingTarget(e.target)) {
+      // ESC: 텍스트박스가 선택돼 있으면(글자를 입력하는 중이어도) 바로 지워요 — ESC는
+      // 원래 "취소/빠져나가기" 용도라 텍스트 입력 중에 눌러도 글자가 지워질 걱정이 없어요.
+      // 백스페이스는 입력 중이 아닐 때(=박스만 선택된 상태)만 지워요 — 입력 중에는 글자
+      // 지우기 동작을 그대로 둬야 해요.
+      if (!meta && key === "escape" && activeTextBox) {
+        e.preventDefault();
+        deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
+        return;
+      }
+      if (!meta && key === "backspace" && !isTypingTarget(e.target)) {
         if (activeTextBox) {
           e.preventDefault();
           deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
@@ -2617,12 +2624,24 @@ function UploadPageContent() {
     // 뒤표지·앞표지처럼 별도 안전영역 여백을 두지 않아요(2026-09, 사용자 확인). 책등
     // 경계(재단선)는 위 패널 테두리로 이미 보여주고 있어요.
 
-    // "Keepic" 워드마크는 로고 이미지를 눕히지 않고, 책등 제목과 같은 방식으로 한 글자씩
-    // 위→아래로 세로쓰기해요(혜민님이 보내주신 일러스트레이터 참고 도안 기준). 책등 맨
-    // 아래에 고정 여백만큼 띄워서 둬요 — lib/printCompose.ts의 SPINE_WORDMARK_BOTTOM_MARGIN_MM와
-    // 같은 값을 써서 화면·인쇄가 같은 자리를 가리켜요.
-    const SPINE_WORDMARK_BOTTOM_MARGIN_MM = 6;
-    const spineWordmarkBottomPct = (SPINE_WORDMARK_BOTTOM_MARGIN_MM / coverTotalHmm) * 100;
+    // 책등 키픽 로고 — 책등이 좁아서(7~9mm) 이미지를 90도로 눕혀서 넣어요(혜민님 확인:
+    // "오른쪽으로 돌려서"). 재단선에서 로고 글자가 잘리지 않도록, 로고 블록의 아래쪽
+    // 끝을 재단선(책등 맨 아래)에서 안전영역과 같은 10mm 띄운 자리에 둬요 — 정중앙이나
+    // 임의의 비율이 아니라, 실제 mm 안전 여백을 기준으로 계산해요.
+    const coverSpinePt = mmToPt(coverSpineMm);
+    const coverSpineLogoLayout = computeSpineLogoLayout(coverSpinePt);
+    const SPINE_LOGO_BOTTOM_MARGIN_MM = 10; // 재단선에서 로고까지 — 안전영역(GUIDE_SAFETY_MM)과 같은 값
+    // computeSpineLogoLayout이 돌려주는 drawnWidthPt(책등 폭 방향)·drawnHeightPt(책등
+    // 길이 방향)는 "눕힌 뒤(화면에 실제로 보이는)" 가로/세로예요. 회전 전 <img> 박스는
+    // 가로/세로가 서로 뒤바뀌어야 rotate(90deg) 후 원하는 크기가 나와요. (표지 펼침면은
+    // aspectRatio로 실측 mm 비율 그대로 렌더링돼서 가로·세로 축척이 같아요 — 그래서
+    // "책등 폭 대비 %"와 "표지 전체 높이 대비 %"를 이렇게 서로 변환할 수 있어요.)
+    const coverSpineLogoPreRotateWidthPct =
+      coverSpinePt > 0 ? (coverSpineLogoLayout.drawnHeightPt / coverSpinePt) * 100 : 0;
+    const coverSpineLogoPreRotateHeightPct = (coverSpineLogoLayout.drawnWidthPt / mmToPt(coverTotalHmm)) * 100;
+    const coverSpineLogoVisibleHeightPct = (coverSpineLogoLayout.drawnHeightPt / mmToPt(coverTotalHmm)) * 100;
+    const coverSpineLogoBottomMarginPct = (SPINE_LOGO_BOTTOM_MARGIN_MM / coverTotalHmm) * 100;
+    const coverSpineLogoCenterYPct = 100 - coverSpineLogoBottomMarginPct - coverSpineLogoVisibleHeightPct / 2;
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -3138,12 +3157,11 @@ function UploadPageContent() {
                           className="relative h-full overflow-hidden border-x border-[#1a1a1a]/70 px-1"
                           style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
                         >
-                          {/* 책등엔 책등 제목과 "Keepic" 워드마크만 보여줘요 — 제목 텍스트박스는
-                              끌어서 위치를, 아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등
-                              폭에 고정). 제목과 워드마크 둘 다 한 글자씩 정방향으로 위→아래
-                              세로쓰기하고(문장 전체를 90도로 눕히지 않아요 — 혜민님이 보내주신
-                              일러스트레이터 참고 도안 기준), 워드마크는 책등 맨 아래에 고정
-                              여백만큼 띄워서 둬요(화면에서 위치를 바꿀 수 없어요). */}
+                          {/* 책등엔 책등 제목과 키픽 로고만 보여줘요 — 제목 텍스트박스는 끌어서
+                              위치를, 아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등 폭에
+                              고정, 한 글자씩 정방향으로 위→아래 세로쓰기). 로고는 책등이 좁아서
+                              90도로 눕히고(글자가 위→아래로 읽혀요), 재단선에서 안전영역과 같은
+                              10mm 띄운 자리에 고정으로 둬요(화면에서 위치를 바꿀 수 없어요). */}
                           <SpineTitleOverlay
                             title={spineTitle}
                             emptyLabel="책등"
@@ -3152,17 +3170,20 @@ function UploadPageContent() {
                             onMove={setSpineTitleYPct}
                             onResize={setSpineTitleHeightPct}
                           />
-                          <div
-                            className="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 items-end justify-center"
-                            style={{ bottom: `${spineWordmarkBottomPct}%` }}
-                          >
-                            <span
-                              className="text-[9px] leading-[1.2] text-[#1a1a1a]/85"
-                              style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
-                            >
-                              Keepic
-                            </span>
-                          </div>
+                          {coverSpineLogoLayout.fits && (
+                            <img
+                              src="/logo.svg"
+                              alt="Keepic"
+                              className="pointer-events-none absolute z-10 opacity-90"
+                              style={{
+                                top: `${coverSpineLogoCenterYPct}%`,
+                                left: "50%",
+                                width: `${coverSpineLogoPreRotateWidthPct}%`,
+                                height: `${coverSpineLogoPreRotateHeightPct}%`,
+                                transform: "translate(-50%, -50%) rotate(90deg)",
+                              }}
+                            />
+                          )}
                         </div>
                         <div
                           className="group relative h-full overflow-hidden"
