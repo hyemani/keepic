@@ -200,9 +200,9 @@ async function drawIntroPageLib(
   const lineHeightPt = infoFontPt * 1.7;
 
   const makerLabel = introMaker.trim() || "신규 작성자";
-  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`];
+  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`, `제작 : KEEPIC`];
 
-  // 맨 아래엔 "제작 : KEEPIC" 텍스트 대신 실제 키픽 로고를 넣어요(embedKeepicLogo는
+  // "제작 : KEEPIC" 텍스트 아래에 실제 키픽 로고도 함께 넣어요(embedKeepicLogo는
   // 책등 로고와 같은 함수를 재사용해요).
   const logoWpt = stackWpt * 0.42;
   const logoHpt = logoWpt / KEEPIC_LOGO_ASPECT;

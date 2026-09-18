@@ -468,16 +468,16 @@ export async function drawIntroPage(
   const lineHeightPx = infoFontPx * 1.7;
 
   const makerLabel = introMaker.trim() || "신규 작성자";
-  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`];
+  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`, `제작 : KEEPIC`];
 
-  // 맨 아래엔 "제작 : KEEPIC" 텍스트 대신 실제 키픽 로고를 넣어요.
+  // "제작 : KEEPIC" 텍스트 아래에 실제 키픽 로고도 함께 넣어요.
   const logoWpx = stackWpx * 0.42;
   const logoHpx = logoWpx / KEEPIC_LOGO_ASPECT;
   const logoYpx = pageH - safetyPx - logoHpx;
   const logoImg = await loadImage("/logo.svg");
   ctx.drawImage(logoImg, stackXpx, logoYpx, logoWpx, logoHpx);
 
-  // 로고 위로 만든이 → 발행일 순으로 쌓아요.
+  // 로고 위로 텍스트(제작:KEEPIC → 만든이 → 발행일) 순으로 쌓아요.
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   let cursorY = logoYpx - infoFontPx * 0.7;
