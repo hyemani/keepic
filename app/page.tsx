@@ -68,6 +68,17 @@ const productGridItems: ProductGridItem[] = [
     badgeClassName: "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]",
   })),
   {
+    id: "photobook-ai-auto",
+    category: "포토북" as const,
+    name: "포토북 (AI 맞춤 레이아웃)",
+    desc: "사진만 올리면 배치를 AI가 도와드려요",
+    image: "/photobook/ai-auto-layout.jpg",
+    priceFrom: photobookMinPriceByCover.soft,
+    href: `/options?product=${encodeURIComponent("포토북")}&layout=ai-auto`,
+    badge: "AI",
+    badgeClassName: "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))]",
+  },
+  {
     id: "frame",
     category: "액자",
     name: "액자",
