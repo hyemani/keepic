@@ -25,6 +25,13 @@ import {
   printFileSpec,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
+import {
+  backgroundPatterns,
+  backgroundPatternCategories,
+  resolveSpreadBackgroundCss,
+  patternToCssBackground,
+  BackgroundPatternCategory,
+} from "@/lib/backgroundPatterns";
 // [테스트용] 새 pdf-lib 기반 PDF 생성기예요. ?pdftest=1 일 때만 화면에 테스트 버튼이 보여요.
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
 import {
@@ -534,7 +541,7 @@ function PhotoCell({
     <div
       ref={cellRef}
       className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]"
-      style={backgroundColor ? { backgroundColor } : undefined}
+      style={backgroundColor ? { background: backgroundColor } : undefined}
     >
       <img
         src={photo.url}
@@ -748,7 +755,7 @@ function renderPage(
   // 이 페이지가 속한 스프레드의 배경색(hex)이에요. 지정 안 하면 기존 색 그대로예요.
   backgroundColor?: string
 ) {
-  const bgStyle = backgroundColor ? { backgroundColor } : undefined;
+  const bgStyle = backgroundColor ? { background: backgroundColor } : undefined;
 
   if (templateId === "blank") {
     return <div className="aspect-square bg-white" style={bgStyle} />;
@@ -1106,6 +1113,8 @@ function UploadPageContent() {
   );
   // "전체 사진 목록" 펼침 패널의 현재 페이지(0부터 시작, PHOTO_GRID_PAGE_SIZE장씩)예요.
   const [photoGridPage, setPhotoGridPage] = useState(0);
+  // 내지 배경 꾸미기 탭(단색/그래픽/패턴/텍스처) — 모든 스프레드가 같은 탭을 공유해요.
+  const [backgroundTab, setBackgroundTab] = useState<"solid" | BackgroundPatternCategory>("solid");
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -1262,6 +1271,8 @@ function UploadPageContent() {
   }
 
   // 스프레드(왼쪽+오른쪽 펼침면) 배경색을 바꿔요. color가 undefined면 기본값(흰색)으로 되돌려요.
+  // 단색 배경을 골라요. 그래픽·패턴·텍스처(backgroundPattern)와는 하나만 고를 수 있어서,
+  // 단색을 고르면 그쪽은 자동으로 해제돼요.
   function handleChangeBackground(spreadIndex: number, color: string | undefined) {
     setCustomSpreads((prev) =>
       prev.map((s, i) => {
@@ -1272,6 +1283,25 @@ function UploadPageContent() {
         } else {
           delete next.backgroundColor;
         }
+        delete next.backgroundPattern;
+        return next;
+      })
+    );
+  }
+
+  // 그래픽·패턴·텍스처 배경을 골라요. 단색 배경(backgroundColor)과는 하나만 고를 수
+  // 있어서, 패턴을 고르면 단색은 자동으로 해제돼요. patternId가 undefined면 해제예요.
+  function handleChangePattern(spreadIndex: number, patternId: string | undefined) {
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => {
+        if (i !== spreadIndex) return s;
+        const next = { ...s };
+        if (patternId) {
+          next.backgroundPattern = patternId;
+        } else {
+          delete next.backgroundPattern;
+        }
+        delete next.backgroundColor;
         return next;
       })
     );
@@ -1886,11 +1916,27 @@ function UploadPageContent() {
                                 </p>
                               </div>
                             ) : (
-                              renderPage(spread.left, leftPhotos, leftIndexes, () => {}, () => {}, requiredMinPx, spread.backgroundColor)
+                              renderPage(
+                                spread.left,
+                                leftPhotos,
+                                leftIndexes,
+                                () => {},
+                                () => {},
+                                requiredMinPx,
+                                resolveSpreadBackgroundCss(spread)
+                              )
                             )}
                           </div>
                           <div className="aspect-square overflow-hidden">
-                            {renderPage(spread.right, rightPhotos, rightIndexes, () => {}, () => {}, requiredMinPx, spread.backgroundColor)}
+                            {renderPage(
+                              spread.right,
+                              rightPhotos,
+                              rightIndexes,
+                              () => {},
+                              () => {},
+                              requiredMinPx,
+                              resolveSpreadBackgroundCss(spread)
+                            )}
                           </div>
                         </div>
                         <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">
@@ -2412,44 +2458,99 @@ function UploadPageContent() {
                               </button>
                             </div>
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-[var(--color-charcoal)]/60">배경색</span>
-                            {SPREAD_BACKGROUND_PRESETS.map((preset) => {
-                              const isActive =
-                                (spread.backgroundColor ?? "#ffffff").toLowerCase() ===
-                                preset.color.toLowerCase();
-                              return (
+                          <div className="mt-3">
+                            <div className="flex flex-wrap gap-1 text-[11px]">
+                              <button
+                                type="button"
+                                onClick={() => setBackgroundTab("solid")}
+                                className={`rounded-full px-3 py-1 transition ${
+                                  backgroundTab === "solid"
+                                    ? "bg-[var(--color-sky)] text-white"
+                                    : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
+                                }`}
+                              >
+                                단색
+                              </button>
+                              {backgroundPatternCategories.map((cat) => (
                                 <button
-                                  key={preset.color}
+                                  key={cat.id}
                                   type="button"
-                                  title={preset.label}
-                                  onClick={() =>
-                                    handleChangeBackground(
-                                      i,
-                                      preset.color === "#ffffff" ? undefined : preset.color
-                                    )
-                                  }
-                                  className={`h-6 w-6 rounded-full border transition ${
-                                    isActive
-                                      ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                      : "border-[var(--color-hairline)]"
+                                  onClick={() => setBackgroundTab(cat.id)}
+                                  className={`rounded-full px-3 py-1 transition ${
+                                    backgroundTab === cat.id
+                                      ? "bg-[var(--color-sky)] text-white"
+                                      : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
                                   }`}
-                                  style={{ backgroundColor: preset.color }}
-                                />
-                              );
-                            })}
-                            <label
-                              title="색 직접 고르기"
-                              className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
-                            >
-                              +
-                              <input
-                                type="color"
-                                value={spread.backgroundColor ?? "#ffffff"}
-                                onChange={(e) => handleChangeBackground(i, e.target.value)}
-                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                              />
-                            </label>
+                                >
+                                  {cat.label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {backgroundTab === "solid" ? (
+                                <>
+                                  {SPREAD_BACKGROUND_PRESETS.map((preset) => {
+                                    const isActive =
+                                      !spread.backgroundPattern &&
+                                      (spread.backgroundColor ?? "#ffffff").toLowerCase() ===
+                                        preset.color.toLowerCase();
+                                    return (
+                                      <button
+                                        key={preset.color}
+                                        type="button"
+                                        title={preset.label}
+                                        onClick={() =>
+                                          handleChangeBackground(
+                                            i,
+                                            preset.color === "#ffffff" ? undefined : preset.color
+                                          )
+                                        }
+                                        className={`h-6 w-6 rounded-full border transition ${
+                                          isActive
+                                            ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                            : "border-[var(--color-hairline)]"
+                                        }`}
+                                        style={{ backgroundColor: preset.color }}
+                                      />
+                                    );
+                                  })}
+                                  <label
+                                    title="색 직접 고르기"
+                                    className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
+                                  >
+                                    +
+                                    <input
+                                      type="color"
+                                      value={spread.backgroundColor ?? "#ffffff"}
+                                      onChange={(e) => handleChangeBackground(i, e.target.value)}
+                                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                    />
+                                  </label>
+                                </>
+                              ) : (
+                                backgroundPatterns
+                                  .filter((p) => p.category === backgroundTab)
+                                  .map((preset) => {
+                                    const isActive = spread.backgroundPattern === preset.id;
+                                    return (
+                                      <button
+                                        key={preset.id}
+                                        type="button"
+                                        title={preset.label}
+                                        onClick={() =>
+                                          handleChangePattern(i, isActive ? undefined : preset.id)
+                                        }
+                                        className={`h-8 w-8 rounded-full border transition ${
+                                          isActive
+                                            ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                            : "border-[var(--color-hairline)]"
+                                        }`}
+                                        style={{ background: patternToCssBackground(preset) }}
+                                      />
+                                    );
+                                  })
+                              )}
+                            </div>
                           </div>
                           <div className="relative mt-3 flex w-full items-start bg-white shadow-sm">
                             {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만 구분해요. */}
@@ -2483,7 +2584,7 @@ function UploadPageContent() {
                                     handlePhotoTransform,
                                     handleCaptionChange,
                                     requiredMinPx,
-                                    spread.backgroundColor
+                                    resolveSpreadBackgroundCss(spread)
                                   )}
                                 </>
                               )}
@@ -2507,7 +2608,7 @@ function UploadPageContent() {
                                 handlePhotoTransform,
                                 handleCaptionChange,
                                 requiredMinPx,
-                                spread.backgroundColor
+                                resolveSpreadBackgroundCss(spread)
                               )}
                             </div>
                             {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}

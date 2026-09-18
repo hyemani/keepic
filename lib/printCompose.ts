@@ -12,6 +12,7 @@
 
 import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, pageTemplates } from "@/lib/albumTemplates";
+import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -168,10 +169,16 @@ async function drawPage(
   photos: PrintPhoto[],
   pageW: number,
   pageH: number,
-  backgroundColor: string = "#ffffff"
+  backgroundColor: string = "#ffffff",
+  backgroundPatternId?: string
 ) {
-  ctx.fillStyle = backgroundColor;
-  ctx.fillRect(0, 0, pageW, pageH);
+  const pattern = findBackgroundPattern(backgroundPatternId);
+  if (pattern) {
+    drawBackgroundPatternOnCanvas(ctx, pattern, 0, 0, pageW, pageH, mmToPx);
+  } else {
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, pageW, pageH);
+  }
 
   const gap = mmToPx(1.5);
   const count = pageTemplates[templateId].photoCount;
@@ -562,7 +569,15 @@ export async function buildInnerPrintPdf({
     for (const side of sides) {
       const sidePhotos = side.indexes.map((idx) => photos[idx]).filter(Boolean);
       // 페이지를 순서대로(1p, 2p, ...) 그려야 해서 일부러 순차적으로 기다려요.
-      await drawPage(ctx, side.templateId, sidePhotos, pxW, pxH, spread.backgroundColor ?? "#ffffff");
+      await drawPage(
+        ctx,
+        side.templateId,
+        sidePhotos,
+        pxW,
+        pxH,
+        spread.backgroundColor ?? "#ffffff",
+        spread.backgroundPattern
+      );
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
       drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideEdge);
       const guideDataUrl = canvasToJpegDataUrl(canvas);

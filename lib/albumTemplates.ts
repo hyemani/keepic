@@ -25,6 +25,9 @@ export type SpreadDef = {
   // 내지 배경색(hex, 예: "#F5E9DA"). 지정 안 하면 기존처럼 흰색이에요.
   // 왼쪽·오른쪽 페이지가 한 스프레드(펼침면)라서 배경색도 스프레드 단위로 같이 적용돼요.
   backgroundColor?: string;
+  // 그래픽·패턴·텍스처 배경 꾸미기(lib/backgroundPatterns.ts의 preset id)예요. 지정돼
+  // 있으면 backgroundColor보다 우선해요(서로 배타적으로 골라요).
+  backgroundPattern?: string;
 };
 
 export type AlbumTemplate = {
