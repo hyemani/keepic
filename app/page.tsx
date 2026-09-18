@@ -201,39 +201,37 @@ export default function Home() {
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
       <SiteHeader />
 
-      {/* 카테고리 탭 + 프로모션 배너 + 상품 그리드 */}
-      <section id="products" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-4 pt-6 sm:px-10">
-        <ProductGrid
-          items={productGridItems}
-          banner={
-            <Link
-              href="/options?product=포토북"
-              className="relative block overflow-hidden rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
-            >
-              <div className="aspect-[4/3] w-full overflow-hidden sm:aspect-[21/9]">
-                <img
-                  src={promoBanner.image}
-                  alt={promoBanner.alt}
-                  className="h-full w-full scale-125 object-cover sm:scale-110"
-                />
-              </div>
-              <div className="absolute inset-0 bg-black/40" />
-              <div className="absolute inset-0 flex flex-col items-center justify-start px-6 pt-8 text-center sm:justify-center sm:pt-0">
-                <h1 className="font-banner break-keep text-3xl leading-tight text-white sm:text-5xl">
-                  {promoBanner.titleLines[0]}
-                  <br />
-                  {promoBanner.titleLines[1]}
-                </h1>
-                <p className="mt-3 text-[11px] font-semibold tracking-[0.18em] text-white/85 sm:text-sm">
-                  {promoBanner.eyebrow}
-                </p>
-                <p className="mt-2 max-w-xs break-keep text-xs text-white/75 sm:text-sm">
-                  {promoBanner.caption}
-                </p>
-              </div>
-            </Link>
-          }
-        />
+      {/* 프로모션 배너 — 화면 양옆 끝까지 꽉 차게, 상품 그리드와는 분리해서 보여줘요 */}
+      <Link
+        href="/options?product=포토북"
+        className="relative block w-full overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
+      >
+        <div className="aspect-[4/3] w-full overflow-hidden sm:aspect-[21/9]">
+          <img
+            src={promoBanner.image}
+            alt={promoBanner.alt}
+            className="h-full w-full scale-125 object-cover sm:scale-110"
+          />
+        </div>
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 flex flex-col items-center justify-start px-6 pt-8 text-center sm:justify-center sm:pt-0">
+          <h1 className="font-banner break-keep text-3xl leading-tight text-white sm:text-5xl">
+            {promoBanner.titleLines[0]}
+            <br />
+            {promoBanner.titleLines[1]}
+          </h1>
+          <p className="mt-3 text-[11px] font-semibold tracking-[0.18em] text-white/85 sm:text-sm">
+            {promoBanner.eyebrow}
+          </p>
+          <p className="mt-2 max-w-xs break-keep text-xs text-white/75 sm:text-sm">
+            {promoBanner.caption}
+          </p>
+        </div>
+      </Link>
+
+      {/* 카테고리 탭 + 상품 그리드 */}
+      <section id="products" className="mx-auto max-w-6xl scroll-mt-8 px-6 pb-4 pt-8 sm:px-10">
+        <ProductGrid items={productGridItems} />
       </section>
 
       {/* 이용 과정 3단계 */}

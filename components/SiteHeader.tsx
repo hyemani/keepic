@@ -71,7 +71,7 @@ export default function SiteHeader({
       {/* 첫째 줄: 로고(화면 정중앙) + 오른쪽 계정 메뉴 — 스크롤하면 이 줄은 같이 올라가요 */}
       <div className="relative z-10 mx-auto flex max-w-7xl items-center justify-end px-6 py-4 sm:px-10">
         <Link href="/" className="absolute left-1/2 -translate-x-1/2">
-          <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
+          <img src="/logo.svg" alt="Keepic" className="h-9 w-auto sm:h-10" />
         </Link>
 
         {/* PC 우측: 주문 조회 / 장바구니 / 제작 신청 (작고 간결하게) */}
