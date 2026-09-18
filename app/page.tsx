@@ -251,15 +251,16 @@ export default function Home() {
         href="/options?product=포토북"
         className="relative block w-full overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
       >
-        {/* min-h는 아주 좁은 모바일 화면에서 배너가 너무 짧아져서 위에 떠
-            있는 헤더·문구가 사진과 겹치는 걸 막기 위한 최소 높이예요. 데스크톱
-            폭에서는 원본 비율(약 4:3) 쪽 높이가 이미 이보다 커서 이 값은
-            영향을 주지 않아요. */}
-        <div className="relative mx-auto aspect-[4/3] w-full overflow-hidden min-h-[440px]">
+        {/* 배너 비율을 원본 사진(약 4:3)보다 살짝 납작한 19:10 비율로
+            고정했어요. 이렇게 하면 화면이 아무리 넓어져도 로고·문구·사진
+            사이 간격이 항상 같은 비율로 유지되고(더 벌어지지 않아요),
+            사진 위쪽 빈 배경 공간만 자연스럽게 줄어들어요. object-bottom
+            으로 사진 하단(제품들)은 항상 그대로 다 보여요. */}
+        <div className="relative mx-auto aspect-[19/10] w-full overflow-hidden min-h-[440px]">
           <img
             src={promoBanner.image}
             alt={promoBanner.alt}
-            className="h-full w-full object-cover object-top"
+            className="h-full w-full object-cover object-bottom"
           />
           {/* 글자가 놓이는 위쪽 그라데이션 부분만 살짝 어둡게 해서, 사진 속 제품은 그대로 밝게 보여요 */}
           <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/25 to-transparent" />
@@ -275,16 +276,16 @@ export default function Home() {
               넓히든 같은 비율로 보여요. 다만 아주 좁은 모바일 화면에서는
               배너 자체 높이가 얼마 안 되기 때문에, 글자가 사진과 겹치지
               않도록 시작 위치와 최소 글자 크기를 여유 있게 낮춰뒀어요. */}
-          <div className="absolute inset-x-0 top-[calc(24%+8px)] flex flex-col items-center px-6 text-center">
-            <h1 className="font-banner break-keep text-[clamp(1.1rem,4.4vw,3.3rem)] leading-tight text-white">
+          <div className="absolute inset-x-0 top-[clamp(76px,13vw,120px)] flex flex-col items-center px-6 text-center">
+            <h1 className="font-banner break-keep text-[clamp(1.5rem,4.4vw,3.3rem)] leading-tight text-white">
               {promoBanner.titleLines[0]}
               <br />
               {promoBanner.titleLines[1]}
             </h1>
-            <p className="mt-[0.8%] text-[clamp(0.52rem,1vw,0.95rem)] font-semibold tracking-[0.16em] text-white/85">
+            <p className="mt-[0.8%] text-[clamp(0.75rem,1vw,0.95rem)] font-semibold tracking-[0.16em] text-white/85">
               {promoBanner.eyebrow}
             </p>
-            <p className="mt-[0.5%] max-w-xs break-keep text-[clamp(0.56rem,0.95vw,0.9rem)] text-white/75">
+            <p className="mt-[0.5%] max-w-xs break-keep text-[clamp(0.8rem,0.95vw,0.9rem)] text-white/75">
               {promoBanner.caption}
             </p>
           </div>
