@@ -53,6 +53,10 @@ export default function SiteHeader({
       }`
     : "relative bg-white";
 
+  // 색이 있는 대표 이미지(heroTintRgb) 위에서 스크롤하기 전이면 흰색 로고,
+  // 그 외(흰 배경 헤더 / 다른 페이지)에는 기존 검정 로고를 사용해요.
+  const headerLogoSrc = heroTintRgb && !scrolled ? "/logo-white.png" : "/logo.svg";
+
   // 메뉴 글씨 공통 스타일: PC 16px, 중간 굵기, 진한 차콜색 — 배경 사진 위에서도 잘 읽히도록.
   const navLinkBase = "font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]";
   const navLinkActive =
@@ -82,7 +86,13 @@ export default function SiteHeader({
       {/* 첫째 줄: 로고(화면 정중앙) + 오른쪽 계정 메뉴 — 스크롤하면 이 줄은 같이 올라가요 */}
       <div className="relative z-10 mx-auto flex max-w-7xl items-center justify-end px-6 py-4 sm:px-10">
         <Link href="/" className="absolute left-1/2 -translate-x-1/2">
-          <img src="/logo.svg" alt="Keepic" className="h-9 w-auto sm:h-10" />
+          {/* 대표 이미지 색이 있는 페이지(예: 홈)에서 스크롤하기 전에는 흰색 로고,
+              흰 배경 헤더가 되면 원래 검정 로고로 자연스럽게 바뀌어요. */}
+          <img
+            src={headerLogoSrc}
+            alt="Keepic"
+            className="h-9 w-auto sm:h-10"
+          />
         </Link>
 
         {/* PC 우측: 주문 조회 / 장바구니 / 제작 신청 (작고 간결하게) */}
