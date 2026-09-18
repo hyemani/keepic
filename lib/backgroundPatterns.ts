@@ -121,8 +121,18 @@ function mmToCssPx(mm: number): number {
 
 // 화면(React 인라인 스타일)에 쓸 CSS background 값이에요. background 단축 속성이라
 // 색 하나만 있어도, 그라데이션·반복 무늬가 있어도 모두 이 한 문자열로 표현돼요.
-export function patternToCssBackground(preset: BackgroundPatternPreset): string {
+//
+// anchorSide: 내지 스프레드는 왼쪽·오른쪽 두 낱장을 나란히 보여주는데, 각 낱장에 무늬를
+// "왼쪽 위(0,0)부터" 독립적으로 반복시키면 두 낱장의 무늬 위상이 어긋나서 가운데(제본
+// 경계)에서 간격이 안 맞아 보여요(마치 다른 이미지 두 장을 붙여놓은 것처럼). 그래서 왼쪽
+// 낱장은 무늬 기준점을 "오른쪽"(=가운데 쪽)에, 오른쪽 낱장은 "왼쪽"(=가운데 쪽)에 둬서,
+// 가운데를 기준으로 무늬가 대칭으로 맞아떨어지게 해요.
+export function patternToCssBackground(
+  preset: BackgroundPatternPreset,
+  anchorSide: "left" | "right" = "left"
+): string {
   const [c0, c1] = preset.colors;
+  const posX = anchorSide === "right" ? "right" : "left";
   switch (preset.kind) {
     case "diagonalSplit":
       return `linear-gradient(135deg, ${c0} 50%, ${c1} 50%)`;
@@ -130,15 +140,15 @@ export function patternToCssBackground(preset: BackgroundPatternPreset): string 
       return `linear-gradient(135deg, ${c0}, ${c1})`;
     case "dots": {
       const s = mmToCssPx(preset.spacingMm ?? 6);
-      return `radial-gradient(${c1} 22%, transparent 23%) 0 0/${s}px ${s}px, ${c0}`;
+      return `radial-gradient(${c1} 22%, transparent 23%) ${posX} top/${s}px ${s}px, ${c0}`;
     }
     case "stripes": {
       const w = mmToCssPx(preset.spacingMm ?? 5);
-      return `repeating-linear-gradient(45deg, ${c1} 0 ${w / 2}px, ${c0} ${w / 2}px ${w}px)`;
+      return `repeating-linear-gradient(45deg, ${c1} 0 ${w / 2}px, ${c0} ${w / 2}px ${w}px) ${posX} top`;
     }
     case "grid": {
       const w = mmToCssPx(preset.spacingMm ?? 4);
-      return `repeating-linear-gradient(0deg, ${c1} 0 1px, transparent 1px ${w}px), repeating-linear-gradient(90deg, ${c1} 0 1px, transparent 1px ${w}px), ${c0}`;
+      return `repeating-linear-gradient(0deg, ${c1} 0 1px, transparent 1px ${w}px) ${posX} top, repeating-linear-gradient(90deg, ${c1} 0 1px, transparent 1px ${w}px) ${posX} top, ${c0}`;
     }
     default:
       return c0;
@@ -147,12 +157,15 @@ export function patternToCssBackground(preset: BackgroundPatternPreset): string 
 
 // 스프레드(SpreadDef)의 배경 설정을 화면에 그대로 쓸 수 있는 CSS background 값
 // 하나로 정리해요. 패턴을 골랐으면 패턴이 우선이고, 아니면 기존 단색 배경색을 써요.
-export function resolveSpreadBackgroundCss(spread: {
-  backgroundColor?: string;
-  backgroundPattern?: string;
-}): string | undefined {
+export function resolveSpreadBackgroundCss(
+  spread: {
+    backgroundColor?: string;
+    backgroundPattern?: string;
+  },
+  anchorSide: "left" | "right" = "left"
+): string | undefined {
   const preset = findBackgroundPattern(spread.backgroundPattern);
-  if (preset) return patternToCssBackground(preset);
+  if (preset) return patternToCssBackground(preset, anchorSide);
   return spread.backgroundColor;
 }
 

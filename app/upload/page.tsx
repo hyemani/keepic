@@ -65,6 +65,10 @@ type Photo = {
   flipX: boolean; // 좌우 반전
 };
 
+// 텍스트박스가 어디 있는지(표지 앞면인지, 어느 스프레드의 왼쪽/오른쪽 낱장인지) 가리키는
+// 값이에요. 상단 툴바가 지금 고치는 텍스트박스를 찾아가는 데 써요.
+type TextBoxRef = { scope: "cover" } | { scope: "spread"; spreadIndex: number; side: "left" | "right" };
+
 const captionSizeClass: Record<Photo["size"], string> = {
   sm: "text-xs",
   base: "text-sm",
@@ -737,16 +741,28 @@ function CaptionField({
 // 일러스트레이터의 "스마트 가이드"처럼 그 순간 가운데 십자선을 보여줘요.
 const CENTER_SNAP_THRESHOLD_PCT = 1.6;
 
+// 텍스트박스 하나예요. 예전엔 박스마다 뜨는 작은 툴바(⠿ 손잡이·폰트·크기·정렬·색·삭제)로
+// 옮기고 꾸몄는데, 그 툴바가 박스 위를 가리다 보니 안쪽을 클릭해서 글자를 넣기가 어렵다는
+// 피드백을 받았어요. 이제는 박스 자체를 아무 데나 눌러서 바로 끌 수 있고("클릭 vs 드래그"를
+// 이동 거리로 구분해요 — 몇 px 이상 움직여야 "드래그"로 보고, 그 전엔 그냥 클릭이라 텍스트
+// 커서가 그대로 생겨요), 폰트·크기·정렬 같은 편집 메뉴는 화면 상단의 고정 툴바
+// (TextBoxToolbar)로 옮겼어요. 지금 선택된 박스인지(isActive)는 상단 툴바가 어떤 박스를
+// 고치고 있는지 보여주는 용도예요.
+const TEXT_BOX_DRAG_THRESHOLD_PX = 4;
+
 function TextBoxOverlay({
   box,
   onChange,
-  onDelete,
+  isActive,
+  onSelect,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
-  onDelete: () => void;
+  isActive: boolean;
+  onSelect: () => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const [mouseDownActive, setMouseDownActive] = useState(false);
   const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
     v: false,
     h: false,
@@ -755,11 +771,13 @@ function TextBoxOverlay({
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
 
-  function handleDragStart(e: React.MouseEvent) {
-    e.preventDefault();
+  // preventDefault를 하지 않아요 — 그래야 textarea 안을 클릭했을 때 브라우저가 원래 하던
+  // 대로 포커스를 주고 그 자리에 커서를 놓아줘요(타이핑이 바로 가능해요). 대신
+  // stopPropagation으로 상위(페이지 바깥 클릭 시 선택 해제하는) 핸들러만 막아요.
+  function handleMouseDown(e: React.MouseEvent) {
     e.stopPropagation();
+    onSelect();
     const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
-    setIsDragging(true);
     dragStart.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
@@ -768,16 +786,32 @@ function TextBoxOverlay({
       cellW: cellRect?.width || 1,
       cellH: cellRect?.height || 1,
     };
+    setMouseDownActive(true);
   }
 
   useEffect(() => {
-    if (!isDragging) return;
+    if (!mouseDownActive) return;
 
     function handleMouseMove(e: MouseEvent) {
+      const dxPxRaw = e.clientX - dragStart.current.mouseX;
+      const dyPxRaw = e.clientY - dragStart.current.mouseY;
+
+      if (!isDragging) {
+        // 아직 문턱값을 못 넘었으면(=그냥 클릭일 수도 있으면) 박스를 옮기지 않아요. 이
+        // 덕분에 텍스트 안쪽을 클릭해서 커서만 놓는 동작과, 끌어서 옮기는 동작이 둘 다
+        // 자연스럽게 가능해요.
+        if (Math.hypot(dxPxRaw, dyPxRaw) < TEXT_BOX_DRAG_THRESHOLD_PX) return;
+        setIsDragging(true);
+        // 드래그가 시작되면 혹시 텍스트에 포커스가 가 있어도 풀어줘요 — 안 그러면 마우스를
+        // 움직이는 동안 글자가 드래그-선택(파랗게 반전)돼서 지저분해 보여요.
+        (document.activeElement as HTMLElement | null)?.blur?.();
+      }
+      e.preventDefault();
+
       const parentEl = boxRef.current?.parentElement ?? null;
       const cellRect = parentEl?.getBoundingClientRect() ?? null;
-      const dxPct = ((e.clientX - dragStart.current.mouseX) / dragStart.current.cellW) * 100;
-      const dyPct = ((e.clientY - dragStart.current.mouseY) / dragStart.current.cellH) * 100;
+      const dxPct = (dxPxRaw / dragStart.current.cellW) * 100;
+      const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
       let nextX = Math.min(96, Math.max(0, dragStart.current.xPct + dxPct));
       let nextY = Math.min(96, Math.max(0, dragStart.current.yPct + dyPct));
 
@@ -799,6 +833,7 @@ function TextBoxOverlay({
       onChange({ xPct: nextX, yPct: nextY });
     }
     function handleMouseUp() {
+      setMouseDownActive(false);
       setIsDragging(false);
       setSnapGuide({ v: false, h: false, rect: null });
     }
@@ -809,18 +844,15 @@ function TextBoxOverlay({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, box.widthPct]);
-
-  function cycleAlign() {
-    const order: TextBoxDef["align"][] = ["left", "center", "right"];
-    const next = order[(order.indexOf(box.align) + 1) % order.length];
-    onChange({ align: next });
-  }
+  }, [mouseDownActive, isDragging, box.widthPct]);
 
   return (
     <div
       ref={boxRef}
-      className="group/tb absolute z-30"
+      onMouseDown={handleMouseDown}
+      className={`absolute z-30 cursor-move rounded transition ${
+        isActive ? "ring-2 ring-[var(--color-sky)]/70" : "ring-1 ring-transparent hover:ring-[var(--color-sky)]/30"
+      }`}
       style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%` }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
@@ -847,102 +879,9 @@ function TextBoxOverlay({
           )}
         </>
       )}
-      <div className="absolute -top-7 left-0 flex items-center gap-1 whitespace-nowrap opacity-0 transition group-hover/tb:opacity-100 group-focus-within/tb:opacity-100">
-        <button
-          type="button"
-          title="끌어서 이동"
-          onMouseDown={handleDragStart}
-          className="flex h-6 w-6 cursor-grab items-center justify-center rounded-full bg-black/60 text-[11px] text-white active:cursor-grabbing"
-        >
-          ⠿
-        </button>
-        <select
-          value={box.fontFamily}
-          onChange={(e) => onChange({ fontFamily: e.target.value })}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="h-6 rounded-full bg-black/60 px-1.5 text-[10px] text-white"
-        >
-          {fontOptions.map((f) => (
-            <option key={f.id} value={f.id} style={{ color: "#000" }}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          title="글자 작게"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onChange({ fontScale: Math.max(0.4, Math.round((box.fontScale - 0.1) * 10) / 10) });
-          }}
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
-        >
-          −
-        </button>
-        <button
-          type="button"
-          title="글자 크게"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onChange({ fontScale: Math.min(4, Math.round((box.fontScale + 0.1) * 10) / 10) });
-          }}
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs text-white"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          title="정렬 바꾸기"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            cycleAlign();
-          }}
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-[10px] text-white"
-        >
-          {box.align === "left" ? "좌" : box.align === "center" ? "중" : "우"}
-        </button>
-        <button
-          type="button"
-          title="굵게"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onChange({ bold: !box.bold });
-          }}
-          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs text-white ${
-            box.bold ? "bg-[var(--color-sky)]" : "bg-black/60"
-          }`}
-        >
-          B
-        </button>
-        <input
-          type="color"
-          value={box.color}
-          onChange={(e) => onChange({ color: e.target.value })}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
-          title="글자 색"
-        />
-        <button
-          type="button"
-          title="텍스트박스 삭제"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-[11px] text-white"
-        >
-          ✕
-        </button>
-      </div>
       <textarea
         value={box.text}
         onChange={(e) => onChange({ text: e.target.value })}
-        onMouseDown={(e) => e.stopPropagation()}
         rows={1}
         placeholder="텍스트 입력"
         style={{
@@ -952,8 +891,108 @@ function TextBoxOverlay({
           textAlign: box.align,
           fontWeight: box.bold ? 700 : 400,
         }}
-        className="w-full resize-none overflow-hidden border border-dashed border-transparent bg-transparent leading-snug outline-none focus:border-[var(--color-sky)]/70"
+        className="w-full cursor-text resize-none overflow-hidden border-none bg-transparent leading-snug outline-none"
       />
+    </div>
+  );
+}
+
+// 지금 선택된 텍스트박스 하나를 고치는 상단 고정 툴바예요. 박스마다 따로 뜨던 작은
+// 팝업 툴바 대신, 화면 맨 위에 하나만 두고(예시로 받은 전문 편집기 화면처럼) 폰트·크기·
+// 정렬·굵게·색·삭제를 여기서 한 번에 다뤄요. 선택된 박스가 없으면 안내 문구만 보여줘요.
+function TextBoxToolbar({
+  box,
+  onChange,
+  onDelete,
+}: {
+  box: TextBoxDef | null;
+  onChange: (changes: Partial<TextBoxDef>) => void;
+  onDelete: () => void;
+}) {
+  function cycleAlign() {
+    if (!box) return;
+    const order: TextBoxDef["align"][] = ["left", "center", "right"];
+    const next = order[(order.indexOf(box.align) + 1) % order.length];
+    onChange({ align: next });
+  }
+
+  return (
+    <div className="sticky top-0 z-40 mb-3 hidden flex-wrap items-center gap-2 rounded-xl border border-[var(--color-hairline)] bg-white/95 px-3 py-2 shadow-sm backdrop-blur landscape:flex lg:flex">
+      {box ? (
+        <>
+          <span className="text-[11px] font-medium text-[var(--color-charcoal)]/60">텍스트박스</span>
+          <select
+            value={box.fontFamily}
+            onChange={(e) => onChange({ fontFamily: e.target.value })}
+            className="h-8 rounded-full border border-[var(--color-hairline)] bg-white px-2 text-xs"
+          >
+            {fontOptions.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="글자 작게"
+              onClick={() => onChange({ fontScale: Math.max(0.4, Math.round((box.fontScale - 0.1) * 10) / 10) })}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm"
+            >
+              −
+            </button>
+            <span className="w-9 text-center text-[11px] text-[var(--color-charcoal)]/60">
+              {Math.round(box.fontScale * 100)}%
+            </span>
+            <button
+              type="button"
+              title="글자 크게"
+              onClick={() => onChange({ fontScale: Math.min(4, Math.round((box.fontScale + 0.1) * 10) / 10) })}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm"
+            >
+              +
+            </button>
+          </div>
+          <button
+            type="button"
+            title="정렬 바꾸기"
+            onClick={cycleAlign}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-xs"
+          >
+            {box.align === "left" ? "좌" : box.align === "center" ? "중" : "우"}
+          </button>
+          <button
+            type="button"
+            title="굵게"
+            onClick={() => onChange({ bold: !box.bold })}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold ${
+              box.bold
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            B
+          </button>
+          <input
+            type="color"
+            value={box.color}
+            onChange={(e) => onChange({ color: e.target.value })}
+            className="h-8 w-8 cursor-pointer rounded-full border border-[var(--color-hairline)] bg-transparent p-0"
+            title="글자 색"
+          />
+          <button
+            type="button"
+            onClick={onDelete}
+            className="ml-auto flex h-8 items-center gap-1 rounded-full border border-red-200 px-3 text-xs text-red-500 transition hover:bg-red-50"
+          >
+            ✕ 삭제
+          </button>
+        </>
+      ) : (
+        <span className="text-xs text-[var(--color-charcoal)]/40">
+          텍스트박스를 선택하면 여기서 글꼴·크기·정렬·색을 바꿀 수 있어요
+        </span>
+      )}
     </div>
   );
 }
@@ -965,12 +1004,14 @@ function TextBoxLayer({
   boxes,
   onAdd,
   onChange,
-  onDelete,
+  activeBoxId,
+  onSelect,
 }: {
   boxes: TextBoxDef[];
   onAdd: () => void;
   onChange: (boxId: string, changes: Partial<TextBoxDef>) => void;
-  onDelete: (boxId: string) => void;
+  activeBoxId: string | null;
+  onSelect: (boxId: string) => void;
 }) {
   return (
     <>
@@ -979,7 +1020,8 @@ function TextBoxLayer({
           key={box.id}
           box={box}
           onChange={(c) => onChange(box.id, c)}
-          onDelete={() => onDelete(box.id)}
+          isActive={box.id === activeBoxId}
+          onSelect={() => onSelect(box.id)}
         />
       ))}
       <button
@@ -1714,10 +1756,12 @@ function UploadPageContent() {
 
   // 내지 페이지(스프레드 하나의 왼쪽/오른쪽 낱장)에 텍스트박스를 추가·수정·삭제해요.
   function handleAddTextBox(spreadIndex: number, side: "left" | "right") {
+    const box = makeTextBox();
     const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
     setCustomSpreads((prev) =>
-      prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: [...(s[key] ?? []), makeTextBox()] } : s))
+      prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
     );
+    setActiveTextBox({ ref: { scope: "spread", spreadIndex, side }, boxId: box.id });
   }
 
   function handleTextBoxChange(
@@ -1745,7 +1789,9 @@ function UploadPageContent() {
 
   // 표지 앞면 텍스트박스예요. 스프레드가 아니라서 별도 state(coverTextBoxes)로 따로 관리해요.
   function handleAddCoverTextBox() {
-    setCoverTextBoxes((prev) => [...prev, makeTextBox()]);
+    const box = makeTextBox();
+    setCoverTextBoxes((prev) => [...prev, box]);
+    setActiveTextBox({ ref: { scope: "cover" }, boxId: box.id });
   }
 
   function handleCoverTextBoxChange(boxId: string, changes: Partial<TextBoxDef>) {
@@ -1755,6 +1801,33 @@ function UploadPageContent() {
   function handleDeleteCoverTextBox(boxId: string) {
     setCoverTextBoxes((prev) => prev.filter((b) => b.id !== boxId));
   }
+
+  // 지금 선택된 텍스트박스가 어디(표지 앞면인지, 어느 스프레드의 왼쪽/오른쪽 낱장인지)
+  // 있는지 가리켜요. 상단 툴바(TextBoxToolbar)가 이 값 하나만 보고 어떤 텍스트박스를
+  // 고치는지 알 수 있게 해요.
+  const [activeTextBox, setActiveTextBox] = useState<{ ref: TextBoxRef; boxId: string } | null>(null);
+
+  function getTextBoxesForRef(ref: TextBoxRef): TextBoxDef[] {
+    if (ref.scope === "cover") return coverTextBoxes;
+    const spread = customSpreads[ref.spreadIndex];
+    if (!spread) return [];
+    return (ref.side === "left" ? spread.textBoxesLeft : spread.textBoxesRight) ?? [];
+  }
+
+  function updateTextBoxByRef(ref: TextBoxRef, boxId: string, changes: Partial<TextBoxDef>) {
+    if (ref.scope === "cover") handleCoverTextBoxChange(boxId, changes);
+    else handleTextBoxChange(ref.spreadIndex, ref.side, boxId, changes);
+  }
+
+  function deleteTextBoxByRef(ref: TextBoxRef, boxId: string) {
+    if (ref.scope === "cover") handleDeleteCoverTextBox(boxId);
+    else handleDeleteTextBox(ref.spreadIndex, ref.side, boxId);
+    setActiveTextBox(null);
+  }
+
+  const activeTextBoxDef: TextBoxDef | null = activeTextBox
+    ? getTextBoxesForRef(activeTextBox.ref).find((b) => b.id === activeTextBox.boxId) ?? null
+    : null;
 
   async function uploadPhotoToStorage(photo: Photo): Promise<string> {
     const blob = await fetch(photo.url).then((res) => res.blob());
@@ -2093,12 +2166,14 @@ function UploadPageContent() {
     const coverFrontSafetyRightPct = 100 - coverBleedXPct - coverSafetyXPct;
     // 책등 안전영역 — 앞뒤 표지와 같은 안전 여백(coverSafetyXPct)을 그대로 쓰지 않고,
     // 책등 전용 값(printFileSpec.spineSafetyMarginMm, 하드커버는 그루브/힌지 여유까지 더함)을
-    // 써요. 절반으로 잘라서 억지로 맞추는 방식(클램프) 대신, 책등이 이 여백을 좌우로 두 번
-    // 확보할 만큼 넓지 않으면 안전영역 박스 자체를 그리지 않고 경고를 보여줘요.
-    const coverSpineSafetyMarginMm =
+    // 써요. 다만 책등이 원래 좁아서(예: 소프트커버 20p, 7.22mm) 이 여백을 좌우로 두 번
+    // 다 확보하면 남는 폭이 거의 없어져요. "안전영역 확보 불가" 경고를 띄우는 대신, 여백을
+    // 책등 폭에 맞게 줄여서(최대 책등 폭의 40%까지만) 항상 실제로 쓸 수 있는 안전영역
+    // 박스를 보여줘요 — 글자·로고는 이 박스 안쪽에 넣으면 돼요.
+    const coverSpineSafetyMarginMmRaw =
       printFileSpec.spineSafetyMarginMm + (coverIsHard ? printFileSpec.hardCoverSpineGrooveSafetyMm : 0);
-    const coverSpineSafetyMarginPct = (coverSpineSafetyMarginMm / coverTotalWmm) * 100;
-    const coverSpineFitsSafety = coverSpinePct > coverSpineSafetyMarginPct * 2;
+    const coverSpineSafetyMarginPctRaw = (coverSpineSafetyMarginMmRaw / coverTotalWmm) * 100;
+    const coverSpineSafetyMarginPct = Math.min(coverSpineSafetyMarginPctRaw, coverSpinePct * 0.4);
     const coverSpineSafetyLeftPct = coverSpineStartPct + coverSpineSafetyMarginPct;
     const coverSpineSafetyRightPct = coverSpineEndPct - coverSpineSafetyMarginPct;
 
@@ -2224,7 +2299,10 @@ function UploadPageContent() {
 
         <div className="w-full bg-[var(--color-hairline)]/15 px-4 pb-4 pt-10 sm:px-6 lg:px-8">
           {photos.length > 0 && (
-            <div className="mx-auto mt-2 max-w-6xl">
+            // PC 큰 화면에서는 좌우에 흰 여백이 남지 않도록 폭 제한을 풀어요(예전엔
+            // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
+            // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
+            <div className="mx-auto mt-2 max-w-6xl lg:max-w-none">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-semibold">페이지 편집</h2>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -2307,7 +2385,18 @@ function UploadPageContent() {
                 </p>
               </div>
 
-              <div className="mt-6 hidden flex-col gap-4 landscape:flex lg:flex lg:flex-row">
+              <TextBoxToolbar
+                box={activeTextBoxDef}
+                onChange={(c) => activeTextBox && updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
+                onDelete={() => activeTextBox && deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+              />
+
+              {/* 텍스트박스 바깥(빈 곳)을 누르면 선택이 풀려요 — TextBoxOverlay 쪽 mousedown은
+                  stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요. */}
+              <div
+                className="mt-6 hidden flex-col gap-4 landscape:flex lg:flex lg:flex-row"
+                onMouseDown={() => setActiveTextBox(null)}
+              >
                 {/* 왼쪽: 전체 페이지 한눈에 보기 */}
                 <div className="flex gap-2 overflow-x-auto rounded-xl border border-[var(--color-hairline)] bg-white p-2 shadow-sm lg:max-h-[calc(100vh-200px)] lg:w-40 lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pb-0">
                   {isPhotobook && (
@@ -2371,7 +2460,7 @@ function UploadPageContent() {
                                 () => {},
                                 () => {},
                                 requiredMinPx,
-                                resolveSpreadBackgroundCss(spread)
+                                resolveSpreadBackgroundCss(spread, "right")
                               )
                             )}
                           </div>
@@ -2383,7 +2472,7 @@ function UploadPageContent() {
                               () => {},
                               () => {},
                               requiredMinPx,
-                              resolveSpreadBackgroundCss(spread)
+                              resolveSpreadBackgroundCss(spread, "left")
                             )}
                           </div>
                         </div>
@@ -2595,7 +2684,8 @@ function UploadPageContent() {
                             boxes={coverTextBoxes}
                             onAdd={handleAddCoverTextBox}
                             onChange={handleCoverTextBoxChange}
-                            onDelete={handleDeleteCoverTextBox}
+                            activeBoxId={activeTextBox?.ref.scope === "cover" ? activeTextBox.boxId : null}
+                            onSelect={(boxId) => setActiveTextBox({ ref: { scope: "cover" }, boxId })}
                           />
                         </div>
 
@@ -2620,29 +2710,13 @@ function UploadPageContent() {
                               bottom={coverSafetyBottomPct}
                               variant="dotted"
                             />
-                            {coverSpineFitsSafety ? (
-                              <CoverGuideBox
-                                left={coverSpineSafetyLeftPct}
-                                right={coverSpineSafetyRightPct}
-                                top={coverSafetyTopPct}
-                                bottom={coverSafetyBottomPct}
-                                variant="dotted"
-                              />
-                            ) : (
-                              // 책등이 안전 여백을 두 번(좌우) 확보할 만큼 넓지 않아요. 음수나
-                              // 선처럼 찌그러진 박스를 그리는 대신, 책등 칸에 안내 문구만 띄워요.
-                              <div
-                                className="pointer-events-none absolute z-20 flex items-center justify-center px-0.5 text-center text-[7px] leading-tight text-[#e0524c]"
-                                style={{
-                                  left: `${coverSpineStartPct}%`,
-                                  right: `${100 - coverSpineEndPct}%`,
-                                  top: `${coverSafetyTopPct}%`,
-                                  bottom: `${100 - coverSafetyBottomPct}%`,
-                                }}
-                              >
-                                책등이 좁아 안전영역 확보 불가
-                              </div>
-                            )}
+                            <CoverGuideBox
+                              left={coverSpineSafetyLeftPct}
+                              right={coverSpineSafetyRightPct}
+                              top={coverSafetyTopPct}
+                              bottom={coverSafetyBottomPct}
+                              variant="dotted"
+                            />
                             <CoverGuideBox
                               left={coverFrontSafetyLeftPct}
                               right={coverFrontSafetyRightPct}
@@ -3041,13 +3115,22 @@ function UploadPageContent() {
                                     handlePhotoTransform,
                                     handleCaptionChange,
                                     requiredMinPx,
-                                    resolveSpreadBackgroundCss(spread)
+                                    resolveSpreadBackgroundCss(spread, "right")
                                   )}
                                   <TextBoxLayer
                                     boxes={spread.textBoxesLeft ?? []}
                                     onAdd={() => handleAddTextBox(i, "left")}
                                     onChange={(boxId, c) => handleTextBoxChange(i, "left", boxId, c)}
-                                    onDelete={(boxId) => handleDeleteTextBox(i, "left", boxId)}
+                                    activeBoxId={
+                                      activeTextBox?.ref.scope === "spread" &&
+                                      activeTextBox.ref.spreadIndex === i &&
+                                      activeTextBox.ref.side === "left"
+                                        ? activeTextBox.boxId
+                                        : null
+                                    }
+                                    onSelect={(boxId) =>
+                                      setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "left" }, boxId })
+                                    }
                                   />
                                 </>
                               )}
@@ -3071,13 +3154,22 @@ function UploadPageContent() {
                                 handlePhotoTransform,
                                 handleCaptionChange,
                                 requiredMinPx,
-                                resolveSpreadBackgroundCss(spread)
+                                resolveSpreadBackgroundCss(spread, "left")
                               )}
                               <TextBoxLayer
                                 boxes={spread.textBoxesRight ?? []}
                                 onAdd={() => handleAddTextBox(i, "right")}
                                 onChange={(boxId, c) => handleTextBoxChange(i, "right", boxId, c)}
-                                onDelete={(boxId) => handleDeleteTextBox(i, "right", boxId)}
+                                activeBoxId={
+                                  activeTextBox?.ref.scope === "spread" &&
+                                  activeTextBox.ref.spreadIndex === i &&
+                                  activeTextBox.ref.side === "right"
+                                    ? activeTextBox.boxId
+                                    : null
+                                }
+                                onSelect={(boxId) =>
+                                  setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "right" }, boxId })
+                                }
                               />
                             </div>
                             {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}
