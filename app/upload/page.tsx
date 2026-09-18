@@ -44,8 +44,9 @@ import { mmToPt } from "@/lib/printGeometry";
 // font-size 숫자로 써요(숫자 단위가 뭐든 비율만 맞으면 결과는 똑같아요). 이렇게 실제
 // mm 크기를 구해서 화면에도 %(cqh) 단위로 넣으면, 창 크기가 바뀌어도 항상 책 실물
 // 비율 그대로 커지고 작아져요(브라우저 창 크기와는 무관해요).
-const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 0.5;
+const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 1.5; // 혜민님 확인(2026-09-19): 책등 여백 1.5mm(lib/printCompose.ts와 같은 값)
 const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
+const SPINE_TITLE_MAX_FONT_RATIO_SCREEN = 0.55; // 혜민님 확인(2026-09-19): 책등 폭 꽉 채우면 글자가 너무 커 보여서 상한을 둬요(lib/printCompose.ts와 같은 값)
 const COVER_TITLE_PT_PRESETS = [12, 18, 24, 30, 36, 48, 60, 72];
 
 // 페이지에 자유롭게 얹을 수 있는 기본 스티커 세트예요. 실제로는 이미지박스와 같은
@@ -71,7 +72,7 @@ function measureSpineTitleFontSizeMm(
   const ctx = canvas.getContext("2d");
   if (!ctx) return { sizeMm: 0, textLengthMm: 0 };
   const maxCrossMm = Math.max(1, spineMm - SPINE_TEXT_SIDE_PADDING_MM_SCREEN * 2);
-  let size = maxCrossMm;
+  let size = maxCrossMm * SPINE_TITLE_MAX_FONT_RATIO_SCREEN;
   ctx.font = `bold ${size}px Pretendard, sans-serif`;
   let textLengthMm = ctx.measureText(title).width;
   while (size > SPINE_TITLE_MIN_FONT_MM && textLengthMm > maxLengthMm) {
@@ -2301,12 +2302,18 @@ function UploadPageContent() {
     img.onload = () => {
       // 스프레드 전체 폭이 페이지(정사각형) 두 배라서, 가로 %와 세로 %의 실제 축척이
       // 2:1이에요 — 새 이미지박스도 처음부터 원본 비율 그대로 보이도록 계산해요.
-      const heightPct = 2 * widthPct * (img.naturalHeight / img.naturalWidth);
+      // naturalWidth/naturalHeight를 못 읽어오는 경우(예: width/height 속성이 없는
+      // SVG 등)에 0으로 나눠서 NaN이 되는 걸 막아요 — NaN이 되면 박스가 화면에 아예
+      // 안 보이거나 편집기 전체가 멈추는 문제로 이어질 수 있어서, 이럴 땐 정사각형
+      // (1:1)으로 안전하게 대체해요.
+      const naturalWidth = img.naturalWidth || 1;
+      const naturalHeight = img.naturalHeight || naturalWidth;
+      const heightPct = 2 * widthPct * (naturalHeight / naturalWidth);
       const box: ImageBoxDef = {
         id: crypto.randomUUID(),
         url,
-        naturalWidth: img.naturalWidth,
-        naturalHeight: img.naturalHeight,
+        naturalWidth,
+        naturalHeight,
         xPct: 32,
         yPct: 25,
         widthPct,

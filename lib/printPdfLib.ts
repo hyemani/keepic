@@ -70,7 +70,8 @@ const SPINE_TITLE_MARGIN_RATIO = 0.06; // 제목 위/아래로 반드시 남겨�
 const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15; // 세로쓰기 열 사이 간격(글자 크기 대비 비율)
 const SPINE_TITLE_MIN_FONT_PT = 4; // 이보다 작아지면 더 줄이지 않고 "너무 깁니다" 안내로 넘어가요
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03; // 제목 블록과 로고 사이 최소 간격(패널 높이 대비 비율)
-const SPINE_LOGO_HEIGHT_RATIO = 0.98; // 로고가 책등 폭(여백 제외) 중 차지하는 비율 (lib/printCompose.ts와 같은 값)
+const SPINE_LOGO_SIDE_PADDING_MM = 0.5; // 로고 전용 여백 — 혜민님 확인(2026-09-19): 제목(1.5mm)보다 좁게 둬서 로고를 더 크게.
+const SPINE_LOGO_HEIGHT_RATIO = 1.0; // 로고가 책등 폭(여백 제외) 중 차지하는 비율 — 혜민님 확인(2026-09-19): 최대한 크게(lib/printCompose.ts와 같은 값)
 // 책등이 이보다 좁으면(양옆 여백 제외 실 폭 기준) 로고를 읽기 어렵다고 보고 생략해요.
 // ⚠️ 추정치예요 — 실제 가독성 최소 폭은 인쇄소·디자인 확인이 필요해요.
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
@@ -828,7 +829,7 @@ export function computeSpineLogoLayout(spinePt: number): {
   drawnWidthPt: number; // 눕힌 뒤 가로(=책등 폭 방향) 크기
   drawnHeightPt: number; // 눕힌 뒤 세로(=책등 길이 방향) 크기 — 원래 로고의 가로가 이쪽으로 와요.
 } {
-  const sidePaddingPt = mmToPt(SPINE_TEXT_SIDE_PADDING_MM);
+  const sidePaddingPt = mmToPt(SPINE_LOGO_SIDE_PADDING_MM);
   const maxCrossPt = Math.max(0, spinePt - sidePaddingPt * 2);
   if (maxCrossPt < mmToPt(SPINE_LOGO_MIN_CROSS_MM)) {
     return { fits: false, drawnWidthPt: 0, drawnHeightPt: 0 };
