@@ -2086,7 +2086,9 @@ function UploadPageContent() {
                           )}
                         </div>
                         <div
-                          className="relative flex h-full flex-col items-center border-x border-[#1a1a1a]/70 bg-white"
+                          className={`relative flex h-full flex-col items-center bg-white ${
+                            showCoverSpineGuide ? "" : "border-x border-[#1a1a1a]/70"
+                          }`}
                           style={{ width: `${coverSpinePct}%` }}
                         >
                           {spineTitle.trim() ? (
@@ -2553,8 +2555,12 @@ function UploadPageContent() {
                             </div>
                           </div>
                           <div className="relative mt-3 flex w-full items-start bg-white shadow-sm">
-                            {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만 구분해요. */}
-                            <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
+                            {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 해요. "접힘·제본 경계" 안내선이
+                                켜져 있으면 BindingGuide가 같은 자리에 이중선을 그리므로, 겹치지 않게 이 얇은
+                                구분선은 안내선이 꺼져 있을 때만 보여줘요. */}
+                            {!showInnerBindingGuide && (
+                              <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
+                            )}
                             <div className="group relative w-1/2">
                               {i === 0 ? (
                                 <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">

@@ -651,7 +651,7 @@ const SPINE_TITLE_MIN_FONT_PX = 6; // printPdfLib.ts의 4pt(≈5.3px)보다 조�
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
 const SPINE_LOGO_HEIGHT_RATIO = 0.85;
 const SPINE_LOGO_BOTTOM_MARGIN_MM = 8;
-const SPINE_LOGO_MIN_CROSS_MM = 10;
+const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
 
 function computeSpineTitleLayoutPx(
   charCount: number,

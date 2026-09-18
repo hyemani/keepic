@@ -74,7 +74,7 @@ const SPINE_LOGO_HEIGHT_RATIO = 0.85; // 로고가 책등 폭(여백 제외) 중
 const SPINE_LOGO_BOTTOM_MARGIN_MM = 8; // 책등 아래쪽 끝(도련 경계)에서 로고까지 띄우는 고정 여백 — 사용자가 바꿀 수 없음
 // 책등이 이보다 좁으면(양옆 여백 제외 실 폭 기준) 로고를 읽기 어렵다고 보고 생략해요.
 // ⚠️ 추정치예요 — 실제 가독성 최소 폭은 인쇄소·디자인 확인이 필요해요.
-const SPINE_LOGO_MIN_CROSS_MM = 10;
+const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
 const KEEPIC_LOGO_ASPECT = 1204 / 416; // public/logo.svg의 원본 가로:세로 비율
 
 function ptToPx(pt: number): number {
