@@ -772,9 +772,11 @@ function TextBoxOverlay({
     h: false,
     rect: null,
   });
+  const [isResizingWidth, setIsResizingWidth] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
   const resizeStart = useRef({ mouseY: 0, heightPct: 0, cellH: 1 });
+  const resizeWidthStart = useRef({ mouseX: 0, widthPct: 0, cellW: 1 });
 
   // preventDefault를 하지 않아요 — 그래야 textarea 안을 클릭했을 때 브라우저가 원래 하던
   // 대로 포커스를 주고 그 자리에 커서를 놓아줘요(타이핑이 바로 가능해요). 대신
@@ -825,6 +827,34 @@ function TextBoxOverlay({
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isResizing]);
+
+  // 가로 크기 조절 손잡이예요 — 오른쪽으로 끌어서 widthPct를 줄이거나 늘려요.
+  function handleResizeWidthStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    resizeWidthStart.current = { mouseX: e.clientX, widthPct: box.widthPct, cellW: cellRect?.width || 1 };
+    setIsResizingWidth(true);
+  }
+
+  useEffect(() => {
+    if (!isResizingWidth) return;
+    function handleMouseMove(e: MouseEvent) {
+      const dxPct = ((e.clientX - resizeWidthStart.current.mouseX) / resizeWidthStart.current.cellW) * 100;
+      const nextWidth = Math.min(96, Math.max(6, resizeWidthStart.current.widthPct + dxPct));
+      onChange({ widthPct: nextWidth });
+    }
+    function handleMouseUp() {
+      setIsResizingWidth(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingWidth]);
 
   useEffect(() => {
     if (!mouseDownActive) return;
@@ -938,13 +968,22 @@ function TextBoxOverlay({
           box.heightPct !== undefined ? "h-full overflow-hidden" : "overflow-hidden"
         }`}
       />
-      {/* 가로폭은 고정, 세로 높이만 이 손잡이로 조절해요 — 일러스트레이터 텍스트박스처럼요. */}
+      {/* 아래쪽 손잡이로 세로, 오른쪽 손잡이로 가로 크기를 조절해요 — 일러스트레이터
+          텍스트박스처럼요. */}
       {isActive && (
-        <div
-          onMouseDown={handleResizeStart}
-          title="끌어서 세로 크기 조절"
-          className="absolute -bottom-1.5 left-1/2 z-40 h-3 w-3 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
-        />
+        <>
+          <div
+            onMouseDown={handleResizeStart}
+            title="끌어서 세로 크기 조절"
+            className="absolute -bottom-1.5 left-1/2 z-40 h-3 w-3 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
+          />
+          <div
+            onMouseDown={handleResizeWidthStart}
+            title="끌어서 가로 크기 조절"
+            className="absolute top-1/2 z-40 h-3 w-3 -translate-y-1/2 translate-x-1/2 cursor-ew-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
+            style={{ right: "-6px" }}
+          />
+        </>
       )}
     </div>
   );
@@ -2190,8 +2229,20 @@ function UploadPageContent() {
     }
     function handleKeyDown(e: KeyboardEvent) {
       const meta = e.ctrlKey || e.metaKey;
-      if (!meta) return;
       const key = e.key.toLowerCase();
+
+      // 백스페이스·ESC: 텍스트를 입력하는 중이 아니라(=박스만 선택된 상태) 때 눌리면
+      // 선택된 텍스트박스를 통째로 지워요. 입력 중일 때는 글자 지우기/한글 조합 취소 같은
+      // 원래 동작을 건드리지 않아요.
+      if (!meta && (key === "backspace" || key === "escape") && !isTypingTarget(e.target)) {
+        if (activeTextBox) {
+          e.preventDefault();
+          deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
+        }
+        return;
+      }
+
+      if (!meta) return;
       if (isTypingTarget(e.target)) {
         // 텍스트박스 안에서도 "붙여넣기"는 박스 자체를 복제하는 우리 기능과 헷갈릴 수
         // 있어서, 실행취소/다시실행만 브라우저 기본값에 맡기고 나머지는 건드리지 않아요.

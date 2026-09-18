@@ -283,7 +283,10 @@ async function drawPageTemplate(
   }
 
   if (templateId === "fullMargin") {
-    const margin = pageW * 0.08;
+    // 여백(마진)이 안전영역(GUIDE_SAFETY_MARGIN_MM)보다 좁아지지 않도록 둘 중 큰 값을
+    // 써요 — 작은 사이즈 페이지에서 비율(8%)만 쓰면 실제 mm 여백이 안전영역보다 좁아질
+    // 수 있어서, 재단이 살짝 밀리면 사진 가장자리가 잘려 보일 수 있었어요.
+    const margin = Math.max(pageW * 0.08, mmToPx(GUIDE_SAFETY_MARGIN_MM));
     if (loaded[0]) {
       drawPhotoInCell(ctx, loaded[0], photos[0], margin, margin, pageW - margin * 2, pageH - margin * 2);
     }
@@ -336,7 +339,8 @@ async function drawPageTemplate(
   }
 
   if (templateId === "trioText") {
-    const pad = pageW * 0.06;
+    // fullMargin과 같은 이유로, 여백이 안전영역보다 좁아지지 않도록 해요.
+    const pad = Math.max(pageW * 0.06, mmToPx(GUIDE_SAFETY_MARGIN_MM));
     const colGap = mmToPx(1.5);
     const contentW = pageW - pad * 2;
     const colW = (contentW - colGap * 2) / 3;
