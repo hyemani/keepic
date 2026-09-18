@@ -622,6 +622,7 @@ export async function buildCoverPrintPdf({
   coverPhoto,
   coverTitle,
   coverTitleFontScale = 1,
+  coverTitleFontFamily = "Pretendard, sans-serif",
   innerPaperWeightG,
   pages,
 }: {
@@ -630,6 +631,8 @@ export async function buildCoverPrintPdf({
   coverPhoto: PrintPhoto | null;
   coverTitle: string;
   coverTitleFontScale?: number; // 표지 제목 글자 크기 배율(1이 기본). 혜민님이 화면에서 조절 가능해요.
+  coverTitleFontFamily?: string; // 표지 제목 서체(CSS font-family 값). 캔버스로 그려서 jsPDF에
+  // 넣기 때문에, 브라우저에 로드된 폰트라면(화면 편집기의 서체 선택지와 같은 값) 그대로 반영돼요.
   innerPaperWeightG: number;
   pages: number;
 }): Promise<PrintPdfResult> {
@@ -682,7 +685,7 @@ export async function buildCoverPrintPdf({
   }
   if (coverTitle.trim()) {
     const titlePx = Math.round(panelPx * 0.07 * coverTitleFontScale);
-    ctx.font = `bold ${titlePx}px Pretendard, sans-serif`;
+    ctx.font = `bold ${titlePx}px ${coverTitleFontFamily}`;
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";

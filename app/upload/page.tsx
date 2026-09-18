@@ -1010,6 +1010,8 @@ function UploadPageContent() {
   // 표지 제목 글자 크기 배율이에요(1이 기본, 화면 슬라이더로 조절). 실제 인쇄 파일에도
   // 그대로 반영돼요(기존 jsPDF 발주 파일 + pdf-lib 테스트 생성기 둘 다).
   const [coverTitleFontScale, setCoverTitleFontScale] = useState(1);
+  // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
+  const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
   // "마지막 소개 페이지"(발행 정보)예요. 발행일은 최초 생성 시 한국 날짜로 한 번만
   // 정하고(아래 useEffect), 그 뒤로는 다시 열거나 PDF를 저장해도 자동으로 바뀌지
@@ -1233,6 +1235,7 @@ function UploadPageContent() {
       coverPhoto,
       coverTitle,
       coverTitleFontScale,
+      coverTitleFontFamily,
       innerPaperWeightG: innerPaper.weightG,
       pages,
     });
@@ -1976,7 +1979,10 @@ function UploadPageContent() {
                           {coverTitle.trim() && (
                             <p
                               className="pointer-events-none absolute inset-x-3 bottom-3 text-center font-semibold text-white drop-shadow"
-                              style={{ fontSize: `${0.875 * coverTitleFontScale}rem` }}
+                              style={{
+                                fontSize: `${0.875 * coverTitleFontScale}rem`,
+                                fontFamily: coverTitleFontFamily,
+                              }}
                             >
                               {coverTitle}
                             </p>
@@ -2104,6 +2110,24 @@ function UploadPageContent() {
                           />
                           <span className="text-[10px] text-[var(--color-charcoal)]/40">크게</span>
                         </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                          표지 제목 서체
+                        </label>
+                        <select
+                          value={coverTitleFontFamily}
+                          onChange={(e) => setCoverTitleFontFamily(e.target.value)}
+                          className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
+                          style={{ fontFamily: coverTitleFontFamily }}
+                        >
+                          {fontOptions.map((f) => (
+                            <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
+                              {f.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   ) : selectedPageKey === "intro" ? (
