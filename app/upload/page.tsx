@@ -324,6 +324,10 @@ function CaptionSettingsPopover({
 // 책등 경계처럼 실제로 잘리는 자리가 아닌 쪽이 있으면 hideEdge로 그 변만 빼고 그려요.)
 // 반드시 스프레드(또는 표지) 전체를 감싸는 딱 하나의 요소로만 그려야 점선이 가운데서
 // 끊기지 않아요. (페이지마다 따로 그리면 이어지는 자리에서 점선 위상이 어긋나 끊겨 보여요)
+// 모든 안내선을 색 대신 검정 하나로 통일하고, 종류는 선 굵기·스타일로만 구분해요
+// (도련선=가는 파선, 재단선=굵은 실선, 안전영역=점선, 책등·제본 경계=이중선).
+const GUIDE_LINE_COLOR = "#1a1a1a";
+
 function GuideLines({
   trimXPct,
   trimYPct,
@@ -342,15 +346,19 @@ function GuideLines({
       : {};
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
-      <div className="absolute inset-0 border border-dashed" style={{ borderColor: "#22a559", ...edgeStyle }} />
       <div
-        className="absolute border border-dashed"
+        className="absolute inset-0 border"
+        style={{ borderStyle: "dashed", borderColor: GUIDE_LINE_COLOR, ...edgeStyle }}
+      />
+      <div
+        className="absolute border-2"
         style={{
           left: `${trimXPct}%`,
           right: `${trimXPct}%`,
           top: `${trimYPct}%`,
           bottom: `${trimYPct}%`,
-          borderColor: "#ff2fb0",
+          borderStyle: "solid",
+          borderColor: GUIDE_LINE_COLOR,
           ...edgeStyle,
         }}
       />
@@ -360,49 +368,60 @@ function GuideLines({
 
 // 표지 안내선 전용 — 사각형/세로선을 "표지 펼침면 전체를 100%로 보는" 좌표(왼쪽 끝
 // left%, 오른쪽 끝 right%, 위 top%, 아래 bottom%)로 그려요. 패널마다 따로 안 그리고,
-// 이 좌표만 맞으면 항상 펼침면 전체 기준으로 하나로 이어져 보여요.
+// 이 좌표만 맞으면 항상 펼침면 전체 기준으로 하나로 이어져 보여요. variant로 선
+// 스타일(파선/실선/점선)만 바꿔서, 색은 항상 검정 하나로 통일해요.
 function CoverGuideBox({
   left,
   right,
   top,
   bottom,
-  color,
+  variant = "dashed",
 }: {
   left: number;
   right: number;
   top: number;
   bottom: number;
-  color: string;
+  variant?: "dashed" | "solid" | "dotted";
 }) {
   return (
     <div
-      className="pointer-events-none absolute z-20 border border-dashed"
-      style={{ left: `${left}%`, right: `${100 - right}%`, top: `${top}%`, bottom: `${100 - bottom}%`, borderColor: color }}
+      className={variant === "solid" ? "pointer-events-none absolute z-20 border-2" : "pointer-events-none absolute z-20 border"}
+      style={{
+        left: `${left}%`,
+        right: `${100 - right}%`,
+        top: `${top}%`,
+        bottom: `${100 - bottom}%`,
+        borderStyle: variant,
+        borderColor: GUIDE_LINE_COLOR,
+      }}
     />
   );
 }
 
-// 책등 좌우 경계(접힘 위치) 전용 세로 점선.
-function CoverSpineGuideLine({ xPct, top, bottom, color }: { xPct: number; top: number; bottom: number; color: string }) {
+// 책등 좌우 경계(접힘 위치) 전용 세로 이중선 — 다른 안내선(파선/실선/점선)과 겹쳐도
+// 헷갈리지 않도록 "이중선"만 책등·제본 경계에 써요.
+function CoverSpineGuideLine({ xPct, top, bottom }: { xPct: number; top: number; bottom: number }) {
   return (
     <div
-      className="pointer-events-none absolute z-20 border-l border-dashed"
-      style={{ left: `${xPct}%`, top: `${top}%`, bottom: `${100 - bottom}%`, borderColor: color }}
+      className="pointer-events-none absolute z-20 border-l-4 border-double"
+      style={{ left: `${xPct}%`, top: `${top}%`, bottom: `${100 - bottom}%`, borderColor: GUIDE_LINE_COLOR }}
     />
   );
 }
 
-// 내지 펼침면 가운데의 "제본 경계"예요. 실제로 두 페이지가 만나는 정중앙(50%)에 실선을
-// 하나 긋고, 그 양옆으로 제본 때문에 주의가 필요한 영역을 옅은 음영으로 보여줘요. 화면
-// 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
+// 내지 펼침면 가운데의 "제본 경계"예요. 실제로 두 페이지가 만나는 정중앙(50%)에 검정
+// 이중선을 하나 긋고(책등 경계와 같은 시각 언어), 그 양옆으로 제본 때문에 주의가
+// 필요한 영역을 옅은 음영으로 보여줘요. 화면 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
 function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number }) {
   return (
     <>
       <div
-        className="pointer-events-none absolute inset-y-0 z-10 bg-[#8a5cf6]/10"
+        className="pointer-events-none absolute inset-y-0 z-10 bg-black/5"
         style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
       />
-      <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[#8a5cf6]" />
+      <div
+        className="pointer-events-none absolute inset-y-0 left-1/2 z-20 -translate-x-1/2 border-l-4 border-double border-[#1a1a1a]"
+      />
     </>
   );
 }
@@ -1770,22 +1789,23 @@ function UploadPageContent() {
                 <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
                   {showGuidelines && (
                     <>
-                      <span style={{ color: "#22a559" }}>■ 작업선</span>(파일 맨 끝, 배경은 이 선까지 채워주세요) ·{" "}
-                      <span style={{ color: "#ff2fb0" }}>■ 재단선</span>(실제로 잘리는 선){" "}
+                      <span className="font-semibold text-[#1a1a1a]">■ 작업선(파선)</span>(파일 맨 끝, 배경은 이
+                      선까지 채워주세요) · <span className="font-semibold text-[#1a1a1a]">■ 재단선(실선)</span>
+                      (실제로 잘리는 선){" "}
                     </>
                   )}
                   {showInnerSafetyGuide && (
                     <>
                       {showGuidelines && <>· </>}
-                      <span style={{ color: "#2f7bff" }}>■ 안전영역</span>(왼쪽·오른쪽 페이지 각각, 글자·중요 사진은
-                      이 안쪽에 배치해주세요 — 사진·배경은 밖으로 나가도 괜찮아요){" "}
+                      <span className="font-semibold text-[#1a1a1a]">■ 안전영역(점선)</span>(왼쪽·오른쪽 페이지
+                      각각, 글자·중요 사진은 이 안쪽에 배치해주세요 — 사진·배경은 밖으로 나가도 괜찮아요){" "}
                     </>
                   )}
                   {showInnerBindingGuide && (
                     <>
                       {(showGuidelines || showInnerSafetyGuide) && <>· </>}
-                      <span style={{ color: "#8a5cf6" }}>■ 제본 경계</span>(두 페이지가 만나는 가운데 선, 옅은
-                      음영은 제본 때문에 주의가 필요한 영역이에요)
+                      <span className="font-semibold text-[#1a1a1a]">■ 제본 경계(이중선)</span>(두 페이지가 만나는
+                      가운데 선, 옅은 음영은 제본 때문에 주의가 필요한 영역이에요)
                     </>
                   )}
                 </p>
@@ -1831,7 +1851,7 @@ function UploadPageContent() {
                           className="h-full"
                           style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
                         />
-                        <div className="h-full bg-[var(--color-hairline)]" style={{ width: `${coverSpinePct}%` }} />
+                        <div className="h-full border-x border-[#1a1a1a]/60 bg-white" style={{ width: `${coverSpinePct}%` }} />
                         <div
                           className="relative h-full overflow-hidden bg-[var(--color-ivory)]"
                           style={{ width: `${coverFrontPct}%` }}
@@ -1928,8 +1948,8 @@ function UploadPageContent() {
                     <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
                       <p className="text-sm font-medium">앞표지 꾸미기</p>
                       <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
-                        여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. (뒤표지·책등은 우선
-                        무지로 비워둘게요)
+                        여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. 뒤표지·책등
+                        꾸미기는 아래에서 따로 설정할 수 있어요.
                       </p>
 
                       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-[var(--color-charcoal)]/70">
@@ -1940,7 +1960,7 @@ function UploadPageContent() {
                             onChange={(e) => setShowCoverBleedGuide(e.target.checked)}
                             className="h-3.5 w-3.5 accent-[var(--color-sky)]"
                           />
-                          <span style={{ color: "#22a559" }}>■</span> 도련선
+                          <span className="font-semibold text-[#1a1a1a]">■</span> 도련선(파선)
                         </label>
                         <label className="flex items-center gap-1.5">
                           <input
@@ -1949,7 +1969,7 @@ function UploadPageContent() {
                             onChange={(e) => setShowCoverTrimGuide(e.target.checked)}
                             className="h-3.5 w-3.5 accent-[var(--color-sky)]"
                           />
-                          <span style={{ color: "#ff2fb0" }}>■</span> 재단선
+                          <span className="font-semibold text-[#1a1a1a]">■</span> 재단선(실선)
                         </label>
                         <label className="flex items-center gap-1.5">
                           <input
@@ -1958,7 +1978,7 @@ function UploadPageContent() {
                             onChange={(e) => setShowCoverSafetyGuide(e.target.checked)}
                             className="h-3.5 w-3.5 accent-[var(--color-sky)]"
                           />
-                          <span style={{ color: "#2f7bff" }}>■</span> 안전영역
+                          <span className="font-semibold text-[#1a1a1a]">■</span> 안전영역(점선)
                         </label>
                         <label className="flex items-center gap-1.5">
                           <input
@@ -1967,19 +1987,19 @@ function UploadPageContent() {
                             onChange={(e) => setShowCoverSpineGuide(e.target.checked)}
                             className="h-3.5 w-3.5 accent-[var(--color-sky)]"
                           />
-                          <span style={{ color: "#8a5cf6" }}>■</span> 책등 경계
+                          <span className="font-semibold text-[#1a1a1a]">■</span> 책등 경계(이중선)
                         </label>
                       </div>
                       {(showCoverBleedGuide || showCoverTrimGuide || showCoverSafetyGuide || showCoverSpineGuide) && (
                         <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                          <span style={{ color: "#22a559" }}>도련선</span>(뒤표지·책등·앞표지를 합친 펼침면 전체의
-                          바깥 끝, 배경은 이 선까지 채워주세요) ·{" "}
-                          <span style={{ color: "#ff2fb0" }}>재단선</span>(실제로 잘리는 선, 펼침면 전체 기준으로
-                          하나로 이어져요) ·{" "}
-                          <span style={{ color: "#2f7bff" }}>안전영역</span>(뒤표지·책등·앞표지 각각 이 안쪽에
-                          글자·중요 사진을 배치해주세요) ·{" "}
-                          <span style={{ color: "#8a5cf6" }}>책등 경계</span>(책등이 접히는 두 위치예요, 실제로
-                          잘리는 선이 아니에요)
+                          <span className="font-semibold text-[#1a1a1a]">도련선(파선)</span>(뒤표지·책등·앞표지를
+                          합친 펼침면 전체의 바깥 끝, 배경은 이 선까지 채워주세요) ·{" "}
+                          <span className="font-semibold text-[#1a1a1a]">재단선(실선)</span>(실제로 잘리는 선,
+                          펼침면 전체 기준으로 하나로 이어져요) ·{" "}
+                          <span className="font-semibold text-[#1a1a1a]">안전영역(점선)</span>(뒤표지·책등·앞표지
+                          각각 이 안쪽에 글자·중요 사진을 배치해주세요) ·{" "}
+                          <span className="font-semibold text-[#1a1a1a]">책등 경계(이중선)</span>(책등이 접히는 두
+                          위치예요, 실제로 잘리는 선이 아니에요)
                         </p>
                       )}
 
@@ -2020,7 +2040,7 @@ function UploadPageContent() {
                           )}
                         </div>
                         <div
-                          className="relative flex h-full flex-col items-center bg-[var(--color-hairline)]/60"
+                          className="relative flex h-full flex-col items-center border-x border-[#1a1a1a]/70 bg-white"
                           style={{ width: `${coverSpinePct}%` }}
                         >
                           {spineTitle.trim() ? (
@@ -2094,14 +2114,16 @@ function UploadPageContent() {
                           )}
                         </div>
 
-                        {showCoverBleedGuide && <CoverGuideBox left={0} right={100} top={0} bottom={100} color="#22a559" />}
+                        {showCoverBleedGuide && (
+                          <CoverGuideBox left={0} right={100} top={0} bottom={100} variant="dashed" />
+                        )}
                         {showCoverTrimGuide && (
                           <CoverGuideBox
                             left={coverBleedXPct}
                             right={100 - coverBleedXPct}
                             top={coverBleedYPct}
                             bottom={100 - coverBleedYPct}
-                            color="#ff2fb0"
+                            variant="solid"
                           />
                         )}
                         {showCoverSafetyGuide && (
@@ -2111,7 +2133,7 @@ function UploadPageContent() {
                               right={coverBackSafetyRightPct}
                               top={coverSafetyTopPct}
                               bottom={coverSafetyBottomPct}
-                              color="#2f7bff"
+                              variant="dotted"
                             />
                             {coverSpineFitsSafety ? (
                               <CoverGuideBox
@@ -2119,7 +2141,7 @@ function UploadPageContent() {
                                 right={coverSpineSafetyRightPct}
                                 top={coverSafetyTopPct}
                                 bottom={coverSafetyBottomPct}
-                                color="#2f7bff"
+                                variant="dotted"
                               />
                             ) : (
                               // 책등이 안전 여백을 두 번(좌우) 확보할 만큼 넓지 않아요. 음수나
@@ -2141,7 +2163,7 @@ function UploadPageContent() {
                               right={coverFrontSafetyRightPct}
                               top={coverSafetyTopPct}
                               bottom={coverSafetyBottomPct}
-                              color="#2f7bff"
+                              variant="dotted"
                             />
                           </>
                         )}
@@ -2151,13 +2173,11 @@ function UploadPageContent() {
                               xPct={coverSpineStartPct}
                               top={coverBleedYPct}
                               bottom={100 - coverBleedYPct}
-                              color="#8a5cf6"
                             />
                             <CoverSpineGuideLine
                               xPct={coverSpineEndPct}
                               top={coverBleedYPct}
                               bottom={100 - coverBleedYPct}
-                              color="#8a5cf6"
                             />
                           </>
                         )}
@@ -2502,14 +2522,14 @@ function UploadPageContent() {
                                     right={leftPageSafetyRightPct}
                                     top={safetyYPct}
                                     bottom={100 - safetyYPct}
-                                    color="#2f7bff"
+                                    variant="dotted"
                                   />
                                   <CoverGuideBox
                                     left={rightPageSafetyLeftPct}
                                     right={rightPageSafetyRightPct}
                                     top={safetyYPct}
                                     bottom={100 - safetyYPct}
-                                    color="#2f7bff"
+                                    variant="dotted"
                                   />
                                 </>
                               ) : (
