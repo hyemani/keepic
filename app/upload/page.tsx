@@ -12,6 +12,8 @@ import {
   SpreadDef,
   AI_AUTO_LAYOUT_TEMPLATE_ID,
   generateAutoSpreads,
+  calcRequiredSpreadCount,
+  fitSpreadsToCount,
 } from "@/lib/albumTemplates";
 import {
   photobookCovers,
@@ -137,17 +139,28 @@ function isLowRes(photo: Photo, requiredMinPx: number) {
 
 // 스프레드별로 사진 배열에서 왼쪽/오른쪽 페이지가 각각 몇 번째 사진들을 쓰는지 계산해요.
 // (미리보기 렌더링과 인쇄 파일 생성, 둘 다 같은 계산을 써야 순서가 어긋나지 않아요.)
+// 스프레드 1(index 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요 —
+// 그 칸에는 사진을 배정하지 않고, 사진 1장이 실제 내지 1페이지(스프레드 1 오른쪽)부터
+// 채워지도록 건너뛰어요.
 function computeSpreadPhotoGroups(customSpreads: SpreadDef[]): SpreadPhotoGroup[] {
   let cursor = 0;
-  return customSpreads.map((spread) => {
-    const leftCount = pageTemplates[spread.left].photoCount;
+  return customSpreads.map((spread, i) => {
+    const leftCount = i === 0 ? 0 : pageTemplates[spread.left].photoCount;
     const rightCount = pageTemplates[spread.right].photoCount;
-    const leftIndexes = Array.from({ length: leftCount }, (_, i) => cursor + i);
+    const leftIndexes = Array.from({ length: leftCount }, (_, i2) => cursor + i2);
     cursor += leftCount;
-    const rightIndexes = Array.from({ length: rightCount }, (_, i) => cursor + i);
+    const rightIndexes = Array.from({ length: rightCount }, (_, i2) => cursor + i2);
     cursor += rightCount;
     return { leftIndexes, rightIndexes };
   });
+}
+
+// 왼쪽 레일에 보여줄 라벨이에요. "스프레드 N" 대신 실제 내지 페이지 번호로 보여줘요.
+// 스프레드 1(index 0)은 왼쪽이 인쇄되지 않는 빈 면이라 오른쪽 페이지 번호(1) 하나만,
+// 그 다음부터는 "2-3", "4-5"처럼 두 페이지 범위로 표시해요.
+function formatSpreadPageLabel(i: number): string {
+  if (i === 0) return "1";
+  return `${2 * i}-${2 * i + 1}`;
 }
 
 const layoutOptions: { id: PageTemplateId; label: string }[] = [
@@ -968,21 +981,31 @@ function UploadPageContent() {
   const displaySizeLabel = [selectedSizeInfo.label, ...photobookOptionParts].join(" · ");
   const displaySizeDetail = [selectedSizeInfo.detail, ...photobookOptionParts].join(" · ");
 
+  // 옵션 단계에서 고른 내지 페이지 수예요(기본 20p). 표지 책등 폭 계산뿐 아니라,
+  // 편집기 스프레드 개수도 이 값에 정확히 맞춰요(스프레드 1개 = 2페이지).
+  const pages = photobookPages ? Number(photobookPages) : 20;
+  const requiredSpreadCount = calcRequiredSpreadCount(pages);
+
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [customSpreads, setCustomSpreads] = useState<SpreadDef[]>(() =>
-    template ? template.spreads.map((s) => ({ ...s })) : []
+    template
+      ? template.id === AI_AUTO_LAYOUT_TEMPLATE_ID
+        ? generateAutoSpreads([], requiredSpreadCount)
+        : fitSpreadsToCount(template.spreads, requiredSpreadCount)
+      : []
   );
 
   // "AI 맞춤 레이아웃"을 선택했을 때만: 사진 개수가 바뀔 때마다(추가/삭제)
   // 사진 비율에 맞춰 스프레드 구성을 자동으로 다시 만들어요. 캡션 수정이나
   // 드래그처럼 개수가 그대로인 편집에는 반응하지 않아서, 사용자가 손으로
   // 바꾼 배치를 건드리지 않아요. (렌더링 도중 상태를 맞추는 React 권장 패턴 —
-  // effect 대신 써서 불필요한 리렌더 한 번을 줄여요.)
+  // effect 대신 써서 불필요한 리렌더 한 번을 줄여요.) 스프레드 개수는 항상
+  // requiredSpreadCount(내지 페이지 수 ÷ 2)에 맞춰져요.
   const isAiAuto = isPhotobook && templateId === AI_AUTO_LAYOUT_TEMPLATE_ID;
   const [autoLayoutPhotoCount, setAutoLayoutPhotoCount] = useState(0);
   if (isAiAuto && photos.length !== autoLayoutPhotoCount) {
     setAutoLayoutPhotoCount(photos.length);
-    setCustomSpreads(generateAutoSpreads(photos));
+    setCustomSpreads(generateAutoSpreads(photos, requiredSpreadCount));
   }
   const [isSaving, setIsSaving] = useState(false);
   // [테스트용] 새 pdf-lib PDF 생성기 테스트 버튼 상태예요. (?pdftest=1 일 때만 노출)
@@ -1217,7 +1240,6 @@ function UploadPageContent() {
     const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
     const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
     const innerPaper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
-    const pages = photobookPages ? Number(photobookPages) : 20;
     const trimMatch = (sizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
     const trimCm = trimMatch ? parseFloat(trimMatch[1]) : 30;
 
@@ -1320,7 +1342,6 @@ function UploadPageContent() {
       const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
       const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
       const innerPaper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
-      const pages = photobookPages ? Number(photobookPages) : 20;
       const trimMatch = (sizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
       const trimCm = trimMatch ? parseFloat(trimMatch[1]) : 30;
 
@@ -1424,8 +1445,11 @@ function UploadPageContent() {
   }
 
   if (config.maxPhotos > 1 && template) {
+    // 스프레드 1(index 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 고정돼서
+    // 필요한 사진 장수에서 제외해요. (computeSpreadPhotoGroups와 같은 기준)
     const requiredCount = customSpreads.reduce(
-      (total, s) => total + pageTemplates[s.left].photoCount + pageTemplates[s.right].photoCount,
+      (total, s, i) =>
+        total + (i === 0 ? 0 : pageTemplates[s.left].photoCount) + pageTemplates[s.right].photoCount,
       0
     );
     const isPhotoCountValid = photos.length === requiredCount;
@@ -1722,7 +1746,7 @@ function UploadPageContent() {
               {isAiAuto && photos.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setCustomSpreads(generateAutoSpreads(photos))}
+                  onClick={() => setCustomSpreads(generateAutoSpreads(photos, requiredSpreadCount))}
                   className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[var(--color-sky)] px-4 py-2 text-sm font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
                 >
                   <span aria-hidden>✨</span>
@@ -1784,14 +1808,22 @@ function UploadPageContent() {
                       >
                         <div className="pointer-events-none grid w-28 grid-cols-2 overflow-hidden rounded bg-white shadow-sm lg:w-full">
                           <div className="aspect-square overflow-hidden">
-                            {renderPage(spread.left, leftPhotos, leftIndexes, () => {}, () => {}, requiredMinPx, spread.backgroundColor)}
+                            {i === 0 ? (
+                              <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)] p-1">
+                                <p className="text-center text-[8px] leading-tight text-[var(--color-charcoal)]/40 break-keep">
+                                  인쇄 안 됨
+                                </p>
+                              </div>
+                            ) : (
+                              renderPage(spread.left, leftPhotos, leftIndexes, () => {}, () => {}, requiredMinPx, spread.backgroundColor)
+                            )}
                           </div>
                           <div className="aspect-square overflow-hidden">
                             {renderPage(spread.right, rightPhotos, rightIndexes, () => {}, () => {}, requiredMinPx, spread.backgroundColor)}
                           </div>
                         </div>
                         <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">
-                          스프레드 {i + 1}
+                          {formatSpreadPageLabel(i)}
                         </p>
                       </button>
                     );
@@ -2187,7 +2219,9 @@ function UploadPageContent() {
                       return (
                         <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">스프레드 {i + 1}</p>
+                            <p className="text-sm font-medium">
+                              {i === 0 ? "표지/1" : formatSpreadPageLabel(i)}페이지
+                            </p>
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
@@ -2250,25 +2284,37 @@ function UploadPageContent() {
                             {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만 구분해요. */}
                             <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                             <div className="group relative w-1/2">
-                              <select
-                                value={spread.left}
-                                onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
-                                className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
-                              >
-                                {layoutOptions.map((opt) => (
-                                  <option key={opt.id} value={opt.id}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                              {renderPage(
-                                spread.left,
-                                leftPhotos,
-                                leftIndexes,
-                                handlePhotoTransform,
-                                handleCaptionChange,
-                                requiredMinPx,
-                                spread.backgroundColor
+                              {i === 0 ? (
+                                <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">
+                                  <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
+                                    인쇄되지 않는 페이지입니다.
+                                    <br />
+                                    (표지 안쪽 면이에요)
+                                  </p>
+                                </div>
+                              ) : (
+                                <>
+                                  <select
+                                    value={spread.left}
+                                    onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
+                                    className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
+                                  >
+                                    {layoutOptions.map((opt) => (
+                                      <option key={opt.id} value={opt.id}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {renderPage(
+                                    spread.left,
+                                    leftPhotos,
+                                    leftIndexes,
+                                    handlePhotoTransform,
+                                    handleCaptionChange,
+                                    requiredMinPx,
+                                    spread.backgroundColor
+                                  )}
+                                </>
                               )}
                             </div>
                             <div className="group relative w-1/2">

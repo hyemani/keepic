@@ -553,8 +553,9 @@ export async function buildInnerPrintPdf({
   for (let i = 0; i < customSpreads.length; i++) {
     const spread = customSpreads[i];
     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
+    // 스프레드 1(i === 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요.
     const sides: { templateId: PageTemplateId; indexes: number[]; hideEdge: "left" | "right" }[] = [
-      { templateId: spread.left, indexes: leftIndexes, hideEdge: "right" },
+      { templateId: i === 0 ? "blank" : spread.left, indexes: leftIndexes, hideEdge: "right" },
       { templateId: spread.right, indexes: rightIndexes, hideEdge: "left" },
     ];
 
@@ -603,6 +604,18 @@ export async function buildInnerPrintPdf({
     }
     pdf.addImage(introCleanDataUrl, "JPEG", 0, 0, workW, workH);
     guidePdf.addImage(introGuideDataUrl, "JPEG", 0, 0, workW, workH);
+
+    // 소개 페이지 다음 장(뒷표지 안쪽 면)도 인쇄되지 않는 빈 면으로 한 장 더 붙여요 —
+    // 스프레드 1의 강제 빈 면과 짝을 이뤄서, 앞뒤 표지 안쪽 면이 모두 빈 면으로
+    // 마무리되도록 해요.
+    await drawPage(ctx, "blank", [], pxW, pxH, "#ffffff");
+    const backBlankCleanDataUrl = canvasToJpegDataUrl(canvas);
+    drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label);
+    const backBlankGuideDataUrl = canvasToJpegDataUrl(canvas);
+    pdf.addPage([workW, workH], orientation);
+    guidePdf.addPage([workW, workH], orientation);
+    pdf.addImage(backBlankCleanDataUrl, "JPEG", 0, 0, workW, workH);
+    guidePdf.addImage(backBlankGuideDataUrl, "JPEG", 0, 0, workW, workH);
   }
 
   if (!pdf || !guidePdf) {

@@ -546,8 +546,9 @@ export async function buildInnerPrintPdfLib({
   for (let i = 0; i < customSpreads.length; i++) {
     const spread = customSpreads[i];
     const group = spreadPhotoGroups[i];
+    // 스프레드 1(i === 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요.
     const sides: { templateId: PageTemplateId; indexes: number[] }[] = [
-      { templateId: spread.left, indexes: group.leftIndexes },
+      { templateId: i === 0 ? "blank" : spread.left, indexes: group.leftIndexes },
       { templateId: spread.right, indexes: group.rightIndexes },
     ];
 
@@ -580,6 +581,13 @@ export async function buildInnerPrintPdfLib({
     );
     setPdfBoxes(page, workWpt, workHpt, bleedPt, offset);
     drawTrimMarks(page, workWpt, workHpt, bleedPt, offset);
+    pageCount++;
+
+    // 소개 페이지 다음 장(뒷표지 안쪽 면)도 인쇄되지 않는 빈 면으로 한 장 더 붙여요 —
+    // 스프레드 1의 강제 빈 면과 짝을 이뤄요.
+    const backBlankPage = drawOnePage();
+    setPdfBoxes(backBlankPage, workWpt, workHpt, bleedPt, offset);
+    drawTrimMarks(backBlankPage, workWpt, workHpt, bleedPt, offset);
     pageCount++;
   }
 

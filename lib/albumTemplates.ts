@@ -146,6 +146,19 @@ export const albumTemplates: AlbumTemplate[] = [
   },
 ];
 
+// 옵션 단계에서 고른 "내지 페이지 수"에 맞춰 편집기 스프레드 개수를 정해요.
+// 스프레드 1개 = 펼침면(왼쪽+오른쪽) 2페이지라서 페이지 수 ÷ 2가 스프레드 개수예요.
+export function calcRequiredSpreadCount(pages: number): number {
+  return Math.max(1, Math.round(pages / 2));
+}
+
+// 템플릿(예: "클래식")은 스프레드 구성이 고정돼 있는데, 고객마다 고른 내지 페이지 수가
+// 달라서 그 템플릿 패턴을 반복해서 스프레드 개수를 정확히 맞춰요.
+export function fitSpreadsToCount(spreads: SpreadDef[], count: number): SpreadDef[] {
+  if (spreads.length === 0 || count <= 0) return [];
+  return Array.from({ length: count }, (_, i) => ({ ...spreads[i % spreads.length] }));
+}
+
 export function getTemplatePhotoCount(template: AlbumTemplate) {
   return template.spreads.reduce((total, spread) => {
     return (
@@ -162,47 +175,36 @@ export const AI_AUTO_LAYOUT_TEMPLATE_ID = "ai-auto";
 
 export type PhotoAspect = { width: number; height: number };
 
-function classifyOrientation(photo: PhotoAspect): "landscape" | "portrait" | "square" {
-  const ratio = photo.width / Math.max(photo.height, 1);
-  if (ratio >= 1.15) return "landscape";
-  if (ratio <= 0.87) return "portrait";
-  return "square";
-}
+// 정해진 페이지 칸 수(slotCount)에 사진(photoCount)을 최대한 고르게 나눠 담아요.
+// 한 칸엔 1~4장까지 들어갈 수 있어요. 사진이 딱 맞아떨어지지 않으면(너무 적거나
+// 너무 많으면) 가능한 범위까지 채우고 나머지는 그대로 둬서, 위쪽 화면에서
+// "사진이 N장 더/덜 필요해요" 안내가 정확하게 계산되도록 해요.
+function distributePhotosIntoSlots(photoCount: number, slotCount: number): number[] {
+  const MIN = 1;
+  const MAX = 4;
+  if (slotCount <= 0) return [];
+  const base = Math.min(MAX, Math.max(MIN, Math.round(photoCount / slotCount)));
+  const sizes = Array(slotCount).fill(base);
+  let sum = sizes.reduce((a, b) => a + b, 0);
 
-// 사진 개수와 가로/세로 비율을 보고 몇 장씩 한 칸에 묶을지 정해요.
-// 가로로 긴 사진은 한 장을 크게(full), 세로·정사각 사진은 2~4장씩 묶어서
-// 촘촘하게 배치해요. 같은 구성이 계속 반복되지 않도록 바로 앞 구성과는
-// 다른 크기를 우선 골라요. 실제 사진 인식 기반 AI는 아니고, 사진 개수/비율로
-// 그럴듯한 배치를 자동으로 만들어주는 규칙 기반 로직이에요.
-function pickChunkSizes(photos: PhotoAspect[]): number[] {
-  const sizes: number[] = [];
-  let i = 0;
-  let prevSize = 0;
-
-  while (i < photos.length) {
-    const remaining = photos.length - i;
-    const orientation = classifyOrientation(photos[i]);
-
-    let size: number;
-    if (remaining === 1) {
-      size = 1;
-    } else if (orientation === "landscape") {
-      // 가로 사진은 넓게 보여주고 싶어서, 남은 장수가 딱 2장이 아닌 한 한 장만 써요.
-      size = remaining === 2 ? 2 : 1;
-    } else {
-      const usable = [2, 3, 4].filter((n) => n <= remaining);
-      const pool = usable.length > 0 ? usable : [Math.min(remaining, 4)];
-      const varied = pool.filter((n) => n !== prevSize);
-      const options = varied.length > 0 ? varied : pool;
-      size = options[i % options.length];
+  let guard = 0;
+  while (sum < photoCount && sizes.some((s) => s < MAX) && guard < slotCount * MAX * 2) {
+    const idx = guard % slotCount;
+    if (sizes[idx] < MAX) {
+      sizes[idx] += 1;
+      sum += 1;
     }
-
-    size = Math.max(1, Math.min(size, remaining));
-    sizes.push(size);
-    prevSize = size;
-    i += size;
+    guard += 1;
   }
-
+  guard = 0;
+  while (sum > photoCount && sizes.some((s) => s > MIN) && guard < slotCount * MAX * 2) {
+    const idx = guard % slotCount;
+    if (sizes[idx] > MIN) {
+      sizes[idx] -= 1;
+      sum -= 1;
+    }
+    guard += 1;
+  }
   return sizes;
 }
 
@@ -217,23 +219,33 @@ function sizeToTemplateId(size: number, singleIndex: number): PageTemplateId {
 }
 
 // 올린 사진들을 보고 스프레드(왼쪽/오른쪽 페이지) 구성을 자동으로 만들어요.
-// 만들어지는 슬롯 총합은 항상 photos.length와 정확히 같아서, 기존의
-// "정확히 N장 필요해요" 검사 로직을 그대로 통과해요.
-export function generateAutoSpreads(photos: PhotoAspect[]): SpreadDef[] {
-  if (photos.length === 0) return [];
+// requiredSpreadCount(고객이 고른 내지 페이지 수 ÷ 2)만큼 스프레드 개수를 정확히
+// 맞춰요. 스프레드 1의 왼쪽 면은 표지 뒷면이라 항상 빈 면(사진 없음)으로 두고,
+// 나머지 칸에 사진을 최대한 고르게 나눠 담아요.
+export function generateAutoSpreads(
+  photos: PhotoAspect[],
+  requiredSpreadCount: number
+): SpreadDef[] {
+  const count = Math.max(1, requiredSpreadCount);
+  const availableSlots = Math.max(1, count * 2 - 1);
+  const slotSizes = distributePhotosIntoSlots(photos.length, availableSlots);
 
   let singleIndex = 0;
-  const sideTemplates = pickChunkSizes(photos).map((size) => {
+  const sideTemplates = slotSizes.map((size) => {
     const templateId = sizeToTemplateId(size, singleIndex);
     if (size === 1) singleIndex += 1;
     return templateId;
   });
-  const spreads: SpreadDef[] = [];
-  for (let i = 0; i < sideTemplates.length; i += 2) {
+
+  const spreads: SpreadDef[] = [{ left: "blank", right: sideTemplates[0] ?? "blank" }];
+  for (let i = 1; i < sideTemplates.length; i += 2) {
     spreads.push({
       left: sideTemplates[i],
       right: sideTemplates[i + 1] ?? "blank",
     });
   }
-  return spreads;
+  while (spreads.length < count) {
+    spreads.push({ left: "blank", right: "blank" });
+  }
+  return spreads.slice(0, count);
 }
