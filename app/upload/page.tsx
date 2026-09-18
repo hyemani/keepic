@@ -2164,18 +2164,9 @@ function UploadPageContent() {
     // 앞표지 안전영역
     const coverFrontSafetyLeftPct = coverSpineEndPct + coverSafetyXPct;
     const coverFrontSafetyRightPct = 100 - coverBleedXPct - coverSafetyXPct;
-    // 책등 안전영역 — 앞뒤 표지와 같은 안전 여백(coverSafetyXPct)을 그대로 쓰지 않고,
-    // 책등 전용 값(printFileSpec.spineSafetyMarginMm, 하드커버는 그루브/힌지 여유까지 더함)을
-    // 써요. 다만 책등이 원래 좁아서(예: 소프트커버 20p, 7.22mm) 이 여백을 좌우로 두 번
-    // 다 확보하면 남는 폭이 거의 없어져요. "안전영역 확보 불가" 경고를 띄우는 대신, 여백을
-    // 책등 폭에 맞게 줄여서(최대 책등 폭의 40%까지만) 항상 실제로 쓸 수 있는 안전영역
-    // 박스를 보여줘요 — 글자·로고는 이 박스 안쪽에 넣으면 돼요.
-    const coverSpineSafetyMarginMmRaw =
-      printFileSpec.spineSafetyMarginMm + (coverIsHard ? printFileSpec.hardCoverSpineGrooveSafetyMm : 0);
-    const coverSpineSafetyMarginPctRaw = (coverSpineSafetyMarginMmRaw / coverTotalWmm) * 100;
-    const coverSpineSafetyMarginPct = Math.min(coverSpineSafetyMarginPctRaw, coverSpinePct * 0.4);
-    const coverSpineSafetyLeftPct = coverSpineStartPct + coverSpineSafetyMarginPct;
-    const coverSpineSafetyRightPct = coverSpineEndPct - coverSpineSafetyMarginPct;
+    // 책등은 실측해보면(예: 소프트커버 20p 7.22mm) 11~12pt 글자도 여유 있게 들어가서,
+    // 뒤표지·앞표지처럼 별도 안전영역 여백을 두지 않아요(2026-09, 사용자 확인). 책등
+    // 경계(재단선)는 위 패널 테두리로 이미 보여주고 있어요.
 
     // 책등 로고가 실제 인쇄 PDF(lib/printPdfLib.ts)와 똑같은 기준으로 보이는지 화면에서도
     // 미리 계산해요. computeSpineLogoLayout은 그 파일의 함수를 그대로 가져다 쓰는 거라,
@@ -2706,13 +2697,6 @@ function UploadPageContent() {
                             <CoverGuideBox
                               left={coverBackSafetyLeftPct}
                               right={coverBackSafetyRightPct}
-                              top={coverSafetyTopPct}
-                              bottom={coverSafetyBottomPct}
-                              variant="dotted"
-                            />
-                            <CoverGuideBox
-                              left={coverSpineSafetyLeftPct}
-                              right={coverSpineSafetyRightPct}
                               top={coverSafetyTopPct}
                               bottom={coverSafetyBottomPct}
                               variant="dotted"
