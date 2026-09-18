@@ -17,7 +17,8 @@ import { fabricPosterSizes, fabricPosterFabrics } from "@/lib/fabricPosterModels
 
 // 홈 화면 맨 위, 예전의 큰 히어로 슬라이드 대신 쓰는 작은 프로모션 배너예요.
 const promoBanner = {
-  image: "/hero/keepic-hero-goods2.jpg",
+  // 위쪽 보라~블루 그라데이션 배경이 잘리지 않고 다 보이도록 원본 비율 그대로 쓰는 이미지예요.
+  image: "/hero/keepic-hero-full.jpg",
   alt: "포토북, 액자, 머그컵, 키링 등 Keepic 상품 구성",
   titleLines: ["기억하고 싶은 순간,", "키픽하세요."],
   eyebrow: "PHOTOBOOK · FRAME · CUSTOM GOODS",
@@ -206,24 +207,27 @@ export default function Home() {
         href="/options?product=포토북"
         className="relative block w-full overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
       >
-        <div className="aspect-[4/3] w-full overflow-hidden sm:aspect-[21/9]">
+        {/* 원본 사진 비율(약 4:3) 그대로 보여줘서 위쪽 그라데이션 배경이 잘리지 않게 해요 */}
+        <div className="aspect-[4/3] w-full overflow-hidden">
           <img
             src={promoBanner.image}
             alt={promoBanner.alt}
-            className="h-full w-full scale-125 object-cover sm:scale-110"
+            className="h-full w-full object-cover object-top"
           />
         </div>
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-          <h1 className="font-banner break-keep text-3xl leading-tight text-white sm:text-5xl">
+        {/* 글자가 놓이는 위쪽 그라데이션 부분만 살짝 어둡게 해서, 사진 속 제품은 그대로 밝게 보여요 */}
+        <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-black/25 to-transparent" />
+        {/* 글자를 사진 아래쪽 제품과 겹치지 않도록, 위쪽 그라데이션 배경 부분에만 배치해요 */}
+        <div className="absolute inset-x-0 top-0 flex flex-col items-center px-6 pt-8 text-center sm:pt-12 lg:pt-16">
+          <h1 className="font-banner break-keep text-2xl leading-tight text-white sm:text-4xl lg:text-5xl">
             {promoBanner.titleLines[0]}
             <br />
             {promoBanner.titleLines[1]}
           </h1>
-          <p className="mt-3 text-[11px] font-semibold tracking-[0.18em] text-white/85 sm:text-sm">
+          <p className="mt-2 text-[10px] font-semibold tracking-[0.18em] text-white/85 sm:mt-3 sm:text-xs lg:text-sm">
             {promoBanner.eyebrow}
           </p>
-          <p className="mt-2 max-w-xs break-keep text-xs text-white/75 sm:text-sm">
+          <p className="mt-1.5 max-w-xs break-keep text-[11px] text-white/75 sm:mt-2 sm:text-xs lg:text-sm">
             {promoBanner.caption}
           </p>
         </div>

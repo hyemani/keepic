@@ -53,14 +53,30 @@ export default function SiteHeader({
       }`
     : "relative bg-white";
 
-  // 색이 있는 대표 이미지(heroTintRgb) 위에서 스크롤하기 전이면 흰색 로고,
-  // 그 외(흰 배경 헤더 / 다른 페이지)에는 기존 검정 로고를 사용해요.
-  const headerLogoSrc = heroTintRgb && !scrolled ? "/logo-white.png" : "/logo.svg";
+  // 색이 있는 대표 이미지(heroTintRgb) 위에서 스크롤하기 전이면 로고·메뉴 글씨를
+  // 모두 흰색으로, 스크롤해서 흰 배경 헤더가 되면 원래 색(검정 로고·차콜 글씨)으로 바꿔요.
+  const lightHeader = Boolean(heroTintRgb) && !scrolled;
+  const headerLogoSrc = lightHeader ? "/logo-white.png" : "/logo.svg";
 
-  // 메뉴 글씨 공통 스타일: PC 16px, 중간 굵기, 진한 차콜색 — 배경 사진 위에서도 잘 읽히도록.
-  const navLinkBase = "font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]";
-  const navLinkActive =
-    "text-[var(--color-sky)] underline underline-offset-4 decoration-2";
+  // 메뉴 글씨 공통 스타일: PC 16px, 중간 굵기 — 배경 사진 위에서도 잘 읽히도록.
+  const navLinkBase = lightHeader
+    ? "font-medium text-white hover:text-white/80"
+    : "font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]";
+  const navLinkActive = lightHeader
+    ? "text-white underline underline-offset-4 decoration-2"
+    : "text-[var(--color-sky)] underline underline-offset-4 decoration-2";
+  const accountLinkClass = lightHeader
+    ? "font-medium text-white hover:text-white/80"
+    : "font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]";
+  const orderButtonClass = lightHeader
+    ? "rounded-full border border-white px-4 py-1.5 text-white transition hover:bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:border-transparent hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+    : "rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]";
+  const mobileIconClass = lightHeader
+    ? "font-medium text-white"
+    : "font-medium text-[var(--color-charcoal)]";
+  const guideButtonClass = lightHeader
+    ? "flex items-center gap-1 font-medium text-white hover:text-white/80"
+    : "flex items-center gap-1 font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]";
 
   return (
     <header className={headerClassName}>
@@ -97,14 +113,11 @@ export default function SiteHeader({
 
         {/* PC 우측: 주문 조회 / 장바구니 / 제작 신청 (작고 간결하게) */}
         <div className="hidden items-center gap-5 text-sm sm:flex">
-          <Link href="/order-lookup" className="font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]">
+          <Link href="/order-lookup" className={accountLinkClass}>
             주문 조회
           </Link>
-          <CartBadge className="font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]" />
-          <Link
-            href="/order"
-            className="rounded-full border border-[var(--color-sky)] px-4 py-1.5 text-[var(--color-sky)] transition hover:bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
-          >
+          <CartBadge className={accountLinkClass} />
+          <Link href="/order" className={orderButtonClass}>
             만들기 시작
           </Link>
         </div>
@@ -115,11 +128,11 @@ export default function SiteHeader({
             type="button"
             onClick={() => setMenuOpen(true)}
             aria-label="전체 메뉴 열기"
-            className="flex items-center font-medium text-[var(--color-charcoal)]"
+            className={`flex items-center ${mobileIconClass}`}
           >
             <span className="text-xl leading-none">≡</span>
           </button>
-          <CartBadge className="font-medium text-[var(--color-charcoal)]" />
+          <CartBadge className={mobileIconClass} />
         </div>
       </div>
 
@@ -159,7 +172,7 @@ export default function SiteHeader({
             <button
               type="button"
               onClick={() => setGuideOpen(true)}
-              className="flex items-center gap-1 font-medium text-[var(--color-charcoal)] hover:text-[var(--color-sky)]"
+              className={guideButtonClass}
             >
               이용 안내
               <span
