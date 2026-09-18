@@ -81,3 +81,28 @@ body {
   font-weight: normal;
   font-display: swap;
 }
+/* 홈 화면 히어로 배너 배경에 쓰는 반짝이는 빛 애니메이션이에요. */
+@keyframes sparkle-twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.6) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(10deg);
+  }
+}
+
+.animate-sparkle-twinkle {
+  animation-name: sparkle-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sparkle-twinkle {
+    animation: none;
+    opacity: 0.8;
+  }
+}

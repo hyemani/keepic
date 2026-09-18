@@ -25,6 +25,41 @@ const promoBanner = {
   caption: "사진을 보내주시면 배치부터 디자인까지 함께합니다.",
 };
 
+// 배너 사진 속 반짝이는 빛 느낌을 배경에도 은은하게 깔아주는 반짝임들이에요.
+// 문구(가운데)와 겹치지 않도록 양옆으로만 배치했어요.
+const bannerSparkles = [
+  { top: "14%", left: "9%", size: 20, delay: "0s", duration: "3.2s" },
+  { top: "27%", left: "18%", size: 12, delay: "0.7s", duration: "2.6s" },
+  { top: "10%", left: "85%", size: 24, delay: "1.1s", duration: "3.6s" },
+  { top: "24%", left: "91%", size: 14, delay: "0.4s", duration: "2.9s" },
+  { top: "6%", left: "50%", size: 11, delay: "1.6s", duration: "3.1s" },
+];
+
+function BannerSparkle({
+  top,
+  left,
+  size,
+  delay,
+  duration,
+}: {
+  top: string;
+  left: string;
+  size: number;
+  delay: string;
+  duration: string;
+}) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className="animate-sparkle-twinkle absolute text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.75)]"
+      style={{ top, left, width: size, height: size, animationDelay: delay, animationDuration: duration }}
+    >
+      <path fill="currentColor" d="M12 0 14.2 9.8 24 12 14.2 14.2 12 24 9.8 14.2 0 12 9.8 9.8Z" />
+    </svg>
+  );
+}
+
 // 시작가는 각 상품의 실제 가격 데이터(lib/*)에서 가장 저렴한 조합을 그대로 계산해요.
 // 숫자를 직접 적어두면 나중에 가격이 바뀔 때 여기가 따로 안 맞을 수 있어서,
 // 항상 원본 가격표를 기준으로 최솟값을 구해요.
@@ -216,9 +251,16 @@ export default function Home() {
           />
         </div>
         {/* 글자가 놓이는 위쪽 그라데이션 부분만 살짝 어둡게 해서, 사진 속 제품은 그대로 밝게 보여요 */}
-        <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-black/25 to-transparent" />
-        {/* 글자를 사진 아래쪽 제품과 겹치지 않도록, 위쪽 그라데이션 배경 부분에만 배치해요 */}
-        <div className="absolute inset-x-0 top-0 flex flex-col items-center px-6 pt-8 text-center sm:pt-12 lg:pt-16">
+        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/25 to-transparent" />
+        {/* 사진 속 반짝임과 같은 느낌으로, 문구 양옆에 은은하게 반짝이는 빛을 깔아요 */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[45%] overflow-hidden">
+          {bannerSparkles.map((sparkle, i) => (
+            <BannerSparkle key={i} {...sparkle} />
+          ))}
+        </div>
+        {/* 글자를 아래쪽 제품과도, 위에 떠 있는 헤더 메뉴와도 겹치지 않도록
+            헤더 높이보다 넉넉히 내려서 그라데이션 배경 가운데쯤에 배치해요 */}
+        <div className="absolute inset-x-0 top-0 flex flex-col items-center px-6 pt-24 text-center sm:pt-40 lg:pt-44">
           <h1 className="font-banner break-keep text-2xl leading-tight text-white sm:text-4xl lg:text-5xl">
             {promoBanner.titleLines[0]}
             <br />
