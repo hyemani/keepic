@@ -1532,7 +1532,7 @@ function UploadPageContent() {
           </a>
         </header>
 
-        <section className="mx-auto max-w-5xl px-6 pb-24 pt-8 sm:px-10">
+        <section className="mx-auto max-w-5xl px-6 pt-8 sm:px-10">
           <p className="text-sm text-[var(--color-charcoal)]/60">
             {productName} · {displaySizeLabel} · {quantity}개 · {template.name}
           </p>
@@ -1655,8 +1655,11 @@ function UploadPageContent() {
             </div>
           )}
 
+        </section>
+
+        <div className="w-full bg-[var(--color-hairline)]/15 px-4 pb-4 pt-10 sm:px-6 lg:px-8">
           {photos.length > 0 && (
-            <div className="mt-12">
+            <div className="mx-auto mt-2 max-w-6xl">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-semibold">페이지 편집</h2>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1728,9 +1731,19 @@ function UploadPageContent() {
                 </button>
               )}
 
-              <div className="mt-6 flex flex-col gap-4 lg:flex-row">
+              {/* 모바일 세로 화면일 때만 보여요 — 편집 화면은 가로가 넓어야 보기 편해서, 기기를 돌려달라고 안내해요 */}
+              <div className="mt-6 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--color-charcoal)]/30 bg-white p-10 text-center landscape:hidden lg:hidden">
+                <span className="text-3xl">📱↻</span>
+                <p className="text-sm text-[var(--color-charcoal)]/70 break-keep">
+                  화면을 가로로 돌리면 편집 화면이 넓게 보여요.
+                  <br />
+                  휴대폰을 가로로 돌려주세요.
+                </p>
+              </div>
+
+              <div className="mt-6 hidden flex-col gap-4 landscape:flex lg:flex lg:flex-row">
                 {/* 왼쪽: 전체 페이지 한눈에 보기 */}
-                <div className="flex gap-2 overflow-x-auto pb-2 lg:w-36 lg:shrink-0 lg:flex-col lg:overflow-visible lg:pb-0">
+                <div className="flex gap-2 overflow-x-auto rounded-xl border border-[var(--color-hairline)] bg-white p-2 shadow-sm lg:max-h-[calc(100vh-200px)] lg:w-40 lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pb-0">
                   {isPhotobook && (
                     <button
                       type="button"
@@ -2273,7 +2286,9 @@ function UploadPageContent() {
               </div>
             </div>
           )}
+        </div>
 
+        <section className="mx-auto max-w-5xl px-6 pb-24 pt-6 sm:px-10">
           {photos.length > 0 && !isPhotoCountValid && (
             <p className="mt-6 text-sm text-red-500">
               {photos.length < requiredCount
