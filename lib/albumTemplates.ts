@@ -27,7 +27,10 @@ export type TextBoxDef = {
   text: string;
   xPct: number; // 왼쪽 끝 위치 (0~100)
   yPct: number; // 위쪽 끝 위치 (0~100)
-  widthPct: number; // 박스 너비 (0~100) — 이 너비에서 줄바꿈돼요.
+  widthPct: number; // 박스 너비(가로, 0~100) — 고정이에요. 이 너비에서 줄바꿈돼요.
+  heightPct?: number; // 박스 높이(세로, 0~100). 비워두면 글자 양에 맞춰 자동으로 늘어나요
+  // (예전 방식·책등처럼 세로쓰기인 경우). 값이 있으면 일러스트레이터 텍스트박스처럼
+  // 높이가 고정되고, 아래쪽 손잡이로 끌어서 조절할 수 있어요.
   fontFamily: string;
   fontScale: number; // 기본 글자 크기 대비 배율(1이 기본) — 표지 제목 배율(coverTitleFontScale)과 같은 방식이에요.
   color: string;

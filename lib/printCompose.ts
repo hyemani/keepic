@@ -214,6 +214,23 @@ function drawTextBoxOnCanvas(
   const lineHeight = fontPx * 1.35;
   const lines = wrapTextForCanvas(ctx, text, w);
   const textX = box.align === "left" ? x : box.align === "right" ? x + w : x + w / 2;
+
+  // 높이(heightPct)가 정해져 있으면 화면과 똑같이 그 안쪽만 그리고 넘치는 줄은 잘라요
+  // (일러스트레이터 텍스트박스처럼 높이를 고정한 경우예요).
+  if (box.heightPct !== undefined) {
+    const h = (box.heightPct / 100) * pageH;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    lines.forEach((line, i) => {
+      if (i * lineHeight > h) return;
+      ctx.fillText(line, textX, y + i * lineHeight, w);
+    });
+    ctx.restore();
+    return;
+  }
+
   lines.forEach((line, i) => {
     ctx.fillText(line, textX, y + i * lineHeight, w);
   });
@@ -736,7 +753,8 @@ function computeSpineTitleLayoutPx(
   charCount: number,
   spinePx: number,
   panelPx: number,
-  logoReserveHeightPx: number
+  logoReserveHeightPx: number,
+  boxHeightPx?: number // 사용자가 화면에서 끌어서 정한 책등 텍스트박스 높이예요(있으면 이 값을 우선해요).
 ): {
   fits: boolean;
   size: number;
@@ -751,7 +769,10 @@ function computeSpineTitleLayoutPx(
   const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2);
   const marginPx = panelPx * SPINE_TITLE_MARGIN_RATIO;
   const gapBeforeLogoPx = logoReserveHeightPx > 0 ? panelPx * SPINE_TITLE_LOGO_GAP_RATIO : 0;
-  const maxLengthPx = Math.max(4, panelPx - marginPx * 2 - logoReserveHeightPx - gapBeforeLogoPx);
+  const maxLengthPx =
+    boxHeightPx !== undefined
+      ? Math.max(4, boxHeightPx)
+      : Math.max(4, panelPx - marginPx * 2 - logoReserveHeightPx - gapBeforeLogoPx);
 
   let size = maxCrossPx;
   let charsPerColumn = Math.max(1, Math.floor(maxLengthPx / size));
@@ -789,19 +810,22 @@ function drawSpineTitleCanvas(
   spinePx: number,
   panelPx: number,
   bleedPx: number,
-  logoReserveHeightPx: number
+  logoReserveHeightPx: number,
+  titleBoxTopPx?: number, // 화면에서 끌어서 정한 텍스트박스의 위쪽 위치(패널 위쪽 기준 px)
+  titleBoxHeightPx?: number // 같은 텍스트박스의 높이(px)
 ): boolean {
   const chars = Array.from(title.trim());
   if (chars.length === 0) return true;
 
-  const layout = computeSpineTitleLayoutPx(chars.length, spinePx, panelPx, logoReserveHeightPx);
+  const layout = computeSpineTitleLayoutPx(chars.length, spinePx, panelPx, logoReserveHeightPx, titleBoxHeightPx);
   const { fits, size, charsPerColumn, gapPx, blockCrossPx, marginPx } = layout;
 
-  // 세로 방향(책등 길이) 위치: 제목은 책등 맨 위(margin만큼 띄운 자리)에 붙이고, 로고는
-  // (drawSpineLogoCanvas에서) 맨 아래에 붙여요 — 가운데 정렬 대신 위/아래로 나눠서
-  // 배치하니 둘 다 여유 있게 커질 수 있고, 서로 겹칠 일도 없어요.
+  // 세로 방향(책등 길이) 위치: 화면에서 사용자가 텍스트박스를 끌어서 정한 자리(있으면)를
+  // 그대로 쓰고, 없으면 예전처럼 책등 맨 위(margin만큼 띄운 자리)에 붙여요. 로고는
+  // (drawSpineLogoCanvas에서) 맨 아래에 붙여요 — 위/아래로 나눠서 배치하니 서로 겹칠 일이
+  // 없어요.
   const usableTopPx = panelPx - marginPx;
-  const blockTopFromPanelBottomPx = usableTopPx;
+  const blockTopFromPanelBottomPx = titleBoxTopPx !== undefined ? panelPx - titleBoxTopPx : usableTopPx;
 
   // 가로 방향(책등 폭) 위치: 열 블록 전체를 책등 폭 가운데 정렬해요.
   const spineCenterXpx = spineXpx + spinePx / 2;
@@ -882,9 +906,13 @@ export async function buildCoverPrintPdf({
   innerPaperWeightG,
   pages,
   spineTitle,
+  spineTitleYPct,
+  spineTitleHeightPct,
   backCoverMode = "logo",
   backCoverPhoto = null,
   backCoverBackgroundColor,
+  backCoverPatternId,
+  backCoverTextBoxes,
   coverSpineBackgroundColor,
   coverFrontBackgroundColor,
   coverTextBoxes,
@@ -904,9 +932,14 @@ export async function buildCoverPrintPdf({
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
+  spineTitleYPct?: number; // 책등 텍스트박스의 위쪽 위치(책등 패널 높이 기준 %). 화면에서
+  // 끌어서 옮긴 자리 그대로예요. 지정 안 하면 예전처럼 자동으로 맨 위에 둬요.
+  spineTitleHeightPct?: number; // 같은 텍스트박스의 높이(%). 지정 안 하면 자동 계산해요.
   backCoverMode?: "logo" | "photo";
   backCoverPhoto?: PrintPhoto | null;
   backCoverBackgroundColor?: string;
+  backCoverPatternId?: string; // 뒤표지 그래픽·패턴·텍스처예요. 지정하면 배경색보다 우선해요.
+  backCoverTextBoxes?: TextBoxDef[]; // 뒤표지에 자유 배치한 텍스트박스예요.
   coverSpineBackgroundColor?: string; // 지정 안 하면 기존 기본색(아이보리 #f4f1ea) 그대로예요.
   coverFrontBackgroundColor?: string; // 지정 안 하면 흰색 그대로예요(사진 뒤로 비치는 여백 색).
   coverTextBoxes?: TextBoxDef[]; // 표지 앞면에 자유 배치한 텍스트박스예요.
@@ -944,7 +977,10 @@ export async function buildCoverPrintPdf({
   // 포함해서 채워요(책등 쪽만 접히는 자리라 도련이 필요 없어요).
   const backCellWpx = bleedPx + panelPx;
   const backCellHpx = panelPx + bleedPx * 2;
-  if (backCoverBackgroundColor) {
+  const backPattern = findBackgroundPattern(backCoverPatternId);
+  if (backPattern) {
+    drawBackgroundPatternOnCanvas(ctx, backPattern, 0, 0, backCellWpx, backCellHpx, mmToPx);
+  } else if (backCoverBackgroundColor) {
     ctx.fillStyle = backCoverBackgroundColor;
     ctx.fillRect(0, 0, backCellWpx, backCellHpx);
   }
@@ -983,6 +1019,16 @@ export async function buildCoverPrintPdf({
       backLogoHpx
     );
   }
+  if (backCoverTextBoxes) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, backCellWpx, backCellHpx);
+    ctx.clip();
+    for (const box of backCoverTextBoxes) {
+      drawTextBoxOnCanvas(ctx, box, backCellWpx, backCellHpx, 0, 0);
+    }
+    ctx.restore();
+  }
 
   // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
   const spineX = bleedPx + panelPx;
@@ -999,7 +1045,9 @@ export async function buildCoverPrintPdf({
       spinePx,
       panelPx,
       bleedPx,
-      spineLogoLayout.fits ? spineLogoLayout.drawnHeightPx : 0
+      spineLogoLayout.fits ? spineLogoLayout.drawnHeightPx : 0,
+      spineTitleYPct !== undefined ? (spineTitleYPct / 100) * panelPx : undefined,
+      spineTitleHeightPct !== undefined ? (spineTitleHeightPct / 100) * panelPx : undefined
     );
   }
   if (spineLogoLayout.fits) {

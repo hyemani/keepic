@@ -67,7 +67,10 @@ type Photo = {
 
 // 텍스트박스가 어디 있는지(표지 앞면인지, 어느 스프레드의 왼쪽/오른쪽 낱장인지) 가리키는
 // 값이에요. 상단 툴바가 지금 고치는 텍스트박스를 찾아가는 데 써요.
-type TextBoxRef = { scope: "cover" } | { scope: "spread"; spreadIndex: number; side: "left" | "right" };
+type TextBoxRef =
+  | { scope: "cover" }
+  | { scope: "backCover" }
+  | { scope: "spread"; spreadIndex: number; side: "left" | "right" };
 
 const captionSizeClass: Record<Photo["size"], string> = {
   sm: "text-xs",
@@ -763,6 +766,7 @@ function TextBoxOverlay({
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
     v: false,
     h: false,
@@ -770,6 +774,7 @@ function TextBoxOverlay({
   });
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
+  const resizeStart = useRef({ mouseY: 0, heightPct: 0, cellH: 1 });
 
   // preventDefault를 하지 않아요 — 그래야 textarea 안을 클릭했을 때 브라우저가 원래 하던
   // 대로 포커스를 주고 그 자리에 커서를 놓아줘요(타이핑이 바로 가능해요). 대신
@@ -788,6 +793,38 @@ function TextBoxOverlay({
     };
     setMouseDownActive(true);
   }
+
+  // 세로 크기 조절 손잡이예요 — 가로폭(widthPct)은 고정이고, 아래쪽으로 끌어서 높이만
+  // 늘리거나 줄여요(일러스트레이터의 텍스트박스 도구처럼요).
+  function handleResizeStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    const boxRect = boxRef.current?.getBoundingClientRect();
+    const cellH = cellRect?.height || 1;
+    const currentHeightPct = box.heightPct ?? (boxRect ? (boxRect.height / cellH) * 100 : 10);
+    resizeStart.current = { mouseY: e.clientY, heightPct: currentHeightPct, cellH };
+    setIsResizing(true);
+  }
+
+  useEffect(() => {
+    if (!isResizing) return;
+    function handleMouseMove(e: MouseEvent) {
+      const dyPct = ((e.clientY - resizeStart.current.mouseY) / resizeStart.current.cellH) * 100;
+      const nextHeight = Math.min(96, Math.max(4, resizeStart.current.heightPct + dyPct));
+      onChange({ heightPct: nextHeight });
+    }
+    function handleMouseUp() {
+      setIsResizing(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
 
   useEffect(() => {
     if (!mouseDownActive) return;
@@ -850,10 +887,16 @@ function TextBoxOverlay({
     <div
       ref={boxRef}
       onMouseDown={handleMouseDown}
-      className={`absolute z-30 cursor-move rounded transition ${
-        isActive ? "ring-2 ring-[var(--color-sky)]/70" : "ring-1 ring-transparent hover:ring-[var(--color-sky)]/30"
+      className={`absolute z-30 cursor-move border transition ${
+        isActive ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/40"
       }`}
-      style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%` }}
+      style={{
+        left: `${box.xPct}%`,
+        top: `${box.yPct}%`,
+        width: `${box.widthPct}%`,
+        height: box.heightPct !== undefined ? `${box.heightPct}%` : undefined,
+        overflow: box.heightPct !== undefined ? "hidden" : undefined,
+      }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
         <>
@@ -891,8 +934,18 @@ function TextBoxOverlay({
           textAlign: box.align,
           fontWeight: box.bold ? 700 : 400,
         }}
-        className="w-full cursor-text resize-none overflow-hidden border-none bg-transparent leading-snug outline-none"
+        className={`w-full cursor-text resize-none border-none bg-transparent leading-snug outline-none ${
+          box.heightPct !== undefined ? "h-full overflow-hidden" : "overflow-hidden"
+        }`}
       />
+      {/* 가로폭은 고정, 세로 높이만 이 손잡이로 조절해요 — 일러스트레이터 텍스트박스처럼요. */}
+      {isActive && (
+        <div
+          onMouseDown={handleResizeStart}
+          title="끌어서 세로 크기 조절"
+          className="absolute -bottom-1.5 left-1/2 z-40 h-3 w-3 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
+        />
+      )}
     </div>
   );
 }
@@ -1159,6 +1212,118 @@ function CoverTitleOverlay({
       >
         {title}
       </p>
+    </div>
+  );
+}
+
+// 책등 텍스트박스예요. 책등 폭 자체가 아주 좁아서 가로로 조절할 일이 없어요 — 항상 책등
+// 패널 폭 전체(왼쪽 0%~오른쪽 100%)를 그대로 쓰고, 세로 위치·높이만 끌어서 바꿔요.
+// 일러스트레이터 텍스트박스 도구처럼 파란 테두리 박스로 보이고, 아래쪽 손잡이로 세로
+// 크기를 조절해요.
+function SpineTitleOverlay({
+  title,
+  emptyLabel,
+  yPct,
+  heightPct,
+  onMove,
+  onResize,
+}: {
+  title: string;
+  emptyLabel: string;
+  yPct: number;
+  heightPct: number;
+  onMove: (yPct: number) => void;
+  onResize: (heightPct: number) => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({ mouseY: 0, yPct: 0, cellH: 1 });
+  const resizeStart = useRef({ mouseY: 0, heightPct: 0, cellH: 1 });
+
+  function handleDragStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    dragStart.current = { mouseY: e.clientY, yPct, cellH: cellRect?.height || 1 };
+    setIsDragging(true);
+  }
+
+  useEffect(() => {
+    if (!isDragging) return;
+    function handleMouseMove(e: MouseEvent) {
+      const dyPct = ((e.clientY - dragStart.current.mouseY) / dragStart.current.cellH) * 100;
+      const nextY = Math.min(90, Math.max(0, dragStart.current.yPct + dyPct));
+      onMove(nextY);
+    }
+    function handleMouseUp() {
+      setIsDragging(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  function handleResizeStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    resizeStart.current = { mouseY: e.clientY, heightPct, cellH: cellRect?.height || 1 };
+    setIsResizing(true);
+  }
+
+  useEffect(() => {
+    if (!isResizing) return;
+    function handleMouseMove(e: MouseEvent) {
+      const dyPct = ((e.clientY - resizeStart.current.mouseY) / resizeStart.current.cellH) * 100;
+      const nextHeight = Math.min(90, Math.max(8, resizeStart.current.heightPct + dyPct));
+      onResize(nextHeight);
+    }
+    function handleMouseUp() {
+      setIsResizing(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
+
+  const active = isDragging || isResizing;
+
+  return (
+    <div
+      ref={boxRef}
+      onMouseDown={handleDragStart}
+      className={`group/st absolute left-0 z-20 flex w-full cursor-move items-center justify-center overflow-hidden border px-0.5 transition ${
+        active ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/50"
+      }`}
+      style={{ top: `${yPct}%`, height: `${heightPct}%` }}
+    >
+      {title.trim() ? (
+        <span
+          className="text-[11px] font-semibold leading-[1.25] text-[var(--color-charcoal)]"
+          style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
+        >
+          {title}
+        </span>
+      ) : (
+        <span
+          className="text-[11px] text-[var(--color-charcoal)]/40"
+          style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
+        >
+          {emptyLabel}
+        </span>
+      )}
+      <div
+        onMouseDown={handleResizeStart}
+        title="끌어서 세로 크기 조절"
+        className="absolute -bottom-1.5 left-1/2 z-40 h-3 w-3 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[var(--color-sky)] opacity-0 shadow transition group-hover/st:opacity-100"
+      />
     </div>
   );
 }
@@ -1483,6 +1648,10 @@ function UploadPageContent() {
   const [coverTitleXPct, setCoverTitleXPct] = useState(8);
   const [coverTitleYPct, setCoverTitleYPct] = useState(84);
   const coverTitleWidthPct = 84;
+  // 책등 텍스트박스예요. 가로폭은 책등 폭에 항상 맞춰지도록 고정이고(따로 조절 안 해요),
+  // 세로 위치·높이만 화면에서 끌어서 바꿀 수 있어요(일러스트레이터 텍스트박스처럼요).
+  const [spineTitleYPct, setSpineTitleYPct] = useState(6);
+  const [spineTitleHeightPct, setSpineTitleHeightPct] = useState(46);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
   // 뒤표지예요 — 무지(흰 배경)로 비워두지 않고, 기본으로 키픽 로고를 가운데에 배치해요.
@@ -1490,6 +1659,9 @@ function UploadPageContent() {
   const [backCoverMode, setBackCoverMode] = useState<"logo" | "photo">("logo");
   const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
+  // 뒤표지도 내지처럼 그래픽·패턴·텍스처 배경과 자유 배치 텍스트박스를 넣을 수 있어요.
+  const [backCoverPatternId, setBackCoverPatternId] = useState<string | undefined>(undefined);
+  const [backCoverTextBoxes, setBackCoverTextBoxes] = useState<TextBoxDef[]>([]);
   // 책등·앞표지 배경색이에요. 뒤표지와 마찬가지로 지정 안 하면 기존 기본색(책등은 아이보리,
   // 앞표지는 흰색) 그대로예요. 세 곳 모두 따로 고를 수도, 아래 "배경색" 팔레트에서 한 번에
   // 세트로 맞출 수도 있어요.
@@ -1802,13 +1974,30 @@ function UploadPageContent() {
     setCoverTextBoxes((prev) => prev.filter((b) => b.id !== boxId));
   }
 
-  // 지금 선택된 텍스트박스가 어디(표지 앞면인지, 어느 스프레드의 왼쪽/오른쪽 낱장인지)
-  // 있는지 가리켜요. 상단 툴바(TextBoxToolbar)가 이 값 하나만 보고 어떤 텍스트박스를
-  // 고치는지 알 수 있게 해요.
+  // 뒤표지 텍스트박스예요. 표지 앞면(coverTextBoxes)과 같은 방식으로, 별도 state로
+  // 관리해요.
+  function handleAddBackCoverTextBox() {
+    const box = makeTextBox();
+    setBackCoverTextBoxes((prev) => [...prev, box]);
+    setActiveTextBox({ ref: { scope: "backCover" }, boxId: box.id });
+  }
+
+  function handleBackCoverTextBoxChange(boxId: string, changes: Partial<TextBoxDef>) {
+    setBackCoverTextBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+  }
+
+  function handleDeleteBackCoverTextBox(boxId: string) {
+    setBackCoverTextBoxes((prev) => prev.filter((b) => b.id !== boxId));
+  }
+
+  // 지금 선택된 텍스트박스가 어디(표지 앞면·뒤표지인지, 어느 스프레드의 왼쪽/오른쪽
+  // 낱장인지) 있는지 가리켜요. 상단 툴바(TextBoxToolbar)가 이 값 하나만 보고 어떤
+  // 텍스트박스를 고치는지 알 수 있게 해요.
   const [activeTextBox, setActiveTextBox] = useState<{ ref: TextBoxRef; boxId: string } | null>(null);
 
   function getTextBoxesForRef(ref: TextBoxRef): TextBoxDef[] {
     if (ref.scope === "cover") return coverTextBoxes;
+    if (ref.scope === "backCover") return backCoverTextBoxes;
     const spread = customSpreads[ref.spreadIndex];
     if (!spread) return [];
     return (ref.side === "left" ? spread.textBoxesLeft : spread.textBoxesRight) ?? [];
@@ -1816,11 +2005,13 @@ function UploadPageContent() {
 
   function updateTextBoxByRef(ref: TextBoxRef, boxId: string, changes: Partial<TextBoxDef>) {
     if (ref.scope === "cover") handleCoverTextBoxChange(boxId, changes);
+    else if (ref.scope === "backCover") handleBackCoverTextBoxChange(boxId, changes);
     else handleTextBoxChange(ref.spreadIndex, ref.side, boxId, changes);
   }
 
   function deleteTextBoxByRef(ref: TextBoxRef, boxId: string) {
     if (ref.scope === "cover") handleDeleteCoverTextBox(boxId);
+    else if (ref.scope === "backCover") handleDeleteBackCoverTextBox(boxId);
     else handleDeleteTextBox(ref.spreadIndex, ref.side, boxId);
     setActiveTextBox(null);
   }
@@ -1879,9 +2070,13 @@ function UploadPageContent() {
       innerPaperWeightG: innerPaper.weightG,
       pages,
       spineTitle,
+      spineTitleYPct,
+      spineTitleHeightPct,
       backCoverMode,
       backCoverPhoto,
       backCoverBackgroundColor,
+      backCoverPatternId,
+      backCoverTextBoxes,
       coverSpineBackgroundColor,
       coverFrontBackgroundColor,
       coverTextBoxes,
@@ -2586,8 +2781,16 @@ function UploadPageContent() {
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
                         <div
-                          className="relative flex h-full items-center justify-center overflow-hidden"
-                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
+                          className="group relative flex h-full items-center justify-center overflow-hidden"
+                          style={{
+                            width: `${coverBackPct}%`,
+                            background: backCoverPatternId
+                              ? resolveSpreadBackgroundCss({
+                                  backgroundColor: backCoverBackgroundColor,
+                                  backgroundPattern: backCoverPatternId,
+                                })
+                              : (backCoverBackgroundColor ?? "#ffffff"),
+                          }}
                         >
                           {backCoverMode === "logo" ? (
                             <img
@@ -2612,35 +2815,35 @@ function UploadPageContent() {
                               />
                             </label>
                           )}
+                          <TextBoxLayer
+                            boxes={backCoverTextBoxes}
+                            onAdd={handleAddBackCoverTextBox}
+                            onChange={handleBackCoverTextBoxChange}
+                            activeBoxId={activeTextBox?.ref.scope === "backCover" ? activeTextBox.boxId : null}
+                            onSelect={(boxId) => setActiveTextBox({ ref: { scope: "backCover" }, boxId })}
+                          />
                         </div>
                         <div
-                          className="relative flex h-full flex-col items-center justify-between overflow-hidden border-x border-[#1a1a1a]/70 px-1 py-4"
+                          className="relative h-full overflow-hidden border-x border-[#1a1a1a]/70 px-1"
                           style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
                         >
-                          {/* 책등엔 책등 제목과 로고만 보여줘요 — 제목은 맨 위, 로고는 맨 아래로 나눠
-                              배치해서(가운데 정렬 대신) 서로 겹치지 않고, 실제 인쇄 파일과 같은
-                              비율로 여유 있게 크게 보여요. (문장 전체를 90도로 눕히지 않고, 한
-                              글자씩 정방향으로 위→아래 세로쓰기해요.) */}
-                          {spineTitle.trim() ? (
-                            <span
-                              className="flex max-h-[55%] items-center justify-center overflow-hidden text-[11px] font-semibold leading-[1.25] text-[var(--color-charcoal)]"
-                              style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
-                            >
-                              {spineTitle}
-                            </span>
-                          ) : (
-                            <span
-                              className="text-[11px] text-[var(--color-charcoal)]/40"
-                              style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
-                            >
-                              책등
-                            </span>
-                          )}
+                          {/* 책등엔 책등 제목과 로고만 보여줘요 — 제목 텍스트박스는 끌어서 위치를,
+                              아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등 폭에 고정).
+                              로고는 맨 아래에 고정으로 둬서 서로 겹치지 않아요. (문장 전체를
+                              90도로 눕히지 않고, 한 글자씩 정방향으로 위→아래 세로쓰기해요.) */}
+                          <SpineTitleOverlay
+                            title={spineTitle}
+                            emptyLabel="책등"
+                            yPct={spineTitleYPct}
+                            heightPct={spineTitleHeightPct}
+                            onMove={setSpineTitleYPct}
+                            onResize={setSpineTitleHeightPct}
+                          />
                           {coverSpineLogoLayout.fits && (
                             <img
                               src="/logo.svg"
                               alt="Keepic"
-                              className="pointer-events-none h-auto w-[92%] max-w-24 opacity-90"
+                              className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-[92%] max-w-24 -translate-x-1/2 opacity-90"
                             />
                           )}
                         </div>
@@ -2890,6 +3093,45 @@ function UploadPageContent() {
                               />
                             </label>
                           </div>
+                        </div>
+                        <div className="mt-3">
+                          <span className="text-xs text-[var(--color-charcoal)]/60">
+                            그래픽·패턴·텍스처(뒤표지만)
+                          </span>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setBackCoverPatternId(undefined)}
+                              className={`h-6 rounded-full border px-2 text-[11px] transition ${
+                                !backCoverPatternId
+                                  ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                                  : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70"
+                              }`}
+                            >
+                              없음
+                            </button>
+                            {backgroundPatterns.map((preset) => {
+                              const isActive = backCoverPatternId === preset.id;
+                              return (
+                                <button
+                                  key={preset.id}
+                                  type="button"
+                                  title={preset.label}
+                                  onClick={() => setBackCoverPatternId(isActive ? undefined : preset.id)}
+                                  className={`h-6 w-6 rounded-full border transition ${
+                                    isActive
+                                      ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                      : "border-[var(--color-hairline)]"
+                                  }`}
+                                  style={{ background: patternToCssBackground(preset) }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <p className="mt-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                            뒤표지 미리보기 칸에 마우스를 올리면 뜨는 &quot;+ 텍스트 추가&quot; 버튼으로
+                            글자도 자유롭게 넣을 수 있어요.
+                          </p>
                         </div>
                       </div>
                     </div>
