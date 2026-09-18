@@ -1651,7 +1651,7 @@ function UploadPageContent() {
   // 책등 텍스트박스예요. 가로폭은 책등 폭에 항상 맞춰지도록 고정이고(따로 조절 안 해요),
   // 세로 위치·높이만 화면에서 끌어서 바꿀 수 있어요(일러스트레이터 텍스트박스처럼요).
   const [spineTitleYPct, setSpineTitleYPct] = useState(6);
-  const [spineTitleHeightPct, setSpineTitleHeightPct] = useState(46);
+  const [spineTitleHeightPct, setSpineTitleHeightPct] = useState(50); // 12pt 최소 크기가 여유있게 들어가도록 기본 높이를 늘렸어요(로고 자리와는 안 겹쳐요).
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
   // 뒤표지예요 — 무지(흰 배경)로 비워두지 않고, 기본으로 키픽 로고를 가운데에 배치해요.
@@ -2290,7 +2290,7 @@ function UploadPageContent() {
     const guidePageWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
     const guideSpreadWorkMm = guidePageWorkMm * 2;
     const GUIDE_BLEED_MM = 5;
-    const GUIDE_SAFETY_MM = 8; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
+    const GUIDE_SAFETY_MM = 10; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
     const trimXPct = (GUIDE_BLEED_MM / guideSpreadWorkMm) * 100;
     const trimYPct = (GUIDE_BLEED_MM / guidePageWorkMm) * 100;
     // 바깥쪽(재단 기준) 안전 여백 — 위/아래 및 왼쪽 페이지의 왼쪽·오른쪽 페이지의 오른쪽
@@ -2363,11 +2363,21 @@ function UploadPageContent() {
     // 뒤표지·앞표지처럼 별도 안전영역 여백을 두지 않아요(2026-09, 사용자 확인). 책등
     // 경계(재단선)는 위 패널 테두리로 이미 보여주고 있어요.
 
-    // 책등 로고가 실제 인쇄 PDF(lib/printPdfLib.ts)와 똑같은 기준으로 보이는지 화면에서도
-    // 미리 계산해요. computeSpineLogoLayout은 그 파일의 함수를 그대로 가져다 쓰는 거라,
-    // "책등이 좁아서 로고 생략"이 필요한 시점이 편집 화면과 인쇄 PDF에서 항상 일치해요.
+    // 책등 로고가 실제 인쇄 파일(lib/printCompose.ts)과 똑같은 기준으로 보이는지 화면에서도
+    // 미리 계산해요. computeSpineLogoLayout은 배치 "수치"만 재사용하는 거라(비율은
+    // lib/printCompose.ts와 맞춰뒀어요), "책등이 좁아서 로고 생략"이 필요한 시점이 편집
+    // 화면과 인쇄 파일에서 항상 일치해요.
     const coverSpinePt = mmToPt(coverSpineMm);
     const coverSpineLogoLayout = computeSpineLogoLayout(coverSpinePt);
+    // 로고는 책등이 좁아서 90도로 눕혀서 넣어요 — computeSpineLogoLayout이 돌려주는
+    // drawnWidthPt/drawnHeightPt는 "눕힌 뒤(실제로 화면에 보이는)" 가로/세로예요. 회전 전
+    // <img> 박스의 가로/세로는 서로 뒤바뀌어서 넣어야, rotate(-90deg) 후 원하는 크기가 나와요.
+    // (표지 펼침면은 aspectRatio로 실측 mm 비율 그대로 렌더링돼서, 가로·세로 축척이 같아요 —
+    // 그래서 "책등 폭 대비 %"와 "표지 전체 높이 대비 %"를 이렇게 서로 변환할 수 있어요.)
+    const coverSpineLogoPreRotateWidthPct =
+      coverSpinePt > 0 ? (coverSpineLogoLayout.drawnHeightPt / coverSpinePt) * 100 : 0;
+    const coverSpineLogoPreRotateHeightPct = (coverSpineLogoLayout.drawnWidthPt / mmToPt(coverTotalHmm)) * 100;
+    const SPINE_LOGO_CENTER_Y_PCT = 62; // lib/printCompose.ts의 SPINE_LOGO_CENTER_Y_RATIO와 같은 값(정중앙보다 살짝 아래)
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -2829,8 +2839,9 @@ function UploadPageContent() {
                         >
                           {/* 책등엔 책등 제목과 로고만 보여줘요 — 제목 텍스트박스는 끌어서 위치를,
                               아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등 폭에 고정).
-                              로고는 맨 아래에 고정으로 둬서 서로 겹치지 않아요. (문장 전체를
-                              90도로 눕히지 않고, 한 글자씩 정방향으로 위→아래 세로쓰기해요.) */}
+                              제목은 한 글자씩 정방향으로 위→아래 세로쓰기하고(문장 전체를
+                              90도로 눕히지 않아요), 로고는 책등이 좁아서 90도로 눕혀서
+                              정중앙보다 살짝 아래에 고정으로 둬서 제목과 겹치지 않아요. */}
                           <SpineTitleOverlay
                             title={spineTitle}
                             emptyLabel="책등"
@@ -2843,7 +2854,14 @@ function UploadPageContent() {
                             <img
                               src="/logo.svg"
                               alt="Keepic"
-                              className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-[92%] max-w-24 -translate-x-1/2 opacity-90"
+                              className="pointer-events-none absolute z-10 opacity-90"
+                              style={{
+                                top: `${SPINE_LOGO_CENTER_Y_PCT}%`,
+                                left: "50%",
+                                width: `${coverSpineLogoPreRotateWidthPct}%`,
+                                height: `${coverSpineLogoPreRotateHeightPct}%`,
+                                transform: "translate(-50%, -50%) rotate(-90deg)",
+                              }}
                             />
                           )}
                         </div>

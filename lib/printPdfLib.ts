@@ -65,13 +65,12 @@ const OUTER_MARGIN_MM = SHOW_TRIM_MARKS
 // 책등 폭이 보통 매우 좁아서(수 mm~수십 mm), 제목·로고 모두 "옆으로 눕혀서"(시계 반대
 // 방향으로 90도 회전) 넣어요 — 책을 책장에 꽂아놓고 옆에서 볼 때 고개를 왼쪽으로 기울이면
 // 정방향으로 읽히는, 가장 흔한 책등 표기 방향이에요.
-const SPINE_TEXT_SIDE_PADDING_MM = 1.5; // 책등 좌우 끝에서 글자/로고까지 남기는 여백
+const SPINE_TEXT_SIDE_PADDING_MM = 1; // 책등 좌우 끝에서 글자/로고까지 남기는 여백 (lib/printCompose.ts와 같은 값)
 const SPINE_TITLE_MARGIN_RATIO = 0.06; // 제목 위/아래로 반드시 남겨야 하는 여백(패널 높이 대비 비율)
 const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15; // 세로쓰기 열 사이 간격(글자 크기 대비 비율)
 const SPINE_TITLE_MIN_FONT_PT = 4; // 이보다 작아지면 더 줄이지 않고 "너무 깁니다" 안내로 넘어가요
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03; // 제목 블록과 로고 사이 최소 간격(패널 높이 대비 비율)
-const SPINE_LOGO_HEIGHT_RATIO = 0.85; // 로고가 책등 폭(여백 제외) 중 차지하는 비율
-const SPINE_LOGO_BOTTOM_MARGIN_MM = 8; // 책등 아래쪽 끝(도련 경계)에서 로고까지 띄우는 고정 여백 — 사용자가 바꿀 수 없음
+const SPINE_LOGO_HEIGHT_RATIO = 0.95; // 로고가 책등 폭(여백 제외) 중 차지하는 비율 (lib/printCompose.ts와 같은 값)
 // 책등이 이보다 좁으면(양옆 여백 제외 실 폭 기준) 로고를 읽기 어렵다고 보고 생략해요.
 // ⚠️ 추정치예요 — 실제 가독성 최소 폭은 인쇄소·디자인 확인이 필요해요.
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
@@ -826,8 +825,8 @@ async function embedKeepicLogo(pdfDoc: PDFDocument): Promise<PDFImage> {
 // 자리를 남겨두고 배치될 수 있어요(drawSpineTitle의 logoReserveHeightPt).
 export function computeSpineLogoLayout(spinePt: number): {
   fits: boolean;
-  drawnWidthPt: number; // 책등 폭 방향(가로, 로고를 눕히지 않으므로)
-  drawnHeightPt: number; // 책등 길이 방향(세로) — 제목이 피해야 하는 예약 높이
+  drawnWidthPt: number; // 눕힌 뒤 가로(=책등 폭 방향) 크기
+  drawnHeightPt: number; // 눕힌 뒤 세로(=책등 길이 방향) 크기 — 원래 로고의 가로가 이쪽으로 와요.
 } {
   const sidePaddingPt = mmToPt(SPINE_TEXT_SIDE_PADDING_MM);
   const maxCrossPt = Math.max(0, spinePt - sidePaddingPt * 2);
@@ -835,12 +834,14 @@ export function computeSpineLogoLayout(spinePt: number): {
     return { fits: false, drawnWidthPt: 0, drawnHeightPt: 0 };
   }
   const drawnWidthPt = maxCrossPt * SPINE_LOGO_HEIGHT_RATIO;
-  const drawnHeightPt = drawnWidthPt / KEEPIC_LOGO_ASPECT;
+  const drawnHeightPt = drawnWidthPt * KEEPIC_LOGO_ASPECT;
   return { fits: true, drawnWidthPt, drawnHeightPt };
 }
 
-// 로고는 회전하거나 글자를 분해하지 않고, "Keepic"이 왼쪽→오른쪽으로 읽히는 정방향
-// 그대로 책등 아래쪽에 넣어요. 원본 가로:세로 비율(KEEPIC_LOGO_ASPECT)은 그대로 유지해요.
+// ⚠️ 이 파일(pdf-lib 생성기)은 실제 발주에 쓰이지 않는 테스트용이에요(2026-09 기준,
+// 실제 생성기는 lib/printCompose.ts). 책등 로고를 눕히는 최신 배치는 그쪽에만 반영했고,
+// 여기 computeSpineLogoLayout(위)의 수치만 화면 미리보기 계산에 재사용돼서 그쪽 값은
+// 맞춰뒀어요 — 이 그리기 함수 자체는 예전 방식(정방향) 그대로 남겨둬요.
 function drawSpineLogo(
   page: PDFPage,
   logoImage: PDFImage,
@@ -852,7 +853,7 @@ function drawSpineLogo(
 ): void {
   const spineCenterXCanvas = spineXStartCanvas + spinePt / 2;
   const anchorX = offset.x + spineCenterXCanvas - layout.drawnWidthPt / 2;
-  const anchorY = offset.y + bleedPt + mmToPt(SPINE_LOGO_BOTTOM_MARGIN_MM);
+  const anchorY = offset.y + bleedPt + mmToPt(8);
 
   page.drawImage(logoImage, {
     x: anchorX,

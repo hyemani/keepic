@@ -378,7 +378,7 @@ function canvasToJpegDataUrl(canvas: HTMLCanvasElement) {
 // 재단선/안전선을 보여주는 "확인용 가이드" 파일에서만 쓰는 값이에요.
 // (레드프린팅에서 공식적으로 확인받은 수치가 아니라, 업계에서 흔히 쓰는 안전여백 기준이에요.
 //  실제 안전여백 기준을 제작처에서 알려주면 이 값을 그 값으로 바꿔주세요.)
-export const GUIDE_SAFETY_MARGIN_MM = 8; // 혜민님 확인 기준(2026-09): 재단선 안쪽 안전여백 약 8mm
+export const GUIDE_SAFETY_MARGIN_MM = 10; // 혜민님 확인 기준(2026-09 개정): 재단선 안쪽 안전여백 10mm
 const GUIDE_WORK_COLOR = "#22a559"; // 작업선(파일 바깥 여유분 경계) - 초록
 const GUIDE_TRIM_COLOR = "#ff2fb0"; // 재단선 - 마젠타
 const GUIDE_SAFETY_COLOR = "#2f7bff"; // 안전선 - 파랑
@@ -743,10 +743,10 @@ export async function buildInnerPrintPdf({
 const SPINE_TEXT_SIDE_PADDING_MM = 1; // 실측 책등(7.22mm)에서도 글자가 최대한 크게 들어가도록 여백을 좁혔어요.
 const SPINE_TITLE_MARGIN_RATIO = 0.06;
 const SPINE_TITLE_COLUMN_GAP_RATIO = 0.15;
-const SPINE_TITLE_MIN_FONT_PX = 6; // printPdfLib.ts의 4pt(≈5.3px)보다 조금 더 여유 있게 잡았어요.
+const SPINE_TITLE_MIN_FONT_PX = 50; // 12pt(300dpi 기준 50px) 밑으로는 줄이지 않아요 — 혜민님 확인: 소프트커버 최소 책등(7.22mm)에도 11~12pt가 넉넉히 들어가요.
 const SPINE_TITLE_LOGO_GAP_RATIO = 0.03;
 const SPINE_LOGO_HEIGHT_RATIO = 0.95; // 로고도 제목처럼 책등 폭 안에서 최대한 크게 보이도록 키웠어요.
-const SPINE_LOGO_BOTTOM_MARGIN_MM = 8;
+const SPINE_LOGO_CENTER_Y_RATIO = 0.62; // 책등 길이 방향으로 로고 중심을 두는 위치(0=맨 위, 1=맨 아래) — 정중앙보다 살짝 아래(일반 책자처럼).
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
 
 function computeSpineTitleLayoutPx(
@@ -855,10 +855,12 @@ function drawSpineTitleCanvas(
 }
 
 // 책등 폭(spinePx) 기준으로 로고를 얼마나 크게 그릴지, 혹은 너무 좁아서 생략할지 계산해요.
+// 책등이 좁아서(예: 7~9mm) 로고를 눕혀서(90도 회전) 넣기 때문에, 여기서 말하는
+// drawnWidthPx/drawnHeightPx는 "눕힌 뒤(화면에 실제로 보이는) 가로/세로" 크기예요.
 function computeSpineLogoLayoutPx(spinePx: number): {
   fits: boolean;
-  drawnWidthPx: number;
-  drawnHeightPx: number;
+  drawnWidthPx: number; // 눕힌 뒤 가로(=책등 폭 방향) 크기
+  drawnHeightPx: number; // 눕힌 뒤 세로(=책등 길이 방향) 크기 — 원래 로고의 가로가 이쪽으로 와요.
 } {
   const sidePaddingPx = mmToPx(SPINE_TEXT_SIDE_PADDING_MM);
   const maxCrossPx = Math.max(0, spinePx - sidePaddingPx * 2);
@@ -866,12 +868,13 @@ function computeSpineLogoLayoutPx(spinePx: number): {
     return { fits: false, drawnWidthPx: 0, drawnHeightPx: 0 };
   }
   const drawnWidthPx = maxCrossPx * SPINE_LOGO_HEIGHT_RATIO;
-  const drawnHeightPx = drawnWidthPx / KEEPIC_LOGO_ASPECT;
+  const drawnHeightPx = drawnWidthPx * KEEPIC_LOGO_ASPECT; // 눕혔으니 원래 로고의 가로:세로 비율이 뒤집혀요.
   return { fits: true, drawnWidthPx, drawnHeightPx };
 }
 
-// 로고는 회전 없이 "Keepic"이 왼쪽→오른쪽으로 읽히는 정방향 그대로, 책등 아래쪽 고정
-// 위치에 넣어요.
+// 책등이 좁아서 로고를 옆으로 눕혀요(90도 회전, "Keepic"이 책등을 따라 세로로 읽혀요).
+// 책등 길이 방향으로는 정중앙이 아니라 살짝 아래쪽(SPINE_LOGO_CENTER_Y_RATIO)에 둬요 —
+// 일반 책자들의 출판사 로고 위치처럼요.
 function drawSpineLogoCanvas(
   ctx: CanvasRenderingContext2D,
   logoImg: HTMLImageElement,
@@ -881,12 +884,20 @@ function drawSpineLogoCanvas(
   bleedPx: number,
   layout: { drawnWidthPx: number; drawnHeightPx: number }
 ) {
-  const spineCenterXpx = spineXpx + spinePx / 2;
-  const x = spineCenterXpx - layout.drawnWidthPx / 2;
-  // 캔버스 y는 위에서 아래로 증가하니, "패널 바닥에서 고정 여백만큼 위"는
-  // 패널 맨 아래(bleedPx + panelPx)에서 위로 올라간 자리예요.
-  const y = bleedPx + panelPx - mmToPx(SPINE_LOGO_BOTTOM_MARGIN_MM) - layout.drawnHeightPx;
-  ctx.drawImage(logoImg, x, y, layout.drawnWidthPx, layout.drawnHeightPx);
+  const centerXpx = spineXpx + spinePx / 2;
+  const centerYpx = bleedPx + panelPx * SPINE_LOGO_CENTER_Y_RATIO;
+  ctx.save();
+  ctx.translate(centerXpx, centerYpx);
+  ctx.rotate(-Math.PI / 2);
+  // 회전된 좌표계 안에서는 가로·세로가 서로 바뀌어서, drawImage에는 뒤집어서 넘겨요.
+  ctx.drawImage(
+    logoImg,
+    -layout.drawnHeightPx / 2,
+    -layout.drawnWidthPx / 2,
+    layout.drawnHeightPx,
+    layout.drawnWidthPx
+  );
+  ctx.restore();
 }
 
 // 표지 PDF: 뒤표지 - 책등(세네카) - 앞표지가 한 장으로 이어진 펼침 도면 1페이지를 만들어요.
