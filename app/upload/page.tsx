@@ -1049,18 +1049,18 @@ function UploadPageContent() {
     isPhotobook ? "cover" : 0
   );
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
-  const [showGuidelines, setShowGuidelines] = useState(false);
+  const [showGuidelines, setShowGuidelines] = useState(true);
   // 내지 펼침면 전용 — '안전영역'과 '접힘·제본 경계'를 각각 따로 켜고 끌 수 있어요
   // (표지는 이미 showCoverSafetyGuide/showCoverSpineGuide로 따로 있어요).
-  const [showInnerSafetyGuide, setShowInnerSafetyGuide] = useState(false);
-  const [showInnerBindingGuide, setShowInnerBindingGuide] = useState(false);
+  const [showInnerSafetyGuide, setShowInnerSafetyGuide] = useState(true);
+  const [showInnerBindingGuide, setShowInnerBindingGuide] = useState(true);
   // 표지 편집 화면 전용 안내선 켜기/끄기예요(뒤표지·책등·앞표지를 하나의 펼침면으로 보고
   // 계산해요 — 도련선/재단선은 펼침면 전체 기준, 안전영역은 뒤표지·책등·앞표지 각각 기준,
   // 책등 경계는 접힘 위치 전용 안내선이에요). 네 가지를 따로 켜고 끌 수 있어요.
-  const [showCoverBleedGuide, setShowCoverBleedGuide] = useState(false);
-  const [showCoverTrimGuide, setShowCoverTrimGuide] = useState(false);
-  const [showCoverSafetyGuide, setShowCoverSafetyGuide] = useState(false);
-  const [showCoverSpineGuide, setShowCoverSpineGuide] = useState(false);
+  const [showCoverBleedGuide, setShowCoverBleedGuide] = useState(true);
+  const [showCoverTrimGuide, setShowCoverTrimGuide] = useState(true);
+  const [showCoverSafetyGuide, setShowCoverSafetyGuide] = useState(true);
+  const [showCoverSpineGuide, setShowCoverSpineGuide] = useState(true);
 
   async function handleCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -1870,7 +1870,7 @@ function UploadPageContent() {
                           좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
                           포함되지 않아요) */}
                       <div
-                        className="relative mt-4 flex w-full overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-sm"
+                        className="relative mt-4 flex w-full overflow-hidden border border-[var(--color-hairline)] bg-white shadow-sm"
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
                         <div
