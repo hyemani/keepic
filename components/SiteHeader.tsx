@@ -23,8 +23,12 @@ export default function SiteHeader({
   // 겹쳐 있다가, 스크롤하면 흰 배경으로 부드럽게 바뀌는 방식으로 동작해요.
   // 다른 페이지는 지금처럼 항상 흰 배경 고정 헤더로 그대로 있어요.
   overlayHero = false,
+  // 상단 그라데이션 색을 기본 흰색 대신 대표 이미지 색과 맞추고 싶을 때
+  // "r,g,b" 형태로 넘겨요(예: "84,60,184"). 안 넘기면 기존 흰색 그대로예요.
+  heroTintRgb,
 }: {
   overlayHero?: boolean;
+  heroTintRgb?: string;
 } = {}) {
   const pathname = usePathname();
   const [guideOpen, setGuideOpen] = useState(false);
@@ -62,9 +66,16 @@ export default function SiteHeader({
       {overlayHero && (
         <div
           aria-hidden
-          className={`pointer-events-none absolute inset-x-0 top-0 z-0 h-44 bg-gradient-to-b from-white/85 via-white/35 to-transparent transition-opacity duration-300 sm:h-56 ${
-            scrolled ? "opacity-0" : "opacity-100"
-          }`}
+          style={
+            heroTintRgb
+              ? {
+                  background: `linear-gradient(to bottom, rgba(${heroTintRgb},0.85), rgba(${heroTintRgb},0.35), transparent)`,
+                }
+              : undefined
+          }
+          className={`pointer-events-none absolute inset-x-0 top-0 z-0 h-44 transition-opacity duration-300 sm:h-56 ${
+            heroTintRgb ? "" : "bg-gradient-to-b from-white/85 via-white/35 to-transparent"
+          } ${scrolled ? "opacity-0" : "opacity-100"}`}
         />
       )}
 

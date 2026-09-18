@@ -199,7 +199,7 @@ const miniFaqs = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[var(--color-ivory)] pb-20 text-[var(--color-charcoal)] sm:pb-0">
-      <SiteHeader overlayHero />
+      <SiteHeader overlayHero heroTintRgb="84,60,184" />
 
       {/* 프로모션 배너 — 화면 양옆 끝까지 꽉 차게, 상품 그리드와는 분리해서 보여줘요 */}
       <Link
