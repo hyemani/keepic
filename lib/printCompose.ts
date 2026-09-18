@@ -826,13 +826,15 @@ function drawSpineTitleCanvas(
   bleedPx: number,
   logoReserveHeightPx: number,
   titleBoxTopPx?: number, // 화면에서 끌어서 정한 텍스트박스의 위쪽 위치(패널 위쪽 기준 px)
-  titleBoxHeightPx?: number // 같은 텍스트박스의 높이(px)
+  titleBoxHeightPx?: number, // 같은 텍스트박스의 높이(px)
+  fontSizePt?: number, // 혜민님이 직접 고른 글자 크기(pt). 비워두면 책등 폭 기준 자동 크기.
+  fontFamily: string = "Pretendard, sans-serif"
 ): boolean {
   const trimmed = title.trim();
   if (!trimmed) return true;
 
   const sidePaddingPx = mmToPx(SPINE_TITLE_SIDE_PADDING_MM);
-  const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2); // 책등 폭 방향 한도 — 폰트 크기(글자 높이)가 이걸 넘지 않아요.
+  const maxCrossPx = Math.max(4, spinePx - sidePaddingPx * 2); // 책등 폭 방향 한도 — 폰트 크기(글자 높이)가 이걸 넘지 않아요. 여백(1.5mm)이 줄어들지 않도록, 사용자가 아무리 큰 pt를 골라도 이 값 밑으로 클램프해요.
   const topMarginPx = mmToPx(SPINE_TITLE_TOP_MARGIN_MM);
   const gapBeforeLogoPx = logoReserveHeightPx > 0 ? panelPx * SPINE_TITLE_LOGO_GAP_RATIO : 0;
   const maxLengthPx =
@@ -840,18 +842,20 @@ function drawSpineTitleCanvas(
       ? Math.max(4, titleBoxHeightPx)
       : Math.max(4, panelPx - topMarginPx - logoReserveHeightPx - gapBeforeLogoPx); // 책등 길이 방향 한도(로고 자리는 빼요)
 
-  // 글자 높이(폭 방향)가 책등 폭을 꽉 채우면 실제 책보다 훨씬 커 보여서, 상한 비율만큼만
-  // 시작 크기로 잡아요 — 제목이 길면 maxLengthPx에 맞춰 이 밑으로 더 줄어들어요.
-  let size = maxCrossPx * SPINE_TITLE_MAX_FONT_RATIO;
-  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  // 시작 크기: 혜민님이 pt로 직접 골랐으면 그 값(px로 환산)을 쓰되, 책등 여백(1.5mm)이
+  // 줄어들지 않도록 maxCrossPx를 넘지 않게 잘라요. 직접 고르지 않았으면(자동) 책등 폭의
+  // 55%를 시작 크기로 잡아요 — 어느 쪽이든 글자가 다 안 들어가면(length 방향) 더 줄여요.
+  const requestedPx = fontSizePt !== undefined ? mmToPx((fontSizePt * 25.4) / 72) : maxCrossPx * SPINE_TITLE_MAX_FONT_RATIO;
+  let size = Math.min(requestedPx, maxCrossPx);
+  ctx.font = `bold ${size}px ${fontFamily}`;
   let textWidthPx = ctx.measureText(trimmed).width;
   while (size > SPINE_TITLE_MIN_FONT_PX && textWidthPx > maxLengthPx) {
     size -= 0.5;
-    ctx.font = `bold ${size}px Pretendard, sans-serif`;
+    ctx.font = `bold ${size}px ${fontFamily}`;
     textWidthPx = ctx.measureText(trimmed).width;
   }
   if (size < SPINE_TITLE_MIN_FONT_PX) size = SPINE_TITLE_MIN_FONT_PX;
-  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  ctx.font = `bold ${size}px ${fontFamily}`;
   textWidthPx = ctx.measureText(trimmed).width;
   const fits = textWidthPx <= maxLengthPx;
 
@@ -950,6 +954,8 @@ export async function buildCoverPrintPdf({
   spineTitle,
   spineTitleYPct,
   spineTitleHeightPct,
+  spineTitleFontSizePt,
+  spineTitleFontFamily = "Pretendard, sans-serif",
   backCoverMode = "logo",
   backCoverPhoto = null,
   backCoverBackgroundColor,
@@ -979,6 +985,8 @@ export async function buildCoverPrintPdf({
   spineTitleYPct?: number; // 책등 텍스트박스의 위쪽 위치(책등 패널 높이 기준 %). 화면에서
   // 끌어서 옮긴 자리 그대로예요. 지정 안 하면 예전처럼 자동으로 맨 위에 둬요.
   spineTitleHeightPct?: number; // 같은 텍스트박스의 높이(%). 지정 안 하면 자동 계산해요.
+  spineTitleFontSizePt?: number; // 책등 제목 글자 크기(pt) — 혜민님이 화면에서 직접 지정. 비워두면 책등 폭에 맞춰 자동으로 정해요.
+  spineTitleFontFamily?: string; // 책등 제목 서체(CSS font-family 값). 표지 제목과 별도로 고를 수 있어요.
   backCoverMode?: "logo" | "photo";
   backCoverPhoto?: PrintPhoto | null;
   backCoverBackgroundColor?: string;
@@ -1091,7 +1099,9 @@ export async function buildCoverPrintPdf({
       bleedPx,
       spineLogoLayout.fits ? spineLogoLayout.drawnHeightPx + mmToPx(SPINE_LOGO_BOTTOM_MARGIN_MM) : 0,
       spineTitleYPct !== undefined ? (spineTitleYPct / 100) * panelPx : undefined,
-      spineTitleHeightPct !== undefined ? (spineTitleHeightPct / 100) * panelPx : undefined
+      spineTitleHeightPct !== undefined ? (spineTitleHeightPct / 100) * panelPx : undefined,
+      spineTitleFontSizePt,
+      spineTitleFontFamily
     );
   }
   if (spineLogoLayout.fits) {

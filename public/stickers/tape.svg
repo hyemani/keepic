@@ -1,6 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="60" viewBox="0 0 160 60">
-  <rect x="2" y="4" width="156" height="52" fill="#FDE68A" opacity="0.9"
-        transform="rotate(-2 80 30)"/>
-  <rect x="2" y="4" width="156" height="52" fill="none" stroke="#F3D680" stroke-width="1.5"
-        transform="rotate(-2 80 30)"/>
+  <rect x="4" y="4" width="152" height="52" rx="6" fill="#BFE3FF" opacity="0.85" stroke="#ffffff" stroke-width="5"/>
+  <g fill="#ffffff" opacity="0.6">
+    <circle cx="20" cy="30" r="3"/>
+    <circle cx="40" cy="18" r="3"/>
+    <circle cx="60" cy="42" r="3"/>
+    <circle cx="80" cy="22" r="3"/>
+    <circle cx="100" cy="40" r="3"/>
+    <circle cx="120" cy="18" r="3"/>
+    <circle cx="140" cy="34" r="3"/>
+  </g>
 </svg>

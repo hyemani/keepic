@@ -65,23 +65,28 @@ const STICKERS: { id: string; url: string; label: string }[] = [
 function measureSpineTitleFontSizeMm(
   title: string,
   spineMm: number,
-  maxLengthMm: number
+  maxLengthMm: number,
+  fontSizePt?: number, // 혜민님이 직접 고른 글자 크기(pt). 비워두면 책등 폭 기준 자동 크기.
+  fontFamily: string = "Pretendard, sans-serif"
 ): { sizeMm: number; textLengthMm: number } {
   if (!title || typeof document === "undefined") return { sizeMm: 0, textLengthMm: 0 };
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) return { sizeMm: 0, textLengthMm: 0 };
   const maxCrossMm = Math.max(1, spineMm - SPINE_TEXT_SIDE_PADDING_MM_SCREEN * 2);
-  let size = maxCrossMm * SPINE_TITLE_MAX_FONT_RATIO_SCREEN;
-  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  // 혜민님이 pt로 직접 고른 값(mm로 환산)을 쓰되, 책등 여백(1.5mm)이 줄어들지 않도록
+  // maxCrossMm을 넘지 않게 잘라요. 안 골랐으면(자동) 책등 폭의 55%를 시작 크기로 써요.
+  const requestedMm = fontSizePt !== undefined ? (fontSizePt * 25.4) / 72 : maxCrossMm * SPINE_TITLE_MAX_FONT_RATIO_SCREEN;
+  let size = Math.min(requestedMm, maxCrossMm);
+  ctx.font = `bold ${size}px ${fontFamily}`;
   let textLengthMm = ctx.measureText(title).width;
   while (size > SPINE_TITLE_MIN_FONT_MM && textLengthMm > maxLengthMm) {
     size -= 0.05;
-    ctx.font = `bold ${size}px Pretendard, sans-serif`;
+    ctx.font = `bold ${size}px ${fontFamily}`;
     textLengthMm = ctx.measureText(title).width;
   }
   if (size < SPINE_TITLE_MIN_FONT_MM) size = SPINE_TITLE_MIN_FONT_MM;
-  ctx.font = `bold ${size}px Pretendard, sans-serif`;
+  ctx.font = `bold ${size}px ${fontFamily}`;
   textLengthMm = ctx.measureText(title).width;
   return { sizeMm: size, textLengthMm };
 }
@@ -1513,6 +1518,7 @@ function SpineTitleOverlay({
   yPct,
   heightPct,
   fontSizeCqh,
+  fontFamily,
   onMove,
   onResize,
 }: {
@@ -1521,6 +1527,7 @@ function SpineTitleOverlay({
   yPct: number;
   heightPct: number;
   fontSizeCqh: number; // 실제 mm 크기를 컨테이너 높이 대비 %(cqh)로 환산한 값 — 창 크기와 무관하게 항상 같은 실물 비율로 보여요.
+  fontFamily: string;
   onMove: (yPct: number) => void;
   onResize: (heightPct: number) => void;
 }) {
@@ -1599,7 +1606,7 @@ function SpineTitleOverlay({
         // 책 실물 크기 그대로 커지고 작아져요(고정 px이 아니에요).
         <span
           className="whitespace-nowrap font-bold text-[var(--color-charcoal)]"
-          style={{ fontSize: `${fontSizeCqh}cqh`, lineHeight: 1, transform: "rotate(90deg)" }}
+          style={{ fontSize: `${fontSizeCqh}cqh`, lineHeight: 1, transform: "rotate(90deg)", fontFamily }}
         >
           {title}
         </span>
@@ -1943,6 +1950,10 @@ function UploadPageContent() {
   // 세로 위치·높이만 화면에서 끌어서 바꿀 수 있어요(일러스트레이터 텍스트박스처럼요).
   const [spineTitleYPct, setSpineTitleYPct] = useState<number | null>(null); // null = 아직 직접 옮기지 않음 → 기본값(위에서 25mm)을 화면에서 계산해서 보여줘요
   const [spineTitleHeightPct, setSpineTitleHeightPct] = useState(50); // 12pt 최소 크기가 여유있게 들어가도록 기본 높이를 늘렸어요(로고 자리와는 안 겹쳐요).
+  // 책등 제목 크기(pt)·서체 — 표지 제목과 별도로 고를 수 있어요. 비워두면(null) 책등
+  // 폭에 맞춰 자동으로 크기를 정해요.
+  const [spineTitleFontSizePt, setSpineTitleFontSizePt] = useState<number | null>(null);
+  const [spineTitleFontFamily, setSpineTitleFontFamily] = useState(fontOptions[0].id);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
   // 뒤표지예요 — 무지(흰 배경)로 비워두지 않고, 기본으로 키픽 로고를 가운데에 배치해요.
@@ -2379,6 +2390,8 @@ function UploadPageContent() {
       coverTitleFontFamily,
       spineTitleYPct,
       spineTitleHeightPct,
+      spineTitleFontSizePt,
+      spineTitleFontFamily,
       backCoverMode,
       backCoverPhoto,
       backCoverBackgroundColor,
@@ -2404,6 +2417,8 @@ function UploadPageContent() {
     setCoverTitleFontFamily(s.coverTitleFontFamily);
     setSpineTitleYPct(s.spineTitleYPct ?? null);
     setSpineTitleHeightPct(s.spineTitleHeightPct);
+    setSpineTitleFontSizePt(s.spineTitleFontSizePt ?? null);
+    setSpineTitleFontFamily(s.spineTitleFontFamily ?? fontOptions[0].id);
     setBackCoverMode(s.backCoverMode);
     setBackCoverPhoto(s.backCoverPhoto);
     setBackCoverBackgroundColor(s.backCoverBackgroundColor);
@@ -2444,6 +2459,8 @@ function UploadPageContent() {
     coverTitleFontFamily,
     spineTitleYPct,
     spineTitleHeightPct,
+    spineTitleFontSizePt,
+    spineTitleFontFamily,
     backCoverMode,
     backCoverPhoto,
     backCoverBackgroundColor,
@@ -2644,6 +2661,8 @@ function UploadPageContent() {
       pages,
       spineTitleYPct: spineTitleYPct ?? undefined,
       spineTitleHeightPct,
+      spineTitleFontSizePt: spineTitleFontSizePt ?? undefined,
+      spineTitleFontFamily,
       backCoverMode,
       backCoverPhoto,
       backCoverBackgroundColor,
@@ -2949,7 +2968,9 @@ function UploadPageContent() {
     const spineTitleMeasure = measureSpineTitleFontSizeMm(
       coverTitle.replace(/\n/g, " ").trim(),
       coverSpineMm,
-      spineTitleMaxLengthMm
+      spineTitleMaxLengthMm,
+      spineTitleFontSizePt ?? undefined,
+      spineTitleFontFamily
     );
     const spineTitleFontSizeCqh = (spineTitleMeasure.sizeMm / coverTotalHmm) * 100;
     // 표지 제목 글자 크기 — pt를 실제 mm로 환산해서 cqh(컨테이너 높이 대비 %)로 넣어요.
@@ -3376,6 +3397,7 @@ function UploadPageContent() {
                       </p>
                       
                       <div className="flex flex-col gap-4 lg:flex-row">
+                        {editorMode === "edit" && (
                         <div className="lg:w-72 lg:shrink-0 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[var(--color-charcoal)]/70">
                           <label className="flex items-center gap-1.5">
@@ -3515,6 +3537,77 @@ function UploadPageContent() {
                               </option>
                             ))}
                           </select>
+                        </div>
+
+                        <div className="mt-4 rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
+                          <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                            책등 제목 크기·서체
+                          </label>
+                          <p className="mb-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                            책등 글자는 이 표지 제목 글자를 그대로 쓰지만, 크기·서체는 따로
+                            고를 수 있어요. 책등 양옆 여백은 항상 1.5mm를 넘지 않도록
+                            자동으로 잘라줘요(너무 크게 고르면 그 안에서 최대치로 맞춰져요).
+                          </p>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                글자 크기(pt)
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={
+                                    spineTitleFontSizePt === null
+                                      ? "auto"
+                                      : COVER_TITLE_PT_PRESETS.includes(spineTitleFontSizePt)
+                                        ? spineTitleFontSizePt
+                                        : "custom"
+                                  }
+                                  onChange={(e) => {
+                                    if (e.target.value === "auto") setSpineTitleFontSizePt(null);
+                                    else if (e.target.value !== "custom") setSpineTitleFontSizePt(Number(e.target.value));
+                                  }}
+                                  className="rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                >
+                                  <option value="auto">자동</option>
+                                  {COVER_TITLE_PT_PRESETS.map((pt) => (
+                                    <option key={pt} value={pt}>
+                                      {pt}pt
+                                    </option>
+                                  ))}
+                                  <option value="custom">직접 입력</option>
+                                </select>
+                                <input
+                                  type="number"
+                                  min={8}
+                                  max={200}
+                                  value={spineTitleFontSizePt ?? ""}
+                                  placeholder="자동"
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setSpineTitleFontSizePt(v === "" ? null : Math.max(8, Math.min(200, Number(v) || 8)));
+                                  }}
+                                  className="w-16 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                책등 서체
+                              </label>
+                              <select
+                                value={spineTitleFontFamily}
+                                onChange={(e) => setSpineTitleFontFamily(e.target.value)}
+                                className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                style={{ fontFamily: spineTitleFontFamily }}
+                              >
+                                {fontOptions.map((f) => (
+                                  <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
+                                    {f.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
                         </div>
 
                         <div className="mt-4 rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
@@ -3661,6 +3754,7 @@ function UploadPageContent() {
                           </div>
                         </div>
                         </div>
+                        )}
                         <div className="min-w-0 flex-1">
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
@@ -3728,6 +3822,7 @@ function UploadPageContent() {
                               yPct={coverSpineTitleYPct}
                               heightPct={spineTitleHeightPct}
                               fontSizeCqh={spineTitleFontSizeCqh}
+                              fontFamily={spineTitleFontFamily}
                               onMove={setSpineTitleYPct}
                               onResize={setSpineTitleHeightPct}
                             />
@@ -3831,6 +3926,7 @@ function UploadPageContent() {
                         내지 페이지 수·PDF에는 포함되지 않아요.
                       </p>
                       <div className="flex flex-col gap-4 lg:flex-row">
+                        {editorMode === "edit" && (
                         <div className="lg:w-72 lg:shrink-0">
                         <div className="mt-4 grid grid-cols-1 gap-3">
                           <label className="text-xs text-[var(--color-charcoal)]/70">
@@ -3852,6 +3948,7 @@ function UploadPageContent() {
                           </label>
                         </div>
                         </div>
+                        )}
                         <div className="min-w-0 flex-1">
                         <div className="relative mt-3 flex w-full items-stretch bg-white shadow-sm">
                           <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
@@ -3885,6 +3982,7 @@ function UploadPageContent() {
                       return (
                         <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
                           <div className="flex flex-col gap-4 lg:flex-row">
+                            {editorMode === "edit" && (
                             <div className="lg:w-64 lg:shrink-0">
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-medium">
@@ -4004,6 +4102,7 @@ function UploadPageContent() {
                               </div>
                             </div>
                             </div>
+                            )}
                             <div className="min-w-0 flex-1">
                             <div className="group relative mt-3 flex w-full items-start bg-white shadow-sm">
                               {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만
