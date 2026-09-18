@@ -1026,7 +1026,7 @@ function TextBoxToolbar({
   }
 
   return (
-    <div className="sticky top-0 z-40 mb-3 hidden flex-wrap items-center gap-2 rounded-xl border border-[var(--color-hairline)] bg-white/95 px-3 py-2 shadow-sm backdrop-blur landscape:flex lg:flex">
+    <div className="sticky top-0 z-40 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-hairline)] bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
       {box ? (
         <>
           <span className="text-[11px] font-medium text-[var(--color-charcoal)]/60">텍스트박스</span>
@@ -3104,16 +3104,6 @@ function UploadPageContent() {
                 </button>
               )}
 
-              {/* 모바일 세로 화면일 때만 보여요 — 편집 화면은 가로가 넓어야 보기 편해서, 기기를 돌려달라고 안내해요 */}
-              <div className="mt-6 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--color-charcoal)]/30 bg-white p-10 text-center landscape:hidden lg:hidden">
-                <span className="text-3xl">📱↻</span>
-                <p className="text-sm text-[var(--color-charcoal)]/70 break-keep">
-                  화면을 가로로 돌리면 편집 화면이 넓게 보여요.
-                  <br />
-                  휴대폰을 가로로 돌려주세요.
-                </p>
-              </div>
-
               <TextBoxToolbar
                 box={activeTextBoxDef}
                 onChange={(c) => activeTextBox && updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
@@ -3122,8 +3112,13 @@ function UploadPageContent() {
 
               {/* 텍스트박스 바깥(빈 곳)을 누르면 선택이 풀려요 — TextBoxOverlay 쪽 mousedown은
                   stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요. */}
+              {/* 예전엔 모바일 세로 화면일 땐 이 편집 화면 전체를 숨기고 "가로로 돌려주세요"
+                  안내만 보여줬는데, 그러면 모바일에서 편집을 아예 할 수 없었어요. 이제
+                  모바일 세로에서도 그대로 보이고(위→아래로 쌓여요: 페이지 목록 → 편집
+                  화면 → 꾸미기 메뉴), 화면이 넓어지면(가로 모드·PC) 자동으로 나란히
+                  배치돼요(혜민님 확인, 2026-09). */}
               <div
-                className="mt-6 hidden flex-col gap-4 landscape:flex lg:flex lg:flex-row"
+                className="mt-6 flex flex-col gap-4 lg:flex-row"
                 onMouseDown={() => {
                   setActiveTextBox(null);
                   setActiveImageBox(null);
