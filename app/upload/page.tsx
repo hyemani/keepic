@@ -38,6 +38,7 @@ import {
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
 import { buildInnerPrintPdfLib, buildCoverPrintPdfLib, computeSpineLogoLayout } from "@/lib/printPdfLib";
 import { mmToPt } from "@/lib/printGeometry";
+import { computeImageBoxCoverRect, clampImageBoxInnerOffset } from "@/lib/imageBoxGeometry";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -1164,8 +1165,13 @@ function TextBoxLayer({
   );
 }
 
-// 자유 배치 이미지박스 하나예요 — 텍스트박스와 같은 방식으로 끌어서 옮기고, 오른쪽 아래
-// 손잡이로 크기를 조절해요(사진이 찌그러지지 않도록 가로세로 비율은 그대로 유지해요).
+// 자유 배치 이미지박스 하나예요 — 텍스트박스와 같은 방식으로 끌어서 옮기고, 손잡이로
+// 크기를 조절해요. 2026-09-18부터 가로·세로를 각각 따로 조절할 수 있게 됐고(원본 비율에
+// 안 묶여요), 박스 안에서 사진 자체의 위치·확대(innerOffsetXPct/innerOffsetYPct/
+// innerScale)도 "사진 위치 조정" 모드로 따로 옮길 수 있어요 — 박스(틀)는 항상 사진으로
+// 빈틈없이 채워지고(object-fit: cover와 같은 방식), 그 안에서 어느 부분이 보일지만
+// 옮기는 거예요. 화면과 인쇄 파일이 같은 계산(computeImageBoxCoverRect,
+// lib/imageBoxGeometry.ts)을 공유해서 항상 일치해요.
 // xPct·widthPct 등은 "스프레드 전체 폭"을 100%로 보는 좌표라서, 페이지 가운데(경계)를
 // 자유롭게 넘나들며 배치할 수 있어요.
 function ImageBoxOverlay({
@@ -1184,14 +1190,41 @@ function ImageBoxOverlay({
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [photoEditMode, setPhotoEditMode] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [boxSizePx, setBoxSizePx] = useState({ w: 1, h: 1 });
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
-  const resizeStart = useRef({ mouseX: 0, widthPct: 0, cellW: 1 });
+  const resizeStart = useRef({ mouseX: 0, mouseY: 0, widthPct: 0, heightPct: 0, cellW: 1, cellH: 1, axis: "both" as "x" | "y" | "both" });
+  const panStart = useRef({ mouseX: 0, mouseY: 0, offsetX: 0, offsetY: 0 });
+
+  // 박스가 실제로 화면에 몇 px로 그려지는지 재요 — 사진이 박스를 항상 꽉 채우도록
+  // 계산(computeImageBoxCoverRect)하려면 박스의 실제 픽셀 크기가 필요해요.
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect && rect.width > 0 && rect.height > 0) setBoxSizePx({ w: rect.width, h: rect.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function handleMouseDown(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     onSelect();
+    if (photoEditMode) {
+      panStart.current = {
+        mouseX: e.clientX,
+        mouseY: e.clientY,
+        offsetX: box.innerOffsetXPct ?? 0,
+        offsetY: box.innerOffsetYPct ?? 0,
+      };
+      setIsPanning(true);
+      return;
+    }
     const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
     dragStart.current = {
       mouseX: e.clientX,
@@ -1231,25 +1264,71 @@ function ImageBoxOverlay({
     };
   }, [mouseDownActive, isDragging]);
 
-  // 오른쪽 아래 손잡이 — 가로로 끌면 가로폭이 바뀌고, 세로 크기는 사진 원본 비율 그대로
-  // 자동으로 따라와요(찌그러지지 않아요). 스프레드 전체 폭이 페이지(정사각형) 두 배라서,
-  // "가로 %"와 "세로 %"의 실제 축척이 2:1이에요 — 그 비율까지 감안해서 계산해요.
-  function handleResizeStart(e: React.MouseEvent) {
+  // "사진 위치 조정" 모드에서 박스를 끌면 박스(틀)가 아니라 그 안의 사진만 옮겨요 —
+  // 사진이 박스를 벗어나 빈 여백이 생기지 않도록 매번 clampImageBoxInnerOffset으로
+  // 범위를 잘라요.
+  useEffect(() => {
+    if (!isPanning) return;
+    function handleMouseMove(e: MouseEvent) {
+      const rect = computeImageBoxCoverRect(
+        boxSizePx.w,
+        boxSizePx.h,
+        box.naturalWidth,
+        box.naturalHeight,
+        0,
+        0,
+        box.innerScale ?? 1
+      );
+      const dxPct = ((e.clientX - panStart.current.mouseX) / boxSizePx.w) * 100;
+      const dyPct = ((e.clientY - panStart.current.mouseY) / boxSizePx.h) * 100;
+      const nextOffsetX = clampImageBoxInnerOffset(panStart.current.offsetX + dxPct, boxSizePx.w, rect.width);
+      const nextOffsetY = clampImageBoxInnerOffset(panStart.current.offsetY + dyPct, boxSizePx.h, rect.height);
+      onChange({ innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
+    }
+    function handleMouseUp() {
+      setIsPanning(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isPanning, boxSizePx, box.naturalWidth, box.naturalHeight, box.innerScale]);
+
+  // 손잡이 3개 — 오른쪽 가운데(가로만), 아래쪽 가운데(세로만), 오른쪽 아래 모서리
+  // (가로·세로 동시). 2026-09-18부터 원본 비율에 안 묶이고 각각 따로 조절돼요.
+  function handleResizeStart(axis: "x" | "y" | "both", e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     onSelect();
     const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
-    resizeStart.current = { mouseX: e.clientX, widthPct: box.widthPct, cellW: cellRect?.width || 1 };
+    resizeStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      widthPct: box.widthPct,
+      heightPct: box.heightPct,
+      cellW: cellRect?.width || 1,
+      cellH: cellRect?.height || 1,
+      axis,
+    };
     setIsResizing(true);
   }
 
   useEffect(() => {
     if (!isResizing) return;
     function handleMouseMove(e: MouseEvent) {
-      const dxPct = ((e.clientX - resizeStart.current.mouseX) / resizeStart.current.cellW) * 100;
-      const nextWidth = Math.min(96, Math.max(6, resizeStart.current.widthPct + dxPct));
-      const nextHeight = 2 * nextWidth * (box.naturalHeight / box.naturalWidth);
-      onChange({ widthPct: nextWidth, heightPct: nextHeight });
+      const { axis } = resizeStart.current;
+      const changes: Partial<ImageBoxDef> = {};
+      if (axis === "x" || axis === "both") {
+        const dxPct = ((e.clientX - resizeStart.current.mouseX) / resizeStart.current.cellW) * 100;
+        changes.widthPct = Math.min(96, Math.max(6, resizeStart.current.widthPct + dxPct));
+      }
+      if (axis === "y" || axis === "both") {
+        const dyPct = ((e.clientY - resizeStart.current.mouseY) / resizeStart.current.cellH) * 100;
+        changes.heightPct = Math.min(96, Math.max(4, resizeStart.current.heightPct + dyPct));
+      }
+      onChange(changes);
     }
     function handleMouseUp() {
       setIsResizing(false);
@@ -1260,18 +1339,48 @@ function ImageBoxOverlay({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isResizing, box.naturalHeight, box.naturalWidth]);
+  }, [isResizing]);
+
+  function handleZoom(delta: number) {
+    const nextScale = Math.min(3, Math.max(1, (box.innerScale ?? 1) + delta));
+    const rect = computeImageBoxCoverRect(boxSizePx.w, boxSizePx.h, box.naturalWidth, box.naturalHeight, 0, 0, nextScale);
+    const nextOffsetX = clampImageBoxInnerOffset(box.innerOffsetXPct ?? 0, boxSizePx.w, rect.width);
+    const nextOffsetY = clampImageBoxInnerOffset(box.innerOffsetYPct ?? 0, boxSizePx.h, rect.height);
+    onChange({ innerScale: nextScale, innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
+  }
+
+  function handleResetPhotoPosition() {
+    onChange({ innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 });
+  }
+
+  const coverRect = computeImageBoxCoverRect(
+    boxSizePx.w,
+    boxSizePx.h,
+    box.naturalWidth,
+    box.naturalHeight,
+    box.innerOffsetXPct ?? 0,
+    box.innerOffsetYPct ?? 0,
+    box.innerScale ?? 1
+  );
 
   return (
     <div
       ref={boxRef}
       onMouseDown={handleMouseDown}
-      className={`absolute z-[25] cursor-move overflow-hidden border transition ${
-        isActive ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/40"
-      }`}
+      className={`absolute z-[25] border transition ${
+        photoEditMode ? "cursor-grab" : "cursor-move"
+      } ${isActive ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/40"}`}
       style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%`, height: `${box.heightPct}%` }}
     >
-      <img src={box.url} alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-cover" />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <img
+          src={box.url}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute select-none"
+          style={{ left: coverRect.x, top: coverRect.y, width: coverRect.width, height: coverRect.height }}
+        />
+      </div>
       {isActive && (
         <>
           <button
@@ -1287,10 +1396,63 @@ function ImageBoxOverlay({
             ✕
           </button>
           <div
-            onMouseDown={handleResizeStart}
-            title="끌어서 크기 조절(비율 유지)"
+            onMouseDown={(e) => handleResizeStart("x", e)}
+            title="끌어서 가로 크기 조절"
+            className="absolute right-0 top-1/2 z-40 h-3.5 w-3.5 -translate-y-1/2 translate-x-0.5 cursor-ew-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart("y", e)}
+            title="끌어서 세로 크기 조절"
+            className="absolute bottom-0 left-1/2 z-40 h-3.5 w-3.5 -translate-x-1/2 translate-y-0.5 cursor-ns-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
+          />
+          <div
+            onMouseDown={(e) => handleResizeStart("both", e)}
+            title="끌어서 가로·세로 크기 조절"
             className="absolute bottom-0 right-0 z-40 h-3.5 w-3.5 -translate-x-0.5 -translate-y-0.5 cursor-nwse-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
           />
+          <div
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute -bottom-9 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 shadow"
+          >
+            <button
+              type="button"
+              title="박스 안에서 사진 위치 조정"
+              onClick={() => setPhotoEditMode((v) => !v)}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                photoEditMode ? "bg-[var(--color-sky)] text-white" : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
+              }`}
+            >
+              사진 위치
+            </button>
+            {photoEditMode && (
+              <>
+                <button
+                  type="button"
+                  title="축소"
+                  onClick={() => handleZoom(-0.1)}
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-ivory)] text-xs text-[var(--color-charcoal)]/70"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  title="확대"
+                  onClick={() => handleZoom(0.1)}
+                  className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-ivory)] text-xs text-[var(--color-charcoal)]/70"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  title="사진 위치 초기화"
+                  onClick={handleResetPhotoPosition}
+                  className="rounded-full bg-[var(--color-ivory)] px-2 py-0.5 text-[10px] text-[var(--color-charcoal)]/70"
+                >
+                  초기화
+                </button>
+              </>
+            )}
+          </div>
         </>
       )}
     </div>
@@ -2329,6 +2491,9 @@ function UploadPageContent() {
         yPct: 25,
         widthPct,
         heightPct,
+        innerOffsetXPct: 0,
+        innerOffsetYPct: 0,
+        innerScale: 1,
       };
       setCustomSpreads((prev) =>
         prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), box] } : s))

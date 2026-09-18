@@ -13,6 +13,7 @@
 import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, pageTemplates } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
+import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -287,11 +288,28 @@ function drawImageBoxOnCanvas(
   // 이 페이지와 전혀 안 겹치면 그릴 필요 없어요.
   if (boxLeftPagePx + boxWidthSpreadPx <= 0 || boxLeftPagePx >= pageW) return;
 
+  // 박스(틀) 크기와 사진 원본 비율이 다를 수 있어요(2026-09-18부터 가로·세로를 따로
+  // 조절할 수 있게 됨) — 화면 미리보기와 똑같이 computeImageBoxCoverRect로 "박스를 항상
+  // 꽉 채우면서, 사용자가 고른 확대/위치만큼 보이는 부분을 옮긴" 결과를 계산해서 그려요.
+  // 그냥 drawImage(img, x, y, boxW, boxH)로 늘려 그리면 사진이 찌그러져요.
+  const rect = computeImageBoxCoverRect(
+    boxWidthSpreadPx,
+    boxHeightPx,
+    img.naturalWidth || box.naturalWidth,
+    img.naturalHeight || box.naturalHeight,
+    box.innerOffsetXPct ?? 0,
+    box.innerOffsetYPct ?? 0,
+    box.innerScale ?? 1
+  );
+
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, pageW, pageH);
   ctx.clip();
-  ctx.drawImage(img, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
+  ctx.beginPath();
+  ctx.rect(boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
+  ctx.clip();
+  ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
   ctx.restore();
 }
 

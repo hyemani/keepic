@@ -51,8 +51,18 @@ export type ImageBoxDef = {
   naturalHeight: number;
   xPct: number; // 스프레드 전체 폭 기준 왼쪽 끝 위치(0~100, 왼쪽 페이지는 0~50, 오른쪽 페이지는 50~100)
   yPct: number; // 스프레드 높이 기준 위쪽 끝 위치(0~100)
-  widthPct: number; // 스프레드 폭 기준 너비(0~100)
-  heightPct: number; // 스프레드 높이 기준 높이(0~100)
+  widthPct: number; // 스프레드 폭 기준 너비(0~100) — 박스(틀) 크기예요. 세로(heightPct)와
+  // 독립적으로 조절 가능해요(원본 비율에 안 묶여요, 2026-09-18 변경).
+  heightPct: number; // 스프레드 높이 기준 높이(0~100) — 박스(틀) 크기예요.
+  // 박스 안에서 사진이 보이는 위치/확대예요("cover"로 박스를 항상 꽉 채운 상태를
+  // 기준으로, 그 안에서 얼마나 더 확대했는지·어느 방향으로 옮겼는지). 지정 안 하면
+  // 0/0/1(꽉 채운 기본 위치, 확대 없음)로 취급해요 — 기존에 저장된 이미지박스는 이
+  // 필드가 없어도 그대로 잘 나와요. lib/imageBoxGeometry.ts의 computeImageBoxCoverRect가
+  // 이 값들로 실제 그려질 위치·크기를 계산하고, 화면 미리보기와 인쇄 파일 둘 다 같은
+  // 함수를 써요.
+  innerOffsetXPct?: number; // 박스 너비 대비 %, 왼쪽(-)/오른쪽(+) 이동
+  innerOffsetYPct?: number; // 박스 높이 대비 %, 위(-)/아래(+) 이동
+  innerScale?: number; // 1 = 박스를 딱 채우는 기본 확대율, 1보다 크면 더 확대
 };
 
 export type SpreadDef = {
