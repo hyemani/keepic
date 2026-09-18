@@ -25,14 +25,20 @@ const promoBanner = {
   caption: "사진을 보내주시면 배치부터 디자인까지 함께합니다.",
 };
 
-// 배너 사진 속 반짝이는 빛 느낌을 배경에도 은은하게 깔아주는 반짝임들이에요.
-// 문구(가운데)와 겹치지 않도록 양옆으로만 배치했어요.
+// 배너 사진 속 반짝이는 빛 느낌을 배경 전체에 은은하게 깔아주는 반짝임들이에요.
+// 문구·제품 사진과 겹치지 않도록 양옆·문구 주변·사진 주변에 고루 배치했어요.
 const bannerSparkles = [
   { top: "14%", left: "9%", size: 20, delay: "0s", duration: "3.2s" },
   { top: "27%", left: "18%", size: 12, delay: "0.7s", duration: "2.6s" },
   { top: "10%", left: "85%", size: 24, delay: "1.1s", duration: "3.6s" },
   { top: "24%", left: "91%", size: 14, delay: "0.4s", duration: "2.9s" },
   { top: "6%", left: "50%", size: 11, delay: "1.6s", duration: "3.1s" },
+  // 문구 바로 옆
+  { top: "37%", left: "32%", size: 9, delay: "1.3s", duration: "2.7s" },
+  { top: "35%", left: "68%", size: 9, delay: "0.5s", duration: "2.9s" },
+  // 제품 사진 주변
+  { top: "56%", left: "5%", size: 18, delay: "0.9s", duration: "3.4s" },
+  { top: "50%", left: "94%", size: 22, delay: "0.2s", duration: "3.0s" },
 ];
 
 function BannerSparkle({
@@ -242,8 +248,12 @@ export default function Home() {
         href="/options?product=포토북"
         className="relative block w-full overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)]"
       >
-        {/* 원본 사진 비율(약 4:3) 그대로 보여줘서 위쪽 그라데이션 배경이 잘리지 않게 해요 */}
-        <div className="aspect-[4/3] w-full overflow-hidden">
+        {/* 원본 사진 비율(약 4:3) 그대로 보여줘서 위쪽 그라데이션 배경이 잘리지 않게 해요.
+            다만 아주 넓은 화면(초광폭 모니터 등)에서는 배너가 한없이 늘어나면서
+            문구와 사진 사이 빈 공간이 너무 커지는 걸 막기 위해 높이 상한을
+            둬서, 그 지점부터는 양옆만 더 잘리고 비율(문구·사진 배치)은 계속
+            일정하게 유지돼요. */}
+        <div className="aspect-[4/3] max-h-[1150px] w-full overflow-hidden">
           <img
             src={promoBanner.image}
             alt={promoBanner.alt}
@@ -252,8 +262,8 @@ export default function Home() {
         </div>
         {/* 글자가 놓이는 위쪽 그라데이션 부분만 살짝 어둡게 해서, 사진 속 제품은 그대로 밝게 보여요 */}
         <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-black/25 to-transparent" />
-        {/* 사진 속 반짝임과 같은 느낌으로, 문구 양옆에 은은하게 반짝이는 빛을 깔아요 */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[45%] overflow-hidden">
+        {/* 사진 속 반짝임과 같은 느낌으로, 문구 주변과 제품 사진 주변까지 은은하게 반짝이는 빛을 깔아요 */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
           {bannerSparkles.map((sparkle, i) => (
             <BannerSparkle key={i} {...sparkle} />
           ))}
