@@ -63,6 +63,21 @@ const STICKERS: { id: string; url: string; label: string }[] = [
   { id: "sparkle", url: "/stickers/sparkle.svg", label: "반짝임" },
   { id: "frame", url: "/stickers/frame.svg", label: "프레임" },
 ];
+
+// 편집 화면 왼쪽 아이콘 메뉴예요(스프레드 페이지 편집 전용, 2026-09-19). 예전엔 사진 추가·
+// 스티커 추가가 캔버스 위에 마우스를 올려야만 보이는 숨은 버튼이었고, 배경 설정은 항상
+// 펼쳐진 패널로만 있었는데, 이제 다른 사진책 편집기들처럼 아이콘을 눌러야 해당 메뉴가
+// 열리는 구조로 통일해요. "표지변경"(테마 골라서 한 번에 바꾸기)과 "손글씨스티커"는 아직
+// 실제 기능이 없어서 "준비 중" 안내만 보여줘요.
+type EditTabId = "photo" | "background" | "theme" | "sticker" | "handwriting" | "text";
+const EDIT_TABS: { id: EditTabId; label: string; icon: string }[] = [
+  { id: "photo", label: "사진", icon: "🖼️" },
+  { id: "background", label: "배경", icon: "🎨" },
+  { id: "theme", label: "표지변경", icon: "✨" },
+  { id: "sticker", label: "스티커", icon: "⭐" },
+  { id: "handwriting", label: "손글씨스티커", icon: "✏️" },
+  { id: "text", label: "텍스트", icon: "Tt" },
+];
 function measureSpineTitleFontSizeMm(
   title: string,
   spineMm: number,
@@ -1464,21 +1479,19 @@ function ImageBoxOverlay({
 // 자유롭게 넘나들 수 있게 해요.
 function ImageBoxLayer({
   boxes,
-  onAdd,
-  onAddSticker,
   onChange,
   onDelete,
   activeBoxId,
   onSelect,
 }: {
   boxes: ImageBoxDef[];
-  onAdd: (file: File) => void;
-  onAddSticker: (stickerUrl: string) => void;
   onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
   onDelete: (boxId: string) => void;
   activeBoxId: string | null;
   onSelect: (boxId: string) => void;
 }) {
+  // 사진 추가·스티커 추가 버튼은 2026-09-19부터 캔버스 위 숨은 버튼이 아니라 왼쪽
+  // 아이콘 메뉴("사진"/"스티커" 탭)로 옮겨졌어요 — 이 레이어는 이제 박스 렌더링만 해요.
   return (
     <>
       {boxes.map((box) => (
@@ -1491,44 +1504,6 @@ function ImageBoxLayer({
           onSelect={() => onSelect(box.id)}
         />
       ))}
-      <div className="absolute right-1 top-7 z-20 flex flex-col items-end gap-1 opacity-0 transition group-hover:opacity-100">
-        <label className="cursor-pointer rounded-full bg-black/60 px-2 py-1 text-[10px] text-white">
-          + 사진 추가
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onAdd(file);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        <details className="group/sticker relative">
-          <summary className="cursor-pointer list-none rounded-full bg-black/60 px-2 py-1 text-[10px] text-white">
-            + 스티커 추가
-          </summary>
-          <div className="absolute right-0 top-full z-30 mt-1 grid w-40 grid-cols-4 gap-1.5 rounded-lg border border-[var(--color-hairline)] bg-white p-2 shadow-lg">
-            {STICKERS.map((sticker) => (
-              <button
-                key={sticker.id}
-                type="button"
-                title={sticker.label}
-                onClick={(e) => {
-                  onAddSticker(sticker.url);
-                  // 스티커를 고르면 팝업(details)을 닫아요.
-                  const details = e.currentTarget.closest("details");
-                  if (details) details.open = false;
-                }}
-                className="flex h-8 w-8 items-center justify-center rounded border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)]"
-              >
-                <img src={sticker.url} alt={sticker.label} className="h-full w-full object-contain" />
-              </button>
-            ))}
-          </div>
-        </details>
-      </div>
     </>
   );
 }
@@ -2176,6 +2151,9 @@ function UploadPageContent() {
   function setEditorMode(mode: "preview" | "edit") {
     setEditorModeState({ forPageKey: selectedPageKey, mode });
   }
+  // 편집 화면 왼쪽 아이콘 메뉴(사진/배경/표지변경/스티커/손글씨스티커/텍스트) — 어떤
+  // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "사진" 탭부터 보여줘요.
+  const [activeEditTab, setActiveEditTab] = useState<EditTabId>("photo");
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   const [showGuidelines, setShowGuidelines] = useState(true);
   // 내지 펼침면 전용 — '안전영역'과 '접힘·제본 경계'를 각각 따로 켜고 끌 수 있어요
@@ -3170,20 +3148,7 @@ function UploadPageContent() {
           </a>
         </header>
 
-        <section className="mx-auto max-w-5xl px-6 pt-8 sm:px-10">
-          <p className="text-sm text-[var(--color-charcoal)]/60">
-            {productName} · {displaySizeLabel} · {quantity}개 · {template.name}
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">사진을 골라주세요</h1>
-          <p className="mt-3 text-[var(--color-charcoal)]/70 break-keep">
-            {isAiAuto
-              ? `사진을 올리면 AI가 개수와 비율에 맞춰 자동으로 배치해드려요. (현재 ${photos.length}장 올림)`
-              : `이 디자인은 정확히 사진 ${requiredCount}장이 필요해요. (현재 ${photos.length}장 선택됨)`}
-          </p>
-          <p className="mt-2 text-xs text-[var(--color-charcoal)]/50 break-keep">
-            각 페이지 왼쪽 위 배치 메뉴로 구성을 바꿀 수 있어요. 사진 오른쪽 위 "Aa" 버튼으로 그 캡션만의 서체·크기·색상·정렬·위치를 따로 정할 수 있어요.
-          </p>
-
+        <section className="mx-auto max-w-5xl px-6 pt-4 sm:px-10">
           {isPdfLibTestMode && (
             <div className="mt-4 rounded-xl border border-dashed border-[var(--color-charcoal)]/30 bg-white/60 p-4">
               <p className="text-sm font-medium">🧪 새 PDF 생성기 테스트 (pdf-lib) — 주문/저장과 무관해요</p>
@@ -3255,97 +3220,56 @@ function UploadPageContent() {
             </div>
           )}
 
-          <label className="mt-8 inline-block cursor-pointer rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
-            사진 선택하기
-            <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
-          </label>
-
-          {lowResCount > 0 && (
-            <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 break-keep">
-              해상도가 낮은 사진이 {lowResCount}장 있어요. 인쇄 시 흐릿하게 나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
-            </p>
-          )}
-
         </section>
 
         <div className="w-full bg-[var(--color-hairline)]/15 px-4 pb-4 pt-10 sm:px-6 lg:px-8">
+          {photos.length === 0 && (
+            <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
+              <p className="text-[var(--color-charcoal)]/70 break-keep">
+                {isAiAuto
+                  ? "사진을 올리면 AI가 개수와 비율에 맞춰 자동으로 배치해드려요."
+                  : `이 디자인은 정확히 사진 ${requiredCount}장이 필요해요.`}
+              </p>
+              <label className="inline-block cursor-pointer rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-8 py-4 text-sm font-medium text-white transition hover:opacity-90">
+                사진 선택하기
+                <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
+              </label>
+            </div>
+          )}
           {photos.length > 0 && (
             // PC 큰 화면에서는 좌우에 흰 여백이 남지 않도록 폭 제한을 풀어요(예전엔
             // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
             <div className="mx-auto mt-2 max-w-6xl lg:max-w-none">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-lg font-semibold">페이지 편집</h2>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
-                    <input
-                      type="checkbox"
-                      checked={showGuidelines}
-                      onChange={(e) => setShowGuidelines(e.target.checked)}
-                      className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                    />
-                    작업선·재단선
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
-                    <input
-                      type="checkbox"
-                      checked={showInnerSafetyGuide}
-                      onChange={(e) => setShowInnerSafetyGuide(e.target.checked)}
-                      className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                    />
-                    안전영역
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
-                    <input
-                      type="checkbox"
-                      checked={showInnerBindingGuide}
-                      onChange={(e) => setShowInnerBindingGuide(e.target.checked)}
-                      className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                    />
-                    접힘·제본 경계
-                  </label>
-                </div>
+              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
+                  <input
+                    type="checkbox"
+                    checked={showGuidelines}
+                    onChange={(e) => setShowGuidelines(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                  />
+                  작업선·재단선
+                </label>
+                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
+                  <input
+                    type="checkbox"
+                    checked={showInnerSafetyGuide}
+                    onChange={(e) => setShowInnerSafetyGuide(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                  />
+                  안전영역
+                </label>
+                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
+                  <input
+                    type="checkbox"
+                    checked={showInnerBindingGuide}
+                    onChange={(e) => setShowInnerBindingGuide(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
+                  />
+                  접힘·제본 경계
+                </label>
               </div>
-              <p className="mt-1 text-xs text-[var(--color-charcoal)]/50 break-keep">
-                왼쪽에서 페이지를 골라 오른쪽 큰 화면에서 편집해주세요.
-              </p>
-              {(showGuidelines || showInnerSafetyGuide || showInnerBindingGuide) && (
-                // 안내선 설명은 앱 전체에서 여기 한 곳에만 둬요(혜민님 확인, 2026-09).
-                // 모바일에서는 항목마다 줄이 바뀌어서 정돈되게, 넓은 화면에서는 한 줄로
-                // 이어붙여요.
-                <ul className="mt-1 flex flex-col gap-0.5 text-[11px] text-[var(--color-charcoal)]/50 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-1.5">
-                  {showGuidelines && (
-                    <li className="break-keep">
-                      <span className="font-semibold text-[#1a1a1a]">■ 작업선(파선)</span>(파일 맨 끝, 배경은 이
-                      선까지 채워주세요) · <span className="font-semibold text-[#1a1a1a]">■ 재단선(실선)</span>
-                      (실제로 잘리는 선)
-                    </li>
-                  )}
-                  {showInnerSafetyGuide && (
-                    <li className="break-keep">
-                      <span className="font-semibold text-[#1a1a1a]">■ 안전영역(점선)</span>(왼쪽·오른쪽 페이지
-                      각각, 글자·중요 사진은 이 안쪽에 배치해주세요 — 사진·배경은 밖으로 나가도 괜찮아요)
-                    </li>
-                  )}
-                  {showInnerBindingGuide && (
-                    <li className="break-keep">
-                      <span className="font-semibold text-[#1a1a1a]">■ 제본 경계(이중선)</span>(두 페이지가 만나는
-                      가운데 선, 옅은 음영은 제본 때문에 주의가 필요한 영역이에요)
-                    </li>
-                  )}
-                </ul>
-              )}
-
-              {isAiAuto && photos.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setCustomSpreads(generateAutoSpreads(photos, requiredSpreadCount))}
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[var(--color-sky)] px-4 py-2 text-sm font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                >
-                  <span aria-hidden>✨</span>
-                  AI가 다시 배치하기
-                </button>
-              )}
 
               <TextBoxToolbar
                 box={activeTextBoxDef}
@@ -4148,7 +4072,31 @@ function UploadPageContent() {
                         <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
                           <div className="flex flex-col gap-4 lg:flex-row">
                             {editorMode === "edit" && (
-                            <div className="lg:w-64 lg:shrink-0">
+                            <div className="flex gap-2 lg:shrink-0">
+                              {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
+                                  아이콘으로 골라요. 예전엔 배경만 항상 펼쳐져 있고 사진·스티커
+                                  추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
+                                  이제 다른 편집기들처럼 아이콘을 눌러야 해당 메뉴가 열려요. */}
+                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-visible">
+                                {EDIT_TABS.map((tab) => (
+                                  <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setActiveEditTab(tab.id)}
+                                    className={`flex shrink-0 flex-col items-center gap-0.5 rounded-lg px-1.5 py-2 text-[10px] transition ${
+                                      activeEditTab === tab.id
+                                        ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
+                                        : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
+                                    }`}
+                                  >
+                                    <span className="text-base leading-none" aria-hidden>
+                                      {tab.icon}
+                                    </span>
+                                    <span className="whitespace-nowrap">{tab.label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="lg:w-64 lg:shrink-0">
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-medium">
                                 {i === 0 ? "표지/1" : formatSpreadPageLabel(i)}페이지
@@ -4173,6 +4121,56 @@ function UploadPageContent() {
                               </div>
                             </div>
                             <div className="mt-3">
+                              {activeEditTab === "photo" && (
+                                <div className="flex flex-col gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
+                                      책 전체 사진 ({photos.length}장)
+                                    </p>
+                                    <label className="mt-1.5 inline-block cursor-pointer rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-4 py-2 text-xs font-medium text-white transition hover:opacity-90">
+                                      사진 더 올리기
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handleFileSelect}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                    {lowResCount > 0 && (
+                                      <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[11px] text-red-600 break-keep">
+                                        해상도가 낮은 사진이 {lowResCount}장 있어요. 인쇄 시 흐릿하게
+                                        나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
+                                      </p>
+                                    )}
+                                  </div>
+                                  {i !== 0 && (
+                                    <div className="border-t border-[var(--color-hairline)] pt-3">
+                                      <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
+                                        이 페이지에 사진 추가
+                                      </p>
+                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                                        끌어서 옮기고 크기를 조절할 수 있는 사진을 이 펼침면에
+                                        자유롭게 얹어요(페이지 구성용 사진과는 별개예요).
+                                      </p>
+                                      <label className="mt-1.5 inline-block cursor-pointer rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
+                                        + 사진 추가
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handleAddImageBox(i, file);
+                                            e.target.value = "";
+                                          }}
+                                        />
+                                      </label>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {activeEditTab === "background" && (
                               <div className="flex flex-wrap gap-1 text-[11px]">
                                 <button
                                   type="button"
@@ -4200,6 +4198,8 @@ function UploadPageContent() {
                                   </button>
                                 ))}
                               </div>
+                              )}
+                              {activeEditTab === "background" && (
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 {backgroundTab === "solid" ? (
                                   <>
@@ -4265,7 +4265,62 @@ function UploadPageContent() {
                                     })
                                 )}
                               </div>
+                              )}
+                              {activeEditTab === "theme" && (
+                                <div className="rounded-lg bg-[var(--color-ivory)]/60 p-3 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
+                                  테마변경은 준비 중이에요. 완성되면 여기서 디자인 테마를 골라
+                                  사진 배치를 한 번에 바꿀 수 있게 돼요.
+                                </div>
+                              )}
+                              {activeEditTab === "sticker" && (
+                                <div className="grid grid-cols-4 gap-1.5">
+                                  {STICKERS.map((sticker) => (
+                                    <button
+                                      key={sticker.id}
+                                      type="button"
+                                      title={sticker.label}
+                                      onClick={() => handleAddSticker(i, sticker.url)}
+                                      disabled={i === 0}
+                                      className="flex h-10 w-10 items-center justify-center rounded border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)] disabled:opacity-30"
+                                    >
+                                      <img src={sticker.url} alt={sticker.label} className="h-full w-full object-contain" />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {activeEditTab === "handwriting" && (
+                                <div className="rounded-lg bg-[var(--color-ivory)]/60 p-3 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
+                                  손글씨 스티커는 준비 중이에요. 곧 추가할게요.
+                                </div>
+                              )}
+                              {activeEditTab === "text" && (
+                                <div className="flex flex-col gap-2">
+                                  {i === 0 ? (
+                                    <p className="text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                                      이 면은 표지 안쪽이라 텍스트를 추가할 수 없어요.
+                                    </p>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddTextBox(i, "left")}
+                                        className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                      >
+                                        + 왼쪽 페이지에 글상자 추가
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddTextBox(i, "right")}
+                                        className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                      >
+                                        + 오른쪽 페이지에 글상자 추가
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </div>
+                              </div>
                             </div>
                             )}
                             <div className="min-w-0 flex-1">
@@ -4279,8 +4334,6 @@ function UploadPageContent() {
                               {i !== 0 && (
                                 <ImageBoxLayer
                                   boxes={spread.imageBoxes ?? []}
-                                  onAdd={(file) => handleAddImageBox(i, file)}
-                                  onAddSticker={(url) => handleAddSticker(i, url)}
                                   onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
                                   onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
                                   activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
