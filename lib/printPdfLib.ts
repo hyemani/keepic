@@ -200,11 +200,24 @@ async function drawIntroPageLib(
   const lineHeightPt = infoFontPt * 1.7;
 
   const makerLabel = introMaker.trim() || "신규 작성자";
-  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`, `제작 : KEEPIC`];
+  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`];
+
+  // 맨 아래엔 "제작 : KEEPIC" 텍스트 대신 실제 키픽 로고를 넣어요(embedKeepicLogo는
+  // 책등 로고와 같은 함수를 재사용해요).
+  const logoWpt = stackWpt * 0.42;
+  const logoHpt = logoWpt / KEEPIC_LOGO_ASPECT;
+  const logoYCanvasTop = workHpt - safetyPt - logoHpt;
+  const introLogoImage = await embedKeepicLogo(pdfDoc);
+  page.drawImage(introLogoImage, {
+    x: offset.x + stackXCanvas,
+    y: offset.y + safetyPt,
+    width: logoWpt,
+    height: logoHpt,
+  });
 
   // 캔버스 기준(위→아래로 증가) 커서를 먼저 계산하고, drawText 호출마다
   // "workHpt - 캔버스y"로 pdf-lib y(아래→위)로 바꿔서 넣어요.
-  let cursorYCanvas = workHpt - safetyPt;
+  let cursorYCanvas = logoYCanvasTop - infoFontPt * 0.7;
   for (let i = infoLines.length - 1; i >= 0; i--) {
     page.drawText(infoLines[i], {
       x: offset.x + stackXCanvas,

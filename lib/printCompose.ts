@@ -445,6 +445,9 @@ function drawGuideOverlay(
 // 그대로 재사용해요(drawPhotoInCell을 그대로 써서, 화면 미리보기의 IntroPhotoMirror와
 // 같은 계산을 공유해요). 안전영역(GUIDE_SAFETY_MARGIN_MM) 안쪽에 들어가도록, 왼쪽·아래
 // 기준을 안전선 위치로 잡아요.
+// public/logo.svg의 원본 가로:세로 비율이에요 (lib/printPdfLib.ts의 KEEPIC_LOGO_ASPECT와 같은 값).
+const KEEPIC_LOGO_ASPECT = 1204 / 416;
+
 export async function drawIntroPage(
   ctx: CanvasRenderingContext2D,
   pageW: number,
@@ -465,12 +468,19 @@ export async function drawIntroPage(
   const lineHeightPx = infoFontPx * 1.7;
 
   const makerLabel = introMaker.trim() || "신규 작성자";
-  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`, `제작 : KEEPIC`];
+  const infoLines = [`발행일 : ${introDate}`, `만든이 : ${makerLabel}`];
 
-  // 아래(제작 : KEEPIC)에서 위(발행일) 순서로 그려요.
+  // 맨 아래엔 "제작 : KEEPIC" 텍스트 대신 실제 키픽 로고를 넣어요.
+  const logoWpx = stackWpx * 0.42;
+  const logoHpx = logoWpx / KEEPIC_LOGO_ASPECT;
+  const logoYpx = pageH - safetyPx - logoHpx;
+  const logoImg = await loadImage("/logo.svg");
+  ctx.drawImage(logoImg, stackXpx, logoYpx, logoWpx, logoHpx);
+
+  // 로고 위로 만든이 → 발행일 순으로 쌓아요.
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  let cursorY = pageH - safetyPx;
+  let cursorY = logoYpx - infoFontPx * 0.7;
   for (let i = infoLines.length - 1; i >= 0; i--) {
     ctx.font = `${infoFontPx}px Pretendard, sans-serif`;
     ctx.fillStyle = "#333333";

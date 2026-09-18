@@ -674,8 +674,10 @@ function IntroPagePreview({
       <div className="text-[11px] leading-relaxed text-[var(--color-charcoal)]/70">
         <p>발행일 : {introPublishDate}</p>
         <p>만든이 : {introMakerName.trim() || "신규 작성자"}</p>
-        <p>제작 : KEEPIC</p>
       </div>
+      {/* "제작 : KEEPIC" 텍스트 대신 실제 로고를 넣어요 — lib/printCompose.ts의
+          drawIntroPage(인쇄용)와 같은 자리, 같은 의도예요. */}
+      <img src="/logo.svg" alt="Keepic" className="h-auto w-[14%] min-w-10 opacity-80" />
     </div>
   );
 }
