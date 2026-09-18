@@ -11,7 +11,7 @@
 // 다시 생성해주세요.
 
 import { jsPDF } from "jspdf";
-import { PageTemplateId, SpreadDef, TextBoxDef, pageTemplates } from "@/lib/albumTemplates";
+import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, pageTemplates } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import {
   PhotobookCoverId,
@@ -244,12 +244,55 @@ async function drawPage(
   pageH: number,
   backgroundColor: string = "#ffffff",
   backgroundPatternId?: string,
-  textBoxes?: TextBoxDef[]
+  textBoxes?: TextBoxDef[],
+  // 스프레드 전체 기준 자유 배치 이미지박스예요. 이 낱장(왼쪽/오른쪽)에서 보이는 부분만
+  // 잘라 그려요 — pageOffsetPx/spreadWidthPx가 그 계산에 필요해요.
+  imageBoxes?: ImageBoxDef[],
+  pageOffsetPx?: number,
+  spreadWidthPx?: number
 ) {
   await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId);
+  if (imageBoxes && pageOffsetPx !== undefined && spreadWidthPx !== undefined) {
+    for (const box of imageBoxes) {
+      const img = await loadImage(box.url);
+      drawImageBoxOnCanvas(ctx, box, img, pageW, pageH, pageOffsetPx, spreadWidthPx);
+    }
+  }
   if (textBoxes) {
     for (const box of textBoxes) drawTextBoxOnCanvas(ctx, box, pageW, pageH);
   }
+}
+
+// 자유 배치 이미지박스 하나를 이 낱장(페이지)에 그려요. 박스 좌표는 "스프레드 전체 폭"을
+// 100%로 보는 좌표라서, 이 페이지의 오프셋(pageOffsetPx: 왼쪽 낱장은 0, 오른쪽 낱장은
+// spreadWidthPx의 절반)만큼 빼서 이 낱장 기준 좌표로 바꿔요. 박스가 페이지 경계를
+// 넘어가면 이 페이지 캔버스 바깥으로 그려지는 부분이 생기는데, 클립으로 페이지 안쪽만
+// 남기고 나머지는 자동으로 잘려요 — 같은 사진을 양쪽 낱장에 각각 이렇게 그리면, 실제로
+// 펼쳤을 때 하나로 이어져 보여요.
+function drawImageBoxOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  box: ImageBoxDef,
+  img: HTMLImageElement,
+  pageW: number,
+  pageH: number,
+  pageOffsetPx: number,
+  spreadWidthPx: number
+) {
+  const boxLeftSpreadPx = (box.xPct / 100) * spreadWidthPx;
+  const boxTopPx = (box.yPct / 100) * pageH;
+  const boxWidthSpreadPx = (box.widthPct / 100) * spreadWidthPx;
+  const boxHeightPx = (box.heightPct / 100) * pageH;
+  const boxLeftPagePx = boxLeftSpreadPx - pageOffsetPx;
+
+  // 이 페이지와 전혀 안 겹치면 그릴 필요 없어요.
+  if (boxLeftPagePx + boxWidthSpreadPx <= 0 || boxLeftPagePx >= pageW) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, pageW, pageH);
+  ctx.clip();
+  ctx.drawImage(img, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
+  ctx.restore();
 }
 
 async function drawPageTemplate(
@@ -655,14 +698,30 @@ export async function buildInnerPrintPdf({
     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
     // 스프레드 1(i === 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요
     // (텍스트박스도 함께 생략해요 — 인쇄 안 되는 면이라 화면에서도 편집할 수 없어요).
+    // 스프레드 1(i === 0)의 왼쪽 면은 인쇄 안 되는 면이라 이미지박스도 함께 생략해요.
+    const spreadImageBoxes = i === 0 ? undefined : spread.imageBoxes;
+    const spreadWidthPx = pxW * 2; // 이미지박스 좌표는 "스프레드 전체 폭"(낱장 두 개) 기준이에요.
     const sides: {
       templateId: PageTemplateId;
       indexes: number[];
       hideEdge: "left" | "right";
       textBoxes?: TextBoxDef[];
+      pageOffsetPx: number;
     }[] = [
-      { templateId: i === 0 ? "blank" : spread.left, indexes: leftIndexes, hideEdge: "right", textBoxes: i === 0 ? undefined : spread.textBoxesLeft },
-      { templateId: spread.right, indexes: rightIndexes, hideEdge: "left", textBoxes: spread.textBoxesRight },
+      {
+        templateId: i === 0 ? "blank" : spread.left,
+        indexes: leftIndexes,
+        hideEdge: "right",
+        textBoxes: i === 0 ? undefined : spread.textBoxesLeft,
+        pageOffsetPx: 0,
+      },
+      {
+        templateId: spread.right,
+        indexes: rightIndexes,
+        hideEdge: "left",
+        textBoxes: spread.textBoxesRight,
+        pageOffsetPx: pxW,
+      },
     ];
 
     for (const side of sides) {
@@ -676,7 +735,10 @@ export async function buildInnerPrintPdf({
         pxH,
         spread.backgroundColor ?? "#ffffff",
         spread.backgroundPattern,
-        side.textBoxes
+        side.textBoxes,
+        spreadImageBoxes,
+        side.pageOffsetPx,
+        spreadWidthPx
       );
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
       drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideEdge);

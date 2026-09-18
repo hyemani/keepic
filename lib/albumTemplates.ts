@@ -38,6 +38,23 @@ export type TextBoxDef = {
   bold: boolean;
 };
 
+// 자유 배치 이미지박스 하나예요(내지 스프레드·표지 앞면 공통으로 써요). 텍스트박스와
+// 달리 "왼쪽 페이지"·"오른쪽 페이지" 각각이 아니라 "스프레드(펼침면) 전체 폭"을 100%로
+// 보는 퍼센트 좌표예요 — 그래야 박스를 끌어서 가운데(페이지 경계)를 넘나들며 자유롭게
+// 배치할 수 있어요(혜민님 확인, 2026-09). 인쇄 파일을 만들 때는 이 좌표를 기준으로 같은
+// 사진을 왼쪽 낱장·오른쪽 낱장 파일에 각각 필요한 부분만 잘라서 그려서, 실제로 펼쳤을 때
+// 하나로 이어져 보이게 해요.
+export type ImageBoxDef = {
+  id: string;
+  url: string; // 사진 원본 URL
+  naturalWidth: number;
+  naturalHeight: number;
+  xPct: number; // 스프레드 전체 폭 기준 왼쪽 끝 위치(0~100, 왼쪽 페이지는 0~50, 오른쪽 페이지는 50~100)
+  yPct: number; // 스프레드 높이 기준 위쪽 끝 위치(0~100)
+  widthPct: number; // 스프레드 폭 기준 너비(0~100)
+  heightPct: number; // 스프레드 높이 기준 높이(0~100)
+};
+
 export type SpreadDef = {
   left: PageTemplateId;
   right: PageTemplateId;
@@ -50,6 +67,9 @@ export type SpreadDef = {
   // 자유 배치 텍스트박스예요. 왼쪽·오른쪽 페이지가 서로 다른 낱장이라 각각 따로 가져요.
   textBoxesLeft?: TextBoxDef[];
   textBoxesRight?: TextBoxDef[];
+  // 자유 배치 이미지박스예요. 텍스트박스와 달리 스프레드 전체를 공유해요(페이지 경계를
+  // 넘어 배치할 수 있어야 하니까요).
+  imageBoxes?: ImageBoxDef[];
 };
 
 export type AlbumTemplate = {

@@ -11,6 +11,7 @@ import {
   PageTemplateId,
   SpreadDef,
   TextBoxDef,
+  ImageBoxDef,
   AI_AUTO_LAYOUT_TEMPLATE_ID,
   generateAutoSpreads,
   calcRequiredSpreadCount,
@@ -1143,6 +1144,186 @@ function TextBoxLayer({
   );
 }
 
+// 자유 배치 이미지박스 하나예요 — 텍스트박스와 같은 방식으로 끌어서 옮기고, 오른쪽 아래
+// 손잡이로 크기를 조절해요(사진이 찌그러지지 않도록 가로세로 비율은 그대로 유지해요).
+// xPct·widthPct 등은 "스프레드 전체 폭"을 100%로 보는 좌표라서, 페이지 가운데(경계)를
+// 자유롭게 넘나들며 배치할 수 있어요.
+function ImageBoxOverlay({
+  box,
+  onChange,
+  onDelete,
+  isActive,
+  onSelect,
+}: {
+  box: ImageBoxDef;
+  onChange: (changes: Partial<ImageBoxDef>) => void;
+  onDelete: () => void;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const [mouseDownActive, setMouseDownActive] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
+  const resizeStart = useRef({ mouseX: 0, widthPct: 0, cellW: 1 });
+
+  function handleMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    dragStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      xPct: box.xPct,
+      yPct: box.yPct,
+      cellW: cellRect?.width || 1,
+      cellH: cellRect?.height || 1,
+    };
+    setMouseDownActive(true);
+  }
+
+  useEffect(() => {
+    if (!mouseDownActive) return;
+    function handleMouseMove(e: MouseEvent) {
+      const dxPxRaw = e.clientX - dragStart.current.mouseX;
+      const dyPxRaw = e.clientY - dragStart.current.mouseY;
+      if (!isDragging) {
+        if (Math.hypot(dxPxRaw, dyPxRaw) < TEXT_BOX_DRAG_THRESHOLD_PX) return;
+        setIsDragging(true);
+      }
+      const dxPct = (dxPxRaw / dragStart.current.cellW) * 100;
+      const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
+      const nextX = Math.min(100 - 4, Math.max(0, dragStart.current.xPct + dxPct));
+      const nextY = Math.min(100 - 4, Math.max(0, dragStart.current.yPct + dyPct));
+      onChange({ xPct: nextX, yPct: nextY });
+    }
+    function handleMouseUp() {
+      setMouseDownActive(false);
+      setIsDragging(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [mouseDownActive, isDragging]);
+
+  // 오른쪽 아래 손잡이 — 가로로 끌면 가로폭이 바뀌고, 세로 크기는 사진 원본 비율 그대로
+  // 자동으로 따라와요(찌그러지지 않아요). 스프레드 전체 폭이 페이지(정사각형) 두 배라서,
+  // "가로 %"와 "세로 %"의 실제 축척이 2:1이에요 — 그 비율까지 감안해서 계산해요.
+  function handleResizeStart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    resizeStart.current = { mouseX: e.clientX, widthPct: box.widthPct, cellW: cellRect?.width || 1 };
+    setIsResizing(true);
+  }
+
+  useEffect(() => {
+    if (!isResizing) return;
+    function handleMouseMove(e: MouseEvent) {
+      const dxPct = ((e.clientX - resizeStart.current.mouseX) / resizeStart.current.cellW) * 100;
+      const nextWidth = Math.min(96, Math.max(6, resizeStart.current.widthPct + dxPct));
+      const nextHeight = 2 * nextWidth * (box.naturalHeight / box.naturalWidth);
+      onChange({ widthPct: nextWidth, heightPct: nextHeight });
+    }
+    function handleMouseUp() {
+      setIsResizing(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing, box.naturalHeight, box.naturalWidth]);
+
+  return (
+    <div
+      ref={boxRef}
+      onMouseDown={handleMouseDown}
+      className={`absolute z-[25] cursor-move overflow-hidden border transition ${
+        isActive ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/40"
+      }`}
+      style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%`, height: `${box.heightPct}%` }}
+    >
+      <img src={box.url} alt="" draggable={false} className="pointer-events-none h-full w-full select-none object-cover" />
+      {isActive && (
+        <>
+          <button
+            type="button"
+            title="이미지박스 삭제"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="absolute -right-1.5 -top-1.5 z-40 flex h-5 w-5 items-center justify-center rounded-full border border-white bg-red-500 text-[10px] text-white shadow"
+          >
+            ✕
+          </button>
+          <div
+            onMouseDown={handleResizeStart}
+            title="끌어서 크기 조절(비율 유지)"
+            className="absolute bottom-0 right-0 z-40 h-3.5 w-3.5 -translate-x-0.5 -translate-y-0.5 cursor-nwse-resize rounded-sm border border-white bg-[var(--color-sky)] shadow"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+// 한 스프레드(펼침면) 전체의 이미지박스들 + "+ 사진 추가" 버튼을 함께 그려요. 텍스트박스와
+// 달리 왼쪽/오른쪽 낱장이 아니라 스프레드 전체 컨테이너 위에 얹어서, 박스가 페이지 경계를
+// 자유롭게 넘나들 수 있게 해요.
+function ImageBoxLayer({
+  boxes,
+  onAdd,
+  onChange,
+  onDelete,
+  activeBoxId,
+  onSelect,
+}: {
+  boxes: ImageBoxDef[];
+  onAdd: (file: File) => void;
+  onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
+  onDelete: (boxId: string) => void;
+  activeBoxId: string | null;
+  onSelect: (boxId: string) => void;
+}) {
+  return (
+    <>
+      {boxes.map((box) => (
+        <ImageBoxOverlay
+          key={box.id}
+          box={box}
+          onChange={(c) => onChange(box.id, c)}
+          onDelete={() => onDelete(box.id)}
+          isActive={box.id === activeBoxId}
+          onSelect={() => onSelect(box.id)}
+        />
+      ))}
+      <label className="absolute right-1 top-7 z-20 cursor-pointer rounded-full bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100">
+        + 사진 추가
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onAdd(file);
+            e.target.value = "";
+          }}
+        />
+      </label>
+    </>
+  );
+}
+
 // 표지 제목이에요. 예전엔 하단에 고정된 텍스트였는데, 이제 텍스트박스처럼 끌어서 원하는
 // 자리로 옮길 수 있어요(가운데로 가져가면 딱 붙는 안내선도 함께 떠요).
 function CoverTitleOverlay({
@@ -2068,6 +2249,53 @@ function UploadPageContent() {
     ? getTextBoxesForRef(activeTextBox.ref).find((b) => b.id === activeTextBox.boxId) ?? null
     : null;
 
+  // ---- 자유 배치 이미지박스(스프레드 전체 기준) ----
+  // 지금 선택된 이미지박스가 어느 스프레드에 있는지 가리켜요.
+  const [activeImageBox, setActiveImageBox] = useState<{ spreadIndex: number; boxId: string } | null>(null);
+
+  function handleAddImageBox(spreadIndex: number, file: File) {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      const widthPct = 36;
+      // 스프레드 전체 폭이 페이지(정사각형) 두 배라서, 가로 %와 세로 %의 실제 축척이
+      // 2:1이에요 — 새 이미지박스도 처음부터 사진 원본 비율 그대로 보이도록 계산해요.
+      const heightPct = 2 * widthPct * (img.naturalHeight / img.naturalWidth);
+      const box: ImageBoxDef = {
+        id: crypto.randomUUID(),
+        url,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        xPct: 32,
+        yPct: 25,
+        widthPct,
+        heightPct,
+      };
+      setCustomSpreads((prev) =>
+        prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), box] } : s))
+      );
+      setActiveImageBox({ spreadIndex, boxId: box.id });
+    };
+    img.src = url;
+  }
+
+  function handleImageBoxChange(spreadIndex: number, boxId: string, changes: Partial<ImageBoxDef>) {
+    setCustomSpreads((prev) =>
+      prev.map((s, i) =>
+        i === spreadIndex
+          ? { ...s, imageBoxes: (s.imageBoxes ?? []).map((b) => (b.id === boxId ? { ...b, ...changes } : b)) }
+          : s
+      )
+    );
+  }
+
+  function handleDeleteImageBox(spreadIndex: number, boxId: string) {
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: (s.imageBoxes ?? []).filter((b) => b.id !== boxId) } : s))
+    );
+    setActiveImageBox(null);
+  }
+
   // ---- 편집기 단축키: 실행취소/다시실행, 복사/붙여넣기, 확대·축소 ----
   // 실행취소는 "지금까지 편집한 내용(사진 배치, 텍스트, 배경 등)" 전체를 하나의 스냅샷으로
   // 찍어뒀다가 되돌리는 방식이에요(필드 하나하나를 따로 추적하지 않아요). 스냅샷에는
@@ -2252,10 +2480,19 @@ function UploadPageContent() {
         deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
         return;
       }
+      // 이미지박스도 텍스트박스와 같은 방식으로 ESC/백스페이스로 지워요.
+      if (!meta && key === "escape" && activeImageBox) {
+        e.preventDefault();
+        handleDeleteImageBox(activeImageBox.spreadIndex, activeImageBox.boxId);
+        return;
+      }
       if (!meta && key === "backspace" && !isTypingTarget(e.target)) {
         if (activeTextBox) {
           e.preventDefault();
           deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
+        } else if (activeImageBox) {
+          e.preventDefault();
+          handleDeleteImageBox(activeImageBox.spreadIndex, activeImageBox.boxId);
         }
         return;
       }
@@ -2295,7 +2532,7 @@ function UploadPageContent() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTextBoxDef, activeTextBox]);
+  }, [activeTextBoxDef, activeTextBox, activeImageBox]);
 
   async function uploadPhotoToStorage(photo: Photo): Promise<string> {
     const blob = await fetch(photo.url).then((res) => res.blob());
@@ -2887,7 +3124,10 @@ function UploadPageContent() {
                   stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요. */}
               <div
                 className="mt-6 hidden flex-col gap-4 landscape:flex lg:flex lg:flex-row"
-                onMouseDown={() => setActiveTextBox(null)}
+                onMouseDown={() => {
+                  setActiveTextBox(null);
+                  setActiveImageBox(null);
+                }}
               >
                 {/* 왼쪽: 전체 페이지 한눈에 보기 */}
                 <div className="flex gap-2 overflow-x-auto rounded-xl border border-[var(--color-hairline)] bg-white p-2 shadow-sm lg:max-h-[calc(100vh-200px)] lg:w-40 lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pb-0">
@@ -3699,11 +3939,26 @@ function UploadPageContent() {
                               )}
                             </div>
                           </div>
-                          <div className="relative mt-3 flex w-full items-start bg-white shadow-sm">
+                          <div className="group relative mt-3 flex w-full items-start bg-white shadow-sm">
                             {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만
                                 구분해요. "접힘·제본 경계" 안내선을 켜면 그 옆으로 옅은 배경(BindingGuide)이
                                 더해질 뿐, 선은 늘지 않아요. */}
                             <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
+                            {/* 자유 배치 이미지박스 — 왼쪽·오른쪽 낱장이 아니라 스프레드 전체
+                                위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
+                            {i !== 0 && (
+                              <ImageBoxLayer
+                                boxes={spread.imageBoxes ?? []}
+                                onAdd={(file) => handleAddImageBox(i, file)}
+                                onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
+                                onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
+                                activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
+                                onSelect={(boxId) => {
+                                  setActiveTextBox(null);
+                                  setActiveImageBox({ spreadIndex: i, boxId });
+                                }}
+                              />
+                            )}
                             <div className="group relative w-1/2">
                               {i === 0 ? (
                                 <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">
