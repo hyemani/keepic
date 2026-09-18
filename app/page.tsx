@@ -276,16 +276,16 @@ export default function Home() {
               넓히든 같은 비율로 보여요. 다만 아주 좁은 모바일 화면에서는
               배너 자체 높이가 얼마 안 되기 때문에, 글자가 사진과 겹치지
               않도록 시작 위치와 최소 글자 크기를 여유 있게 낮춰뒀어요. */}
-          <div className="absolute inset-x-0 top-[clamp(76px,13vw,120px)] flex flex-col items-center px-6 text-center">
+          <div className="absolute inset-x-0 top-[clamp(120px,8vw,220px)] flex flex-col items-center px-6 text-center">
             <h1 className="font-banner break-keep text-[clamp(1.5rem,4.4vw,3.3rem)] leading-tight text-white">
               {promoBanner.titleLines[0]}
               <br />
               {promoBanner.titleLines[1]}
             </h1>
-            <p className="mt-[0.8%] text-[clamp(0.75rem,1vw,0.95rem)] font-semibold tracking-[0.16em] text-white/85">
+            <p className="mt-[1.6%] text-[clamp(0.75rem,1vw,0.95rem)] font-semibold tracking-[0.16em] text-white/85">
               {promoBanner.eyebrow}
             </p>
-            <p className="mt-[0.5%] max-w-xs break-keep text-[clamp(0.8rem,0.95vw,0.9rem)] text-white/75">
+            <p className="mt-[0.4%] max-w-xs break-keep text-[clamp(0.8rem,0.95vw,0.9rem)] text-white/75">
               {promoBanner.caption}
             </p>
           </div>
