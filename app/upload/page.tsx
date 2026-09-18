@@ -47,6 +47,20 @@ import { mmToPt } from "@/lib/printGeometry";
 const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 0.5;
 const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
 const COVER_TITLE_PT_PRESETS = [12, 18, 24, 30, 36, 48, 60, 72];
+
+// 페이지에 자유롭게 얹을 수 있는 기본 스티커 세트예요. 실제로는 이미지박스와 같은
+// 방식(ImageBoxDef)으로 다뤄져서, 스티커도 사진처럼 끌어서 옮기고 크기를 바꿀 수
+// 있어요.
+const STICKERS: { id: string; url: string; label: string }[] = [
+  { id: "heart", url: "/stickers/heart.svg", label: "하트" },
+  { id: "star", url: "/stickers/star.svg", label: "별" },
+  { id: "ribbon", url: "/stickers/ribbon.svg", label: "리본" },
+  { id: "tape", url: "/stickers/tape.svg", label: "마스킹 테이프" },
+  { id: "speech-bubble", url: "/stickers/speech-bubble.svg", label: "말풍선" },
+  { id: "cloud", url: "/stickers/cloud.svg", label: "구름" },
+  { id: "sparkle", url: "/stickers/sparkle.svg", label: "반짝임" },
+  { id: "frame", url: "/stickers/frame.svg", label: "프레임" },
+];
 function measureSpineTitleFontSizeMm(
   title: string,
   spineMm: number,
@@ -1283,6 +1297,7 @@ function ImageBoxOverlay({
 function ImageBoxLayer({
   boxes,
   onAdd,
+  onAddSticker,
   onChange,
   onDelete,
   activeBoxId,
@@ -1290,6 +1305,7 @@ function ImageBoxLayer({
 }: {
   boxes: ImageBoxDef[];
   onAdd: (file: File) => void;
+  onAddSticker: (stickerUrl: string) => void;
   onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
   onDelete: (boxId: string) => void;
   activeBoxId: string | null;
@@ -1307,19 +1323,44 @@ function ImageBoxLayer({
           onSelect={() => onSelect(box.id)}
         />
       ))}
-      <label className="absolute right-1 top-7 z-20 cursor-pointer rounded-full bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100">
-        + 사진 추가
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) onAdd(file);
-            e.target.value = "";
-          }}
-        />
-      </label>
+      <div className="absolute right-1 top-7 z-20 flex flex-col items-end gap-1 opacity-0 transition group-hover:opacity-100">
+        <label className="cursor-pointer rounded-full bg-black/60 px-2 py-1 text-[10px] text-white">
+          + 사진 추가
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onAdd(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <details className="group/sticker relative">
+          <summary className="cursor-pointer list-none rounded-full bg-black/60 px-2 py-1 text-[10px] text-white">
+            + 스티커 추가
+          </summary>
+          <div className="absolute right-0 top-full z-30 mt-1 grid w-40 grid-cols-4 gap-1.5 rounded-lg border border-[var(--color-hairline)] bg-white p-2 shadow-lg">
+            {STICKERS.map((sticker) => (
+              <button
+                key={sticker.id}
+                type="button"
+                title={sticker.label}
+                onClick={(e) => {
+                  onAddSticker(sticker.url);
+                  // 스티커를 고르면 팝업(details)을 닫아요.
+                  const details = e.currentTarget.closest("details");
+                  if (details) details.open = false;
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)]"
+              >
+                <img src={sticker.url} alt={sticker.label} className="h-full w-full object-contain" />
+              </button>
+            ))}
+          </div>
+        </details>
+      </div>
     </>
   );
 }
@@ -2253,13 +2294,13 @@ function UploadPageContent() {
   // 지금 선택된 이미지박스가 어느 스프레드에 있는지 가리켜요.
   const [activeImageBox, setActiveImageBox] = useState<{ spreadIndex: number; boxId: string } | null>(null);
 
-  function handleAddImageBox(spreadIndex: number, file: File) {
-    const url = URL.createObjectURL(file);
+  // 사진 파일이든 스티커든 결국 "이미지박스 하나 추가"라 로직을 공유해요 — url과
+  // 기본 크기(widthPct)만 다르게 넘겨요.
+  function handleAddImageBoxFromUrl(spreadIndex: number, url: string, widthPct: number) {
     const img = new window.Image();
     img.onload = () => {
-      const widthPct = 36;
       // 스프레드 전체 폭이 페이지(정사각형) 두 배라서, 가로 %와 세로 %의 실제 축척이
-      // 2:1이에요 — 새 이미지박스도 처음부터 사진 원본 비율 그대로 보이도록 계산해요.
+      // 2:1이에요 — 새 이미지박스도 처음부터 원본 비율 그대로 보이도록 계산해요.
       const heightPct = 2 * widthPct * (img.naturalHeight / img.naturalWidth);
       const box: ImageBoxDef = {
         id: crypto.randomUUID(),
@@ -2277,6 +2318,15 @@ function UploadPageContent() {
       setActiveImageBox({ spreadIndex, boxId: box.id });
     };
     img.src = url;
+  }
+
+  function handleAddImageBox(spreadIndex: number, file: File) {
+    const url = URL.createObjectURL(file);
+    handleAddImageBoxFromUrl(spreadIndex, url, 36);
+  }
+
+  function handleAddSticker(spreadIndex: number, stickerUrl: string) {
+    handleAddImageBoxFromUrl(spreadIndex, stickerUrl, 14);
   }
 
   function handleImageBoxChange(spreadIndex: number, boxId: string, changes: Partial<ImageBoxDef>) {
@@ -3959,6 +4009,7 @@ function UploadPageContent() {
                                 <ImageBoxLayer
                                   boxes={spread.imageBoxes ?? []}
                                   onAdd={(file) => handleAddImageBox(i, file)}
+                                  onAddSticker={(url) => handleAddSticker(i, url)}
                                   onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
                                   onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
                                   activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
