@@ -3657,6 +3657,41 @@ function UploadPageContent() {
     const GUIDE_SAFETY_MM = 10; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
     const trimXPct = (GUIDE_BLEED_MM / guideSpreadWorkMm) * 100;
     const trimYPct = (GUIDE_BLEED_MM / guidePageWorkMm) * 100;
+    // "변형" 패널(이미지박스 위치·크기를 mm로 직접 입력)에서 쓰는 mm↔퍼센트 변환이에요.
+    // 이미지박스의 xPct/widthPct는 스프레드 전체 폭(guideSpreadWorkMm, 도련 포함)을
+    // 100%로 보는 좌표라서, 눈금자(Ruler)에 표시되는 "재단선 기준 실제 mm"와 똑같은
+    // 숫자가 나오도록 눈금자와 같은 보정을 적용해요 — 가로는 책등에서 겹치는 도련 때문에
+    // 살짝 눌러서 표시하고(약 2%), 세로는 그대로예요(2026-09 추가).
+    const transformTrimTotalMmX = (guidePageWorkMm - 2 * GUIDE_BLEED_MM) * 2;
+    const transformRawPerLabelMmX =
+      transformTrimTotalMmX > 0 ? (guideSpreadWorkMm - 2 * GUIDE_BLEED_MM) / transformTrimTotalMmX : 1;
+    function pctXToMm(pct: number) {
+      const rawMm = (pct / 100) * guideSpreadWorkMm;
+      return (rawMm - GUIDE_BLEED_MM) / transformRawPerLabelMmX;
+    }
+    function mmToPctX(mm: number) {
+      const rawMm = GUIDE_BLEED_MM + mm * transformRawPerLabelMmX;
+      return (rawMm / guideSpreadWorkMm) * 100;
+    }
+    function pctYToMm(pct: number) {
+      return (pct / 100) * guidePageWorkMm - GUIDE_BLEED_MM;
+    }
+    function mmToPctY(mm: number) {
+      return ((mm + GUIDE_BLEED_MM) / guidePageWorkMm) * 100;
+    }
+    // 너비·높이는 원점 이동 없이 배율만 적용해요(0mm은 항상 0mm).
+    function widthMmToPct(mm: number) {
+      return ((mm * transformRawPerLabelMmX) / guideSpreadWorkMm) * 100;
+    }
+    function widthPctToMm(pct: number) {
+      return ((pct / 100) * guideSpreadWorkMm) / transformRawPerLabelMmX;
+    }
+    function heightMmToPct(mm: number) {
+      return (mm / guidePageWorkMm) * 100;
+    }
+    function heightPctToMm(pct: number) {
+      return (pct / 100) * guidePageWorkMm;
+    }
     // "인쇄 미리보기"에서 재단선 안쪽만 확대해서 꽉 차게 보여주는 배율이에요 — 가운데를
     // 기준으로 확대하면 도련(bleed) 부분이 바깥으로 밀려나서 overflow-hidden에 자동으로
     // 잘려나가고, 재단선 안쪽 라인이 딱 상자 테두리에 맞춰져요.
@@ -4712,6 +4747,12 @@ function UploadPageContent() {
                       const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
                       const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
                       const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
+                      // "변형" 패널용 — 지금 이 스프레드에서 선택된 이미지박스예요(2026-09 요청,
+                      // 일러스트레이터 변형 패널처럼 위치·크기를 숫자로 직접 입력).
+                      const activeBox =
+                        activeImageBox?.spreadIndex === i
+                          ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId)
+                          : undefined;
                       return (
                         <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
                           <div className="flex flex-col gap-4 lg:flex-row">
@@ -4786,6 +4827,90 @@ function UploadPageContent() {
                                         >
                                           스프레드 전체 채우기
                                         </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* 변형 패널 — 일러스트레이터의 "변형" 패널처럼, 선택한 사진박스의
+                                      위치(X·Y)와 크기(폭·높이)를 mm 숫자로 직접 입력해서 조절해요
+                                      (2026-09 요청). 위 눈금자와 똑같은 기준(재단선을 0mm로 보는
+                                      실제 인쇄 mm)이라, 여기 적는 숫자가 캔버스 위 눈금자 숫자와
+                                      그대로 맞아떨어져요. */}
+                                  {activeBox && (
+                                    <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
+                                      <p className="text-xs font-medium text-[var(--color-charcoal)]">
+                                        변형 (mm)
+                                      </p>
+                                      <div className="mt-2 grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                                            X
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step={1}
+                                            value={Math.round(pctXToMm(activeBox.xPct) * 10) / 10}
+                                            onChange={(e) => {
+                                              const mm = Number(e.target.value);
+                                              if (Number.isFinite(mm)) {
+                                                handleImageBoxChange(i, activeBox.id, { xPct: mmToPctX(mm) });
+                                              }
+                                            }}
+                                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                                            Y
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step={1}
+                                            value={Math.round(pctYToMm(activeBox.yPct) * 10) / 10}
+                                            onChange={(e) => {
+                                              const mm = Number(e.target.value);
+                                              if (Number.isFinite(mm)) {
+                                                handleImageBoxChange(i, activeBox.id, { yPct: mmToPctY(mm) });
+                                              }
+                                            }}
+                                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                                            폭
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step={1}
+                                            min={1}
+                                            value={Math.round(widthPctToMm(activeBox.widthPct) * 10) / 10}
+                                            onChange={(e) => {
+                                              const mm = Number(e.target.value);
+                                              if (Number.isFinite(mm) && mm > 0) {
+                                                handleImageBoxChange(i, activeBox.id, { widthPct: widthMmToPct(mm) });
+                                              }
+                                            }}
+                                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                                            높이
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step={1}
+                                            min={1}
+                                            value={Math.round(heightPctToMm(activeBox.heightPct) * 10) / 10}
+                                            onChange={(e) => {
+                                              const mm = Number(e.target.value);
+                                              if (Number.isFinite(mm) && mm > 0) {
+                                                handleImageBoxChange(i, activeBox.id, { heightPct: heightMmToPct(mm) });
+                                              }
+                                            }}
+                                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                          />
+                                        </div>
                                       </div>
                                     </div>
                                   )}
