@@ -1561,27 +1561,38 @@ const ImageBoxOverlay = forwardRef<
 
       if (e.altKey) {
         // Alt(Option): 반대쪽 손잡이가 고정되는 게 아니라, 박스 중심을 고정한 채 양쪽이
-        // 같이 늘어나요(포토샵의 Alt 드래그와 동일).
+        // 같이 늘어나요(포토샵의 Alt 드래그와 동일). 중심이 스프레드 밖으로 나가지 않게,
+        // 중심에서 양쪽 끝(0%/100%)까지 중 더 좁은 쪽을 기준으로 최대 크기를 잡아요 —
+        // 그래야 늘어난 박스가 스프레드 밖으로 삐져나가지 않아요.
         if (hasE || hasW) {
-          widthPct = clampPct(6, 96, s.widthPct + 2 * widthDeltaPct);
-          xPct = s.xPct + (s.widthPct - widthPct) / 2;
+          const centerX = s.xPct + s.widthPct / 2;
+          const maxWidth = Math.max(6, 2 * Math.min(centerX, 100 - centerX));
+          widthPct = clampPct(6, maxWidth, s.widthPct + 2 * widthDeltaPct);
+          xPct = centerX - widthPct / 2;
         }
         if (hasS || hasN) {
-          heightPct = clampPct(4, 96, s.heightPct + 2 * heightDeltaPct);
-          yPct = s.yPct + (s.heightPct - heightPct) / 2;
+          const centerY = s.yPct + s.heightPct / 2;
+          const maxHeight = Math.max(4, 2 * Math.min(centerY, 100 - centerY));
+          heightPct = clampPct(4, maxHeight, s.heightPct + 2 * heightDeltaPct);
+          yPct = centerY - heightPct / 2;
         }
       } else {
+        // 고정된 반대쪽 끝(반대쪽 손잡이)을 기준으로 최대 크기를 잡아서, 박스가 스프레드
+        // 가장자리(0%/100%)에 정확히 딱 맞을 수 있게 해요(예전엔 96%까지만 늘어나서
+        // 스프레드 전체를 꽉 채울 수 없었던 문제를 고침, 2026-09 요청).
         if (hasE) {
-          widthPct = clampPct(6, 96, s.widthPct + widthDeltaPct);
+          widthPct = clampPct(6, Math.max(6, 100 - s.xPct), s.widthPct + widthDeltaPct);
         } else if (hasW) {
-          widthPct = clampPct(6, 96, s.widthPct + widthDeltaPct);
-          xPct = s.xPct + (s.widthPct - widthPct);
+          const rightEdge = s.xPct + s.widthPct;
+          widthPct = clampPct(6, Math.max(6, rightEdge), s.widthPct + widthDeltaPct);
+          xPct = rightEdge - widthPct;
         }
         if (hasS) {
-          heightPct = clampPct(4, 96, s.heightPct + heightDeltaPct);
+          heightPct = clampPct(4, Math.max(4, 100 - s.yPct), s.heightPct + heightDeltaPct);
         } else if (hasN) {
-          heightPct = clampPct(4, 96, s.heightPct + heightDeltaPct);
-          yPct = s.yPct + (s.heightPct - heightPct);
+          const bottomEdge = s.yPct + s.heightPct;
+          heightPct = clampPct(4, Math.max(4, bottomEdge), s.heightPct + heightDeltaPct);
+          yPct = bottomEdge - heightPct;
         }
       }
 
@@ -1604,7 +1615,11 @@ const ImageBoxOverlay = forwardRef<
         yPct = snappedTop;
       }
 
-      onChange({ widthPct, heightPct, xPct: Math.max(0, xPct), yPct: Math.max(0, yPct) });
+      // 마지막 안전장치: 어떤 경로로 계산되든 박스가 스프레드(0~100%) 밖으로 나가지
+      // 않도록 한 번 더 확실히 막아요.
+      const safeXPct = Math.min(Math.max(0, xPct), 100 - widthPct);
+      const safeYPct = Math.min(Math.max(0, yPct), 100 - heightPct);
+      onChange({ widthPct, heightPct, xPct: safeXPct, yPct: safeYPct });
     }
     function handleMouseUp() {
       setIsResizing(false);
@@ -1627,6 +1642,12 @@ const ImageBoxOverlay = forwardRef<
 
   function handleResetPhotoPosition() {
     onChange({ innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 });
+  }
+
+  // 박스를 스프레드(펼침면) 전체에 한 번에 꽉 채워요 — 사진 한 장으로 양쪽 페이지를
+  // 가득 채우고 싶을 때 매번 손잡이로 정확히 맞추지 않아도 되게(2026-09 요청).
+  function handleFillSpread() {
+    onChange({ xPct: 0, yPct: 0, widthPct: 100, heightPct: 100 });
   }
 
   // 왼쪽 "사진" 편집 메뉴의 버튼들이 캔버스 안 작은 툴바와 똑같은 동작을 하도록 노출해요.
@@ -1701,8 +1722,21 @@ const ImageBoxOverlay = forwardRef<
               className={`absolute z-40 h-3.5 w-3.5 rounded-sm border border-white bg-[var(--color-sky)] shadow ${cursor} ${className}`}
             />
           ))}
-          <div className="pointer-events-none absolute -bottom-6 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
-            더블클릭하면 안의 사진 위치를 옮길 수 있어요
+          <div
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap"
+          >
+            <button
+              type="button"
+              title="이 사진박스로 펼침면(양쪽 페이지) 전체를 꽉 채워요"
+              onClick={handleFillSpread}
+              className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white"
+            >
+              스프레드 전체 채우기
+            </button>
+            <span className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
+              더블클릭하면 안의 사진 위치를 옮길 수 있어요
+            </span>
           </div>
         </>
       )}
