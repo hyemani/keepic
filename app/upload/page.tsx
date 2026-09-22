@@ -493,6 +493,7 @@ function PhotoCell({
   requiredMinPx,
   onChange,
   backgroundColor,
+  onConvertToImageBox,
 }: {
   photo: Photo;
   requiredMinPx: number;
@@ -500,6 +501,10 @@ function PhotoCell({
   // 사진이 프레임을 다 못 채울 때(전체 맞추기 등) 여백에 비치는 색이에요.
   // 지정 안 하면 기존처럼 아이보리색이에요.
   backgroundColor?: string;
+  // "사진 1장(꽉 참/여백)" 페이지에서만 전달돼요 — 있으면 "이미지박스로" 버튼이 떠서, 이
+  // 사진을 페이지 경계를 자유롭게 넘나들 수 있는 이미지박스로 전환할 수 있어요
+  // (2026-09-22 추가, "왼쪽 페이지 사진을 오른쪽으로 넘어가게 할 수 없다"는 요청).
+  onConvertToImageBox?: () => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
@@ -625,6 +630,18 @@ function PhotoCell({
         >
           채우기
         </button>
+        {onConvertToImageBox && (
+          <button
+            type="button"
+            title="이 사진을 자유 배치 이미지박스로 전환해요 — 이후 페이지 경계(책 가운데)를
+자유롭게 넘나들며 옮기고 크기를 조절할 수 있어요. 전환 후에는 이 자리가 빈 페이지가
+되고, 사진은 더블클릭으로 위치를 조정해요."
+            onMouseDown={(e) => stopThenRun(e, () => onConvertToImageBox())}
+            className="flex h-6 items-center justify-center rounded-full bg-[var(--color-brand-purple)]/90 px-2 text-[10px] text-white"
+          >
+            이미지박스로
+          </button>
+        )}
         <button
           type="button"
           title="축소"
@@ -1908,12 +1925,21 @@ function renderPage(
   onCaptionChange: (photoIndex: number, value: string) => void,
   requiredMinPx: number,
   // 이 페이지가 속한 스프레드의 배경색(hex)이에요. 지정 안 하면 기존 색 그대로예요.
-  backgroundColor?: string
+  backgroundColor?: string,
+  // "사진 1장(꽉 참/여백)" 페이지에서만 쓰여요 — 이 사진을 자유 배치 이미지박스로
+  // 전환하는 버튼을 눌렀을 때 호출돼요(2026-09-22 추가).
+  onConvertToImageBox?: () => void
 ) {
   const bgStyle = backgroundColor ? { background: backgroundColor } : undefined;
 
   if (templateId === "blank") {
     return <div className="aspect-square bg-white" style={bgStyle} />;
+  }
+
+  // 이 페이지의 사진이 이미 자유 배치 이미지박스로 전환된 상태예요 — 사진은 더 이상 여기
+  // 없고(spread.imageBoxes 안에서 따로 그려져요), 빈 배경만 보여줘요.
+  if (templateId === "freeform") {
+    return <div className="aspect-square" style={bgStyle} />;
   }
 
   if (templateId === "full") {
@@ -1925,6 +1951,7 @@ function renderPage(
             requiredMinPx={requiredMinPx}
             onChange={(c) => onPhotoChange(photoIndexes[0], c)}
             backgroundColor={backgroundColor}
+            onConvertToImageBox={onConvertToImageBox}
           />
         )}
       </div>
@@ -1941,6 +1968,7 @@ function renderPage(
               requiredMinPx={requiredMinPx}
               onChange={(c) => onPhotoChange(photoIndexes[0], c)}
               backgroundColor={backgroundColor}
+              onConvertToImageBox={onConvertToImageBox}
             />
           )}
         </div>
@@ -2632,6 +2660,44 @@ function UploadPageContent() {
   function handleAddImageBox(spreadIndex: number, file: File) {
     const url = URL.createObjectURL(file);
     handleAddImageBoxFromUrl(spreadIndex, url, 36);
+  }
+
+  // "사진 1장(꽉 참/여백)" 페이지의 사진을 자유 배치 이미지박스로 전환해요(2026-09-22
+  // 추가). 그 페이지 템플릿을 사진을 자동 배정받지 않는 "freeform"으로 바꾸고, 사진을
+  // 원래 있던 자리(그 페이지 절반 영역)에 꼭 맞는 이미지박스로 새로 만들어요 — 그 뒤엔
+  // 이미지박스이므로 자유롭게 끌어서 페이지 경계(책 가운데)를 넘나들 수 있어요. 원래
+  // 사진은 전체 사진 목록(photos)에서도 함께 빼요 — 그래야 순서대로 자동 배정되는 다른
+  // 페이지들의 사진이 밀리지 않고 그대로 유지돼요(이 페이지가 "사진 0장" 취급되면서
+  // 정확히 사진 1장·자리 1칸이 함께 빠지는 셈이라 계산이 맞아떨어져요).
+  function handleConvertPhotoToImageBox(spreadIndex: number, side: "left" | "right", realIndex: number) {
+    const photo = photos[realIndex];
+    if (!photo) return;
+    const boxId = crypto.randomUUID();
+    const box: ImageBoxDef = {
+      id: boxId,
+      url: photo.url,
+      naturalWidth: photo.width || 1,
+      naturalHeight: photo.height || 1,
+      // 스프레드 전체 폭 기준 좌표라서, 원래 있던 자리(왼쪽 페이지=0~50%, 오른쪽
+      // 페이지=50~100%)를 그대로 채우도록 잡아요 — 전환 직후엔 화면상 변화가 없고, 그
+      // 다음부터 자유롭게 옮기고 크기를 바꿀 수 있어요.
+      xPct: side === "left" ? 0 : 50,
+      yPct: 0,
+      widthPct: 50,
+      heightPct: 100,
+      innerOffsetXPct: 0,
+      innerOffsetYPct: 0,
+      innerScale: 1,
+    };
+    const key = side === "left" ? "left" : "right";
+    setCustomSpreads((prev) =>
+      prev.map((s, i) =>
+        i === spreadIndex ? { ...s, [key]: "freeform", imageBoxes: [...(s.imageBoxes ?? []), box] } : s
+      )
+    );
+    handleRemovePhoto(realIndex);
+    setActiveTextBox(null);
+    setActiveImageBox({ spreadIndex, boxId });
   }
 
   function handleAddSticker(spreadIndex: number, stickerUrl: string) {
@@ -4566,7 +4632,10 @@ function UploadPageContent() {
                                       handlePhotoTransform,
                                       handleCaptionChange,
                                       requiredMinPx,
-                                      resolveSpreadBackgroundCss(spread, "right")
+                                      resolveSpreadBackgroundCss(spread, "right"),
+                                      (spread.left === "full" || spread.left === "fullMargin") && leftIndexes[0] !== undefined
+                                        ? () => handleConvertPhotoToImageBox(i, "left", leftIndexes[0])
+                                        : undefined
                                     )}
                                     <TextBoxLayer
                                       boxes={spread.textBoxesLeft ?? []}
@@ -4606,7 +4675,10 @@ function UploadPageContent() {
                                   handlePhotoTransform,
                                   handleCaptionChange,
                                   requiredMinPx,
-                                  resolveSpreadBackgroundCss(spread, "left")
+                                  resolveSpreadBackgroundCss(spread, "left"),
+                                  (spread.right === "full" || spread.right === "fullMargin") && rightIndexes[0] !== undefined
+                                    ? () => handleConvertPhotoToImageBox(i, "right", rightIndexes[0])
+                                    : undefined
                                 )}
                                 <TextBoxLayer
                                   boxes={spread.textBoxesRight ?? []}

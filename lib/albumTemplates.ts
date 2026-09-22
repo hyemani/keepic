@@ -6,7 +6,13 @@ export type PageTemplateId =
   | "photoText"
   | "blank"
   | "fullMargin"
-  | "trioText";
+  | "trioText"
+  // "사진 1장(꽉 참/여백)" 페이지의 사진을 자유 배치 이미지박스로 전환했을 때 쓰는
+  // 자리표시예요(2026-09-22 추가). 이 페이지는 더 이상 순서대로 사진을 자동 배정받지
+  // 않고(photoCount 0), 대신 그 사진이 spread.imageBoxes 안에 독립적으로 들어가서 페이지
+  // 경계를 자유롭게 넘나들 수 있어요. 목록에서 직접 고를 수 있는 템플릿이 아니라, "이미지
+  // 박스로 전환" 버튼을 눌렀을 때만 자동으로 지정돼요.
+  | "freeform";
 
 export const pageTemplates: Record<PageTemplateId, { photoCount: number }> = {
   full: { photoCount: 1 },
@@ -17,6 +23,7 @@ export const pageTemplates: Record<PageTemplateId, { photoCount: number }> = {
   blank: { photoCount: 0 },
   fullMargin: { photoCount: 1 },
   trioText: { photoCount: 3 },
+  freeform: { photoCount: 0 },
 };
 
 // 자유 배치 텍스트박스 하나예요(내지 페이지·표지 앞면 공통으로 써요). 위치·너비는 그
