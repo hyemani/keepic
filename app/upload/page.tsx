@@ -1274,6 +1274,33 @@ function TextBoxLayer({
   );
 }
 
+function clampPct(min: number, max: number, value: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+// 이미지박스 크기를 조절할 때 손잡이가 이 거리(화면 px) 안으로 들어오는 안내선에
+// 자동으로 달라붙어요(포토샵·일러스트레이터의 스마트 가이드 스냅과 같은 개념). 확대
+// 배율과 무관하게 항상 같은 느낌으로 걸리도록 %가 아니라 px 기준 거리예요.
+const IMAGE_BOX_SNAP_THRESHOLD_PX = 6;
+
+// valuePct(0~100, 스프레드 전체 기준)에 가장 가까운 안내선이 SNAP 거리 안에 있으면 그
+// 안내선 값으로 딱 맞춰줘요. cellPx는 그 축의 실제 화면 픽셀 크기(가로는 스프레드
+// 폭, 세로는 페이지 높이)예요 — 이걸 알아야 "화면 px 몇 개 안"이라는 느낌을 %로 바꿀 수
+// 있어요.
+function snapToGuides(valuePct: number, guides: number[], cellPx: number): number {
+  const thresholdPct = cellPx > 0 ? (IMAGE_BOX_SNAP_THRESHOLD_PX / cellPx) * 100 : 0;
+  let best = valuePct;
+  let bestDist = thresholdPct;
+  for (const g of guides) {
+    const dist = Math.abs(valuePct - g);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = g;
+    }
+  }
+  return best;
+}
+
 // 자유 배치 이미지박스 하나예요 — 텍스트박스와 같은 방식으로 끌어서 옮기고, 손잡이로
 // 크기를 조절해요. 2026-09-18부터 가로·세로를 각각 따로 조절할 수 있게 됐고(원본 비율에
 // 안 묶여요), 박스 안에서 사진 자체의 위치·확대(innerOffsetXPct/innerOffsetYPct/
@@ -1283,18 +1310,26 @@ function TextBoxLayer({
 // lib/imageBoxGeometry.ts)을 공유해서 항상 일치해요.
 // xPct·widthPct 등은 "스프레드 전체 폭"을 100%로 보는 좌표라서, 페이지 가운데(경계)를
 // 자유롭게 넘나들며 배치할 수 있어요.
+// 크기 조절 손잡이는 포토샵·일러스트레이터와 같은 단축키를 지원해요(2026-09-22,
+// 혜민님 요청): Shift = 모서리 손잡이에서 정사각형으로, Alt(Option) = 반대쪽 고정이 아니라
+// 중심을 고정한 채 양쪽이 같이 늘어남, Shift+Alt = 중심 고정 + 정사각형. 그리고 손잡이가
+// 재단선·안전영역·펼침면 중앙(제본/책등 경계)에 가까워지면 자동으로 달라붙어요.
 function ImageBoxOverlay({
   box,
   onChange,
   onDelete,
   isActive,
   onSelect,
+  guidesX,
+  guidesY,
 }: {
   box: ImageBoxDef;
   onChange: (changes: Partial<ImageBoxDef>) => void;
   onDelete: () => void;
   isActive: boolean;
   onSelect: () => void;
+  guidesX: number[];
+  guidesY: number[];
 }) {
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -1478,26 +1513,80 @@ function ImageBoxOverlay({
       const s = resizeStart.current;
       const dxPct = ((e.clientX - s.mouseX) / s.cellW) * 100;
       const dyPct = ((e.clientY - s.mouseY) / s.cellH) * 100;
-      const changes: Partial<ImageBoxDef> = {};
       const hasE = s.dir.includes("e");
       const hasW = s.dir.includes("w");
       const hasS = s.dir.includes("s");
       const hasN = s.dir.includes("n");
+      const isCorner = (hasE || hasW) && (hasN || hasS);
+
+      // "커지는 방향 = 양수"로 통일한 순수 이동량이에요(w/n 손잡이는 부호를 뒤집어요).
+      let widthDeltaPct = hasE ? dxPct : hasW ? -dxPct : 0;
+      let heightDeltaPct = hasS ? dyPct : hasN ? -dyPct : 0;
+
+      // Shift: 모서리 손잡이에서 정사각형으로 — 가로·세로 칸 크기(cellW/cellH)가 서로
+      // 다를 수 있어서 %가 아니라 실제 화면 px 기준으로 맞춰야 진짜 정사각형이 돼요.
+      // 두 축 중 더 많이 움직인 쪽을 기준으로 나머지 축을 맞춰요.
+      if (e.shiftKey && isCorner) {
+        const widthDeltaPx = (widthDeltaPct / 100) * s.cellW;
+        const heightDeltaPx = (heightDeltaPct / 100) * s.cellH;
+        const magnitudePx = Math.max(Math.abs(widthDeltaPx), Math.abs(heightDeltaPx));
+        const signedWidthPx = (widthDeltaPx < 0 ? -1 : 1) * magnitudePx;
+        const signedHeightPx = (heightDeltaPx < 0 ? -1 : 1) * magnitudePx;
+        widthDeltaPct = (signedWidthPx / s.cellW) * 100;
+        heightDeltaPct = (signedHeightPx / s.cellH) * 100;
+      }
+
+      let widthPct = s.widthPct;
+      let heightPct = s.heightPct;
+      let xPct = s.xPct;
+      let yPct = s.yPct;
+
+      if (e.altKey) {
+        // Alt(Option): 반대쪽 손잡이가 고정되는 게 아니라, 박스 중심을 고정한 채 양쪽이
+        // 같이 늘어나요(포토샵의 Alt 드래그와 동일).
+        if (hasE || hasW) {
+          widthPct = clampPct(6, 96, s.widthPct + 2 * widthDeltaPct);
+          xPct = s.xPct + (s.widthPct - widthPct) / 2;
+        }
+        if (hasS || hasN) {
+          heightPct = clampPct(4, 96, s.heightPct + 2 * heightDeltaPct);
+          yPct = s.yPct + (s.heightPct - heightPct) / 2;
+        }
+      } else {
+        if (hasE) {
+          widthPct = clampPct(6, 96, s.widthPct + widthDeltaPct);
+        } else if (hasW) {
+          widthPct = clampPct(6, 96, s.widthPct + widthDeltaPct);
+          xPct = s.xPct + (s.widthPct - widthPct);
+        }
+        if (hasS) {
+          heightPct = clampPct(4, 96, s.heightPct + heightDeltaPct);
+        } else if (hasN) {
+          heightPct = clampPct(4, 96, s.heightPct + heightDeltaPct);
+          yPct = s.yPct + (s.heightPct - heightPct);
+        }
+      }
+
+      // 재단선·안전영역·펼침면 중앙(책등/제본 경계) 같은 안내선에 가까우면 그 손잡이가
+      // 움직이는 쪽 변(왼쪽/오른쪽/위/아래)만 딱 맞춰요 — 고정된 반대쪽 변은 건드리지 않아요.
       if (hasE) {
-        changes.widthPct = Math.min(96, Math.max(6, s.widthPct + dxPct));
+        const snappedRight = snapToGuides(xPct + widthPct, guidesX, s.cellW);
+        widthPct = Math.max(6, snappedRight - xPct);
       } else if (hasW) {
-        const nextWidth = Math.min(96, Math.max(6, s.widthPct - dxPct));
-        changes.widthPct = nextWidth;
-        changes.xPct = s.xPct + (s.widthPct - nextWidth);
+        const snappedLeft = snapToGuides(xPct, guidesX, s.cellW);
+        widthPct = Math.max(6, xPct + widthPct - snappedLeft);
+        xPct = snappedLeft;
       }
       if (hasS) {
-        changes.heightPct = Math.min(96, Math.max(4, s.heightPct + dyPct));
+        const snappedBottom = snapToGuides(yPct + heightPct, guidesY, s.cellH);
+        heightPct = Math.max(4, snappedBottom - yPct);
       } else if (hasN) {
-        const nextHeight = Math.min(96, Math.max(4, s.heightPct - dyPct));
-        changes.heightPct = nextHeight;
-        changes.yPct = s.yPct + (s.heightPct - nextHeight);
+        const snappedTop = snapToGuides(yPct, guidesY, s.cellH);
+        heightPct = Math.max(4, yPct + heightPct - snappedTop);
+        yPct = snappedTop;
       }
-      onChange(changes);
+
+      onChange({ widthPct, heightPct, xPct: Math.max(0, xPct), yPct: Math.max(0, yPct) });
     }
     function handleMouseUp() {
       setIsResizing(false);
@@ -1508,7 +1597,7 @@ function ImageBoxOverlay({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isResizing]);
+  }, [isResizing, guidesX, guidesY]);
 
   function handleZoom(delta: number) {
     const nextScale = Math.min(3, Math.max(1, (box.innerScale ?? 1) + delta));
@@ -1651,12 +1740,18 @@ function ImageBoxLayer({
   onDelete,
   activeBoxId,
   onSelect,
+  guidesX,
+  guidesY,
 }: {
   boxes: ImageBoxDef[];
   onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
   onDelete: (boxId: string) => void;
   activeBoxId: string | null;
   onSelect: (boxId: string) => void;
+  // 크기 조절 손잡이가 달라붙을 안내선 위치예요(스프레드 전체를 0~100으로 보는 %,
+  // 재단선·안전영역·펼침면 중앙 등) — 상위 컴포넌트가 계산해서 내려줘요.
+  guidesX: number[];
+  guidesY: number[];
 }) {
   // 사진 추가·스티커 추가 버튼은 2026-09-19부터 캔버스 위 숨은 버튼이 아니라 왼쪽
   // 아이콘 메뉴("사진"/"스티커" 탭)로 옮겨졌어요 — 이 레이어는 이제 박스 렌더링만 해요.
@@ -1670,6 +1765,8 @@ function ImageBoxLayer({
           onDelete={() => onDelete(box.id)}
           isActive={box.id === activeBoxId}
           onSelect={() => onSelect(box.id)}
+          guidesX={guidesX}
+          guidesY={guidesY}
         />
       ))}
     </>
@@ -3376,6 +3473,22 @@ function UploadPageContent() {
     const rightPageSafetyRightPct = 100 - safetyOuterXPct;
     const innerSafetyFits = leftPageSafetyRightPct > leftPageSafetyLeftPct; // 페이지가 너무 좁으면 박스가 찌그러질 수 있어요
 
+    // 이미지박스 크기 조절 스냅용 안내선이에요(2026-09-22, 혜민님 요청) — 재단선·
+    // 안전영역·펼침면 중앙(책등/제본 경계)까지 포함해서, 손잡이를 끌 때 가까우면 자동으로
+    // 달라붙어요. 화면에 보이는지(showGuidelines 등)와 무관하게 항상 스냅 대상이에요.
+    const imageBoxGuidesX = [
+      0,
+      100,
+      bindingCenterPct,
+      bindingLeftEdgePct,
+      bindingRightEdgePct,
+      trimXPct,
+      100 - trimXPct,
+      safetyOuterXPct,
+      100 - safetyOuterXPct,
+    ];
+    const imageBoxGuidesY = [0, 100, trimYPct, 100 - trimYPct, safetyYPct, 100 - safetyYPct];
+
     // 표지(뒤표지-책등-앞표지) 실제 비율이에요. lib/printCompose.ts의 buildCoverPrintPdf와
     // 같은 계산식을 그대로 써서, 화면 미리보기가 실제 표지 인쇄 파일 비율과 일치하도록 해요.
     const coverIsHard = photobookCover === "hard";
@@ -4673,6 +4786,8 @@ function UploadPageContent() {
                                   setActiveTextBox(null);
                                   setActiveImageBox({ spreadIndex: i, boxId });
                                 }}
+                                guidesX={imageBoxGuidesX}
+                                guidesY={imageBoxGuidesY}
                               />
                               <div className="group relative w-1/2">
                                 {i === 0 ? (
