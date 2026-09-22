@@ -579,11 +579,17 @@ function Ruler({
         ) : (
           <div
             key={labelMm}
-            className="absolute left-0 flex w-full items-center gap-0.5"
+            // items-center를 쓰면 이 줄(row)의 높이(숫자 텍스트 높이, 8px)만큼 눈금
+            // 표시선이 아래로 밀려서(세로로 약 3~4px) 실제 위치(top%)보다 살짝 낮게
+            // 그려졌어요 — 재단선과 눈금이 "살짝 안 맞아 보이는" 원인이었어요(2026-09
+            // 수정). items-start로 바꿔서 눈금 표시선 자체는 항상 top% 위치에 정확히
+            // 고정하고, 숫자 텍스트만 따로 위로 절반 옮겨서(-translate-y-1/2) 눈금
+            // 옆에 보기 좋게 배치해요.
+            className="absolute left-0 flex w-full items-start gap-0.5"
             style={{ top: `${(rawMm / totalMm) * 100}%` }}
           >
             <div className={`h-px bg-[var(--color-charcoal)]/40 ${major ? "w-2.5" : "w-1.5"}`} />
-            {major && <span className="leading-none">{labelMm}</span>}
+            {major && <span className="-translate-y-1/2 leading-none">{labelMm}</span>}
           </div>
         )
       )}
