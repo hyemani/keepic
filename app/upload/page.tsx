@@ -584,12 +584,14 @@ function Ruler({
             // 그려졌어요 — 재단선과 눈금이 "살짝 안 맞아 보이는" 원인이었어요(2026-09
             // 수정). items-start로 바꿔서 눈금 표시선 자체는 항상 top% 위치에 정확히
             // 고정하고, 숫자 텍스트만 따로 위로 절반 옮겨서(-translate-y-1/2) 눈금
-            // 옆에 보기 좋게 배치해요.
-            className="absolute left-0 flex w-full items-start gap-0.5"
+            // 옆에 보기 좋게 배치해요. justify-end + 숫자를 눈금선보다 앞에 둬서,
+            // 숫자는 왼쪽에 눈금선은 항상 캔버스 쪽(오른쪽) 가장자리에 붙도록 했어요
+            // (2026-09 수정 — "숫자가 왼쪽, 눈금이 오른쪽" 요청).
+            className="absolute left-0 flex w-full items-start justify-end gap-0.5"
             style={{ top: `${(rawMm / totalMm) * 100}%` }}
           >
-            <div className={`h-px bg-[var(--color-charcoal)]/40 ${major ? "w-2.5" : "w-1.5"}`} />
             {major && <span className="-translate-y-1/2 leading-none">{labelMm}</span>}
+            <div className={`h-px bg-[var(--color-charcoal)]/40 ${major ? "w-2.5" : "w-1.5"}`} />
           </div>
         )
       )}
