@@ -13,7 +13,8 @@ import {
   TextBoxDef,
   ImageBoxDef,
   AI_AUTO_LAYOUT_TEMPLATE_ID,
-  generateAutoSpreads,
+  generateEmptyFreeformSpreads,
+  findAutoPhotoSlotPosition,
   calcRequiredSpreadCount,
   fitSpreadsToCount,
 } from "@/lib/albumTemplates";
@@ -1553,7 +1554,13 @@ function ImageBoxOverlay({
           alt=""
           draggable={false}
           className="pointer-events-none absolute select-none"
-          style={{ left: coverRect.x, top: coverRect.y, width: coverRect.width, height: coverRect.height }}
+          style={{
+            left: coverRect.x,
+            top: coverRect.y,
+            width: coverRect.width,
+            height: coverRect.height,
+            transform: box.flipX ? "scaleX(-1)" : undefined,
+          }}
         />
       </div>
       {isActive && !photoEditMode && (
@@ -1604,6 +1611,14 @@ function ImageBoxOverlay({
             className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-ivory)] text-xs text-[var(--color-charcoal)]/70"
           >
             +
+          </button>
+          <button
+            type="button"
+            title="좌우 반전"
+            onClick={() => onChange({ flipX: !box.flipX })}
+            className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-ivory)] text-xs text-[var(--color-charcoal)]/70"
+          >
+            ⇌
           </button>
           <button
             type="button"
@@ -2196,26 +2211,22 @@ function UploadPageContent() {
   const requiredSpreadCount = calcRequiredSpreadCount(pages);
 
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const isAiAuto = isPhotobook && templateId === AI_AUTO_LAYOUT_TEMPLATE_ID;
   const [customSpreads, setCustomSpreads] = useState<SpreadDef[]>(() =>
     template
       ? template.id === AI_AUTO_LAYOUT_TEMPLATE_ID
-        ? generateAutoSpreads([], requiredSpreadCount)
+        ? generateEmptyFreeformSpreads(requiredSpreadCount)
         : fitSpreadsToCount(template.spreads, requiredSpreadCount)
       : []
   );
 
-  // "AI 맞춤 레이아웃"을 선택했을 때만: 사진 개수가 바뀔 때마다(추가/삭제)
-  // 사진 비율에 맞춰 스프레드 구성을 자동으로 다시 만들어요. 캡션 수정이나
-  // 드래그처럼 개수가 그대로인 편집에는 반응하지 않아서, 사용자가 손으로
-  // 바꾼 배치를 건드리지 않아요. (렌더링 도중 상태를 맞추는 React 권장 패턴 —
-  // effect 대신 써서 불필요한 리렌더 한 번을 줄여요.) 스프레드 개수는 항상
-  // requiredSpreadCount(내지 페이지 수 ÷ 2)에 맞춰져요.
-  const isAiAuto = isPhotobook && templateId === AI_AUTO_LAYOUT_TEMPLATE_ID;
-  const [autoLayoutPhotoCount, setAutoLayoutPhotoCount] = useState(0);
-  if (isAiAuto && photos.length !== autoLayoutPhotoCount) {
-    setAutoLayoutPhotoCount(photos.length);
-    setCustomSpreads(generateAutoSpreads(photos, requiredSpreadCount));
-  }
+  // "AI 맞춤 레이아웃"은 2026-09-24부터 칸(분할) 배정을 아예 안 해요 — 사진을 올리면
+  // (handleFileSelect) 그 즉시 findAutoPhotoSlotPosition()이 정해주는 자리에 자유 배치
+  // 이미지박스로 바로 들어가고, 그 뒤로는 편집메뉴에서 위치·크기를 자유롭게 조절해요
+  // (박스 자리를 뒤에서 다시 계산해서 덮어쓰지 않아요 — 그래야 한 번 옮긴 사진이
+  // 나중에 사진을 더 추가해도 그대로 유지돼요). "다음 사진이 몇 번째 자리에 들어갈지"는
+  // 별도 state로 따로 세지 않고, 그때그때 photos.length를 기준으로 계산해요
+  // (handleFileSelect의 autoPhotoBaseSlot 참고) — 화면 전환 중에 상태가 어긋날 일이 없게요.
   const [isSaving, setIsSaving] = useState(false);
   // [테스트용] 새 pdf-lib PDF 생성기 테스트 버튼 상태예요. (?pdftest=1 일 때만 노출)
   const isPdfLibTestMode = searchParams.get("pdftest") === "1";
@@ -2397,6 +2408,12 @@ function UploadPageContent() {
     const files = event.target.files;
     if (!files) return;
 
+    // "AI 맞춤 레이아웃"에서 이번에 새로 올리는 사진들이 자유 배치 이미지박스로 들어갈
+    // 자리를 정하는 기준이에요. 별도 카운터 state 대신 photos.length를 그대로 써요 —
+    // 사진 목록은 항상 뒤에 이어붙이는 방식(prev => [...prev, ...newPhotos])이라, "지금
+    // 몇 번째 사진부터 새로 추가되는지"가 곧 지금 이 순간의 photos.length예요.
+    const autoPhotoBaseSlot = photos.length;
+
     const newPhotosPromises = Array.from(files).map((file) => {
       return new Promise<Photo>((resolve) => {
         const url = URL.createObjectURL(file);
@@ -2437,6 +2454,36 @@ function UploadPageContent() {
       if (!first) return prev;
       return { ...first, caption: "", size: "base", align: "center", position: "below" };
     });
+
+    // "AI 맞춤 레이아웃"이면 방금 올린 사진들을 곧바로 자유 배치 이미지박스로 넣어요
+    // (분할 메뉴 없이, 편집메뉴에서 바로 위치·크기를 조절할 수 있게). 이미 놓인 다른
+    // 박스들은 건드리지 않고, 다음 빈 자리부터 순서대로 채워요.
+    if (isAiAuto) {
+      setCustomSpreads((prevSpreads) => {
+        let spreads = prevSpreads;
+        newPhotos.forEach((p, k) => {
+          const slot = autoPhotoBaseSlot + k;
+          const pos = findAutoPhotoSlotPosition(slot, requiredSpreadCount);
+          const box: ImageBoxDef = {
+            id: crypto.randomUUID(),
+            url: p.url,
+            naturalWidth: p.width || 1,
+            naturalHeight: p.height || 1,
+            xPct: pos.overflow ? 25 + ((slot * 7) % 30) : pos.side === "left" ? 0 : 50,
+            yPct: pos.overflow ? 25 + ((slot * 11) % 30) : 0,
+            widthPct: pos.overflow ? 40 : 50,
+            heightPct: pos.overflow ? 40 : 100,
+            innerOffsetXPct: 0,
+            innerOffsetYPct: 0,
+            innerScale: 1,
+          };
+          spreads = spreads.map((s2, i) =>
+            i === pos.spreadIndex ? { ...s2, imageBoxes: [...(s2.imageBoxes ?? []), box] } : s2
+          );
+        });
+        return spreads;
+      });
+    }
   }
 
   function handleCaptionChange(photoIndex: number, value: string) {
@@ -2448,6 +2495,19 @@ function UploadPageContent() {
   }
 
   function handleRemovePhoto(index: number) {
+    // "AI 맞춤 레이아웃"에서는 사진이 곧 자유 배치 이미지박스라서, 목록에서 지우면
+    // 스프레드에 놓인 그 박스도 같이 지워요(url로 짝을 찾아요 — 사진마다 고유해요).
+    if (isAiAuto) {
+      const removedUrl = photos[index]?.url;
+      if (removedUrl) {
+        setCustomSpreads((prev) =>
+          prev.map((s) => ({
+            ...s,
+            imageBoxes: (s.imageBoxes ?? []).filter((b) => b.url !== removedUrl),
+          }))
+        );
+      }
+    }
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   }
 
@@ -2715,6 +2775,14 @@ function UploadPageContent() {
   }
 
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
+    // "AI 맞춤 레이아웃"에서 박스 자체의 ✕ 버튼으로 지울 때도, 반대 방향으로
+    // "전체 사진 목록"의 사진 목록이 계속 남아있지 않도록 짝이 되는 사진도 같이 지워요.
+    if (isAiAuto) {
+      const removedUrl = customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === boxId)?.url;
+      if (removedUrl) {
+        setPhotos((prev) => prev.filter((p) => p.url !== removedUrl));
+      }
+    }
     setCustomSpreads((prev) =>
       prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: (s.imageBoxes ?? []).filter((b) => b.id !== boxId) } : s))
     );
@@ -3259,7 +3327,10 @@ function UploadPageContent() {
         total + (i === 0 ? 0 : pageTemplates[s.left].photoCount) + pageTemplates[s.right].photoCount,
       0
     );
-    const isPhotoCountValid = photos.length === requiredCount;
+    // "AI 맞춤 레이아웃"은 이제 칸 개수가 정해져 있지 않고(전부 자유 배치 이미지박스라서
+    // requiredCount가 늘 0으로 계산돼요) 사진을 몇 장을 올리든 자유롭게 배치할 수 있어요 —
+    // 그래서 "정확히 N장" 검사 대신 최소 1장만 있으면 다음으로 넘어갈 수 있게 해요.
+    const isPhotoCountValid = isAiAuto ? photos.length >= 1 : photos.length === requiredCount;
     const lowResCount = photos.filter((p) => isLowRes(p, requiredMinPx / 2)).length;
 
     const nextUrl = `/checkout?product=${encodeURIComponent(
@@ -4614,17 +4685,19 @@ function UploadPageContent() {
                                   </div>
                                 ) : (
                                   <>
-                                    <select
-                                      value={spread.left}
-                                      onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
-                                      className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
-                                    >
-                                      {layoutOptions.map((opt) => (
-                                        <option key={opt.id} value={opt.id}>
-                                          {opt.label}
-                                        </option>
-                                      ))}
-                                    </select>
+                                    {!isAiAuto && (
+                                      <select
+                                        value={spread.left}
+                                        onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
+                                        className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
+                                      >
+                                        {layoutOptions.map((opt) => (
+                                          <option key={opt.id} value={opt.id}>
+                                            {opt.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
                                     {renderPage(
                                       spread.left,
                                       leftPhotos,
@@ -4633,7 +4706,7 @@ function UploadPageContent() {
                                       handleCaptionChange,
                                       requiredMinPx,
                                       resolveSpreadBackgroundCss(spread, "right"),
-                                      (spread.left === "full" || spread.left === "fullMargin") && leftIndexes[0] !== undefined
+                                      !isAiAuto && (spread.left === "full" || spread.left === "fullMargin") && leftIndexes[0] !== undefined
                                         ? () => handleConvertPhotoToImageBox(i, "left", leftIndexes[0])
                                         : undefined
                                     )}
@@ -4657,17 +4730,19 @@ function UploadPageContent() {
                                 )}
                               </div>
                               <div className="group relative w-1/2">
-                                <select
-                                  value={spread.right}
-                                  onChange={(e) => handleChangeLayout(i, "right", e.target.value as PageTemplateId)}
-                                  className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
-                                >
-                                  {layoutOptions.map((opt) => (
-                                    <option key={opt.id} value={opt.id}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </select>
+                                {!isAiAuto && (
+                                  <select
+                                    value={spread.right}
+                                    onChange={(e) => handleChangeLayout(i, "right", e.target.value as PageTemplateId)}
+                                    className="absolute left-1 top-1 z-10 rounded bg-white/90 px-1 py-0.5 text-[10px] opacity-0 transition group-hover:opacity-100"
+                                  >
+                                    {layoutOptions.map((opt) => (
+                                      <option key={opt.id} value={opt.id}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
                                 {renderPage(
                                   spread.right,
                                   rightPhotos,
@@ -4676,7 +4751,7 @@ function UploadPageContent() {
                                   handleCaptionChange,
                                   requiredMinPx,
                                   resolveSpreadBackgroundCss(spread, "left"),
-                                  (spread.right === "full" || spread.right === "fullMargin") && rightIndexes[0] !== undefined
+                                  !isAiAuto && (spread.right === "full" || spread.right === "fullMargin") && rightIndexes[0] !== undefined
                                     ? () => handleConvertPhotoToImageBox(i, "right", rightIndexes[0])
                                     : undefined
                                 )}

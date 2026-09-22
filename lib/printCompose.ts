@@ -318,7 +318,17 @@ function drawImageBoxOnCanvas(
   ctx.beginPath();
   ctx.rect(boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
   ctx.clip();
-  ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
+  if (box.flipX) {
+    // 화면 미리보기(scaleX(-1))와 똑같이, 그리는 좌표축만 좌우로 뒤집어서 그려요 —
+    // 그러면 사진이 찌그러지지 않고 딱 그 자리에서 거울처럼 뒤집혀 보여요.
+    ctx.save();
+    ctx.translate(boxLeftPagePx + rect.x + rect.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, boxTopPx + rect.y, rect.width, rect.height);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
+  }
   ctx.restore();
 }
 

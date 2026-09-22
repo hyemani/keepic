@@ -78,6 +78,10 @@ export type ImageBoxDef = {
   innerOffsetXPct?: number; // 박스 너비 대비 %, 왼쪽(-)/오른쪽(+) 이동
   innerOffsetYPct?: number; // 박스 높이 대비 %, 위(-)/아래(+) 이동
   innerScale?: number; // 1 = 박스를 딱 채우는 기본 확대율, 1보다 크면 더 확대
+  // 사진을 좌우로 뒤집을지예요(2026-09-22 추가, 자유 배치 이미지박스용). 화면·인쇄
+  // 파일 둘 다 같은 값을 보고 그려요. 회전은 박스 크기 계산이 훨씬 복잡해져서 아직
+  // 지원하지 않아요 — 필요하면 다음에 별도로 추가해요.
+  flipX?: boolean;
 };
 
 export type SpreadDef = {
@@ -242,6 +246,34 @@ export function getTemplatePhotoCount(template: AlbumTemplate) {
 // "AI 맞춤 레이아웃"을 고르면 이 id로 들어와요. 정해진 spreads가 없고,
 // 올린 사진에 맞춰 generateAutoSpreads()로 그때그때 만들어요.
 export const AI_AUTO_LAYOUT_TEMPLATE_ID = "ai-auto";
+
+// 2026-09-24부터 "AI 맞춤 레이아웃"은 칸(1/2/3/4분할) 배정 없이, 사진을 올리는 즉시
+// 자유 배치 이미지박스로 바로 넣어요(편집메뉴에서 바로 위치·크기를 조절할 수 있게).
+// 그래서 처음엔 빈 스프레드만 필요한 개수만큼 만들어두고, 사진이 올라올 때마다
+// findAutoPhotoSlotPosition()이 정해주는 자리에 박스를 하나씩 추가해요.
+export function generateEmptyFreeformSpreads(requiredSpreadCount: number): SpreadDef[] {
+  const count = Math.max(1, requiredSpreadCount);
+  return Array.from({ length: count }, () => ({ left: "blank" as PageTemplateId, right: "blank" as PageTemplateId }));
+}
+
+// slot 0, 1, 2, 3... 순서를 "몇 번째 스프레드의 어느 쪽 면"인지로 바꿔줘요. 스프레드
+// 1(index 0)의 왼쪽 면은 표지 뒷면(인쇄 안 됨)이라 항상 건너뛰고 오른쪽부터 채워요.
+// 정해진 페이지 수(requiredSpreadCount)를 다 채운 뒤에 더 들어오는 사진은, 잃어버리지
+// 않도록 마지막 스프레드에 겹쳐서라도 계속 추가해요(overflow: true로 표시).
+export function findAutoPhotoSlotPosition(
+  slot: number,
+  requiredSpreadCount: number
+): { spreadIndex: number; side: "left" | "right"; overflow: boolean } {
+  const count = Math.max(1, requiredSpreadCount);
+  const totalSlots = Math.max(1, count * 2 - 1);
+  const clamped = Math.min(slot, totalSlots - 1);
+  const overflow = slot > totalSlots - 1;
+  if (clamped === 0) return { spreadIndex: 0, side: "right", overflow };
+  const idx = clamped - 1;
+  const spreadIndex = Math.min(1 + Math.floor(idx / 2), count - 1);
+  const side: "left" | "right" = idx % 2 === 0 ? "left" : "right";
+  return { spreadIndex, side, overflow };
+}
 
 export type PhotoAspect = { width: number; height: number };
 
