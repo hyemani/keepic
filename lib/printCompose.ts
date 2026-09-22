@@ -217,16 +217,23 @@ function drawTextBoxOnCanvas(
   const textX = box.align === "left" ? x : box.align === "right" ? x + w : x + w / 2;
 
   // 높이(heightPct)가 정해져 있으면 화면과 똑같이 그 안쪽만 그리고 넘치는 줄은 잘라요
-  // (일러스트레이터 텍스트박스처럼 높이를 고정한 경우예요).
+  // (일러스트레이터 텍스트박스처럼 높이를 고정한 경우예요). 세로 정렬(verticalAlign)에
+  // 따라 남는 세로 공간만큼 시작 y를 아래로 밀어요 — 화면(app/upload/page.tsx)의 flex
+  // justify-content와 같은 결과가 나오도록.
   if (box.heightPct !== undefined) {
     const h = (box.heightPct / 100) * pageH;
+    const textBlockHeight = lines.length * lineHeight;
+    const extraSpace = Math.max(0, h - textBlockHeight);
+    const startYOffset =
+      box.verticalAlign === "middle" ? extraSpace / 2 : box.verticalAlign === "bottom" ? extraSpace : 0;
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
     ctx.clip();
     lines.forEach((line, i) => {
-      if (i * lineHeight > h) return;
-      ctx.fillText(line, textX, y + i * lineHeight, w);
+      const lineY = y + startYOffset + i * lineHeight;
+      if (lineY - y > h) return;
+      ctx.fillText(line, textX, lineY, w);
     });
     ctx.restore();
     return;

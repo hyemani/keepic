@@ -806,6 +806,12 @@ const CENTER_SNAP_THRESHOLD_PCT = 1.6;
 // 고치고 있는지 보여주는 용도예요.
 const TEXT_BOX_DRAG_THRESHOLD_PX = 4;
 
+// 텍스트박스 안 줄바꿈(\n) 개수로 대략적인 줄 수를 세요 — 세로 정렬(가운데/아래)일 때
+// textarea 자체 높이를 글자 양만큼만 차지하게 만드는 데 써요.
+function textBoxRowCount(text: string): number {
+  return Math.max(1, text.split("\n").length);
+}
+
 function TextBoxOverlay({
   box,
   onChange,
@@ -993,6 +999,18 @@ function TextBoxOverlay({
         width: `${box.widthPct}%`,
         height: box.heightPct !== undefined ? `${box.heightPct}%` : undefined,
         overflow: box.heightPct !== undefined ? "hidden" : undefined,
+        // 박스 높이가 고정돼 있을 때만 세로 정렬(위/가운데/아래)이 실제로 보여요 — 높이가
+        // 글자 양에 맞춰 자동으로 늘어나는 박스는 남는 공간이 없어서 항상 위와 같아요.
+        display: box.heightPct !== undefined ? "flex" : undefined,
+        flexDirection: box.heightPct !== undefined ? "column" : undefined,
+        justifyContent:
+          box.heightPct !== undefined
+            ? box.verticalAlign === "middle"
+              ? "center"
+              : box.verticalAlign === "bottom"
+                ? "flex-end"
+                : "flex-start"
+            : undefined,
       }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
@@ -1022,7 +1040,7 @@ function TextBoxOverlay({
       <textarea
         value={box.text}
         onChange={(e) => onChange({ text: e.target.value })}
-        rows={1}
+        rows={box.heightPct !== undefined && box.verticalAlign && box.verticalAlign !== "top" ? textBoxRowCount(box.text) : 1}
         placeholder="텍스트 입력"
         style={{
           color: box.color,
@@ -1030,9 +1048,14 @@ function TextBoxOverlay({
           fontSize: `${0.85 * box.fontScale}rem`,
           textAlign: box.align,
           fontWeight: box.bold ? 700 : 400,
+          flexShrink: 0,
         }}
         className={`w-full cursor-text resize-none border-none bg-transparent leading-snug outline-none ${
-          box.heightPct !== undefined ? "h-full overflow-hidden" : "overflow-hidden"
+          box.heightPct !== undefined
+            ? box.verticalAlign && box.verticalAlign !== "top"
+              ? "max-h-full overflow-hidden"
+              : "h-full overflow-hidden"
+            : "overflow-hidden"
         }`}
       />
       {/* 모서리 4개(가로·세로 동시) + 변 4개(한쪽만) 손잡이예요 — 포토샵/일러스트레이터
@@ -1089,6 +1112,16 @@ function TextBoxToolbar({
     onChange({ align: next });
   }
 
+  // 세로 정렬(위/가운데/아래) — 박스 높이(heightPct)를 손잡이로 조절해서 고정한 경우에만
+  // 실제로 차이가 보여요.
+  function cycleVerticalAlign() {
+    if (!box) return;
+    const order: NonNullable<TextBoxDef["verticalAlign"]>[] = ["top", "middle", "bottom"];
+    const current = box.verticalAlign ?? "top";
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    onChange({ verticalAlign: next });
+  }
+
   return (
     <div className="z-30 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-hairline)] bg-white/95 px-3 py-2 shadow-sm">
       {box ? (
@@ -1128,11 +1161,19 @@ function TextBoxToolbar({
           </div>
           <button
             type="button"
-            title="정렬 바꾸기"
+            title="가로 정렬 바꾸기"
             onClick={cycleAlign}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-xs"
           >
             {box.align === "left" ? "좌" : box.align === "center" ? "중" : "우"}
+          </button>
+          <button
+            type="button"
+            title="세로 정렬 바꾸기 (박스 높이를 조절했을 때만 보여요)"
+            onClick={cycleVerticalAlign}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-xs"
+          >
+            {(box.verticalAlign ?? "top") === "top" ? "위" : box.verticalAlign === "middle" ? "중" : "아래"}
           </button>
           <button
             type="button"
@@ -2441,6 +2482,7 @@ function UploadPageContent() {
       fontScale: 1,
       color: "#1a1a1a",
       align: "center",
+      verticalAlign: "top",
       bold: false,
     };
   }
