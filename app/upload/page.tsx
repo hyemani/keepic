@@ -1694,7 +1694,12 @@ const ImageBoxOverlay = forwardRef<
           src={box.url}
           alt=""
           draggable={false}
-          className="pointer-events-none absolute select-none"
+          // max-w-none/max-h-none: Tailwind 기본 스타일(img { max-width: 100% })이
+          // 없으면, 사진이 박스보다 크게(cover 계산 결과) 커져야 할 때도 브라우저가
+          // 폭을 박스 크기로 강제로 줄여버려서(높이는 style로 고정) 사진이 박스를
+          // 다 못 채우고 한쪽에 빈 공간이 생겨요 — 특히 책등 쪽에서 보였던 문제의
+          // 진짜 원인이에요(2026-09).
+          className="pointer-events-none absolute max-w-none max-h-none select-none"
           style={{
             left: coverRect.x,
             top: coverRect.y,
