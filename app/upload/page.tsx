@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
@@ -1314,23 +1314,36 @@ function snapToGuides(valuePct: number, guides: number[], cellPx: number): numbe
 // 혜민님 요청): Shift = 모서리 손잡이에서 정사각형으로, Alt(Option) = 반대쪽 고정이 아니라
 // 중심을 고정한 채 양쪽이 같이 늘어남, Shift+Alt = 중심 고정 + 정사각형. 그리고 손잡이가
 // 재단선·안전영역·펼침면 중앙(제본/책등 경계)에 가까워지면 자동으로 달라붙어요.
-function ImageBoxOverlay({
-  box,
-  onChange,
-  onDelete,
-  isActive,
-  onSelect,
-  guidesX,
-  guidesY,
-}: {
-  box: ImageBoxDef;
-  onChange: (changes: Partial<ImageBoxDef>) => void;
-  onDelete: () => void;
-  isActive: boolean;
-  onSelect: () => void;
-  guidesX: number[];
-  guidesY: number[];
-}) {
+// 왼쪽 "사진" 편집 메뉴에서도 이 박스의 사진 위치 조정(축소/확대/좌우반전/초기화/완료)을
+// 그대로 조작할 수 있도록, 부모(ImageBoxLayer → 상위 페이지)가 ref로 직접 호출할 수 있는
+// 동작 목록이에요(2026-09-22 추가). 캔버스 안 작은 툴바랑 똑같은 함수를 그대로 호출해서
+// 항상 같은 결과가 나와요.
+type ImageBoxOverlayHandle = {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetPhotoPosition: () => void;
+  toggleFlip: () => void;
+  exitPhotoEditMode: () => void;
+};
+
+const ImageBoxOverlay = forwardRef<
+  ImageBoxOverlayHandle,
+  {
+    box: ImageBoxDef;
+    onChange: (changes: Partial<ImageBoxDef>) => void;
+    onDelete: () => void;
+    isActive: boolean;
+    onSelect: () => void;
+    guidesX: number[];
+    guidesY: number[];
+    // 사진 위치 조정 모드(더블클릭으로 들어가는 모드)에 들어가거나 나올 때마다 부모에게
+    // 알려줘요 — 왼쪽 "사진" 메뉴에 조작 버튼을 보여줄지 말지 결정하는 데 씀.
+    onPhotoEditModeChange?: (active: boolean) => void;
+  }
+>(function ImageBoxOverlay(
+  { box, onChange, onDelete, isActive, onSelect, guidesX, guidesY, onPhotoEditModeChange },
+  ref
+) {
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -1378,6 +1391,11 @@ function ImageBoxOverlay({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [photoEditMode]);
+
+  // 부모(왼쪽 "사진" 편집 메뉴)에게 지금 이 박스가 사진 위치 조정 모드인지 알려줘요.
+  useEffect(() => {
+    onPhotoEditModeChange?.(photoEditMode);
+  }, [photoEditMode, onPhotoEditModeChange]);
 
   function handleMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -1611,6 +1629,15 @@ function ImageBoxOverlay({
     onChange({ innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 });
   }
 
+  // 왼쪽 "사진" 편집 메뉴의 버튼들이 캔버스 안 작은 툴바와 똑같은 동작을 하도록 노출해요.
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => handleZoom(0.1),
+    zoomOut: () => handleZoom(-0.1),
+    resetPhotoPosition: handleResetPhotoPosition,
+    toggleFlip: () => onChange({ flipX: !box.flipX }),
+    exitPhotoEditMode: () => setPhotoEditMode(false),
+  }));
+
   const coverRect = computeImageBoxCoverRect(
     boxSizePx.w,
     boxSizePx.h,
@@ -1729,7 +1756,7 @@ function ImageBoxOverlay({
       )}
     </div>
   );
-}
+});
 
 // 한 스프레드(펼침면) 전체의 이미지박스들 + "+ 사진 추가" 버튼을 함께 그려요. 텍스트박스와
 // 달리 왼쪽/오른쪽 낱장이 아니라 스프레드 전체 컨테이너 위에 얹어서, 박스가 페이지 경계를
@@ -1742,6 +1769,8 @@ function ImageBoxLayer({
   onSelect,
   guidesX,
   guidesY,
+  onPhotoEditModeChange,
+  registerBoxRef,
 }: {
   boxes: ImageBoxDef[];
   onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
@@ -1752,6 +1781,12 @@ function ImageBoxLayer({
   // 재단선·안전영역·펼침면 중앙 등) — 상위 컴포넌트가 계산해서 내려줘요.
   guidesX: number[];
   guidesY: number[];
+  // 박스가 사진 위치 조정 모드로 들어가거나 나올 때 상위에 알려줘요(왼쪽 "사진" 메뉴에
+  // 조작 버튼을 보여줄지 결정하는 데 씀, 2026-09-22 추가).
+  onPhotoEditModeChange?: (active: boolean) => void;
+  // 상위가 각 박스의 사진 위치 조정 동작(확대/축소/반전/초기화/완료)을 ref로 직접 호출할
+  // 수 있도록 박스 id별 핸들을 등록해요.
+  registerBoxRef?: (boxId: string, handle: ImageBoxOverlayHandle | null) => void;
 }) {
   // 사진 추가·스티커 추가 버튼은 2026-09-19부터 캔버스 위 숨은 버튼이 아니라 왼쪽
   // 아이콘 메뉴("사진"/"스티커" 탭)로 옮겨졌어요 — 이 레이어는 이제 박스 렌더링만 해요.
@@ -1760,11 +1795,13 @@ function ImageBoxLayer({
       {boxes.map((box) => (
         <ImageBoxOverlay
           key={box.id}
+          ref={(instance) => registerBoxRef?.(box.id, instance)}
           box={box}
           onChange={(c) => onChange(box.id, c)}
           onDelete={() => onDelete(box.id)}
           isActive={box.id === activeBoxId}
           onSelect={() => onSelect(box.id)}
+          onPhotoEditModeChange={box.id === activeBoxId ? onPhotoEditModeChange : undefined}
           guidesX={guidesX}
           guidesY={guidesY}
         />
@@ -2769,6 +2806,14 @@ function UploadPageContent() {
   // ---- 자유 배치 이미지박스(스프레드 전체 기준) ----
   // 지금 선택된 이미지박스가 어느 스프레드에 있는지 가리켜요.
   const [activeImageBox, setActiveImageBox] = useState<{ spreadIndex: number; boxId: string } | null>(null);
+  // 지금 "선택된" 이미지박스가 사진 위치 조정 모드(더블클릭으로 들어가는 모드)인지예요.
+  // 왼쪽 "사진" 편집 메뉴에 조작 버튼(확대/축소/반전/초기화/완료)을 보여줄지 결정하는 데
+  // 써요(2026-09-22 추가) — 박스를 새로 선택할 때마다 항상 false로 시작해요(더블클릭
+  // 해야만 다시 true가 됨, ImageBoxOverlay와 동일한 "항상 박스 모드로 시작" 규칙).
+  const [imageBoxPhotoEditActive, setImageBoxPhotoEditActive] = useState(false);
+  // 왼쪽 메뉴 버튼이 실제 박스 컴포넌트의 확대/축소/반전/초기화/완료 동작을 그대로
+  // 호출할 수 있도록, 박스 id → 핸들 맵을 들고 있어요.
+  const imageBoxHandlesRef = useRef<Map<string, ImageBoxOverlayHandle>>(new Map());
 
   // 사진 파일이든 스티커든 결국 "이미지박스 하나 추가"라 로직을 공유해요 — url과
   // 기본 크기(widthPct)만 다르게 넘겨요.
@@ -4558,6 +4603,69 @@ function UploadPageContent() {
                             <div className="mt-3">
                               {activeEditTab === "photo" && (
                                 <div className="flex flex-col gap-3">
+                                  {activeImageBox?.spreadIndex === i && imageBoxPhotoEditActive && (
+                                    <div className="rounded-lg border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-3">
+                                      <p className="text-xs font-medium text-[var(--color-brand-purple)]">
+                                        사진 위치 조정 중
+                                      </p>
+                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                                        박스 안에서 사진의 위치·확대·반전을 조정해요(박스 자체
+                                        크기는 캔버스에서 손잡이로 조절해주세요).
+                                      </p>
+                                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          title="축소"
+                                          onClick={() =>
+                                            activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.zoomOut()
+                                          }
+                                          className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm text-[var(--color-charcoal)]/70 shadow-sm"
+                                        >
+                                          −
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="확대"
+                                          onClick={() =>
+                                            activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.zoomIn()
+                                          }
+                                          className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm text-[var(--color-charcoal)]/70 shadow-sm"
+                                        >
+                                          +
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="좌우 반전"
+                                          onClick={() =>
+                                            activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.toggleFlip()
+                                          }
+                                          className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm text-[var(--color-charcoal)]/70 shadow-sm"
+                                        >
+                                          ⇌
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            activeImageBox &&
+                                            imageBoxHandlesRef.current.get(activeImageBox.boxId)?.resetPhotoPosition()
+                                          }
+                                          className="rounded-full bg-white px-3 py-1 text-[11px] text-[var(--color-charcoal)]/70 shadow-sm"
+                                        >
+                                          초기화
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            activeImageBox &&
+                                            imageBoxHandlesRef.current.get(activeImageBox.boxId)?.exitPhotoEditMode()
+                                          }
+                                          className="rounded-full bg-[var(--color-charcoal)] px-3 py-1 text-[11px] text-white"
+                                        >
+                                          완료
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                   <div>
                                     <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
                                       책 전체 사진 ({photos.length}장)
@@ -4784,7 +4892,13 @@ function UploadPageContent() {
                                 activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
                                 onSelect={(boxId) => {
                                   setActiveTextBox(null);
+                                  setImageBoxPhotoEditActive(false);
                                   setActiveImageBox({ spreadIndex: i, boxId });
+                                }}
+                                onPhotoEditModeChange={setImageBoxPhotoEditActive}
+                                registerBoxRef={(boxId, handle) => {
+                                  if (handle) imageBoxHandlesRef.current.set(boxId, handle);
+                                  else imageBoxHandlesRef.current.delete(boxId);
                                 }}
                                 guidesX={imageBoxGuidesX}
                                 guidesY={imageBoxGuidesY}
