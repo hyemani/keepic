@@ -478,6 +478,59 @@ function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number
   );
 }
 
+// 눈금자 두께(px) — 위쪽(가로 눈금자) 높이와 왼쪽(세로 눈금자) 폭. 왼쪽 위 빈 모서리
+// 칸도 이 두 값으로 크기를 맞춰요.
+const RULER_THICKNESS_PX = { h: 20, w: 28 };
+
+// 일러스트레이터 편집대지처럼, 스프레드(펼침면) 위쪽·왼쪽에 실제 mm 눈금을 보여주는
+// 눈금자예요(2026-09 요청). 0mm은 스프레드 작업 파일의 맨 끝(도련 포함) 기준이에요 —
+// GuideLines가 쓰는 것과 같은 기준(guideSpreadWorkMm/guidePageWorkMm)이라 재단선·
+// 안전영역과 항상 같은 좌표계로 맞아떨어져요. 캔버스 확대/축소(canvasZoom)와 같은
+// transform 안에 들어있어서 확대·축소하면 눈금자도 캔버스와 함께 자연스럽게 늘어나요.
+function Ruler({
+  orientation,
+  totalMm,
+  majorStepMm = 50,
+  minorStepMm = 10,
+}: {
+  orientation: "horizontal" | "vertical";
+  totalMm: number;
+  majorStepMm?: number;
+  minorStepMm?: number;
+}) {
+  if (!(totalMm > 0)) return null;
+  const ticks: { mm: number; major: boolean }[] = [];
+  for (let mm = 0; mm <= totalMm + 0.01; mm += minorStepMm) {
+    const rounded = Math.round(mm);
+    ticks.push({ mm: rounded, major: rounded % majorStepMm === 0 });
+  }
+  return (
+    <div className={`relative h-full w-full overflow-hidden bg-[var(--color-ivory)] text-[8px] text-[var(--color-charcoal)]/55`}>
+      {ticks.map(({ mm, major }) =>
+        orientation === "horizontal" ? (
+          <div
+            key={mm}
+            className="absolute top-0 flex h-full flex-col items-start"
+            style={{ left: `${(mm / totalMm) * 100}%` }}
+          >
+            <div className={`w-px bg-[var(--color-charcoal)]/40 ${major ? "h-2.5" : "h-1.5"}`} />
+            {major && <span className="ml-0.5 leading-none">{mm}</span>}
+          </div>
+        ) : (
+          <div
+            key={mm}
+            className="absolute left-0 flex w-full items-center gap-0.5"
+            style={{ top: `${(mm / totalMm) * 100}%` }}
+          >
+            <div className={`h-px bg-[var(--color-charcoal)]/40 ${major ? "w-2.5" : "w-1.5"}`} />
+            {major && <span className="leading-none">{mm}</span>}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 // 사진 프레임(칸)을 "원본 전체 보이기(contain, scale 1)" 기준에서 "프레임 꽉 채우기
 // (cover)" 기준으로 바꿀 때 필요한 scale 배율을 계산해요. 칸과 사진의 가로세로 비율만
 // 있으면 되고, 절대 픽셀 크기는 필요 없어요. (lib/printCompose.ts의 drawPhotoInCell과
@@ -4933,7 +4986,35 @@ function UploadPageContent() {
                               {isPrintPreview && (
                                 <div className="pointer-events-none absolute inset-8 bg-white shadow-[0_25px_55px_-12px_rgba(0,0,0,0.5)] sm:inset-12" />
                               )}
-                              <div className="relative overflow-hidden">
+                              <div
+                                className="relative overflow-hidden"
+                                style={
+                                  !isPrintPreview
+                                    ? { paddingLeft: RULER_THICKNESS_PX.w, paddingTop: RULER_THICKNESS_PX.h }
+                                    : undefined
+                                }
+                              >
+                                {!isPrintPreview && (
+                                  <>
+                                    {/* 눈금자 왼쪽 위 빈 모서리 칸(일러스트레이터 편집대지와 같은 자리) */}
+                                    <div
+                                      className="pointer-events-none absolute left-0 top-0 z-30 bg-[var(--color-ivory)]"
+                                      style={{ width: RULER_THICKNESS_PX.w, height: RULER_THICKNESS_PX.h }}
+                                    />
+                                    <div
+                                      className="pointer-events-none absolute right-0 top-0 z-30"
+                                      style={{ left: RULER_THICKNESS_PX.w, height: RULER_THICKNESS_PX.h }}
+                                    >
+                                      <Ruler orientation="horizontal" totalMm={guideSpreadWorkMm} />
+                                    </div>
+                                    <div
+                                      className="pointer-events-none absolute bottom-0 left-0 z-30"
+                                      style={{ top: RULER_THICKNESS_PX.h, width: RULER_THICKNESS_PX.w }}
+                                    >
+                                      <Ruler orientation="vertical" totalMm={guidePageWorkMm} />
+                                    </div>
+                                  </>
+                                )}
                             <div
                               className={`group relative mt-3 flex w-full items-start bg-white ${
                                 isPrintPreview ? "" : "shadow-sm"
