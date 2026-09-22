@@ -1324,6 +1324,9 @@ type ImageBoxOverlayHandle = {
   resetPhotoPosition: () => void;
   toggleFlip: () => void;
   exitPhotoEditMode: () => void;
+  // 왼쪽 "사진" 편집 메뉴에서도 "스프레드 전체 채우기"를 쓸 수 있도록(2026-09 요청 —
+  // 캔버스 위 버튼만으로는 왼쪽 패널에서 찾을 수 없다는 피드백을 받아서 추가).
+  fillSpread: () => void;
 };
 
 const ImageBoxOverlay = forwardRef<
@@ -1657,6 +1660,7 @@ const ImageBoxOverlay = forwardRef<
     resetPhotoPosition: handleResetPhotoPosition,
     toggleFlip: () => onChange({ flipX: !box.flipX }),
     exitPhotoEditMode: () => setPhotoEditMode(false),
+    fillSpread: handleFillSpread,
   }));
 
   const coverRect = computeImageBoxCoverRect(
@@ -4637,6 +4641,28 @@ function UploadPageContent() {
                             <div className="mt-3">
                               {activeEditTab === "photo" && (
                                 <div className="flex flex-col gap-3">
+                                  {activeImageBox?.spreadIndex === i && !imageBoxPhotoEditActive && (
+                                    <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
+                                      <p className="text-xs font-medium text-[var(--color-charcoal)]">
+                                        선택한 사진박스
+                                      </p>
+                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                                        박스 크기·위치는 캔버스에서 손잡이로 조절하거나, 아래
+                                        버튼으로 펼침면 전체를 한 번에 채울 수 있어요.
+                                      </p>
+                                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.fillSpread()
+                                          }
+                                          className="rounded-full bg-[var(--color-brand-purple)] px-3 py-1 text-[11px] text-white"
+                                        >
+                                          스프레드 전체 채우기
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                   {activeImageBox?.spreadIndex === i && imageBoxPhotoEditActive && (
                                     <div className="rounded-lg border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-3">
                                       <p className="text-xs font-medium text-[var(--color-brand-purple)]">
