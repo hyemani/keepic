@@ -13,7 +13,7 @@
 import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, pageTemplates } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
-import { computeCoverFitContentSizePct } from "@/lib/imageBoxGeometry";
+import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -288,26 +288,21 @@ function drawImageBoxOnCanvas(
   // 이 페이지와 전혀 안 겹치면 그릴 필요 없어요.
   if (boxLeftPagePx + boxWidthSpreadPx <= 0 || boxLeftPagePx >= pageW) return;
 
-  // 사진(콘텐츠)은 박스와 별개의 절대 위치·크기를 가져요(2026-09-19 변경, box.xPct와
-  // 같은 좌표계) — 박스는 이 사진을 비추는 창일 뿐이라, 박스 크기를 조절해도 사진 자체는
-  // 안 바뀌어요. 옛날에 만들어진(이 필드가 없는) 이미지박스는 박스를 딱 채우는 기본
-  // cover-fit으로 대체해요.
-  const contentWidthPct = box.contentWidthPct;
-  const contentHeightPct = box.contentHeightPct;
-  const hasContentRect = contentWidthPct != null && contentHeightPct != null;
-  const fallbackSize = hasContentRect
-    ? null
-    : computeCoverFitContentSizePct(box.widthPct, box.heightPct, img.naturalWidth || box.naturalWidth, img.naturalHeight || box.naturalHeight);
-  const finalWidthPct = contentWidthPct ?? fallbackSize!.widthPct;
-  const finalHeightPct = contentHeightPct ?? fallbackSize!.heightPct;
-  const finalXPct = box.contentXPct ?? box.xPct + (box.widthPct - finalWidthPct) / 2;
-  const finalYPct = box.contentYPct ?? box.yPct + (box.heightPct - finalHeightPct) / 2;
-
-  const contentLeftSpreadPx = (finalXPct / 100) * spreadWidthPx;
-  const contentTopPx = (finalYPct / 100) * pageH;
-  const contentWidthSpreadPx = (finalWidthPct / 100) * spreadWidthPx;
-  const contentHeightPx = (finalHeightPct / 100) * pageH;
-  const contentLeftPagePx = contentLeftSpreadPx - pageOffsetPx;
+  // 박스(틀) 크기와 사진 원본 비율이 다를 수 있어요(가로·세로를 따로 조절할 수 있어서) —
+  // 화면 미리보기와 똑같이 computeImageBoxCoverRect로 "박스를 항상 꽉 채우면서, 사용자가
+  // 고른 확대/위치만큼 보이는 부분을 옮긴" 결과를 계산해서 그려요. 박스를 조절해도 이
+  // 확대/위치(innerScale·innerOffset)는 그대로 유지된 채 새 박스 크기 기준으로 다시
+  // 계산되기 때문에, 그냥 drawImage(img, x, y, boxW, boxH)로 늘려 그릴 때와 달리 사진이
+  // 찌그러지거나 빈 여백이 생기지 않아요(2026-09-22 확정).
+  const rect = computeImageBoxCoverRect(
+    boxWidthSpreadPx,
+    boxHeightPx,
+    img.naturalWidth || box.naturalWidth,
+    img.naturalHeight || box.naturalHeight,
+    box.innerOffsetXPct ?? 0,
+    box.innerOffsetYPct ?? 0,
+    box.innerScale ?? 1
+  );
 
   ctx.save();
   ctx.beginPath();
@@ -316,7 +311,7 @@ function drawImageBoxOnCanvas(
   ctx.beginPath();
   ctx.rect(boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
   ctx.clip();
-  ctx.drawImage(img, contentLeftPagePx, contentTopPx, contentWidthSpreadPx, contentHeightPx);
+  ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
   ctx.restore();
 }
 
