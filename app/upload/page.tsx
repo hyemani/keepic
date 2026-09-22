@@ -481,49 +481,66 @@ function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number
 // 눈금자 두께(px) — 위쪽(가로 눈금자) 높이와 왼쪽(세로 눈금자) 폭. 왼쪽 위 빈 모서리
 // 칸도 이 두 값으로 크기를 맞춰요.
 const RULER_THICKNESS_PX = { h: 20, w: 28 };
+// 스프레드 박스 자체에 이미 있는 위쪽 여백(className의 "mt-3" = 12px)이에요. 눈금자
+// 위쪽 공간(paddingTop)을 잡을 때 이 여백만큼 미리 빼줘야, 눈금자가 실제 캔버스 위쪽
+// 가장자리에 딱 붙어요 — 안 그러면 눈금자와 캔버스 사이에 이 여백만큼 빈틈이 생겨서
+// 눈금 위치가 재단선과 안 맞아 보여요(2026-09 수정).
+const SPREAD_BOX_MARGIN_TOP_PX = 12;
 
 // 일러스트레이터 편집대지처럼, 스프레드(펼침면) 위쪽·왼쪽에 실제 mm 눈금을 보여주는
-// 눈금자예요(2026-09 요청). 0mm은 스프레드 작업 파일의 맨 끝(도련 포함) 기준이에요 —
-// GuideLines가 쓰는 것과 같은 기준(guideSpreadWorkMm/guidePageWorkMm)이라 재단선·
-// 안전영역과 항상 같은 좌표계로 맞아떨어져요. 캔버스 확대/축소(canvasZoom)와 같은
-// transform 안에 들어있어서 확대·축소하면 눈금자도 캔버스와 함께 자연스럽게 늘어나요.
+// 눈금자예요(2026-09 요청). **0mm은 실제로 인쇄되는 면(재단선) 기준이에요** — 도련
+// (bleed, 인쇄 후 잘려나가는 여분) 안쪽은 0보다 작은 음수로 표시돼요(일러스트레이터에서
+// 아트보드 바깥 여분이 음수 좌표로 보이는 것과 같아요, 2026-09 수정 — 처음엔 도련
+// 바깥쪽 끝을 0으로 잡았었는데 "인쇄되는 면 기준으로 잡아달라"는 피드백을 받고 고침).
+// zeroOffsetMm(=도련 폭)만큼 안쪽으로 0점을 옮기되, 눈금이 화면에 그려지는 위치(퍼센트)는
+// 여전히 GuideLines와 같은 좌표계(guideSpreadWorkMm/guidePageWorkMm, 도련 포함 전체 길이)
+// 기준이라 재단선·안전영역과 항상 같은 자리에 맞아떨어져요. 캔버스 확대/축소(canvasZoom)와
+// 같은 transform 안에 들어있어서 확대·축소하면 눈금자도 캔버스와 함께 자연스럽게 늘어나요.
 function Ruler({
   orientation,
   totalMm,
+  zeroOffsetMm = 0,
   majorStepMm = 50,
   minorStepMm = 10,
 }: {
   orientation: "horizontal" | "vertical";
   totalMm: number;
+  zeroOffsetMm?: number;
   majorStepMm?: number;
   minorStepMm?: number;
 }) {
   if (!(totalMm > 0)) return null;
-  const ticks: { mm: number; major: boolean }[] = [];
-  for (let mm = 0; mm <= totalMm + 0.01; mm += minorStepMm) {
-    const rounded = Math.round(mm);
-    ticks.push({ mm: rounded, major: rounded % majorStepMm === 0 });
+  // labelMm: 재단선(인쇄되는 면)을 0으로 보는, 실제로 화면에 표시할 숫자예요.
+  // rawMm(= labelMm + zeroOffsetMm): 눈금 위치를 퍼센트로 계산할 때 쓰는, 스프레드 작업
+  // 파일 맨 끝(도련 포함)을 0으로 보는 값이에요 — 이 rawMm/totalMm 비율이 GuideLines가
+  // 쓰는 것과 같은 좌표계예요.
+  const firstLabelMm = Math.ceil(-zeroOffsetMm / minorStepMm) * minorStepMm;
+  const lastLabelMm = Math.floor((totalMm - zeroOffsetMm) / minorStepMm) * minorStepMm;
+  const ticks: { labelMm: number; rawMm: number; major: boolean }[] = [];
+  for (let labelMm = firstLabelMm; labelMm <= lastLabelMm + 0.01; labelMm += minorStepMm) {
+    const rounded = Math.round(labelMm);
+    ticks.push({ labelMm: rounded, rawMm: rounded + zeroOffsetMm, major: rounded % majorStepMm === 0 });
   }
   return (
     <div className={`relative h-full w-full overflow-hidden bg-[var(--color-ivory)] text-[8px] text-[var(--color-charcoal)]/55`}>
-      {ticks.map(({ mm, major }) =>
+      {ticks.map(({ labelMm, rawMm, major }) =>
         orientation === "horizontal" ? (
           <div
-            key={mm}
+            key={labelMm}
             className="absolute top-0 flex h-full flex-col items-start"
-            style={{ left: `${(mm / totalMm) * 100}%` }}
+            style={{ left: `${(rawMm / totalMm) * 100}%` }}
           >
             <div className={`w-px bg-[var(--color-charcoal)]/40 ${major ? "h-2.5" : "h-1.5"}`} />
-            {major && <span className="ml-0.5 leading-none">{mm}</span>}
+            {major && <span className="ml-0.5 leading-none">{labelMm}</span>}
           </div>
         ) : (
           <div
-            key={mm}
+            key={labelMm}
             className="absolute left-0 flex w-full items-center gap-0.5"
-            style={{ top: `${(mm / totalMm) * 100}%` }}
+            style={{ top: `${(rawMm / totalMm) * 100}%` }}
           >
             <div className={`h-px bg-[var(--color-charcoal)]/40 ${major ? "w-2.5" : "w-1.5"}`} />
-            {major && <span className="leading-none">{mm}</span>}
+            {major && <span className="leading-none">{labelMm}</span>}
           </div>
         )
       )}
@@ -4990,7 +5007,10 @@ function UploadPageContent() {
                                 className="relative overflow-hidden"
                                 style={
                                   !isPrintPreview
-                                    ? { paddingLeft: RULER_THICKNESS_PX.w, paddingTop: RULER_THICKNESS_PX.h }
+                                    ? {
+                                        paddingLeft: RULER_THICKNESS_PX.w,
+                                        paddingTop: Math.max(0, RULER_THICKNESS_PX.h - SPREAD_BOX_MARGIN_TOP_PX),
+                                      }
                                     : undefined
                                 }
                               >
@@ -5005,13 +5025,13 @@ function UploadPageContent() {
                                       className="pointer-events-none absolute right-0 top-0 z-30"
                                       style={{ left: RULER_THICKNESS_PX.w, height: RULER_THICKNESS_PX.h }}
                                     >
-                                      <Ruler orientation="horizontal" totalMm={guideSpreadWorkMm} />
+                                      <Ruler orientation="horizontal" totalMm={guideSpreadWorkMm} zeroOffsetMm={GUIDE_BLEED_MM} />
                                     </div>
                                     <div
                                       className="pointer-events-none absolute bottom-0 left-0 z-30"
                                       style={{ top: RULER_THICKNESS_PX.h, width: RULER_THICKNESS_PX.w }}
                                     >
-                                      <Ruler orientation="vertical" totalMm={guidePageWorkMm} />
+                                      <Ruler orientation="vertical" totalMm={guidePageWorkMm} zeroOffsetMm={GUIDE_BLEED_MM} />
                                     </div>
                                   </>
                                 )}
