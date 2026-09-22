@@ -496,31 +496,72 @@ const SPREAD_BOX_MARGIN_TOP_PX = 12;
 // 여전히 GuideLines와 같은 좌표계(guideSpreadWorkMm/guidePageWorkMm, 도련 포함 전체 길이)
 // 기준이라 재단선·안전영역과 항상 같은 자리에 맞아떨어져요. 캔버스 확대/축소(canvasZoom)와
 // 같은 transform 안에 들어있어서 확대·축소하면 눈금자도 캔버스와 함께 자연스럽게 늘어나요.
+// 눈금자에 "책등(스프레드 가운데) 건너뛰기" 구간을 전달할 때 써요. 스프레드는 왼쪽·
+// 오른쪽 페이지 두 개의 "작업 파일"(도련 포함)을 나란히 붙여서 만든 화면이라(예:
+// 260mm짜리 파일 두 장 = 520mm), 두 페이지가 만나는 가운데에는 서로 마주보는 도련
+// (bleed) 두 겹이 겹쳐 있어요 — 이건 실제로 인쇄되는 재단 면적이 아니에요. 그래서
+// 가로 눈금자는 이 구간(gapRawStartMm ~ +gapWidthMm)을 숫자에서 건너뛰어서, "0"이
+// 왼쪽 재단선, 끝 숫자(예: 500)가 오른쪽 재단선에 오도록 만들어요(2026-09 수정 —
+// "x,y축 250이 인쇄선에 안맞는거같아요" / "255가 가운데 접힘선" 피드백에 따라 추가).
+type RulerGap = { gapRawStartMm: number; gapWidthMm: number };
+
+// 일러스트레이터 편집대지처럼, 스프레드(펼침면) 위쪽·왼쪽에 실제 mm 눈금을 보여주는
+// 눈금자예요(2026-09 요청). **0mm은 실제로 인쇄되는 면(재단선) 기준이에요** — 도련
+// (bleed, 인쇄 후 잘려나가는 여분) 안쪽은 0보다 작은 음수로 표시돼요(일러스트레이터에서
+// 아트보드 바깥 여분이 음수 좌표로 보이는 것과 같아요, 2026-09 수정 — 처음엔 도련
+// 바깥쪽 끝을 0으로 잡았었는데 "인쇄되는 면 기준으로 잡아달라"는 피드백을 받고 고침).
+// zeroOffsetMm(=도련 폭)만큼 안쪽으로 0점을 옮기되, 눈금이 화면에 그려지는 위치(퍼센트)는
+// 여전히 GuideLines와 같은 좌표계(guideSpreadWorkMm/guidePageWorkMm, 도련 포함 전체 길이)
+// 기준이라 재단선·안전영역과 항상 같은 자리에 맞아떨어져요. 캔버스 확대/축소(canvasZoom)와
+// 같은 transform 안에 들어있어서 확대·축소하면 눈금자도 캔버스와 함께 자연스럽게 늘어나요.
 function Ruler({
   orientation,
   totalMm,
   zeroOffsetMm = 0,
   majorStepMm = 50,
   minorStepMm = 10,
+  gap,
 }: {
   orientation: "horizontal" | "vertical";
   totalMm: number;
   zeroOffsetMm?: number;
   majorStepMm?: number;
   minorStepMm?: number;
+  gap?: RulerGap;
 }) {
   if (!(totalMm > 0)) return null;
-  // labelMm: 재단선(인쇄되는 면)을 0으로 보는, 실제로 화면에 표시할 숫자예요.
-  // rawMm(= labelMm + zeroOffsetMm): 눈금 위치를 퍼센트로 계산할 때 쓰는, 스프레드 작업
-  // 파일 맨 끝(도련 포함)을 0으로 보는 값이에요 — 이 rawMm/totalMm 비율이 GuideLines가
-  // 쓰는 것과 같은 좌표계예요.
-  const firstLabelMm = Math.ceil(-zeroOffsetMm / minorStepMm) * minorStepMm;
-  const lastLabelMm = Math.floor((totalMm - zeroOffsetMm) / minorStepMm) * minorStepMm;
-  const ticks: { labelMm: number; rawMm: number; major: boolean }[] = [];
-  for (let labelMm = firstLabelMm; labelMm <= lastLabelMm + 0.01; labelMm += minorStepMm) {
-    const rounded = Math.round(labelMm);
-    ticks.push({ labelMm: rounded, rawMm: rounded + zeroOffsetMm, major: rounded % majorStepMm === 0 });
+  // labelMm: 재단선(인쇄되는 면)을 0으로 보는, 실제로 화면에 표시할 숫자예요. gap이 있으면
+  // (가로 눈금자) 책등 겹침 구간(gapWidthMm)만큼을 라벨 숫자에서 빼서, 라벨이 항상
+  // 0부터 "진짜 재단 폭"(예: 500)까지 끊김 없이 이어지도록 해요.
+  // rawMm: 눈금 위치를 퍼센트로 계산할 때 쓰는, 스프레드 작업 파일 맨 끝(도련 포함) 전체
+  // 길이를 0으로 보는 값이에요 — 이 rawMm/totalMm 비율이 GuideLines가 쓰는 것과 같은
+  // 좌표계예요. gap 구간을 지난 라벨은 rawMm이 gapWidthMm만큼 더 뒤로 밀려요(책등에서
+  // 겹치는 도련 두 겹만큼 화면 상에서는 더 벌어져 있으니까요).
+  const trimTotalMm = totalMm - 2 * zeroOffsetMm - (gap?.gapWidthMm ?? 0);
+  function labelToRawMm(labelMm: number): number {
+    const raw = labelMm + zeroOffsetMm;
+    if (gap && raw > gap.gapRawStartMm) return raw + gap.gapWidthMm;
+    return raw;
   }
+  const lastLabelMm = Math.floor(trimTotalMm / minorStepMm) * minorStepMm;
+  const startLabelMm = Math.ceil(-zeroOffsetMm / minorStepMm) * minorStepMm;
+  const ticks: { labelMm: number; rawMm: number; major: boolean }[] = [];
+  for (let labelMm = startLabelMm; labelMm <= lastLabelMm + 0.01; labelMm += minorStepMm) {
+    const rounded = Math.round(labelMm);
+    ticks.push({ labelMm: rounded, rawMm: labelToRawMm(rounded), major: rounded % majorStepMm === 0 });
+  }
+  // 끝쪽 재단선도 50mm 눈금과 상관없이 항상 숫자가 찍히게 해요 — 상품 크기가 50의
+  // 배수가 아니면 마지막 50mm 눈금이 재단선과 안 맞아 보일 수 있어서, "0"과 똑같이
+  // 재단선 위치에는 항상 눈금을 하나 더 그려줘요.
+  const farEdgeLabelMm = Math.round(trimTotalMm);
+  const hasFarEdgeTick = ticks.some((t) => Math.abs(t.labelMm - farEdgeLabelMm) < 0.5);
+  if (!hasFarEdgeTick) {
+    ticks.push({ labelMm: farEdgeLabelMm, rawMm: labelToRawMm(farEdgeLabelMm), major: true });
+  } else {
+    const existing = ticks.find((t) => Math.abs(t.labelMm - farEdgeLabelMm) < 0.5);
+    if (existing) existing.major = true;
+  }
+  ticks.sort((a, b) => a.rawMm - b.rawMm);
   return (
     <div className={`relative h-full w-full overflow-hidden bg-[var(--color-ivory)] text-[8px] text-[var(--color-charcoal)]/55`}>
       {ticks.map(({ labelMm, rawMm, major }) =>
@@ -5025,7 +5066,12 @@ function UploadPageContent() {
                                       className="pointer-events-none absolute right-0 top-0 z-30"
                                       style={{ left: RULER_THICKNESS_PX.w, height: RULER_THICKNESS_PX.h }}
                                     >
-                                      <Ruler orientation="horizontal" totalMm={guideSpreadWorkMm} zeroOffsetMm={GUIDE_BLEED_MM} />
+                                      <Ruler
+                                        orientation="horizontal"
+                                        totalMm={guideSpreadWorkMm}
+                                        zeroOffsetMm={GUIDE_BLEED_MM}
+                                        gap={{ gapRawStartMm: guidePageWorkMm - GUIDE_BLEED_MM, gapWidthMm: 2 * GUIDE_BLEED_MM }}
+                                      />
                                     </div>
                                     <div
                                       className="pointer-events-none absolute bottom-0 left-0 z-30"
