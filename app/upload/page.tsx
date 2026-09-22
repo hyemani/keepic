@@ -38,7 +38,12 @@ import {
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
 import { buildInnerPrintPdfLib, buildCoverPrintPdfLib, computeSpineLogoLayout } from "@/lib/printPdfLib";
 import { mmToPt } from "@/lib/printGeometry";
-import { computeImageBoxCoverRect, clampImageBoxInnerOffset } from "@/lib/imageBoxGeometry";
+import {
+  computeCoverFitContentSizePct,
+  growContentToCoverBox,
+  clampContentPosition,
+  contentRectToBoxLocalPx,
+} from "@/lib/imageBoxGeometry";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -1151,12 +1156,17 @@ function TextBoxLayer({
   onChange,
   activeBoxId,
   onSelect,
+  showAddButton = true,
 }: {
   boxes: TextBoxDef[];
   onAdd: () => void;
   onChange: (boxId: string, changes: Partial<TextBoxDef>) => void;
   activeBoxId: string | null;
   onSelect: (boxId: string) => void;
+  // 내지 스프레드는 왼쪽 아이콘 메뉴("텍스트" 탭)에 이미 글상자 추가 버튼이 있어서, 캔버스
+  // 위에 떠 있던 이 검은 버튼은 중복이라 꺼요(2026-09-19, 혜민님 요청). 표지·뒤표지는
+  // 아직 그 메뉴가 없어서 그대로 둬요.
+  showAddButton?: boolean;
 }) {
   return (
     <>
@@ -1169,13 +1179,15 @@ function TextBoxLayer({
           onSelect={() => onSelect(box.id)}
         />
       ))}
-      <button
-        type="button"
-        onClick={onAdd}
-        className="absolute right-1 top-1 z-20 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
-      >
-        + 텍스트 추가
-      </button>
+      {showAddButton && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="absolute right-1 top-1 z-20 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
+        >
+          + 텍스트 추가
+        </button>
+      )}
     </>
   );
 }
@@ -1209,12 +1221,26 @@ function ImageBoxOverlay({
   const [isPanning, setIsPanning] = useState(false);
   const [boxSizePx, setBoxSizePx] = useState({ w: 1, h: 1 });
   const boxRef = useRef<HTMLDivElement>(null);
-  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
-  const resizeStart = useRef({ mouseX: 0, mouseY: 0, widthPct: 0, heightPct: 0, cellW: 1, cellH: 1, axis: "both" as "x" | "y" | "both" });
-  const panStart = useRef({ mouseX: 0, mouseY: 0, offsetX: 0, offsetY: 0 });
+  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, contentXPct: 0, contentYPct: 0, cellW: 1, cellH: 1 });
+  const resizeStart = useRef({
+    mouseX: 0,
+    mouseY: 0,
+    xPct: 0,
+    yPct: 0,
+    widthPct: 0,
+    heightPct: 0,
+    contentXPct: 0,
+    contentYPct: 0,
+    contentWidthPct: 0,
+    contentHeightPct: 0,
+    cellW: 1,
+    cellH: 1,
+    axis: "both" as "x" | "y" | "both",
+  });
+  const panStart = useRef({ mouseX: 0, mouseY: 0, contentXPct: 0, contentYPct: 0 });
 
-  // 박스가 실제로 화면에 몇 px로 그려지는지 재요 — 사진이 박스를 항상 꽉 채우도록
-  // 계산(computeImageBoxCoverRect)하려면 박스의 실제 픽셀 크기가 필요해요.
+  // 박스가 실제로 화면에 몇 px로 그려지는지 재요 — 사진(콘텐츠)을 박스 안 어디에 그릴지
+  // 계산(contentRectToBoxLocalPx)하려면 박스의 실제 픽셀 크기가 필요해요.
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
@@ -1226,6 +1252,20 @@ function ImageBoxOverlay({
     return () => ro.disconnect();
   }, []);
 
+  // 박스(틀)의 현재 절대 위치·크기예요. 콘텐츠 필드가 없는(예전에 만들어진) 이미지박스는
+  // 박스를 딱 채우는 기본 cover-fit으로 대체해요.
+  const currentBoxRect = { xPct: box.xPct, yPct: box.yPct, widthPct: box.widthPct, heightPct: box.heightPct };
+  const fallbackContentSize =
+    box.contentWidthPct == null || box.contentHeightPct == null
+      ? computeCoverFitContentSizePct(box.widthPct, box.heightPct, box.naturalWidth, box.naturalHeight)
+      : null;
+  const currentContentRect = {
+    xPct: box.contentXPct ?? box.xPct + (box.widthPct - (fallbackContentSize?.widthPct ?? box.widthPct)) / 2,
+    yPct: box.contentYPct ?? box.yPct + (box.heightPct - (fallbackContentSize?.heightPct ?? box.heightPct)) / 2,
+    widthPct: box.contentWidthPct ?? fallbackContentSize!.widthPct,
+    heightPct: box.contentHeightPct ?? fallbackContentSize!.heightPct,
+  };
+
   function handleMouseDown(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -1234,8 +1274,8 @@ function ImageBoxOverlay({
       panStart.current = {
         mouseX: e.clientX,
         mouseY: e.clientY,
-        offsetX: box.innerOffsetXPct ?? 0,
-        offsetY: box.innerOffsetYPct ?? 0,
+        contentXPct: currentContentRect.xPct,
+        contentYPct: currentContentRect.yPct,
       };
       setIsPanning(true);
       return;
@@ -1246,6 +1286,8 @@ function ImageBoxOverlay({
       mouseY: e.clientY,
       xPct: box.xPct,
       yPct: box.yPct,
+      contentXPct: currentContentRect.xPct,
+      contentYPct: currentContentRect.yPct,
       cellW: cellRect?.width || 1,
       cellH: cellRect?.height || 1,
     };
@@ -1265,7 +1307,14 @@ function ImageBoxOverlay({
       const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
       const nextX = Math.min(100 - 4, Math.max(0, dragStart.current.xPct + dxPct));
       const nextY = Math.min(100 - 4, Math.max(0, dragStart.current.yPct + dyPct));
-      onChange({ xPct: nextX, yPct: nextY });
+      // 박스를 옮기면 안에 있는 사진(콘텐츠)도 같이 옮겨요 — 창을 옮기는 거니까 안에
+      // 보이는 부분은 그대로 유지돼요(사진 자체는 안 바뀌어요).
+      onChange({
+        xPct: nextX,
+        yPct: nextY,
+        contentXPct: dragStart.current.contentXPct + (nextX - dragStart.current.xPct),
+        contentYPct: dragStart.current.contentYPct + (nextY - dragStart.current.yPct),
+      });
     }
     function handleMouseUp() {
       setMouseDownActive(false);
@@ -1279,26 +1328,21 @@ function ImageBoxOverlay({
     };
   }, [mouseDownActive, isDragging]);
 
-  // "사진 위치 조정" 모드에서 박스를 끌면 박스(틀)가 아니라 그 안의 사진만 옮겨요 —
-  // 사진이 박스를 벗어나 빈 여백이 생기지 않도록 매번 clampImageBoxInnerOffset으로
+  // "사진 위치 조정" 모드에서 박스를 끌면 박스(틀)는 그대로 있고 안의 사진(콘텐츠)만
+  // 옮겨요 — 사진이 박스를 벗어나 빈 여백이 생기지 않도록 clampContentPosition으로
   // 범위를 잘라요.
   useEffect(() => {
     if (!isPanning) return;
     function handleMouseMove(e: MouseEvent) {
-      const rect = computeImageBoxCoverRect(
-        boxSizePx.w,
-        boxSizePx.h,
-        box.naturalWidth,
-        box.naturalHeight,
-        0,
-        0,
-        box.innerScale ?? 1
-      );
-      const dxPct = ((e.clientX - panStart.current.mouseX) / boxSizePx.w) * 100;
-      const dyPct = ((e.clientY - panStart.current.mouseY) / boxSizePx.h) * 100;
-      const nextOffsetX = clampImageBoxInnerOffset(panStart.current.offsetX + dxPct, boxSizePx.w, rect.width);
-      const nextOffsetY = clampImageBoxInnerOffset(panStart.current.offsetY + dyPct, boxSizePx.h, rect.height);
-      onChange({ innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
+      const dxPct = ((e.clientX - panStart.current.mouseX) / boxSizePx.w) * currentBoxRect.widthPct;
+      const dyPct = ((e.clientY - panStart.current.mouseY) / boxSizePx.h) * currentBoxRect.heightPct;
+      const movedContent = {
+        ...currentContentRect,
+        xPct: panStart.current.contentXPct + dxPct,
+        yPct: panStart.current.contentYPct + dyPct,
+      };
+      const clamped = clampContentPosition(movedContent, currentBoxRect);
+      onChange({ contentXPct: clamped.xPct, contentYPct: clamped.yPct });
     }
     function handleMouseUp() {
       setIsPanning(false);
@@ -1309,10 +1353,13 @@ function ImageBoxOverlay({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isPanning, boxSizePx, box.naturalWidth, box.naturalHeight, box.innerScale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPanning, boxSizePx.w, boxSizePx.h]);
 
   // 손잡이 3개 — 오른쪽 가운데(가로만), 아래쪽 가운데(세로만), 오른쪽 아래 모서리
-  // (가로·세로 동시). 2026-09-18부터 원본 비율에 안 묶이고 각각 따로 조절돼요.
+  // (가로·세로 동시). 박스(틀)만 조절되고, 안의 사진(콘텐츠)은 바뀌지 않아요 — 창을
+  // 늘리거나 줄이는 것뿐이에요. 딱 하나의 예외: 박스를 사진보다 크게 늘려서 빈틈이
+  // 생기면(growContentToCoverBox) 그때만 사진을 딱 덮을 만큼 키워요.
   function handleResizeStart(axis: "x" | "y" | "both", e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -1321,8 +1368,14 @@ function ImageBoxOverlay({
     resizeStart.current = {
       mouseX: e.clientX,
       mouseY: e.clientY,
+      xPct: box.xPct,
+      yPct: box.yPct,
       widthPct: box.widthPct,
       heightPct: box.heightPct,
+      contentXPct: currentContentRect.xPct,
+      contentYPct: currentContentRect.yPct,
+      contentWidthPct: currentContentRect.widthPct,
+      contentHeightPct: currentContentRect.heightPct,
       cellW: cellRect?.width || 1,
       cellH: cellRect?.height || 1,
       axis,
@@ -1333,17 +1386,33 @@ function ImageBoxOverlay({
   useEffect(() => {
     if (!isResizing) return;
     function handleMouseMove(e: MouseEvent) {
-      const { axis } = resizeStart.current;
-      const changes: Partial<ImageBoxDef> = {};
-      if (axis === "x" || axis === "both") {
-        const dxPct = ((e.clientX - resizeStart.current.mouseX) / resizeStart.current.cellW) * 100;
-        changes.widthPct = Math.min(96, Math.max(6, resizeStart.current.widthPct + dxPct));
+      const s = resizeStart.current;
+      const nextBox = { xPct: s.xPct, yPct: s.yPct, widthPct: s.widthPct, heightPct: s.heightPct };
+      if (s.axis === "x" || s.axis === "both") {
+        const dxPct = ((e.clientX - s.mouseX) / s.cellW) * 100;
+        nextBox.widthPct = Math.min(96, Math.max(6, s.widthPct + dxPct));
       }
-      if (axis === "y" || axis === "both") {
-        const dyPct = ((e.clientY - resizeStart.current.mouseY) / resizeStart.current.cellH) * 100;
-        changes.heightPct = Math.min(96, Math.max(4, resizeStart.current.heightPct + dyPct));
+      if (s.axis === "y" || s.axis === "both") {
+        const dyPct = ((e.clientY - s.mouseY) / s.cellH) * 100;
+        nextBox.heightPct = Math.min(96, Math.max(4, s.heightPct + dyPct));
       }
-      onChange(changes);
+      // 박스(창)만 바뀌고, 사진(콘텐츠)은 그대로 둬요 — 다만 박스가 사진보다 커져서
+      // 빈틈이 생기면 그만큼만 사진을 키워요.
+      const startContent = {
+        xPct: s.contentXPct,
+        yPct: s.contentYPct,
+        widthPct: s.contentWidthPct,
+        heightPct: s.contentHeightPct,
+      };
+      const grownContent = growContentToCoverBox(startContent, nextBox);
+      const clampedPos = clampContentPosition(grownContent, nextBox);
+      onChange({
+        ...nextBox,
+        contentXPct: clampedPos.xPct,
+        contentYPct: clampedPos.yPct,
+        contentWidthPct: grownContent.widthPct,
+        contentHeightPct: grownContent.heightPct,
+      });
     }
     function handleMouseUp() {
       setIsResizing(false);
@@ -1357,26 +1426,37 @@ function ImageBoxOverlay({
   }, [isResizing]);
 
   function handleZoom(delta: number) {
-    const nextScale = Math.min(3, Math.max(1, (box.innerScale ?? 1) + delta));
-    const rect = computeImageBoxCoverRect(boxSizePx.w, boxSizePx.h, box.naturalWidth, box.naturalHeight, 0, 0, nextScale);
-    const nextOffsetX = clampImageBoxInnerOffset(box.innerOffsetXPct ?? 0, boxSizePx.w, rect.width);
-    const nextOffsetY = clampImageBoxInnerOffset(box.innerOffsetYPct ?? 0, boxSizePx.h, rect.height);
-    onChange({ innerScale: nextScale, innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
+    // 확대/축소는 사진(콘텐츠)의 크기를 중심 기준으로 바꿔요 — delta > 0이면 확대(더 크게
+    // 보임), delta < 0이면 축소(단, 박스보다 작아지면 안 되니 growContentToCoverBox로
+    // 다시 박스를 덮을 만큼 되돌려요).
+    const scaleFactor = 1 + delta;
+    const centerX = currentContentRect.xPct + currentContentRect.widthPct / 2;
+    const centerY = currentContentRect.yPct + currentContentRect.heightPct / 2;
+    const widthPct = Math.min(currentContentRect.widthPct * scaleFactor, currentBoxRect.widthPct * 4);
+    const heightPct = Math.min(currentContentRect.heightPct * scaleFactor, currentBoxRect.heightPct * 4);
+    const scaled = { xPct: centerX - widthPct / 2, yPct: centerY - heightPct / 2, widthPct, heightPct };
+    const grown = growContentToCoverBox(scaled, currentBoxRect);
+    const clamped = clampContentPosition(grown, currentBoxRect);
+    onChange({
+      contentXPct: clamped.xPct,
+      contentYPct: clamped.yPct,
+      contentWidthPct: grown.widthPct,
+      contentHeightPct: grown.heightPct,
+    });
   }
 
   function handleResetPhotoPosition() {
-    onChange({ innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 });
+    // 지금 박스(틀) 크기에 맞춰 사진을 다시 "꽉 채운 기본 상태"로 되돌려요.
+    const size = computeCoverFitContentSizePct(box.widthPct, box.heightPct, box.naturalWidth, box.naturalHeight);
+    onChange({
+      contentXPct: box.xPct + (box.widthPct - size.widthPct) / 2,
+      contentYPct: box.yPct + (box.heightPct - size.heightPct) / 2,
+      contentWidthPct: size.widthPct,
+      contentHeightPct: size.heightPct,
+    });
   }
 
-  const coverRect = computeImageBoxCoverRect(
-    boxSizePx.w,
-    boxSizePx.h,
-    box.naturalWidth,
-    box.naturalHeight,
-    box.innerOffsetXPct ?? 0,
-    box.innerOffsetYPct ?? 0,
-    box.innerScale ?? 1
-  );
+  const coverRect = contentRectToBoxLocalPx(currentContentRect, currentBoxRect, boxSizePx.w, boxSizePx.h);
 
   return (
     <div
@@ -2155,11 +2235,13 @@ function UploadPageContent() {
   // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "사진" 탭부터 보여줘요.
   const [activeEditTab, setActiveEditTab] = useState<EditTabId>("photo");
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
-  const [showGuidelines, setShowGuidelines] = useState(true);
-  // 내지 펼침면 전용 — '안전영역'과 '접힘·제본 경계'를 각각 따로 켜고 끌 수 있어요
-  // (표지는 이미 showCoverSafetyGuide/showCoverSpineGuide로 따로 있어요).
-  const [showInnerSafetyGuide, setShowInnerSafetyGuide] = useState(true);
-  const [showInnerBindingGuide, setShowInnerBindingGuide] = useState(true);
+  // 예전엔 체크박스로 각각 켜고 끌 수 있었는데, 2026-09-19부터 항상 보이도록 고정하고
+  // (체크박스 UI는 없앴어요) 대신 "인쇄 미리보기"를 켜면 전부 숨기고 재단선 안쪽만 종이
+  // 처럼 확대해서 보여줘요.
+  const showGuidelines = true;
+  const showInnerSafetyGuide = true;
+  const showInnerBindingGuide = true;
+  const [isPrintPreview, setIsPrintPreview] = useState(false);
   // 표지 편집 화면 전용 안내선 켜기/끄기예요(뒤표지·책등·앞표지를 하나의 펼침면으로 보고
   // 계산해요 — 도련선/재단선은 펼침면 전체 기준, 안전영역은 뒤표지·책등·앞표지 각각 기준,
   // 책등 경계는 접힘 위치 전용 안내선이에요). 네 가지를 따로 켜고 끌 수 있어요.
@@ -2460,18 +2542,27 @@ function UploadPageContent() {
       const naturalWidth = img.naturalWidth || 1;
       const naturalHeight = img.naturalHeight || naturalWidth;
       const heightPct = 2 * widthPct * (naturalHeight / naturalWidth);
+      // 스프레드 1(spreadIndex === 0)은 왼쪽 면이 인쇄 안 되는 표지 안쪽 면이라, 오른쪽
+      // 페이지(1페이지) 안쪽에만 들어오도록 기본 위치를 오른쪽 절반(50~100%)으로 옮겨요.
+      // 다른 스프레드는 기존처럼 펼침면 정중앙에 걸치도록 둬요.
+      const xPct = spreadIndex === 0 ? Math.max(50, 100 - widthPct - 7) : 32;
+      const yPct = 25;
+      // 새로 만들 때는 박스(틀)와 사진(콘텐츠)이 정확히 같은 위치·크기예요(원본 비율
+      // 그대로, 잘리는 부분 없이 딱 맞음) — heightPct 계산 자체가 이미 사진 비율과
+      // 일치하도록 돼 있어요.
       const box: ImageBoxDef = {
         id: crypto.randomUUID(),
         url,
         naturalWidth,
         naturalHeight,
-        xPct: 32,
-        yPct: 25,
+        xPct,
+        yPct,
         widthPct,
         heightPct,
-        innerOffsetXPct: 0,
-        innerOffsetYPct: 0,
-        innerScale: 1,
+        contentXPct: xPct,
+        contentYPct: yPct,
+        contentWidthPct: widthPct,
+        contentHeightPct: heightPct,
       };
       setCustomSpreads((prev) =>
         prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), box] } : s))
@@ -2517,8 +2608,33 @@ function UploadPageContent() {
   const redoStackRef = useRef<string[]>([]);
   const isRestoringHistoryRef = useRef(false);
   const lastHistorySnapshotRef = useRef<string | null>(null);
+  // 드래그·리사이즈처럼 짧은 시간에 onChange가 여러 번(마우스무브마다) 연달아 일어나는
+  // 동작을 "실행취소 한 번"으로 묶어주는 디바운스예요(2026-09-19, 혜민님 확인 — 예전엔
+  // 마우스무브 한 번마다 스냅샷이 쌓여서 Ctrl+Z를 눌러도 찔끔찔끔씩만 되돌아갔어요).
+  // burstBaseSnapshotRef = 지금 이어지고 있는 변화가 "시작되기 전" 상태 — 변화가
+  // 멈춘 뒤 HISTORY_DEBOUNCE_MS 동안 조용하면 그 시작 시점 스냅샷 하나만 실행취소
+  // 스택에 쌓아요.
+  const burstBaseSnapshotRef = useRef<string | null>(null);
+  const historyDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const HISTORY_DEBOUNCE_MS = 500;
   const copiedTextBoxRef = useRef<TextBoxDef | null>(null);
   const HISTORY_LIMIT = 60;
+
+  // 디바운스 중(=아직 실행취소 스택에 안 쌓인) 변화가 있으면 지금 바로 하나로 묶어
+  // 쌓아요. 실행취소/다시실행 직전에 반드시 불러야, 방금 끝낸 동작이 통째로 한 단계로
+  // 잡혀요(안 그러면 타이머가 나중에 따로 쌓여서 순서가 엉켜요).
+  function flushPendingHistoryBurst() {
+    if (historyDebounceTimerRef.current) {
+      clearTimeout(historyDebounceTimerRef.current);
+      historyDebounceTimerRef.current = null;
+    }
+    if (burstBaseSnapshotRef.current !== null) {
+      undoStackRef.current.push(burstBaseSnapshotRef.current);
+      if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+      redoStackRef.current = [];
+      burstBaseSnapshotRef.current = null;
+    }
+  }
 
   function buildHistorySnapshot() {
     return JSON.stringify({
@@ -2581,12 +2697,26 @@ function UploadPageContent() {
     if (isRestoringHistoryRef.current) {
       isRestoringHistoryRef.current = false;
       lastHistorySnapshotRef.current = snap;
+      // 되돌리기/다시실행으로 인한 변경은 새 묶음을 시작하지 않아요.
+      if (historyDebounceTimerRef.current) {
+        clearTimeout(historyDebounceTimerRef.current);
+        historyDebounceTimerRef.current = null;
+      }
+      burstBaseSnapshotRef.current = null;
       return;
     }
     if (lastHistorySnapshotRef.current !== null && lastHistorySnapshotRef.current !== snap) {
-      undoStackRef.current.push(lastHistorySnapshotRef.current);
-      if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
-      redoStackRef.current = [];
+      // 지금 이어지는 변화 묶음이 처음 시작될 때만 "시작 전" 상태를 기억해두고, 그 뒤로
+      // 계속 바뀌는 동안은 타이머를 계속 미뤄요. 다 멈추면(HISTORY_DEBOUNCE_MS 동안
+      // 조용) 그때 한 번만 실행취소 스택에 쌓여요 — 드래그 하나 = 실행취소 한 단계.
+      if (burstBaseSnapshotRef.current === null) {
+        burstBaseSnapshotRef.current = lastHistorySnapshotRef.current;
+      }
+      if (historyDebounceTimerRef.current) clearTimeout(historyDebounceTimerRef.current);
+      historyDebounceTimerRef.current = setTimeout(() => {
+        historyDebounceTimerRef.current = null;
+        flushPendingHistoryBurst();
+      }, HISTORY_DEBOUNCE_MS);
     }
     lastHistorySnapshotRef.current = snap;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2615,6 +2745,7 @@ function UploadPageContent() {
   ]);
 
   function handleUndo() {
+    flushPendingHistoryBurst();
     const prevSnap = undoStackRef.current.pop();
     if (prevSnap === undefined) return;
     const current = lastHistorySnapshotRef.current ?? buildHistorySnapshot();
@@ -2623,6 +2754,7 @@ function UploadPageContent() {
   }
 
   function handleRedo() {
+    flushPendingHistoryBurst();
     const nextSnap = redoStackRef.current.pop();
     if (nextSnap === undefined) return;
     const current = lastHistorySnapshotRef.current ?? buildHistorySnapshot();
@@ -3025,6 +3157,11 @@ function UploadPageContent() {
     const GUIDE_SAFETY_MM = 10; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
     const trimXPct = (GUIDE_BLEED_MM / guideSpreadWorkMm) * 100;
     const trimYPct = (GUIDE_BLEED_MM / guidePageWorkMm) * 100;
+    // "인쇄 미리보기"에서 재단선 안쪽만 확대해서 꽉 차게 보여주는 배율이에요 — 가운데를
+    // 기준으로 확대하면 도련(bleed) 부분이 바깥으로 밀려나서 overflow-hidden에 자동으로
+    // 잘려나가고, 재단선 안쪽 라인이 딱 상자 테두리에 맞춰져요.
+    const previewScaleX = 100 / (100 - 2 * trimXPct);
+    const previewScaleY = 100 / (100 - 2 * trimYPct);
     // 바깥쪽(재단 기준) 안전 여백 — 위/아래 및 왼쪽 페이지의 왼쪽·오른쪽 페이지의 오른쪽
     // (제본부 반대쪽) 가장자리에 써요.
     const safetyOuterXPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideSpreadWorkMm) * 100;
@@ -3242,33 +3379,17 @@ function UploadPageContent() {
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
             <div className="mx-auto mt-2 max-w-6xl lg:max-w-none">
               <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
-                  <input
-                    type="checkbox"
-                    checked={showGuidelines}
-                    onChange={(e) => setShowGuidelines(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                  />
-                  작업선·재단선
-                </label>
-                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
-                  <input
-                    type="checkbox"
-                    checked={showInnerSafetyGuide}
-                    onChange={(e) => setShowInnerSafetyGuide(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                  />
-                  안전영역
-                </label>
-                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/60">
-                  <input
-                    type="checkbox"
-                    checked={showInnerBindingGuide}
-                    onChange={(e) => setShowInnerBindingGuide(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-[var(--color-sky)]"
-                  />
-                  접힘·제본 경계
-                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsPrintPreview((v) => !v)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                    isPrintPreview
+                      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                      : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                  }`}
+                >
+                  🖨️ {isPrintPreview ? "인쇄 미리보기 끄기" : "인쇄 미리보기"}
+                </button>
               </div>
 
               <TextBoxToolbar
@@ -3291,7 +3412,9 @@ function UploadPageContent() {
                   setActiveImageBox(null);
                 }}
               >
-                {/* 왼쪽: 전체 페이지 한눈에 보기 */}
+                {/* 왼쪽: 전체 페이지 한눈에 보기 (편집 화면에서는 왼쪽 아이콘 메뉴를 봐야 하니
+                    숨겨요 — 편집하기를 누르면 사라지고, 미리보기로 돌아가면 다시 보여요) */}
+                {editorMode !== "edit" && (
                 <div className="flex gap-2 overflow-x-auto rounded-xl border border-[var(--color-hairline)] bg-white p-2 shadow-sm lg:max-h-[calc(100vh-200px)] lg:w-40 lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pb-0">
                   {isPhotobook && (
                     <button
@@ -3395,6 +3518,7 @@ function UploadPageContent() {
                     </button>
                   )}
                 </div>
+                )}
 
                 {/* 오른쪽: 선택한 페이지 크게 편집 — 미리보기(보기 전용)로 먼저 보여주고,
                     마우스를 올려 "편집하기"를 눌러야 실제로 수정 가능한 편집 화면으로 들어가요 */}
@@ -4144,8 +4268,7 @@ function UploadPageContent() {
                                       </p>
                                     )}
                                   </div>
-                                  {i !== 0 && (
-                                    <div className="border-t border-[var(--color-hairline)] pt-3">
+                                  <div className="border-t border-[var(--color-hairline)] pt-3">
                                       <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
                                         이 페이지에 사진 추가
                                       </p>
@@ -4167,7 +4290,6 @@ function UploadPageContent() {
                                         />
                                       </label>
                                     </div>
-                                  )}
                                 </div>
                               )}
                               {activeEditTab === "background" && (
@@ -4280,7 +4402,6 @@ function UploadPageContent() {
                                       type="button"
                                       title={sticker.label}
                                       onClick={() => handleAddSticker(i, sticker.url)}
-                                      disabled={i === 0}
                                       className="flex h-10 w-10 items-center justify-center rounded border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)] disabled:opacity-30"
                                     >
                                       <img src={sticker.url} alt={sticker.label} className="h-full w-full object-contain" />
@@ -4295,28 +4416,22 @@ function UploadPageContent() {
                               )}
                               {activeEditTab === "text" && (
                                 <div className="flex flex-col gap-2">
-                                  {i === 0 ? (
-                                    <p className="text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                      이 면은 표지 안쪽이라 텍스트를 추가할 수 없어요.
-                                    </p>
-                                  ) : (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAddTextBox(i, "left")}
-                                        className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                                      >
-                                        + 왼쪽 페이지에 글상자 추가
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAddTextBox(i, "right")}
-                                        className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                                      >
-                                        + 오른쪽 페이지에 글상자 추가
-                                      </button>
-                                    </>
+                                  {i !== 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddTextBox(i, "left")}
+                                      className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                    >
+                                      + 왼쪽 페이지에 글상자 추가
+                                    </button>
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddTextBox(i, "right")}
+                                    className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                  >
+                                    + 오른쪽 페이지에 글상자 추가
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -4324,25 +4439,43 @@ function UploadPageContent() {
                             </div>
                             )}
                             <div className="min-w-0 flex-1">
-                            <div className="group relative mt-3 flex w-full items-start bg-white shadow-sm">
+                            <div
+                              className={
+                                isPrintPreview
+                                  ? "relative mx-auto max-w-fit rounded-lg bg-[var(--color-charcoal)]/[0.07] p-8 sm:p-12"
+                                  : ""
+                              }
+                            >
+                              {isPrintPreview && (
+                                <div className="pointer-events-none absolute inset-8 bg-white shadow-[0_25px_55px_-12px_rgba(0,0,0,0.5)] sm:inset-12" />
+                              )}
+                              <div className="relative overflow-hidden">
+                            <div
+                              className={`group relative mt-3 flex w-full items-start bg-white ${
+                                isPrintPreview ? "" : "shadow-sm"
+                              }`}
+                              style={
+                                isPrintPreview
+                                  ? { transform: `scale(${previewScaleX}, ${previewScaleY})`, transformOrigin: "center center" }
+                                  : undefined
+                              }
+                            >
                               {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만
                                   구분해요. "접힘·제본 경계" 안내선을 켜면 그 옆으로 옅은 배경(BindingGuide)이
                                   더해질 뿐, 선은 늘지 않아요. */}
                               <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                               {/* 자유 배치 이미지박스 — 왼쪽·오른쪽 낱장이 아니라 스프레드 전체
                                   위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
-                              {i !== 0 && (
-                                <ImageBoxLayer
-                                  boxes={spread.imageBoxes ?? []}
-                                  onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
-                                  onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
-                                  activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
-                                  onSelect={(boxId) => {
-                                    setActiveTextBox(null);
-                                    setActiveImageBox({ spreadIndex: i, boxId });
-                                  }}
-                                />
-                              )}
+                              <ImageBoxLayer
+                                boxes={spread.imageBoxes ?? []}
+                                onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
+                                onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
+                                activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
+                                onSelect={(boxId) => {
+                                  setActiveTextBox(null);
+                                  setActiveImageBox({ spreadIndex: i, boxId });
+                                }}
+                              />
                               <div className="group relative w-1/2">
                                 {i === 0 ? (
                                   <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">
@@ -4377,6 +4510,7 @@ function UploadPageContent() {
                                     <TextBoxLayer
                                       boxes={spread.textBoxesLeft ?? []}
                                       onAdd={() => handleAddTextBox(i, "left")}
+                                      showAddButton={false}
                                       onChange={(boxId, c) => handleTextBoxChange(i, "left", boxId, c)}
                                       activeBoxId={
                                         activeTextBox?.ref.scope === "spread" &&
@@ -4416,6 +4550,7 @@ function UploadPageContent() {
                                 <TextBoxLayer
                                   boxes={spread.textBoxesRight ?? []}
                                   onAdd={() => handleAddTextBox(i, "right")}
+                                  showAddButton={false}
                                   onChange={(boxId, c) => handleTextBoxChange(i, "right", boxId, c)}
                                   activeBoxId={
                                     activeTextBox?.ref.scope === "spread" &&
@@ -4429,11 +4564,13 @@ function UploadPageContent() {
                                   }
                                 />
                               </div>
-                              {showGuidelines && <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />}
-                              {showInnerBindingGuide && (
+                              {!isPrintPreview && showGuidelines && (
+                                <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />
+                              )}
+                              {!isPrintPreview && showInnerBindingGuide && (
                                 <BindingGuide leftPct={bindingLeftEdgePct} rightPct={bindingRightEdgePct} />
                               )}
-                              {showInnerSafetyGuide &&
+                              {!isPrintPreview && showInnerSafetyGuide &&
                                 (innerSafetyFits ? (
                                   <>
                                     <CoverGuideBox
@@ -4457,6 +4594,8 @@ function UploadPageContent() {
                                   </div>
                                 ))}
                             </div>
+                              </div>
+                              </div>
                             </div>
                           </div>
                         </div>

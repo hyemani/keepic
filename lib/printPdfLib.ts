@@ -75,7 +75,7 @@ const SPINE_LOGO_HEIGHT_RATIO = 1.0; // 로고가 책등 폭(여백 제외) 중 
 // 책등이 이보다 좁으면(양옆 여백 제외 실 폭 기준) 로고를 읽기 어렵다고 보고 생략해요.
 // ⚠️ 추정치예요 — 실제 가독성 최소 폭은 인쇄소·디자인 확인이 필요해요.
 const SPINE_LOGO_MIN_CROSS_MM = 3; // 실측 책등(예: 소프트커버 20페이지 7.22mm)에서도 로고가 항상 보이도록 낮춘 값이에요.
-const KEEPIC_LOGO_ASPECT = 1204 / 416; // public/logo.svg의 원본 가로:세로 비율
+const KEEPIC_LOGO_ASPECT = 1155 / 367; // public/logo.svg의 실제 그림(투명 여백 제외) 가로:세로 비율 — 2026-09-22, 여백 없이 벡터가 꽉 찬 기준으로 변경
 
 function ptToPx(pt: number): number {
   return Math.max(1, Math.round((pt / 72) * RASTER_DPI));
@@ -805,8 +805,8 @@ function drawSpineTitle(
 // "책등 아래쪽에서 고정 여백"으로 고정이고, 혜민님이 화면에서 바꿀 수 없어요.
 async function embedKeepicLogo(pdfDoc: PDFDocument): Promise<PDFImage> {
   const img = await loadImage("/logo.svg");
-  const naturalW = img.naturalWidth || 1204;
-  const naturalH = img.naturalHeight || 416;
+  const naturalW = img.naturalWidth || 1155;
+  const naturalH = img.naturalHeight || 367;
 
   const canvas = document.createElement("canvas");
   // 로고는 글자보다 훨씬 작게 들어가지만, 선명하게 나오도록 원본보다 넉넉한 해상도로 구워요.

@@ -13,7 +13,7 @@
 import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, pageTemplates } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
-import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
+import { computeCoverFitContentSizePct } from "@/lib/imageBoxGeometry";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -288,19 +288,26 @@ function drawImageBoxOnCanvas(
   // 이 페이지와 전혀 안 겹치면 그릴 필요 없어요.
   if (boxLeftPagePx + boxWidthSpreadPx <= 0 || boxLeftPagePx >= pageW) return;
 
-  // 박스(틀) 크기와 사진 원본 비율이 다를 수 있어요(2026-09-18부터 가로·세로를 따로
-  // 조절할 수 있게 됨) — 화면 미리보기와 똑같이 computeImageBoxCoverRect로 "박스를 항상
-  // 꽉 채우면서, 사용자가 고른 확대/위치만큼 보이는 부분을 옮긴" 결과를 계산해서 그려요.
-  // 그냥 drawImage(img, x, y, boxW, boxH)로 늘려 그리면 사진이 찌그러져요.
-  const rect = computeImageBoxCoverRect(
-    boxWidthSpreadPx,
-    boxHeightPx,
-    img.naturalWidth || box.naturalWidth,
-    img.naturalHeight || box.naturalHeight,
-    box.innerOffsetXPct ?? 0,
-    box.innerOffsetYPct ?? 0,
-    box.innerScale ?? 1
-  );
+  // 사진(콘텐츠)은 박스와 별개의 절대 위치·크기를 가져요(2026-09-19 변경, box.xPct와
+  // 같은 좌표계) — 박스는 이 사진을 비추는 창일 뿐이라, 박스 크기를 조절해도 사진 자체는
+  // 안 바뀌어요. 옛날에 만들어진(이 필드가 없는) 이미지박스는 박스를 딱 채우는 기본
+  // cover-fit으로 대체해요.
+  const contentWidthPct = box.contentWidthPct;
+  const contentHeightPct = box.contentHeightPct;
+  const hasContentRect = contentWidthPct != null && contentHeightPct != null;
+  const fallbackSize = hasContentRect
+    ? null
+    : computeCoverFitContentSizePct(box.widthPct, box.heightPct, img.naturalWidth || box.naturalWidth, img.naturalHeight || box.naturalHeight);
+  const finalWidthPct = contentWidthPct ?? fallbackSize!.widthPct;
+  const finalHeightPct = contentHeightPct ?? fallbackSize!.heightPct;
+  const finalXPct = box.contentXPct ?? box.xPct + (box.widthPct - finalWidthPct) / 2;
+  const finalYPct = box.contentYPct ?? box.yPct + (box.heightPct - finalHeightPct) / 2;
+
+  const contentLeftSpreadPx = (finalXPct / 100) * spreadWidthPx;
+  const contentTopPx = (finalYPct / 100) * pageH;
+  const contentWidthSpreadPx = (finalWidthPct / 100) * spreadWidthPx;
+  const contentHeightPx = (finalHeightPct / 100) * pageH;
+  const contentLeftPagePx = contentLeftSpreadPx - pageOffsetPx;
 
   ctx.save();
   ctx.beginPath();
@@ -309,7 +316,7 @@ function drawImageBoxOnCanvas(
   ctx.beginPath();
   ctx.rect(boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
   ctx.clip();
-  ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
+  ctx.drawImage(img, contentLeftPagePx, contentTopPx, contentWidthSpreadPx, contentHeightPx);
   ctx.restore();
 }
 
@@ -607,7 +614,7 @@ function drawGuideOverlay(
 // 같은 계산을 공유해요). 안전영역(GUIDE_SAFETY_MARGIN_MM) 안쪽에 들어가도록, 왼쪽·아래
 // 기준을 안전선 위치로 잡아요.
 // public/logo.svg의 원본 가로:세로 비율이에요 (lib/printPdfLib.ts의 KEEPIC_LOGO_ASPECT와 같은 값).
-const KEEPIC_LOGO_ASPECT = 1204 / 416;
+const KEEPIC_LOGO_ASPECT = 1155 / 367; // public/logo.svg의 실제 그림(투명 여백 제외) 가로:세로 비율 — 2026-09-22, 여백 없이 벡터가 꽉 찬 기준으로 변경
 
 export async function drawIntroPage(
   ctx: CanvasRenderingContext2D,
@@ -716,8 +723,10 @@ export async function buildInnerPrintPdf({
     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
     // 스프레드 1(i === 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요
     // (텍스트박스도 함께 생략해요 — 인쇄 안 되는 면이라 화면에서도 편집할 수 없어요).
-    // 스프레드 1(i === 0)의 왼쪽 면은 인쇄 안 되는 면이라 이미지박스도 함께 생략해요.
-    const spreadImageBoxes = i === 0 ? undefined : spread.imageBoxes;
+    // 이미지박스는 오른쪽 면(1페이지, 시작 페이지)에는 꾸밀 수 있게 허용해요(2026-09
+    // 혜민님 확인) — drawImageBoxOnCanvas가 각 낱장 폭 기준으로 이미 잘라 그려서,
+    // 왼쪽(인쇄 안 되는) 면으로 넘어간 부분은 자동으로 생략돼요.
+    const spreadImageBoxes = spread.imageBoxes;
     const spreadWidthPx = pxW * 2; // 이미지박스 좌표는 "스프레드 전체 폭"(낱장 두 개) 기준이에요.
     const sides: {
       templateId: PageTemplateId;
