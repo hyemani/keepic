@@ -1302,93 +1302,100 @@ function TextBoxToolbar({
     onChange({ verticalAlign: next });
   }
 
+  if (!box) return null;
+
   return (
-    <div className="z-30 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-hairline)] bg-white/95 px-3 py-2 shadow-sm">
-      {box ? (
-        <>
-          <span className="text-[11px] font-medium text-[var(--color-charcoal)]/60">
-            {scopeLabel ?? "텍스트박스"}
-          </span>
-          <select
-            value={box.fontFamily}
-            onChange={(e) => onChange({ fontFamily: e.target.value })}
-            className="h-8 rounded-full border border-[var(--color-hairline)] bg-white px-2 text-xs"
-          >
-            {fontOptions.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              title="글자 작게"
-              onClick={() => onChange({ fontScale: Math.max(0.4, Math.round((box.fontScale - 0.1) * 10) / 10) })}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm"
-            >
-              −
-            </button>
-            <span className="w-9 text-center text-[11px] text-[var(--color-charcoal)]/60">
-              {Math.round(box.fontScale * 100)}%
-            </span>
-            <button
-              type="button"
-              title="글자 크게"
-              onClick={() => onChange({ fontScale: Math.min(4, Math.round((box.fontScale + 0.1) * 10) / 10) })}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-sm"
-            >
-              +
-            </button>
-          </div>
-          <button
-            type="button"
-            title="가로 정렬 바꾸기"
-            onClick={cycleAlign}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-xs"
-          >
-            {box.align === "left" ? "좌" : box.align === "center" ? "중" : "우"}
-          </button>
-          <button
-            type="button"
-            title="세로 정렬 바꾸기 (박스 높이를 조절했을 때만 보여요)"
-            onClick={cycleVerticalAlign}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-hairline)] text-xs"
-          >
-            {(box.verticalAlign ?? "top") === "top" ? "위" : box.verticalAlign === "middle" ? "중" : "아래"}
-          </button>
-          <button
-            type="button"
-            title="굵게"
-            onClick={() => onChange({ bold: !box.bold })}
-            className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold ${
-              box.bold
-                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                : "border-[var(--color-hairline)]"
-            }`}
-          >
-            B
-          </button>
-          <input
-            type="color"
-            value={box.color}
-            onChange={(e) => onChange({ color: e.target.value })}
-            className="h-8 w-8 cursor-pointer rounded-full border border-[var(--color-hairline)] bg-transparent p-0"
-            title="글자 색"
-          />
-          <button
-            type="button"
-            onClick={onDelete}
-            className="ml-auto flex h-8 items-center gap-1 rounded-full border border-red-200 px-3 text-xs text-red-500 transition hover:bg-red-50"
-          >
-            ✕ 삭제
-          </button>
-        </>
-      ) : (
-        <span className="text-xs text-[var(--color-charcoal)]/40">
-          텍스트박스를 선택하면 여기서 글꼴·크기·정렬·색을 바꿀 수 있어요
+    // onMouseDown을 여기서 막아야, 이 패널 안의 select·버튼·color input을 누를 때
+    // 그 mousedown이 상위(캔버스 빈 곳 클릭 시 선택 해제하는 핸들러)까지 올라가서
+    // 패널이 열리자마자 바로 닫혀버리는 문제가 안 생겨요(2026-09-23 버그 수정).
+    // 카드 안에 또 카드가 들어간 느낌을 없애려고 테두리·그림자·둥근 배경은 빼고,
+    // 아래쪽 구분선 하나로만 다른 내용과 나눴어요.
+    <div
+      className="mb-4 flex flex-col gap-2 border-b border-[var(--color-hairline)] pb-4"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-[var(--color-charcoal)]/70">
+          {scopeLabel ?? "텍스트박스"}
         </span>
-      )}
+        <button
+          type="button"
+          onClick={onDelete}
+          className="text-xs text-red-500 underline underline-offset-2 hover:text-red-600"
+        >
+          삭제
+        </button>
+      </div>
+      <select
+        value={box.fontFamily}
+        onChange={(e) => onChange({ fontFamily: e.target.value })}
+        className="w-full rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm"
+        style={{ fontFamily: box.fontFamily }}
+      >
+        {fontOptions.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.label}
+          </option>
+        ))}
+      </select>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          title="글자 작게"
+          onClick={() => onChange({ fontScale: Math.max(0.4, Math.round((box.fontScale - 0.1) * 10) / 10) })}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] text-sm"
+        >
+          −
+        </button>
+        <span className="w-10 text-center text-xs text-[var(--color-charcoal)]/60">
+          {Math.round(box.fontScale * 100)}%
+        </span>
+        <button
+          type="button"
+          title="글자 크게"
+          onClick={() => onChange({ fontScale: Math.min(4, Math.round((box.fontScale + 0.1) * 10) / 10) })}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] text-sm"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          title="굵게"
+          onClick={() => onChange({ bold: !box.bold })}
+          className={`flex h-7 w-7 items-center justify-center rounded-md border text-xs font-bold ${
+            box.bold
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)]"
+          }`}
+        >
+          B
+        </button>
+        <input
+          type="color"
+          value={box.color}
+          onChange={(e) => onChange({ color: e.target.value })}
+          className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-[var(--color-hairline)] bg-transparent p-0"
+          title="글자 색"
+        />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          title="가로 정렬 바꾸기"
+          onClick={cycleAlign}
+          className="flex h-7 flex-1 items-center justify-center rounded-md border border-[var(--color-hairline)] text-xs"
+        >
+          {box.align === "left" ? "왼쪽 정렬" : box.align === "center" ? "가운데 정렬" : "오른쪽 정렬"}
+        </button>
+        <button
+          type="button"
+          title="세로 정렬 바꾸기 (박스 높이를 조절했을 때만 보여요)"
+          onClick={cycleVerticalAlign}
+          className="flex h-7 flex-1 items-center justify-center rounded-md border border-[var(--color-hairline)] text-xs"
+        >
+          {(box.verticalAlign ?? "top") === "top" ? "위 정렬" : box.verticalAlign === "middle" ? "가운데" : "아래 정렬"}
+        </button>
+      </div>
     </div>
   );
 }
