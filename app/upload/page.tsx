@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import { Suspense, useState, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
@@ -2515,6 +2515,67 @@ function renderPage(
   );
 }
 
+// 편집 캔버스(표지/소개 페이지/스프레드)를 실제 사용 가능한 화면 크기에 맞춰 보여주는
+// 공용 "무대"예요. 2026-09 화면 배치 개편 — 예전엔 캔버스가 그냥 남는 가로 폭을 꽉 채우고
+// 세로는 그 폭에 비례해서 자동으로 정해지는 방식이라, 모니터가 넓을수록 세로가 커져서
+// 화면 아래로 잘려 보이는 문제가 있었어요. 이제 이 컴포넌트가 실제로 화면에 남는 가로·세로
+// 공간을 재서, 어느 방향으로도 잘리지 않게 "화면에 맞추기" 크기(zoom=1 기준)를 계산해요.
+// 인쇄 규격(mm)·오브젝트 좌표(%)는 이 계산과 완전히 분리되어 있어요 — 여기서 바뀌는 건
+// 딱 하나, 화면에 보여지는 크기(px)뿐이고, 안에 있는 사진·텍스트박스는 항상 그대로예요.
+function CanvasStage({
+  aspect,
+  zoom,
+  className,
+  children,
+}: {
+  aspect: number;
+  zoom: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const update = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // 눈금자·여백 등 캔버스 바깥 자잘한 요소들을 위한 여유 공간이에요. 정확히 딱 맞추기보다,
+  // 약간 여유를 둬서 어떤 경우에도 스크롤 없이 전체가 보이도록 해요.
+  const SAFETY_PX = 28;
+  const availW = Math.max(0, box.w - SAFETY_PX * 2);
+  const availH = Math.max(0, box.h - SAFETY_PX * 2);
+
+  let fitW = availW;
+  let fitH = availW / aspect;
+  if (fitH > availH && availH > 0) {
+    fitH = availH;
+    fitW = availH * aspect;
+  }
+  const ready = box.w > 0 && box.h > 0 && fitW > 0 && fitH > 0;
+  const displayW = fitW * zoom;
+
+  return (
+    <div
+      ref={viewportRef}
+      className={`relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-auto ${className ?? ""}`}
+    >
+      <div
+        className="shrink-0"
+        style={ready ? { width: `${displayW}px` } : { opacity: 0 }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function UploadPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -2660,6 +2721,12 @@ function UploadPageContent() {
   const [selectedPageKey, setSelectedPageKey] = useState<"cover" | "intro" | number>(
     isPhotobook ? "cover" : 0
   );
+  // 하단 페이지 목록의 이전·다음 이동, 페이지 번호 표시용 — 표지 → 스프레드들 → 소개
+  // 페이지 순서예요(포토북이 아니면 표지·소개 페이지가 없어서 스프레드만 있어요).
+  const pageOrder = useMemo<("cover" | "intro" | number)[]>(() => {
+    const spreadKeys = customSpreads.map((_, i) => i);
+    return isPhotobook ? (["cover", ...spreadKeys, "intro"] as ("cover" | "intro" | number)[]) : spreadKeys;
+  }, [isPhotobook, customSpreads]);
   // "전체 사진 목록" 펼침 패널의 현재 페이지(0부터 시작, PHOTO_GRID_PAGE_SIZE장씩)예요.
   const [photoGridPage, setPhotoGridPage] = useState(0);
   // 내지 배경 꾸미기 탭(단색/그래픽/패턴/텍스처) — 모든 스프레드가 같은 탭을 공유해요.
@@ -3152,6 +3219,20 @@ function UploadPageContent() {
   // 인쇄에 실제로 들어가는 내용만 담고, 화면 전용 설정(가이드선 표시 여부, 확대 배율,
   // 현재 보고 있는 페이지 등)은 담지 않아요 — 그런 것까지 되돌리면 오히려 헷갈려요.
   const [canvasZoom, setCanvasZoom] = useState(1);
+  // 상단바 실제 높이를 재서, 그 아래 편집 영역이 "화면 전체 - 상단바" 높이를 정확히
+  // 채우도록 해요(좁은 화면에서 상단바 버튼이 줄바꿈돼도 자동으로 맞아요, 2026-09 화면
+  // 배치 개편).
+  const topBarRef = useRef<HTMLElement>(null);
+  const [topBarH, setTopBarH] = useState(64);
+  useEffect(() => {
+    const el = topBarRef.current;
+    if (!el) return;
+    const update = () => setTopBarH(el.getBoundingClientRect().height);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const undoStackRef = useRef<string[]>([]);
   const redoStackRef = useRef<string[]>([]);
   const isRestoringHistoryRef = useRef(false);
@@ -3873,18 +3954,90 @@ function UploadPageContent() {
 
     return (
       <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
-        <header className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-8 sm:px-10">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            aria-label="뒤로가기"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
-          >
-            ←
-          </button>
-          <a href="/">
-            <img src="/logo.svg" alt="Keepic" className="h-7 w-auto" />
-          </a>
+        {/* 편집기 전용 상단바 — 2026-09 화면 배치 개편으로 로고 아래 빈 여백을 없애고,
+            뒤로가기·로고·책 이름·실행취소/다시실행·미리보기·확대축소를 한 줄에 정돈함.
+            좁은 화면에서는 flex-wrap으로 줄바꿈돼서 버튼이 겹치지 않아요. 실제로 동작하지
+            않는 "저장" 버튼/상태 표시는 일부러 넣지 않았어요(혜민님 확인, 2026-09-23 —
+            자동저장 기능은 이번 범위 밖). */}
+        <header
+          ref={topBarRef}
+          className="sticky top-0 z-40 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur"
+        >
+          <div className="mx-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 sm:px-6">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              aria-label="뒤로가기"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+            >
+              ←
+            </button>
+            <a href="/" className="shrink-0">
+              <img src="/logo.svg" alt="Keepic" className="h-6 w-auto" />
+            </a>
+            <span className="min-w-0 max-w-[40vw] truncate text-sm font-medium text-[var(--color-charcoal)]/80 sm:max-w-xs">
+              {coverTitle.trim() || "제목 없는 포토북"}
+            </span>
+            {photos.length > 0 && (
+              <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs shadow-sm">
+                  <button
+                    type="button"
+                    onClick={handleUndo}
+                    title="실행취소 (Ctrl+Z)"
+                    className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                  >
+                    ↶
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRedo}
+                    title="다시실행 (Ctrl+Shift+Z)"
+                    className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                  >
+                    ↷
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditorMode(editorMode === "edit" ? "preview" : "edit")}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    editorMode === "preview"
+                      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                      : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                  }`}
+                >
+                  {editorMode === "edit" ? "미리보기" : "✏️ 편집하기"}
+                </button>
+                <div className="flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs shadow-sm">
+                  <button
+                    type="button"
+                    onClick={handleZoomOut}
+                    title="축소 (Ctrl+-)"
+                    className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleZoomReset}
+                    title="화면에 맞추기 (Ctrl+0)"
+                    className="w-14 rounded-full px-1 py-1 text-center text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                  >
+                    {Math.round(canvasZoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleZoomIn}
+                    title="확대 (Ctrl+=)"
+                    className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </header>
 
         <section className="mx-auto max-w-5xl px-6 pt-4 sm:px-10">
@@ -3979,8 +4132,11 @@ function UploadPageContent() {
             // PC 큰 화면에서는 좌우에 흰 여백이 남지 않도록 폭 제한을 풀어요(예전엔
             // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
-            <div className="mx-auto mt-2 max-w-6xl lg:max-w-none">
-              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            <div
+              className="mx-auto mt-2 flex max-w-6xl flex-col lg:max-w-none"
+              style={{ height: `calc(100dvh - ${topBarH}px)`, minHeight: 420 }}
+            >
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 pb-2">
                 <button
                   type="button"
                   onClick={() => setIsPrintPreview((v) => !v)}
@@ -3995,189 +4151,19 @@ function UploadPageContent() {
               </div>
 
               {/* 텍스트박스 바깥(빈 곳)을 누르면 선택이 풀려요 — TextBoxOverlay 쪽 mousedown은
-                  stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요. */}
-              {/* 예전엔 모바일 세로 화면일 땐 이 편집 화면 전체를 숨기고 "가로로 돌려주세요"
-                  안내만 보여줬는데, 그러면 모바일에서 편집을 아예 할 수 없었어요. 이제
-                  모바일 세로에서도 그대로 보이고(위→아래로 쌓여요: 페이지 목록 → 편집
-                  화면 → 꾸미기 메뉴), 화면이 넓어지면(가로 모드·PC) 자동으로 나란히
-                  배치돼요(혜민님 확인, 2026-09). */}
+                  stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요.
+                  2026-09 화면 배치 개편: 왼쪽 페이지 목록은 하단 바(아래 BottomPageBar)로
+                  옮겼고, 실행취소·다시실행·미리보기·확대축소는 상단바로 옮겨서 여기는
+                  편집 캔버스 한 칸만 남았어요 — 높이가 "화면 전체 − 상단바"로 고정돼 있어서
+                  펼침면이 항상 중앙에 꽉 차게 보여요. */}
               <div
-                className="mt-6 flex flex-col gap-4 lg:flex-row"
+                className="flex min-h-0 flex-1 flex-col"
                 onMouseDown={() => {
                   setActiveTextBox(null);
                   setActiveImageBox(null);
                 }}
               >
-                {/* 왼쪽: 전체 페이지 한눈에 보기 (편집 화면에서는 왼쪽 아이콘 메뉴를 봐야 하니
-                    숨겨요 — 편집하기를 누르면 사라지고, 미리보기로 돌아가면 다시 보여요) */}
-                {editorMode !== "edit" && (
-                <div className="flex gap-2 overflow-x-auto rounded-xl border border-[var(--color-hairline)] bg-white p-2 shadow-sm lg:max-h-[calc(100vh-200px)] lg:w-40 lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pb-0">
-                  {isPhotobook && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPageKey("cover")}
-                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
-                        selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
-                      }`}
-                    >
-                      <div
-                        className="pointer-events-none flex w-28 overflow-hidden rounded bg-white shadow-sm lg:w-full"
-                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
-                      >
-                        <div
-                          className="h-full"
-                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
-                        />
-                        <div
-                          className="h-full border-x border-[#1a1a1a]/60"
-                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
-                        />
-                        <div
-                          className="relative h-full overflow-hidden"
-                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
-                        >
-                          {coverPhoto && (
-                            <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" />
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">표지</p>
-                    </button>
-                  )}
-                  {customSpreads.map((spread, i) => {
-                    const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
-                    const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
-                    const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setSelectedPageKey(i)}
-                        className={`shrink-0 rounded-lg border-2 p-1 transition ${
-                          selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
-                        }`}
-                      >
-                        <div className="pointer-events-none grid w-28 grid-cols-2 overflow-hidden rounded bg-white shadow-sm lg:w-full">
-                          <div className="aspect-square overflow-hidden">
-                            {i === 0 ? (
-                              <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)] p-1">
-                                <p className="text-center text-[8px] leading-tight text-[var(--color-charcoal)]/40 break-keep">
-                                  인쇄 안 됨
-                                </p>
-                              </div>
-                            ) : (
-                              renderPage(
-                                spread.left,
-                                leftPhotos,
-                                leftIndexes,
-                                () => {},
-                                () => {},
-                                requiredMinPx,
-                                resolveSpreadBackgroundCss(spread, "right")
-                              )
-                            )}
-                          </div>
-                          <div className="aspect-square overflow-hidden">
-                            {renderPage(
-                              spread.right,
-                              rightPhotos,
-                              rightIndexes,
-                              () => {},
-                              () => {},
-                              requiredMinPx,
-                              resolveSpreadBackgroundCss(spread, "left")
-                            )}
-                          </div>
-                        </div>
-                        <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">
-                          {formatSpreadPageLabel(i)}
-                        </p>
-                      </button>
-                    );
-                  })}
-                  {isPhotobook && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPageKey("intro")}
-                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
-                        selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
-                      }`}
-                    >
-                      <div className="pointer-events-none flex aspect-square w-28 items-end overflow-hidden rounded bg-white p-1 shadow-sm lg:w-full">
-                        {coverPhoto && (
-                          <img src={coverPhoto.url} alt="" className="h-1/2 w-1/2 rounded-sm object-cover" />
-                        )}
-                      </div>
-                      <p className="mt-1 text-center text-[11px] text-[var(--color-charcoal)]/60">
-                        소개 페이지
-                      </p>
-                    </button>
-                  )}
-                </div>
-                )}
-
-                {/* 오른쪽: 선택한 페이지 크게 편집 — 미리보기(보기 전용)로 먼저 보여주고,
-                    마우스를 올려 "편집하기"를 눌러야 실제로 수정 가능한 편집 화면으로 들어가요 */}
-                <div className="min-w-0 flex-1">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    {editorMode === "edit" ? (
-                      <button
-                        type="button"
-                        onClick={() => setEditorMode("preview")}
-                        className="inline-flex items-center gap-1 text-xs text-[var(--color-charcoal)]/60 underline underline-offset-4 transition hover:text-[var(--color-charcoal)]"
-                      >
-                        ← 미리보기로 돌아가기
-                      </button>
-                    ) : (
-                      <span />
-                    )}
-                    <div className="flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs shadow-sm">
-                      <button
-                        type="button"
-                        onClick={handleUndo}
-                        title="실행취소 (Ctrl+Z)"
-                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                      >
-                        ↶ 실행취소
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRedo}
-                        title="다시실행 (Ctrl+Shift+Z)"
-                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                      >
-                        ↷ 다시실행
-                      </button>
-                      <span className="mx-1 h-4 w-px bg-[var(--color-hairline)]" />
-                      <button
-                        type="button"
-                        onClick={handleZoomOut}
-                        title="축소 (Ctrl+-)"
-                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                      >
-                        −
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleZoomReset}
-                        title="100%로 리셋 (Ctrl+0)"
-                        className="w-12 rounded-full px-1 py-1 text-center text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                      >
-                        {Math.round(canvasZoom * 100)}%
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleZoomIn}
-                        title="확대 (Ctrl+=)"
-                        className="rounded-full px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  {/* 텍스트박스 편집 툴바는 예전엔 페이지 전체 맨 위에 고정돼 있었는데,
-                      2026-09-22부터 편집 화면 안(이 캔버스 바로 위)으로 옮겼어요 —
-                      편집 중이 아닐 때는 아예 안 보여요. */}
+                  {/* 텍스트박스 편집 툴바는 편집 중이 아닐 때는 아예 안 보여요. */}
                   {editorMode === "edit" && (
                     <TextBoxToolbar
                       box={activeTextBoxDef}
@@ -4186,8 +4172,10 @@ function UploadPageContent() {
                     />
                   )}
                   <div
-                    className={editorMode === "preview" ? "relative pointer-events-none select-none" : "relative"}
-                    style={{ transform: `scale(${canvasZoom})`, transformOrigin: "top center" }}
+                    className={
+                      (editorMode === "preview" ? "pointer-events-none select-none " : "") +
+                      "relative flex min-h-0 flex-1 flex-col"
+                    }
                     onWheel={(e) => {
                       if (!e.ctrlKey && !e.metaKey) return;
                       e.preventDefault();
@@ -4208,14 +4196,16 @@ function UploadPageContent() {
                       </button>
                     )}
                   {selectedPageKey === "cover" ? (
-                    <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
-                      <p className="text-sm font-medium">앞표지 꾸미기</p>
-                      <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
-                        여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. 뒤표지·책등
-                        꾸미기는 아래에서 따로 설정할 수 있어요.
-                      </p>
-                      
-                      <div className="flex flex-col gap-4 lg:flex-row">
+                    <div className="flex h-full min-h-0 flex-col rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
+                      <div className="shrink-0">
+                        <p className="text-sm font-medium">앞표지 꾸미기</p>
+                        <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
+                          여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. 뒤표지·책등
+                          꾸미기는 아래에서 따로 설정할 수 있어요.
+                        </p>
+                      </div>
+
+                      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
                         {editorMode === "edit" && (
                         <div className="flex gap-2 lg:shrink-0">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
@@ -4576,7 +4566,7 @@ function UploadPageContent() {
                           </div>
                         </div>
                         )}
-                        <div className="min-w-0 flex-1">
+                        <CanvasStage aspect={coverTotalWmm / coverTotalHmm} zoom={canvasZoom}>
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
                             좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
@@ -4728,18 +4718,20 @@ function UploadPageContent() {
                               보이게 했어요 — 필요하면 "미리보기"로 전환해서 안내선 없는 최종 모습을
                               확인하면 돼요). 책등 경계는 위 패널 테두리(항상 표시)만으로 보여줘요. */}
                         </div>
-                        </div>
+                        </CanvasStage>
                       </div>
                     </div>
                   ) : selectedPageKey === "intro" ? (
-                    <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
-                      <p className="text-sm font-medium">마지막 소개 페이지</p>
-                      <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
-                        앞표지 사진·제목이 자동으로 반영돼요(여기서 사진 크기·위치를 조절해도 실제
-                        앞표지에는 영향을 주지 않아요). 오른쪽 면은 인쇄되지 않는 빈 면이에요 —
-                        내지 페이지 수·PDF에는 포함되지 않아요.
-                      </p>
-                      <div className="flex flex-col gap-4 lg:flex-row">
+                    <div className="flex h-full min-h-0 flex-col rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
+                      <div className="shrink-0">
+                        <p className="text-sm font-medium">마지막 소개 페이지</p>
+                        <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
+                          앞표지 사진·제목이 자동으로 반영돼요(여기서 사진 크기·위치를 조절해도 실제
+                          앞표지에는 영향을 주지 않아요). 오른쪽 면은 인쇄되지 않는 빈 면이에요 —
+                          내지 페이지 수·PDF에는 포함되지 않아요.
+                        </p>
+                      </div>
+                      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
                         {editorMode === "edit" && (
                         <div className="lg:w-72 lg:shrink-0">
                         <div className="mt-4 grid grid-cols-1 gap-3">
@@ -4763,8 +4755,8 @@ function UploadPageContent() {
                         </div>
                         </div>
                         )}
-                        <div className="min-w-0 flex-1">
-                        <div className="relative mt-3 flex w-full items-stretch bg-white shadow-sm">
+                        <CanvasStage aspect={2} zoom={canvasZoom}>
+                        <div className="relative flex w-full items-stretch bg-white shadow-sm">
                           <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                           <div className="aspect-square w-1/2">
                             <IntroPagePreview
@@ -4776,14 +4768,9 @@ function UploadPageContent() {
                           </div>
                           <div className="relative aspect-square w-1/2 overflow-hidden bg-[var(--color-ivory)]">
                             <div className="pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-black/10 to-transparent" />
-                            <div className="flex h-full w-full items-center justify-center p-4">
-                              <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
-                                인쇄되지 않는 페이지입니다.
-                              </p>
-                            </div>
                           </div>
                         </div>
-                        </div>
+                        </CanvasStage>
                       </div>
                     </div>
                   ) : (
@@ -4800,8 +4787,8 @@ function UploadPageContent() {
                           ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId)
                           : undefined;
                       return (
-                        <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
-                          <div className="flex flex-col gap-4 lg:flex-row">
+                        <div className="flex h-full min-h-0 flex-col rounded-2xl border border-[var(--color-hairline)] bg-white p-4">
+                          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
                             {editorMode === "edit" && (
                             <div className="flex gap-2 lg:shrink-0">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
@@ -5214,7 +5201,7 @@ function UploadPageContent() {
                               </div>
                             </div>
                             )}
-                            <div className="min-w-0 flex-1">
+                            <CanvasStage aspect={guideSpreadWorkMm / guidePageWorkMm} zoom={canvasZoom}>
                             <div
                               className={
                                 isPrintPreview
@@ -5298,13 +5285,7 @@ function UploadPageContent() {
                               />
                               <div className="group relative w-1/2">
                                 {i === 0 ? (
-                                  <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4">
-                                    <p className="text-center text-xs text-[var(--color-charcoal)]/40 break-keep">
-                                      인쇄되지 않는 페이지입니다.
-                                      <br />
-                                      (표지 안쪽 면이에요)
-                                    </p>
-                                  </div>
+                                  <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-4" />
                                 ) : (
                                   <>
                                     {!isAiAuto && (
@@ -5426,14 +5407,151 @@ function UploadPageContent() {
                             </div>
                               </div>
                               </div>
-                            </div>
+                            </CanvasStage>
                           </div>
                         </div>
                       );
                     })()
                   )}
                   </div>
+              </div>
+
+              {/* 하단 페이지 목록 — 2026-09 화면 배치 개편으로 예전에 미리보기 모드에서만
+                  왼쪽에 보이던 목록을 여기로 옮겨서, 편집 중에도 항상 보이고 캔버스 영역을
+                  가로로 넓게 쓸 수 있게 했어요. 페이지가 많아지면 이 줄 안에서만
+                  가로 스크롤돼요. */}
+              <div className="mt-3 flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const order = pageOrder;
+                    const idx = order.findIndex((k) => k === selectedPageKey);
+                    if (idx > 0) setSelectedPageKey(order[idx - 1]);
+                  }}
+                  disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30"
+                  aria-label="이전 페이지"
+                >
+                  ‹
+                </button>
+                <div className="flex flex-1 gap-2 overflow-x-auto rounded-xl border border-[var(--color-hairline)] bg-white p-2 shadow-sm">
+                  {isPhotobook && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPageKey("cover")}
+                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                        selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
+                      }`}
+                    >
+                      <div
+                        className="pointer-events-none flex h-14 overflow-hidden rounded bg-white shadow-sm"
+                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
+                      >
+                        <div
+                          className="h-full"
+                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
+                        />
+                        <div
+                          className="h-full border-x border-[#1a1a1a]/60"
+                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
+                        />
+                        <div
+                          className="relative h-full overflow-hidden"
+                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
+                        >
+                          {coverPhoto && (
+                            <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" />
+                          )}
+                        </div>
+                      </div>
+                      <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">표지</p>
+                    </button>
+                  )}
+                  {customSpreads.map((spread, i) => {
+                    const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
+                    const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
+                    const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSelectedPageKey(i)}
+                        className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                          selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
+                        }`}
+                      >
+                        <div className="pointer-events-none grid h-14 grid-cols-2 overflow-hidden rounded bg-white shadow-sm" style={{ aspectRatio: "2 / 1" }}>
+                          <div className="overflow-hidden">
+                            {i === 0 ? (
+                              <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)]" />
+                            ) : (
+                              renderPage(
+                                spread.left,
+                                leftPhotos,
+                                leftIndexes,
+                                () => {},
+                                () => {},
+                                requiredMinPx,
+                                resolveSpreadBackgroundCss(spread, "right")
+                              )
+                            )}
+                          </div>
+                          <div className="overflow-hidden">
+                            {renderPage(
+                              spread.right,
+                              rightPhotos,
+                              rightIndexes,
+                              () => {},
+                              () => {},
+                              requiredMinPx,
+                              resolveSpreadBackgroundCss(spread, "left")
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
+                          {formatSpreadPageLabel(i)}
+                        </p>
+                      </button>
+                    );
+                  })}
+                  {isPhotobook && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPageKey("intro")}
+                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                        selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
+                      }`}
+                    >
+                      <div className="pointer-events-none flex h-14 items-end overflow-hidden rounded bg-white p-1 shadow-sm" style={{ aspectRatio: "2 / 1" }}>
+                        {coverPhoto && (
+                          <img src={coverPhoto.url} alt="" className="h-1/2 w-1/2 rounded-sm object-cover" />
+                        )}
+                      </div>
+                      <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
+                        소개 페이지
+                      </p>
+                    </button>
+                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const order = pageOrder;
+                    const idx = order.findIndex((k) => k === selectedPageKey);
+                    if (idx >= 0 && idx < order.length - 1) setSelectedPageKey(order[idx + 1]);
+                  }}
+                  disabled={(() => {
+                    const idx = pageOrder.findIndex((k) => k === selectedPageKey);
+                    return idx < 0 || idx >= pageOrder.length - 1;
+                  })()}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30"
+                  aria-label="다음 페이지"
+                >
+                  ›
+                </button>
+                <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50">
+                  {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
+                </span>
               </div>
             </div>
           )}
