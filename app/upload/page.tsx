@@ -2181,10 +2181,14 @@ const ImageBoxOverlay = forwardRef<
             onSelect();
             emptyFrameFileInputRef.current?.click();
           }}
-          className="absolute inset-0 flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-[var(--color-hairline)] bg-[var(--color-ivory)]/60 text-[10px] text-[var(--color-charcoal)]/50 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
+          // 2026-09-23, 혜민님 요청: 빈 프레임이 "점선 + 사진 추가"보다 눈에 띄도록
+          // 브랜드색(--color-sky) 옅은 배경 + 가운데 큰 "PHOTO" 표시로 바꿨어요.
+          // url이 여전히 빈 문자열이라 인쇄(printCompose.ts drawPage)에는 그대로
+          // 안 그려져요 — 화면 스타일만 바뀐 거예요.
+          className="absolute inset-0 flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-[var(--color-sky)]/40 bg-[var(--color-sky)]/10 text-[var(--color-sky)] transition hover:border-[var(--color-sky)] hover:bg-[var(--color-sky)]/15"
         >
-          <span className="text-lg leading-none">+</span>
-          <span>사진 추가</span>
+          <span className="text-[13px] font-semibold tracking-[0.15em]">PHOTO</span>
+          <span className="text-[9px] text-[var(--color-sky)]/70">+ 사진 추가</span>
         </button>
       )}
       <input
