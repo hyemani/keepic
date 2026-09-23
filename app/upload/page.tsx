@@ -68,16 +68,83 @@ const COVER_TITLE_PT_PRESETS = [12, 18, 24, 30, 36, 48, 60, 72];
 // 페이지에 자유롭게 얹을 수 있는 기본 스티커 세트예요. 실제로는 이미지박스와 같은
 // 방식(ImageBoxDef)으로 다뤄져서, 스티커도 사진처럼 끌어서 옮기고 크기를 바꿀 수
 // 있어요.
-const STICKERS: { id: string; url: string; label: string }[] = [
-  { id: "heart", url: "/stickers/heart.svg", label: "하트" },
-  { id: "star", url: "/stickers/star.svg", label: "별" },
-  { id: "ribbon", url: "/stickers/ribbon.svg", label: "리본" },
-  { id: "tape", url: "/stickers/tape.svg", label: "마스킹 테이프" },
-  { id: "speech-bubble", url: "/stickers/speech-bubble.svg", label: "말풍선" },
-  { id: "cloud", url: "/stickers/cloud.svg", label: "구름" },
-  { id: "sparkle", url: "/stickers/sparkle.svg", label: "반짝임" },
-  { id: "frame", url: "/stickers/frame.svg", label: "프레임" },
+// 스티커·손글씨 탭 둘 다 "카테고리 바 + 썸네일 그리드" 구조를 공유해요(아래
+// CategoryTabbedGrid 컴포넌트). 카테고리는 화면 곳곳에 흩어 적지 않고 이 배열들로만
+// 관리해요 — 나중에 카테고리를 추가/삭제/순서변경할 때 이 배열만 고치면 돼요. "전체"
+// (id: "all")는 두 목록 모두에서 항상 첫 번째 항목이고, 고르면 그 세트의 모든 아이템이
+// 보여요(2026-09-23, 혜민님 스펙).
+type StickerCategoryId =
+  | "all"
+  | "props"
+  | "plant"
+  | "animal"
+  | "ribbon"
+  | "tape"
+  | "frame"
+  | "icon"
+  | "phrase"
+  | "lettering"
+  | "certificate"
+  | "season";
+const STICKER_CATEGORIES: { id: StickerCategoryId; label: string }[] = [
+  { id: "all", label: "전체" },
+  { id: "props", label: "소품" },
+  { id: "plant", label: "꽃·식물" },
+  { id: "animal", label: "동물·캐릭터" },
+  { id: "ribbon", label: "리본" },
+  { id: "tape", label: "테이프·메모" },
+  { id: "frame", label: "라벨·프레임" },
+  { id: "icon", label: "아이콘" },
+  { id: "phrase", label: "문구" },
+  { id: "lettering", label: "스티커 글자" },
+  { id: "certificate", label: "졸업증·상장" },
+  { id: "season", label: "기념일·시즌" },
 ];
+
+type HandwritingCategoryId =
+  | "all"
+  | "daily"
+  | "family"
+  | "travel"
+  | "love"
+  | "pet"
+  | "baby"
+  | "birthday"
+  | "graduation"
+  | "thanks"
+  | "season";
+const HANDWRITING_CATEGORIES: { id: HandwritingCategoryId; label: string }[] = [
+  { id: "all", label: "전체" },
+  { id: "daily", label: "일상" },
+  { id: "family", label: "가족" },
+  { id: "travel", label: "여행" },
+  { id: "love", label: "사랑·커플" },
+  { id: "pet", label: "반려동물" },
+  { id: "baby", label: "아기·성장" },
+  { id: "birthday", label: "생일·기념일" },
+  { id: "graduation", label: "졸업·입학" },
+  { id: "thanks", label: "감사·축하" },
+  { id: "season", label: "계절" },
+];
+
+// 스티커·손글씨 아이템이 공유하는 모양이에요. category가 없으면(=지정 안 하면) "전체"
+// 카테고리에서만 보이고 다른 개별 카테고리에는 안 걸려요.
+type StickerLikeItem = { id: string; url: string; label: string; category?: string };
+
+const STICKERS: StickerLikeItem[] = [
+  { id: "heart", url: "/stickers/heart.svg", label: "하트", category: "props" },
+  { id: "star", url: "/stickers/star.svg", label: "별", category: "props" },
+  { id: "ribbon", url: "/stickers/ribbon.svg", label: "리본", category: "ribbon" },
+  { id: "tape", url: "/stickers/tape.svg", label: "마스킹 테이프", category: "tape" },
+  { id: "speech-bubble", url: "/stickers/speech-bubble.svg", label: "말풍선", category: "props" },
+  { id: "cloud", url: "/stickers/cloud.svg", label: "구름", category: "props" },
+  { id: "sparkle", url: "/stickers/sparkle.svg", label: "반짝임", category: "props" },
+  { id: "frame", url: "/stickers/frame.svg", label: "프레임", category: "frame" },
+];
+
+// 손글씨 스티커는 아직 실제 이미지 에셋이 없어요(2026-09-23 기준, 다음 단계에서 채워요) —
+// 데이터 모양만 STICKERS와 똑같이 맞춰 둬서, 나중에 항목만 추가하면 바로 동작해요.
+const HANDWRITING_ITEMS: StickerLikeItem[] = [];
 
 // 편집 화면 왼쪽 아이콘 메뉴예요(스프레드 페이지 편집 전용, 2026-09-19). 예전엔 사진 추가·
 // 스티커 추가가 캔버스 위에 마우스를 올려야만 보이는 숨은 버튼이었고, 배경 설정은 항상
@@ -3058,6 +3125,72 @@ function CanvasStage({
   );
 }
 
+// 스티커 탭·손글씨 탭이 똑같이 쓰는 "카테고리 가로 스크롤 바 + 4열 썸네일 그리드"
+// 구조예요(2026-09-23) — 두 탭에서 JSX를 따로 두 번 쓰지 않도록 공용 컴포넌트로
+// 뽑았어요. 카테고리 바는 화살표 버튼 없이 가로 스크롤(overflow-x-auto)만으로
+// 넘겨요(트랙패드/마우스 휠로 이동). 선택된 카테고리에 아이템이 하나도 없으면(=아직
+// 채우지 않은 카테고리) 빈 썸네일이나 눌리지 않는 버튼을 보여주는 대신, 조용한 안내
+// 문구만 보여줘요.
+function CategoryTabbedGrid({
+  categories,
+  items,
+  activeCategoryId,
+  onSelectCategory,
+  onItemClick,
+  emptyMessage,
+}: {
+  categories: { id: string; label: string }[];
+  items: { id: string; url: string; label: string; category?: string }[];
+  activeCategoryId: string;
+  onSelectCategory: (id: string) => void;
+  onItemClick: (item: { id: string; url: string; label: string; category?: string }) => void;
+  emptyMessage: string;
+}) {
+  const allCategoryId = categories[0]?.id ?? "all";
+  const visibleItems =
+    activeCategoryId === allCategoryId ? items : items.filter((item) => item.category === activeCategoryId);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-1 overflow-x-auto pb-1 text-[11px]" style={{ scrollbarWidth: "thin" }}>
+        {categories.map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => onSelectCategory(cat.id)}
+            className={`shrink-0 rounded-full px-3 py-1 transition ${
+              activeCategoryId === cat.id
+                ? "bg-[var(--color-sky)] text-white"
+                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </div>
+      {visibleItems.length === 0 ? (
+        <div className="rounded-lg bg-[var(--color-ivory)]/60 p-3 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
+          {emptyMessage}
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-1.5">
+          {visibleItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              title={item.label}
+              onClick={() => onItemClick(item)}
+              className="flex h-10 w-10 items-center justify-center rounded border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)]"
+            >
+              <img src={item.url} alt={item.label} className="h-full w-full object-contain" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UploadPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -3268,6 +3401,9 @@ function UploadPageContent() {
   const [photoGridPage, setPhotoGridPage] = useState(0);
   // 내지 배경 꾸미기 탭(단색/그래픽/패턴/텍스처) — 모든 스프레드가 같은 탭을 공유해요.
   const [backgroundTab, setBackgroundTab] = useState<"solid" | BackgroundPatternCategory>("solid");
+  // 스티커·손글씨 탭에서 지금 선택된 카테고리예요(각 탭 독립, 기본값 "전체").
+  const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("all");
+  const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("all");
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -4015,6 +4151,13 @@ function UploadPageContent() {
 
   function handleAddSticker(spreadIndex: number, stickerUrl: string) {
     handleAddImageBoxFromUrl(spreadIndex, stickerUrl, 14);
+  }
+
+  // 손글씨 스티커도 스티커와 똑같이 이미지박스로 추가해요 — 지금은 HANDWRITING_ITEMS가
+  // 비어 있어서 실제로 호출될 일이 없지만, 아이템이 채워지면 바로 동작하도록 미리
+  // 배선해 둬요(2026-09-23).
+  function handleAddHandwriting(spreadIndex: number, handwritingUrl: string) {
+    handleAddImageBoxFromUrl(spreadIndex, handwritingUrl, 14);
   }
 
   function handleImageBoxChange(spreadIndex: number, boxId: string, changes: Partial<ImageBoxDef>) {
@@ -7227,24 +7370,24 @@ function UploadPageContent() {
                                 </div>
                               )}
                               {activeEditTab === "sticker" && (
-                                <div className="grid grid-cols-4 gap-1.5">
-                                  {STICKERS.map((sticker) => (
-                                    <button
-                                      key={sticker.id}
-                                      type="button"
-                                      title={sticker.label}
-                                      onClick={() => handleAddSticker(i, sticker.url)}
-                                      className="flex h-10 w-10 items-center justify-center rounded border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)] disabled:opacity-30"
-                                    >
-                                      <img src={sticker.url} alt={sticker.label} className="h-full w-full object-contain" />
-                                    </button>
-                                  ))}
-                                </div>
+                                <CategoryTabbedGrid
+                                  categories={STICKER_CATEGORIES}
+                                  items={STICKERS}
+                                  activeCategoryId={stickerCategoryTab}
+                                  onSelectCategory={setStickerCategoryTab}
+                                  onItemClick={(item) => handleAddSticker(i, item.url)}
+                                  emptyMessage="아직 스티커가 없어요."
+                                />
                               )}
                               {activeEditTab === "handwriting" && (
-                                <div className="rounded-lg bg-[var(--color-ivory)]/60 p-3 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
-                                  손글씨 스티커는 준비 중이에요. 곧 추가할게요.
-                                </div>
+                                <CategoryTabbedGrid
+                                  categories={HANDWRITING_CATEGORIES}
+                                  items={HANDWRITING_ITEMS}
+                                  activeCategoryId={handwritingCategoryTab}
+                                  onSelectCategory={setHandwritingCategoryTab}
+                                  onItemClick={(item) => handleAddHandwriting(i, item.url)}
+                                  emptyMessage="손글씨 스티커는 준비 중이에요. 곧 추가할게요."
+                                />
                               )}
                               {activeEditTab === "text" && (
                                 <div className="flex flex-col gap-2">
