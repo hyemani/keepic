@@ -28,6 +28,7 @@ import {
   printFileSpec,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
+import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
   backgroundPatterns,
   backgroundPatternCategories,
@@ -1236,6 +1237,11 @@ function TextBoxOverlay({
           textAlign: box.align,
           fontWeight: box.bold ? 700 : 400,
           flexShrink: 0,
+          // lineHeight/letterSpacing이 지정 안 됐으면(undefined) 인라인 스타일을 아예 안
+          // 넣어서, 기존처럼 className의 "leading-snug"(1.375)·브라우저 기본 자간이 그대로
+          // 적용돼요(2026-09-23 "문자" 패널 통합 전 텍스트박스와 완전히 같은 크기로 보여요).
+          ...(box.lineHeight !== undefined ? { lineHeight: box.lineHeight } : {}),
+          ...(box.letterSpacing !== undefined ? { letterSpacing: `${box.letterSpacing}em` } : {}),
         }}
         className={`w-full cursor-text resize-none border-none bg-transparent leading-snug outline-none ${
           box.heightPct !== undefined
@@ -1288,6 +1294,7 @@ function TextBoxToolbar({
   onChange,
   onDelete,
   scopeLabel,
+  pageWidthMm,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -1295,6 +1302,11 @@ function TextBoxToolbar({
   // 지금 고르고 있는 게 앞표지/뒤표지/내지 중 어떤 텍스트박스인지 — 혼동하지 않도록
   // 항상 보여줘요(2026-09-23 요청).
   scopeLabel?: string;
+  // 이 텍스트박스가 속한 칸(앞표지/뒤표지 칸 또는 내지 낱장)의 실제 폭(mm)이에요 —
+  // "글자 크기(pt)" 입력이 fontScale을 실제 인쇄 pt로 보여주고 되돌리는 데 필요해요
+  // (lib/textBoxFontSize.ts, 2026-09-23 "문자" 패널 통합). 칸마다 폭이 달라서 꼭 그
+  // 칸에 맞는 값을 넘겨줘야 pt 숫자가 실제 인쇄 결과와 맞아요.
+  pageWidthMm: number;
 }) {
   function cycleAlign() {
     if (!box) return;
@@ -1349,26 +1361,31 @@ function TextBoxToolbar({
           </option>
         ))}
       </select>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+          글자 크기(pt)
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={400}
+            step={0.5}
+            list="titlePtPresets"
+            value={textBoxFontScaleToPt(box.fontScale, pageWidthMm)}
+            onChange={(e) => {
+              const pt = Number(e.target.value);
+              if (!Number.isFinite(pt) || pt <= 0) return;
+              onChange({ fontScale: textBoxPtToFontScale(pt, pageWidthMm) });
+            }}
+            className="w-24 rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+          />
+          <span className="text-[11px] text-[var(--color-charcoal)]/40">
+            pt · 표지 제목과 같은 목록에서 골라도 돼요
+          </span>
+        </div>
+      </div>
       <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          title="글자 작게"
-          onClick={() => onChange({ fontScale: Math.max(0.4, Math.round((box.fontScale - 0.1) * 10) / 10) })}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] text-sm"
-        >
-          −
-        </button>
-        <span className="w-10 text-center text-xs text-[var(--color-charcoal)]/60">
-          {Math.round(box.fontScale * 100)}%
-        </span>
-        <button
-          type="button"
-          title="글자 크게"
-          onClick={() => onChange({ fontScale: Math.min(4, Math.round((box.fontScale + 0.1) * 10) / 10) })}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] text-sm"
-        >
-          +
-        </button>
         <button
           type="button"
           title="굵게"
@@ -1388,6 +1405,44 @@ function TextBoxToolbar({
           className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-[var(--color-hairline)] bg-transparent p-0"
           title="글자 색"
         />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+            행간(줄 간격)
+          </label>
+          <input
+            type="number"
+            min={0.8}
+            max={2.5}
+            step={0.05}
+            value={box.lineHeight ?? 1.375}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (!Number.isFinite(v)) return;
+              onChange({ lineHeight: Math.max(0.8, Math.min(2.5, v)) });
+            }}
+            className="w-full rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+            자간
+          </label>
+          <input
+            type="number"
+            min={-0.1}
+            max={0.5}
+            step={0.01}
+            value={box.letterSpacing ?? 0}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (!Number.isFinite(v)) return;
+              onChange({ letterSpacing: Math.max(-0.1, Math.min(0.5, v)) });
+            }}
+            className="w-full rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
       </div>
       <div className="flex items-center gap-1.5">
         <button
@@ -4999,6 +5054,7 @@ function UploadPageContent() {
                               onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
                               onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                               scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
+                              pageWidthMm={coverPanelMm + coverBleedMm}
                             />
                           )}
                           {activeCoverEditTab === "decorate" && (
@@ -6001,6 +6057,7 @@ function UploadPageContent() {
                                 onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
                                 onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                                 scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
+                                pageWidthMm={guidePageWorkMm}
                               />
                             )}
                             <div className="flex items-center justify-between">

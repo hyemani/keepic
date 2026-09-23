@@ -191,6 +191,14 @@ function wrapTextForCanvas(ctx: CanvasRenderingContext2D, text: string, maxWidth
   return lines;
 }
 
+// fontScale(배율, 1이 기본)을 실제 픽셀 크기로 환산할 때 곱하는 "페이지 폭 대비 비율"
+// 이에요 — 화면(app/upload/page.tsx)에서 0.85rem * fontScale로 그리는 것과 같은 비율이
+// 되도록 맞춘 값이라(coverTitle의 titlePx = panelPx * 0.07 * scale와 같은 방식), 화면·
+// 인쇄가 항상 같은 크기로 보여요. lib/textBoxFontSize.ts의 pt 환산도 이 상수를 그대로
+// 가져다 써서(문자 패널의 "글자 크기(pt)" 입력), 화면에 보여주는 pt 숫자가 실제 인쇄
+// 결과와 어긋나지 않게 해요 — 값을 바꾸면 그쪽도 같이 바뀌어야 해요.
+export const TEXT_BOX_FONT_SCALE_BASE_RATIO = 0.032;
+
 function drawTextBoxOnCanvas(
   ctx: CanvasRenderingContext2D,
   box: TextBoxDef,
@@ -204,15 +212,22 @@ function drawTextBoxOnCanvas(
   const x = offsetX + (box.xPct / 100) * pageW;
   const y = offsetY + (box.yPct / 100) * pageH;
   const w = (box.widthPct / 100) * pageW;
-  // 화면(app/upload/page.tsx)에서 0.85rem * fontScale로 그리는 것과 같은 비율이 되도록,
-  // 페이지 폭 기준 비율로 환산해요(coverTitle의 titlePx = panelPx * 0.07 * scale와 같은
-  // 방식 — 화면·인쇄가 항상 같은 크기로 보이게 해요).
-  const fontPx = Math.max(8, Math.round(pageW * 0.032 * box.fontScale));
+  const fontPx = Math.max(8, Math.round(pageW * TEXT_BOX_FONT_SCALE_BASE_RATIO * box.fontScale));
   ctx.font = `${box.bold ? "bold " : ""}${fontPx}px ${box.fontFamily}`;
   ctx.fillStyle = box.color;
   ctx.textAlign = box.align;
   ctx.textBaseline = "top";
-  const lineHeight = fontPx * 1.35;
+  // letterSpacing이 지정돼 있으면(0이 아니어도, 0이어도 "지정"과 "미지정"을 구분해요)
+  // 측정(wrapTextForCanvas)도 실제 그리기와 같은 자간으로 해야 줄바꿈 위치가 어긋나지
+  // 않아요 — 표지 제목(printCompose.ts의 buildCoverPrintPdf)과 같은 feature-detect
+  // 패턴이에요("letterSpacing" in ctx로 지원 여부 확인 후 px 단위 문자열로 지정).
+  if ("letterSpacing" in ctx) {
+    (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing =
+      box.letterSpacing ? `${fontPx * box.letterSpacing}px` : "0px";
+  }
+  // 행간 배수가 지정 안 됐으면 기존처럼 1.35를 그대로 써요(기존 저장된 텍스트박스가
+  // 인쇄 파일에서도 예전과 똑같은 크기로 나오도록).
+  const lineHeight = fontPx * (box.lineHeight ?? 1.35);
   const lines = wrapTextForCanvas(ctx, text, w);
   const textX = box.align === "left" ? x : box.align === "right" ? x + w : x + w / 2;
 
@@ -236,12 +251,20 @@ function drawTextBoxOnCanvas(
       ctx.fillText(line, textX, lineY, w);
     });
     ctx.restore();
+    if ("letterSpacing" in ctx) {
+      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    }
     return;
   }
 
   lines.forEach((line, i) => {
     ctx.fillText(line, textX, y + i * lineHeight, w);
   });
+  // 다음에 이 ctx로 그릴 다른 글자(다른 텍스트박스·캡션 등)에 이 박스의 자간이
+  // 그대로 남아 번지지 않도록 매번 원상복구해요(표지 제목과 같은 패턴).
+  if ("letterSpacing" in ctx) {
+    (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+  }
 }
 
 async function drawPage(

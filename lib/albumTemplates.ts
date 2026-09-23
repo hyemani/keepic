@@ -43,6 +43,13 @@ export type TextBoxDef = {
   color: string;
   align: "left" | "center" | "right";
   bold: boolean;
+  // 행간(줄바꿈 시 줄 사이 배수, em) — 지정 안 하면 기존처럼 화면은 CSS "leading-snug"
+  // (1.375), 인쇄 파일은 1.35를 그대로 써요(2026-09-23 "문자" 패널 통합 때 추가 — 기존에
+  // 저장된 텍스트박스는 이 필드가 없어도 예전과 완전히 같은 크기로 보여요).
+  lineHeight?: number;
+  // 자간(em) — 지정 안 하면(undefined) 기존처럼 자간을 아예 안 줘요(0과 다르게 취급 —
+  // 브라우저 기본 자간 그대로). 표지 제목의 letterSpacing(em)과 같은 단위예요.
+  letterSpacing?: number;
   // 박스 안에서 텍스트를 위/가운데/아래 중 어디에 둘지예요(일러스트레이터 텍스트박스의
   // 세로 정렬과 같아요). heightPct로 박스 높이를 고정했을 때만 실제로 차이가 보여요(높이가
   // 글자 양에 맞춰 자동으로 늘어나는 박스는 남는 공간이 없어서 항상 위와 같아요). 값이
