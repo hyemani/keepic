@@ -2950,7 +2950,6 @@ function UploadPageContent() {
   // 좁은 화면에서 왼쪽 속성 패널을 접어 캔버스를 더 넓게 볼 수 있게 하는 순수 레이아웃
   // 상태예요 — 줌/맞춤(canvasZoom·canvasFitToken)과는 완전히 무관해서, 이 토글을
   // 눌러도 지금 보고 있는 확대 비율·위치는 그대로 유지돼요.
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   // 예전엔 체크박스로 각각 켜고 끌 수 있었는데, 2026-09-19부터 항상 보이도록 고정하고
   // (체크박스 UI는 없앴어요) 대신 "인쇄 미리보기"를 켜면 전부 숨기고 재단선 안쪽만 종이
@@ -4938,19 +4937,9 @@ function UploadPageContent() {
                                 <span className="whitespace-nowrap">{tab.label}</span>
                               </button>
                             ))}
-                            <button
-                              type="button"
-                              onClick={() => setSidebarCollapsed((v) => !v)}
-                              title={sidebarCollapsed ? "패널 펼치기" : "패널 접기"}
-                              className="mt-1 hidden shrink-0 items-center justify-center rounded-lg px-1.5 py-2 text-[10px] text-[var(--color-charcoal)]/50 transition hover:bg-[var(--color-ivory)] lg:flex"
-                            >
-                              {sidebarCollapsed ? "▶" : "◀"}
-                            </button>
                           </div>
                           <div
-                            className={`flex min-h-0 flex-col overflow-y-auto lg:shrink-0 lg:pr-1 ${
-                              sidebarCollapsed ? "lg:hidden" : "lg:w-72"
-                            }`}
+                            className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1"
                           >
                           {activeCoverEditTab === "text" &&
                             activeTextBox &&
@@ -5736,19 +5725,9 @@ function UploadPageContent() {
                                     <span className="whitespace-nowrap">{tab.label}</span>
                                   </button>
                                 ))}
-                                <button
-                                  type="button"
-                                  onClick={() => setSidebarCollapsed((v) => !v)}
-                                  title={sidebarCollapsed ? "패널 펼치기" : "패널 접기"}
-                                  className="mt-1 hidden shrink-0 items-center justify-center rounded-lg px-1.5 py-2 text-[10px] text-[var(--color-charcoal)]/50 transition hover:bg-[var(--color-ivory)] lg:flex"
-                                >
-                                  {sidebarCollapsed ? "▶" : "◀"}
-                                </button>
                               </div>
                               <div
-                                className={`flex min-h-0 flex-col overflow-y-auto lg:shrink-0 ${
-                                  sidebarCollapsed ? "lg:hidden" : "lg:w-64"
-                                }`}
+                                className="flex min-h-0 flex-col overflow-y-auto lg:w-64 lg:shrink-0"
                               >
                             {activeEditTab === "text" && activeTextBox && activeTextBox.ref.scope === "spread" && (
                               <TextBoxToolbar
