@@ -5205,7 +5205,7 @@ function UploadPageContent() {
                             <div
                               className={
                                 isPrintPreview
-                                  ? "relative mx-auto max-w-fit rounded-lg bg-[var(--color-charcoal)]/[0.07] p-8 sm:p-12"
+                                  ? "relative mx-auto w-full rounded-lg bg-[var(--color-charcoal)]/[0.07] p-8 sm:p-12"
                                   : ""
                               }
                             >
