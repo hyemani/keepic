@@ -77,15 +77,18 @@ const STICKERS: { id: string; url: string; label: string }[] = [
 // 펼쳐진 패널로만 있었는데, 이제 다른 사진책 편집기들처럼 아이콘을 눌러야 해당 메뉴가
 // 열리는 구조로 통일해요. "표지변경"(테마 골라서 한 번에 바꾸기)과 "손글씨스티커"는 아직
 // 실제 기능이 없어서 "준비 중" 안내만 보여줘요.
-type EditTabId = "photo" | "layout" | "background" | "theme" | "sticker" | "handwriting" | "text";
+type EditTabId = "layout" | "background" | "theme" | "sticker" | "handwriting" | "text" | "decorate";
 const EDIT_TABS: { id: EditTabId; label: string; icon: string }[] = [
-  { id: "photo", label: "사진", icon: "🖼️" },
   { id: "layout", label: "레이아웃", icon: "▦" },
   { id: "background", label: "배경", icon: "🎨" },
   { id: "theme", label: "표지변경", icon: "✨" },
   { id: "sticker", label: "스티커", icon: "⭐" },
   { id: "handwriting", label: "손글씨스티커", icon: "✏️" },
   { id: "text", label: "텍스트", icon: "Tt" },
+  // 2026-09-23, 혜민님 요청: 독립된 "사진" 탭(과 별도 "사진 추가" 버튼)을 없애고, 레이아웃
+  // 밖에서 사진을 자유롭게 추가·정리하는 기능(사진 보관함 업로드·전체 목록·이 페이지에
+  // 사진 추가)을 여기 "꾸미기" 탭으로 합쳤어요 — 표지 편집의 "꾸미기" 탭과 같은 자리예요.
+  { id: "decorate", label: "꾸미기", icon: "✨" },
 ];
 // "레이아웃" 탭 안에서 셀 개수(사진 몇 장용 템플릿인지)로 골라볼 수 있는 필터예요.
 // "auto"는 지금 적용 범위(왼쪽/오른쪽/펼침면)에 있는 실제 사진 개수에 맞는 템플릿만
@@ -104,14 +107,14 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
-type CoverEditTabId = "photo" | "layout" | "decorate" | "text" | "background";
+type CoverEditTabId = "layout" | "decorate" | "text" | "background";
 const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
-  { id: "photo", label: "사진", icon: "🖼️" },
   // 2026-09-24, 혜민님 요청: 표지도 내지처럼 사진 여러 장을 미리 정해둔 배치로 한 번에
   // 넣을 수 있는 "레이아웃" 탭이에요. 앞표지/뒤표지 각각 따로 적용해요(책등은 사진 칸이
   // 없어서 대상에서 빼고, 표지 전체를 가로지르는 파노라마는 별도 기능이라 여기 포함 안 해요).
   { id: "layout", label: "레이아웃", icon: "▦" },
   // 2026-09, "키픽 로고 vs 작은 사진" 뒤표지 모드 전환을 사진 탭에서 여기로 옮겼어요.
+  // 2026-09-23, 독립 "사진" 탭을 없애면서 앞표지 "사진 바꾸기"도 이 탭으로 합쳤어요.
   { id: "decorate", label: "꾸미기", icon: "✨" },
   // 2026-09, 표지의 "제목"·"텍스트박스" 탭을 내지처럼 "텍스트" 하나로 합쳤어요 —
   // 제목 필드(글자 크기·행간·자간·서체·책등 연결)와 텍스트박스 추가 버튼을 한 곳에서.
@@ -2912,9 +2915,10 @@ function UploadPageContent() {
   function setEditorMode(mode: "preview" | "edit") {
     setEditorModeState({ forPageKey: selectedPageKey, mode });
   }
-  // 편집 화면 왼쪽 아이콘 메뉴(사진/배경/표지변경/스티커/손글씨스티커/텍스트) — 어떤
-  // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "사진" 탭부터 보여줘요.
-  const [activeEditTab, setActiveEditTab] = useState<EditTabId>("photo");
+  // 편집 화면 왼쪽 아이콘 메뉴(레이아웃/배경/표지변경/스티커/손글씨스티커/텍스트/꾸미기) — 어떤
+  // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "레이아웃" 탭부터 보여줘요(2026-09-23,
+  // 독립 "사진" 탭 제거하면서 기본 탭도 바꿨어요).
+  const [activeEditTab, setActiveEditTab] = useState<EditTabId>("layout");
   // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
   // 개수가 안 맞아 적용을 막았을 때 보여줄 안내 문구예요.
   const [layoutApplyRange, setLayoutApplyRange] = useState<LayoutApplyRange>("spread");
@@ -2942,7 +2946,7 @@ function UploadPageContent() {
     candidates: ImageBoxDef[];
   } | null>(null);
   const [pendingCoverLayoutApplySelectedIds, setPendingCoverLayoutApplySelectedIds] = useState<string[]>([]);
-  const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("photo");
+  const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("layout");
   // 표지 배경 탭에서 "지금 어느 범위(전체/앞표지/책등/뒤표지)에 색을 적용할지" 고르는
   // 순수 UI 상태예요 — 데이터가 아니라 선택 상태라 히스토리 스냅샷에는 포함하지 않아요
   // (사진·글상자 선택 상태(activeTextBox 등)와 같은 급).
@@ -4951,8 +4955,11 @@ function UploadPageContent() {
                               scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                             />
                           )}
-                          {activeCoverEditTab === "photo" && (
+                          {activeCoverEditTab === "decorate" && (
                             <div className="flex flex-col gap-3">
+                              {/* 2026-09-23, 독립 "사진" 탭 제거하면서 앞표지 "사진 바꾸기"를
+                                  여기로 합쳤어요 — 레이아웃으로 여러 장 배치 중이면 그쪽에서
+                                  관리하도록 안내만 하고, 아니면 기존 사진 1장 바꾸기 링크를 그대로 둬요. */}
                               {coverImageBoxes.length > 0 ? (
                                 <p className="rounded-lg bg-[var(--color-ivory)] px-3 py-2 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
                                   “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 되돌리려면 레이아웃
@@ -4966,10 +4973,6 @@ function UploadPageContent() {
                                   </label>
                                 )
                               )}
-                            </div>
-                          )}
-                          {activeCoverEditTab === "decorate" && (
-                            <div className="flex flex-col gap-3">
                               <div className="rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
                                 <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   뒤표지 꾸미기
@@ -5761,7 +5764,7 @@ function UploadPageContent() {
                               </div>
                             </div>
                             <div className="mt-3">
-                              {activeEditTab === "photo" && (
+                              {activeEditTab === "decorate" && (
                                 <div className="flex flex-col gap-3">
                                   {activeImageBox?.spreadIndex === i && !imageBoxPhotoEditActive && (
                                     <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
