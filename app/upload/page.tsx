@@ -40,6 +40,12 @@ import {
 import { buildInnerPrintPdfLib, buildCoverPrintPdfLib, computeSpineLogoLayout } from "@/lib/printPdfLib";
 import { mmToPt } from "@/lib/printGeometry";
 import { computeImageBoxCoverRect, clampImageBoxInnerOffset } from "@/lib/imageBoxGeometry";
+import {
+  PhotoLayoutTemplate,
+  LayoutApplyRange,
+  templatesForRange,
+  slotToSpreadCoords,
+} from "@/lib/photoLayoutTemplates";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -70,14 +76,30 @@ const STICKERS: { id: string; url: string; label: string }[] = [
 // 펼쳐진 패널로만 있었는데, 이제 다른 사진책 편집기들처럼 아이콘을 눌러야 해당 메뉴가
 // 열리는 구조로 통일해요. "표지변경"(테마 골라서 한 번에 바꾸기)과 "손글씨스티커"는 아직
 // 실제 기능이 없어서 "준비 중" 안내만 보여줘요.
-type EditTabId = "photo" | "background" | "theme" | "sticker" | "handwriting" | "text";
+type EditTabId = "photo" | "layout" | "background" | "theme" | "sticker" | "handwriting" | "text";
 const EDIT_TABS: { id: EditTabId; label: string; icon: string }[] = [
   { id: "photo", label: "사진", icon: "🖼️" },
+  { id: "layout", label: "레이아웃", icon: "▦" },
   { id: "background", label: "배경", icon: "🎨" },
   { id: "theme", label: "표지변경", icon: "✨" },
   { id: "sticker", label: "스티커", icon: "⭐" },
   { id: "handwriting", label: "손글씨스티커", icon: "✏️" },
   { id: "text", label: "텍스트", icon: "Tt" },
+];
+// "레이아웃" 탭 안에서 셀 개수(사진 몇 장용 템플릿인지)로 골라볼 수 있는 필터예요.
+// "auto"는 지금 적용 범위(왼쪽/오른쪽/펼침면)에 있는 실제 사진 개수에 맞는 템플릿만
+// 자동으로 보여줘요(기본값) — "전체"를 포함해 혜민님이 다른 개수 템플릿도 미리 보고
+// 싶을 때만 직접 골라요.
+type LayoutCountFilter = "auto" | "all" | 1 | 2 | 3 | 4 | 5 | "6+";
+const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
+  { id: "auto", label: "현재 개수" },
+  { id: "all", label: "전체" },
+  { id: 1, label: "1장" },
+  { id: 2, label: "2장" },
+  { id: 3, label: "3장" },
+  { id: 4, label: "4장" },
+  { id: 5, label: "5장" },
+  { id: "6+", label: "6장+" },
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
@@ -2748,6 +2770,11 @@ function UploadPageContent() {
   // 편집 화면 왼쪽 아이콘 메뉴(사진/배경/표지변경/스티커/손글씨스티커/텍스트) — 어떤
   // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "사진" 탭부터 보여줘요.
   const [activeEditTab, setActiveEditTab] = useState<EditTabId>("photo");
+  // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
+  // 개수가 안 맞아 적용을 막았을 때 보여줄 안내 문구예요.
+  const [layoutApplyRange, setLayoutApplyRange] = useState<LayoutApplyRange>("spread");
+  const [layoutCountFilter, setLayoutCountFilter] = useState<LayoutCountFilter>("auto");
+  const [layoutApplyMessage, setLayoutApplyMessage] = useState<string | null>(null);
   const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("photo");
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   // 예전엔 체크박스로 각각 켜고 끌 수 있었는데, 2026-09-19부터 항상 보이도록 고정하고
@@ -3195,6 +3222,59 @@ function UploadPageContent() {
           ? { ...s, imageBoxes: (s.imageBoxes ?? []).map((b) => (b.id === boxId ? { ...b, ...changes } : b)) }
           : s
       )
+    );
+  }
+
+  // 이미지박스가 스프레드에서 "왼쪽 페이지"인지 "오른쪽 페이지"인지 — 박스 가로 중심
+  // 좌표(스프레드 0~100 기준) 50%를 기준으로 나눠요. 레이아웃 템플릿 적용 범위 계산과
+  // "이 스프레드에 사진이 몇 장 있는지" 세는 데 같이 써요.
+  function imageBoxSide(box: ImageBoxDef): "left" | "right" {
+    return box.xPct + box.widthPct / 2 < 50 ? "left" : "right";
+  }
+
+  // 레이아웃 템플릿을 적용할 범위(왼쪽/오른쪽/펼침면 전체)에 지금 놓여 있는 이미지박스만
+  // 골라내요.
+  function imageBoxesInRange(boxes: ImageBoxDef[], range: LayoutApplyRange): ImageBoxDef[] {
+    if (range === "spread") return boxes;
+    return boxes.filter((b) => imageBoxSide(b) === range);
+  }
+
+  // 처음 템플릿을 적용할 때는 "왼쪽→오른쪽, 위→아래" 읽는 순서로 슬롯을 배정하고, 템플릿을
+  // 바꿀 때도 이 순서 그대로 다시 배정해요(각 템플릿의 슬롯 자체가 이미 읽는 순서로
+  // 정의돼 있어서, 매번 이 기준으로 다시 정렬해도 사진 순서가 흐트러지지 않아요).
+  function sortImageBoxesReadingOrder(boxes: ImageBoxDef[]): ImageBoxDef[] {
+    return [...boxes].sort((a, b) => {
+      const rowA = Math.round((a.yPct + a.heightPct / 2) / 8);
+      const rowB = Math.round((b.yPct + b.heightPct / 2) / 8);
+      if (rowA !== rowB) return rowA - rowB;
+      return a.xPct - b.xPct;
+    });
+  }
+
+  // 레이아웃 템플릿을 적용해요 — 선택한 범위(왼쪽/오른쪽/펼침면)에 있는 이미지박스들의
+  // 위치·크기만 템플릿이 정한 자리로 옮기고, 그 사진 자체(url·회전·반전·박스 안 사진
+  // 위치)와 반대쪽 범위의 박스, 텍스트·스티커·배경은 전혀 안 건드려요.
+  function applyLayoutTemplate(spreadIndex: number, range: LayoutApplyRange, template: PhotoLayoutTemplate) {
+    const spread = customSpreads[spreadIndex];
+    if (!spread) return;
+    const allBoxes = spread.imageBoxes ?? [];
+    const inRange = imageBoxesInRange(allBoxes, range);
+    if (inRange.length !== template.photoCount) {
+      setLayoutApplyMessage(
+        `이 템플릿은 사진 ${template.photoCount}장이 필요해요 (지금 이 범위엔 ${inRange.length}장 있어요).`
+      );
+      return;
+    }
+    setLayoutApplyMessage(null);
+    const outOfRange = allBoxes.filter((b) => !inRange.includes(b));
+    const ordered = sortImageBoxesReadingOrder(inRange);
+    const updated = ordered.map((box, idx) => {
+      const slot = template.slots[idx];
+      const { xPct, widthPct } = slotToSpreadCoords(slot, range);
+      return { ...box, xPct, widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
+    });
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...outOfRange, ...updated] } : s))
     );
   }
 
@@ -4796,7 +4876,10 @@ function UploadPageContent() {
                                   추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
                                   이제 다른 편집기들처럼 아이콘을 눌러야 해당 메뉴가 열려요. */}
                               <div className="flex flex-row gap-1 overflow-x-auto lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-visible">
-                                {EDIT_TABS.map((tab) => (
+                                {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
+                                    레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
+                                    격자 칸 방식이라 이 기능이 적용되지 않아요). */}
+                                {EDIT_TABS.filter((tab) => tab.id !== "layout" || isAiAuto).map((tab) => (
                                   <button
                                     key={tab.id}
                                     type="button"
@@ -5055,6 +5138,124 @@ function UploadPageContent() {
                                     </div>
                                 </div>
                               )}
+                              {activeEditTab === "layout" && (() => {
+                                // 스프레드 1(i===0)의 왼쪽 면은 표지 뒷면이라 인쇄 안 되는 빈
+                                // 면이에요 — 그래서 "왼쪽 페이지"·"펼침면 전체"는 고를 수 없고
+                                // "오른쪽 페이지"(=1p)만 적용 가능해요.
+                                const rangeOptions: { id: LayoutApplyRange; label: string }[] =
+                                  i === 0
+                                    ? [{ id: "right", label: "오른쪽 페이지(1p)" }]
+                                    : [
+                                        { id: "left", label: "왼쪽 페이지" },
+                                        { id: "right", label: "오른쪽 페이지" },
+                                        { id: "spread", label: "펼침면 전체" },
+                                      ];
+                                const effectiveRange: LayoutApplyRange =
+                                  i === 0 ? "right" : layoutApplyRange;
+                                const boxesInRange = imageBoxesInRange(spread.imageBoxes ?? [], effectiveRange);
+                                const rangePhotoCount = boxesInRange.length;
+                                const candidates = templatesForRange(effectiveRange);
+                                const visibleTemplates = candidates.filter((t) => {
+                                  if (layoutCountFilter === "auto") return t.photoCount === rangePhotoCount;
+                                  if (layoutCountFilter === "all") return true;
+                                  if (layoutCountFilter === "6+") return t.photoCount >= 6;
+                                  return t.photoCount === layoutCountFilter;
+                                });
+                                return (
+                                  <div className="flex flex-col gap-3">
+                                    <div>
+                                      <p className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 범위</p>
+                                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                        {rangeOptions.map((opt) => (
+                                          <button
+                                            key={opt.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setLayoutApplyRange(opt.id);
+                                              setLayoutApplyMessage(null);
+                                            }}
+                                            className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                                              effectiveRange === opt.id
+                                                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                                            }`}
+                                          >
+                                            {opt.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50">
+                                        지금 이 범위엔 사진이 {rangePhotoCount}장 있어요.
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-medium text-[var(--color-charcoal)]/70">사진 개수</p>
+                                      <div className="mt-1.5 flex flex-wrap gap-1">
+                                        {LAYOUT_COUNT_FILTERS.map((f) => (
+                                          <button
+                                            key={String(f.id)}
+                                            type="button"
+                                            onClick={() => setLayoutCountFilter(f.id)}
+                                            className={`rounded-full px-2.5 py-1 text-[10px] transition ${
+                                              layoutCountFilter === f.id
+                                                ? "bg-[var(--color-brand-purple)] text-white"
+                                                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+                                            }`}
+                                          >
+                                            {f.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    {layoutApplyMessage && (
+                                      <p className="rounded-lg bg-red-50 px-3 py-2 text-[11px] text-red-600 break-keep">
+                                        {layoutApplyMessage}
+                                      </p>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {visibleTemplates.map((t) => (
+                                        <button
+                                          key={t.id}
+                                          type="button"
+                                          onClick={() => applyLayoutTemplate(i, effectiveRange, t)}
+                                          className={`rounded-lg border p-1.5 text-left transition ${
+                                            t.photoCount === rangePhotoCount
+                                              ? "border-[var(--color-hairline)] hover:border-[var(--color-sky)]"
+                                              : "border-[var(--color-hairline)] opacity-50"
+                                          }`}
+                                        >
+                                          <div
+                                            className="relative w-full overflow-hidden rounded bg-[var(--color-ivory)]"
+                                            style={{ aspectRatio: t.scope === "spread" ? "2 / 1" : "1 / 1" }}
+                                          >
+                                            {t.slots.map((slot, idx) => (
+                                              <div
+                                                key={idx}
+                                                className="absolute rounded-[2px] border border-white bg-[var(--color-sky)]/60"
+                                                style={{
+                                                  left: `${slot.xPct}%`,
+                                                  top: `${slot.yPct}%`,
+                                                  width: `${slot.widthPct}%`,
+                                                  height: `${slot.heightPct}%`,
+                                                }}
+                                              />
+                                            ))}
+                                          </div>
+                                          <p className="mt-1 truncate text-[10px] text-[var(--color-charcoal)]/70">
+                                            {t.name}
+                                            {t.hasCaptionSpace ? " · 문구 공간" : ""}
+                                          </p>
+                                        </button>
+                                      ))}
+                                      {visibleTemplates.length === 0 && (
+                                        <p className="col-span-2 text-[11px] text-[var(--color-charcoal)]/40">
+                                          이 조건에 맞는 템플릿이 없어요.
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                               {activeEditTab === "background" && (
                               <div className="flex flex-wrap gap-1 text-[11px]">
                                 <button
