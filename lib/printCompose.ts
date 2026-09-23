@@ -1044,7 +1044,7 @@ export async function buildCoverPrintPdf({
   spineTitleHeightPct,
   spineTitleFontSizePt,
   spineTitleFontFamily = "Pretendard, sans-serif",
-  backCoverMode = "logo",
+  backCoverLogo = { xPct: 50, yPct: 50, scalePct: 100 },
   backCoverPhoto = null,
   backCoverBackgroundColor,
   backCoverPatternId,
@@ -1077,7 +1077,10 @@ export async function buildCoverPrintPdf({
   spineTitleHeightPct?: number; // 같은 텍스트박스의 높이(%). 지정 안 하면 자동 계산해요.
   spineTitleFontSizePt?: number; // 책등 제목 글자 크기(pt) — 혜민님이 화면에서 직접 지정. 비워두면 책등 폭에 맞춰 자동으로 정해요.
   spineTitleFontFamily?: string; // 책등 제목 서체(CSS font-family 값). 표지 제목과 별도로 고를 수 있어요.
-  backCoverMode?: "logo" | "photo";
+  // 뒤표지 키픽 로고예요(2026-09, backCoverMode 토글을 대체) — null이면 로고를
+  // 그리지 않고, 값이 있으면 그 위치(중심 기준 %)·크기(기본 100%=예전 고정 크기)로
+  // 그려요. 사진(backCoverPhoto/backCoverImageBoxes)과는 독립된 객체라 함께 있을 수 있어요.
+  backCoverLogo?: { xPct: number; yPct: number; scalePct: number } | null;
   backCoverPhoto?: PrintPhoto | null;
   backCoverBackgroundColor?: string;
   backCoverPatternId?: string; // 뒤표지 그래픽·패턴·텍스처예요. 지정하면 배경색보다 우선해요.
@@ -1133,11 +1136,14 @@ export async function buildCoverPrintPdf({
   }
   const backCenterXpx = backCellWpx / 2;
   const backCenterYpx = backCellHpx / 2;
-  if (backCoverMode === "photo" && backCoverImageBoxes && backCoverImageBoxes.length > 0) {
+  // 사진(레이아웃 여러 장 또는 사진 1장)과 로고는 이제 서로 독립된 객체라 함께
+  // 있을 수 있어요(2026-09, backCoverMode 배타적 토글 제거) — 사진이 있으면 항상
+  // 그리고, 로고는 backCoverLogo가 있을 때만 별도로 그 위·아래에 얹어요.
+  if (backCoverImageBoxes && backCoverImageBoxes.length > 0) {
     // 레이아웃 탭에서 여러 장 배치를 적용한 뒤표지예요 — 화면 편집기와 같은 좌표계로
     // 그 자리에 그대로 그려요.
     await drawImageBoxesInPanel(ctx, backCoverImageBoxes, 0, 0, backCellWpx, backCellHpx);
-  } else if (backCoverMode === "photo" && backCoverPhoto?.url) {
+  } else if (backCoverPhoto?.url) {
     const backImg = await loadImage(backCoverPhoto.url);
     const naturalW = backImg.naturalWidth || 1;
     const naturalH = backImg.naturalHeight || 1;
@@ -1158,14 +1164,21 @@ export async function buildCoverPrintPdf({
       squarePx,
       squarePx
     );
-  } else {
+  }
+  if (backCoverLogo) {
+    // xPct/yPct는 뒤표지 칸(backCellWpx × backCellHpx) 기준, 로고 "중심"의 위치 %예요
+    // (화면 편집기의 CSS left/top % + translate(-50%,-50%)와 같은 기준 — 2026-09).
+    // scalePct 100 = 예전 고정 크기(칸 너비의 34%)와 같은 크기예요.
     const backLogoImg = await loadImage("/logo.svg");
-    const backLogoWpx = backCellWpx * 0.34;
+    const scale = (backCoverLogo.scalePct ?? 100) / 100;
+    const backLogoWpx = backCellWpx * 0.34 * scale;
     const backLogoHpx = backLogoWpx / KEEPIC_LOGO_ASPECT;
+    const logoCenterXpx = backCellWpx * ((backCoverLogo.xPct ?? 50) / 100);
+    const logoCenterYpx = backCellHpx * ((backCoverLogo.yPct ?? 50) / 100);
     ctx.drawImage(
       backLogoImg,
-      backCenterXpx - backLogoWpx / 2,
-      backCenterYpx - backLogoHpx / 2,
+      logoCenterXpx - backLogoWpx / 2,
+      logoCenterYpx - backLogoHpx / 2,
       backLogoWpx,
       backLogoHpx
     );

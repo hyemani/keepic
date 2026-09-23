@@ -2838,9 +2838,28 @@ function UploadPageContent() {
   // 있다고 해서 불러오자마자 강제로 맞추진 않아요 — 실제 동기화는 누군가 서체를
   // 바꾸는 시점에만 일어나요.
   const [titleFontLinked, setTitleFontLinked] = useState(true);
-  // 뒤표지예요 — 무지(흰 배경)로 비워두지 않고, 기본으로 키픽 로고를 가운데에 배치해요.
-  // "사진"을 고르면 작은 사진을 대신 넣을 수 있고, 배경색도 내지처럼 자유롭게 바꿀 수 있어요.
-  const [backCoverMode, setBackCoverMode] = useState<"logo" | "photo">("logo");
+  // 뒤표지 키픽 로고예요(2026-09, 예전 backCoverMode "logo"/"photo" 배타적 토글을
+  // 대체 — 이제 로고와 사진은 서로 독립된 "꾸미기" 캔버스 객체라 함께 있을 수 있어요).
+  // null이면 로고가 없는 거고, 값이 있으면 그 위치(중심 기준 %)·크기(스프레드 기준
+  // scalePct, 100=예전 고정 크기)를 가리켜요. 새 프로젝트는 예전과 같은 화면이 되도록
+  // 기본값을 "가운데, 예전 고정 크기와 같은 크기"로 시작해요.
+  const [backCoverLogo, setBackCoverLogo] = useState<{ xPct: number; yPct: number; scalePct: number } | null>({
+    xPct: 50,
+    yPct: 50,
+    scalePct: 100,
+  });
+  // 지금 뒤표지 로고가 선택된 상태인지예요(캔버스에서 클릭해 고르면 true — 내지
+  // activeImageBox·표지 activeCoverImageBox와 같은 역할, 로고는 ImageBoxDef가 아니라서
+  // 별도의 boolean으로 관리해요).
+  const [backCoverLogoSelected, setBackCoverLogoSelected] = useState(false);
+  // 뒤표지 로고를 캔버스에서 선택하면 왼쪽 패널이 자동으로 "꾸미기" 탭으로 전환되고,
+  // 다른 선택(텍스트박스·표지 사진박스)은 해제돼요(selectImageBox·selectTextBox와 같은 패턴).
+  function selectBackCoverLogo() {
+    setActiveTextBox(null);
+    setActiveCoverImageBox(null);
+    setBackCoverLogoSelected(true);
+    setActiveCoverEditTab("decorate");
+  }
   const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
   // 뒤표지도 내지처럼 그래픽·패턴·텍스처 배경과 자유 배치 텍스트박스를 넣을 수 있어요.
@@ -2879,6 +2898,7 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setCoverImageBoxPhotoEditActive(false);
     setActiveCoverImageBox({ target, boxId });
+    setBackCoverLogoSelected(false);
     setActiveCoverEditTab("decorate");
   }
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
@@ -3298,6 +3318,7 @@ function UploadPageContent() {
   // 이벤트 핸들러 쪽에서 직접 호출하는 방식(selectTextBox)으로 처리해요.
   function selectTextBox(ref: TextBoxRef, boxId: string) {
     setActiveTextBox({ ref, boxId });
+    setBackCoverLogoSelected(false);
     if (ref.scope === "cover" || ref.scope === "backCover") {
       setActiveCoverEditTab("text");
     } else if (ref.scope === "spread") {
@@ -3783,7 +3804,7 @@ function UploadPageContent() {
       spineTitleFontSizePt,
       spineTitleFontFamily,
       titleFontLinked,
-      backCoverMode,
+      backCoverLogo,
       backCoverPhoto,
       backCoverBackgroundColor,
       backCoverPatternId,
@@ -3813,7 +3834,7 @@ function UploadPageContent() {
     setSpineTitleFontSizePt(s.spineTitleFontSizePt ?? null);
     setSpineTitleFontFamily(s.spineTitleFontFamily ?? fontOptions[0].id);
     setTitleFontLinked(s.titleFontLinked ?? true);
-    setBackCoverMode(s.backCoverMode);
+    setBackCoverLogo(s.backCoverLogo !== undefined ? s.backCoverLogo : { xPct: 50, yPct: 50, scalePct: 100 });
     setBackCoverPhoto(s.backCoverPhoto);
     setBackCoverBackgroundColor(s.backCoverBackgroundColor);
     setBackCoverPatternId(s.backCoverPatternId);
@@ -3825,6 +3846,7 @@ function UploadPageContent() {
     setBackCoverImageBoxes(s.backCoverImageBoxes ?? []);
     setActiveTextBox(null);
     setActiveCoverImageBox(null);
+    setBackCoverLogoSelected(false);
   }
 
   // 매 렌더마다 지금 상태를 스냅샷으로 찍어서, 직전 스냅샷과 다르면(=혜민님이 뭔가
@@ -3873,7 +3895,7 @@ function UploadPageContent() {
     spineTitleFontSizePt,
     spineTitleFontFamily,
     titleFontLinked,
-    backCoverMode,
+    backCoverLogo,
     backCoverPhoto,
     backCoverBackgroundColor,
     backCoverPatternId,
@@ -4082,7 +4104,7 @@ function UploadPageContent() {
       spineTitleHeightPct,
       spineTitleFontSizePt: spineTitleFontSizePt ?? undefined,
       spineTitleFontFamily,
-      backCoverMode,
+      backCoverLogo,
       backCoverPhoto,
       backCoverBackgroundColor,
       backCoverPatternId,
@@ -4909,6 +4931,7 @@ function UploadPageContent() {
                   setActiveTextBox(null);
                   setActiveImageBox(null);
                   setActiveCoverImageBox(null);
+                  setBackCoverLogoSelected(false);
                 }}
               >
                   <div
@@ -5079,6 +5102,96 @@ function UploadPageContent() {
                                     </div>
                                   )}
                                 </>
+                              ) : backCoverLogoSelected ? (
+                                <>
+                                  {/* 뒤표지 로고 속성 패널 — 드래그 대신 숫자 입력으로 위치·
+                                      크기를 조절해요(2026-09, 실제 브라우저 드래그 동작을
+                                      확인할 수 없어 안전한 방식을 택했어요). */}
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs font-medium text-[var(--color-charcoal)]">
+                                      키픽 로고
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => setBackCoverLogoSelected(false)}
+                                      className="text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
+                                    >
+                                      ‹ 뒤로가기
+                                    </button>
+                                  </div>
+                                  {backCoverLogo && (
+                                    <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                                            가로 위치(%)
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step={1}
+                                            min={0}
+                                            max={100}
+                                            value={Math.round(backCoverLogo.xPct)}
+                                            onChange={(e) => {
+                                              const v = Number(e.target.value);
+                                              if (Number.isFinite(v)) {
+                                                setBackCoverLogo((prev) => (prev ? { ...prev, xPct: Math.min(100, Math.max(0, v)) } : prev));
+                                              }
+                                            }}
+                                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                                            세로 위치(%)
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step={1}
+                                            min={0}
+                                            max={100}
+                                            value={Math.round(backCoverLogo.yPct)}
+                                            onChange={(e) => {
+                                              const v = Number(e.target.value);
+                                              if (Number.isFinite(v)) {
+                                                setBackCoverLogo((prev) => (prev ? { ...prev, yPct: Math.min(100, Math.max(0, v)) } : prev));
+                                              }
+                                            }}
+                                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                          />
+                                        </div>
+                                        <div className="col-span-2">
+                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                                            크기(%, 100=기본)
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step={5}
+                                            min={20}
+                                            max={300}
+                                            value={Math.round(backCoverLogo.scalePct)}
+                                            onChange={(e) => {
+                                              const v = Number(e.target.value);
+                                              if (Number.isFinite(v) && v > 0) {
+                                                setBackCoverLogo((prev) => (prev ? { ...prev, scalePct: v } : prev));
+                                              }
+                                            }}
+                                            className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                          />
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setBackCoverLogo({ xPct: 50, yPct: 50, scalePct: 100 });
+                                        }}
+                                        className="mt-2 rounded-full bg-white px-3 py-1 text-[11px] text-[var(--color-charcoal)]/70 shadow-sm"
+                                      >
+                                        가운데로 초기화
+                                      </button>
+                                    </div>
+                                  )}
+                                </>
                               ) : (
                                 <>
                               {/* 2026-09-23, 독립 "사진" 탭 제거하면서 앞표지 "사진 바꾸기"를
@@ -5101,47 +5214,46 @@ function UploadPageContent() {
                                 <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   뒤표지 꾸미기
                                 </label>
+                                {/* 2026-09, backCoverMode "키픽 로고"/"작은 사진" 배타적 토글을
+                                    없앴어요 — 이제 로고와 사진은 독립된 객체라 함께 있을 수 있어요.
+                                    사진은 여기서 바로 바꾸고, 로고는 "로고 추가"로 넣은 뒤 캔버스에서
+                                    클릭해 선택하면 위치·크기를 조절할 수 있어요. */}
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <div className="flex overflow-hidden rounded-full border border-[var(--color-hairline)]">
+                                  {backCoverImageBoxes.length > 0 ? (
+                                    <p className="text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                                      레이아웃 탭에서 여러 장 배치로 관리 중이에요.
+                                    </p>
+                                  ) : (
+                                    <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                                      {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleBackCoverFileSelect}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  )}
+                                  {backCoverLogo ? (
                                     <button
                                       type="button"
-                                      onClick={() => setBackCoverMode("logo")}
-                                      className={`px-3 py-1.5 text-xs transition ${
-                                        backCoverMode === "logo"
-                                          ? "bg-[var(--color-sky)] text-white"
-                                          : "bg-white text-[var(--color-charcoal)]/70"
-                                      }`}
+                                      onClick={() => setBackCoverLogo(null)}
+                                      className="rounded-full border border-[var(--color-hairline)] px-3 py-1 text-[11px] text-[var(--color-charcoal)]/60 transition hover:bg-white"
                                     >
-                                      키픽 로고
+                                      로고 빼기
                                     </button>
+                                  ) : (
                                     <button
                                       type="button"
-                                      onClick={() => setBackCoverMode("photo")}
-                                      className={`px-3 py-1.5 text-xs transition ${
-                                        backCoverMode === "photo"
-                                          ? "bg-[var(--color-sky)] text-white"
-                                          : "bg-white text-[var(--color-charcoal)]/70"
-                                      }`}
+                                      onClick={() => {
+                                        setBackCoverLogo({ xPct: 50, yPct: 50, scalePct: 100 });
+                                        selectBackCoverLogo();
+                                      }}
+                                      className="rounded-full bg-[var(--color-brand-purple)] px-3 py-1 text-[11px] text-white"
                                     >
-                                      작은 사진
+                                      + 로고 추가
                                     </button>
-                                  </div>
-                                  {backCoverMode === "photo" &&
-                                    (backCoverImageBoxes.length > 0 ? (
-                                      <p className="text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                        레이아웃 탭에서 여러 장 배치로 관리 중이에요.
-                                      </p>
-                                    ) : (
-                                      <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                                        {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={handleBackCoverFileSelect}
-                                          className="hidden"
-                                        />
-                                      </label>
-                                    ))}
+                                  )}
                                 </div>
                               </div>
                                 </>
@@ -5192,9 +5304,7 @@ function UploadPageContent() {
                                     ))}
                                   </div>
                                   <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50">
-                                    {!isFront && backCoverMode === "logo"
-                                      ? "뒤표지는 지금 \"키픽 로고\"예요 — 레이아웃을 적용하면 자동으로 \"작은 사진\" 모드로 바뀌어요."
-                                      : `지금 사진이 ${currentCount}장 있어요.`}
+                                    지금 사진이 {currentCount}장 있어요.
                                   </p>
                                 </div>
                                 <div>
@@ -5227,7 +5337,6 @@ function UploadPageContent() {
                                       key={t.id}
                                       type="button"
                                       onClick={() => {
-                                        if (!isFront && backCoverMode === "logo") setBackCoverMode("photo");
                                         if (currentCount > t.slots.length) {
                                           const candidates =
                                             boxesForTarget.length > 0
@@ -5597,13 +5706,10 @@ function UploadPageContent() {
                                 : (backCoverBackgroundColor ?? "#ffffff"),
                             }}
                           >
-                            {backCoverMode === "logo" ? (
-                              <img
-                                src="/logo.svg"
-                                alt="Keepic"
-                                className="pointer-events-none w-[34%] max-w-24 opacity-80"
-                              />
-                            ) : backCoverImageBoxes.length > 0 ? (
+                            {/* 2026-09, 로고("backCoverMode")와 사진은 이제 독립된 객체라
+                                함께 있을 수 있어요 — 사진(레이아웃 여러 장 또는 사진 1장)을
+                                먼저 그리고, 로고는 backCoverLogo가 있을 때만 별도로 얹어요. */}
+                            {backCoverImageBoxes.length > 0 ? (
                               // 레이아웃 탭에서 여러 장 배치를 적용한 뒤표지예요 — 내지와 같은
                               // ImageBoxLayer를 그대로 재사용해서, 빈 프레임 채우기·사진만
                               // 빼기/프레임 삭제·확대·반전이 똑같이 동작해요(2026-09-24).
@@ -5629,7 +5735,7 @@ function UploadPageContent() {
                                 alt=""
                                 className="h-[46%] w-[46%] rounded-sm object-cover shadow-sm"
                               />
-                            ) : (
+                            ) : !backCoverLogo ? (
                               <label className="flex h-[46%] w-[46%] cursor-pointer flex-col items-center justify-center gap-1 rounded-sm border border-dashed border-[var(--color-charcoal)]/30 bg-white text-center text-[9px] text-[var(--color-charcoal)]/50">
                                 사진 선택
                                 <input
@@ -5639,6 +5745,27 @@ function UploadPageContent() {
                                   className="hidden"
                                 />
                               </label>
+                            ) : null}
+                            {backCoverLogo && (
+                              // 로고 위치·크기는 왼쪽 "꾸미기" 패널의 숫자 입력으로 조절해요
+                              // (드래그가 아니라 안전한 숫자 입력 방식으로 구현 — 2026-09,
+                              // 실제 브라우저에서 드래그 동작을 확인할 수 없어 위험을 줄였어요).
+                              // xPct/yPct는 이 칸(뒤표지)을 기준으로 한 로고 "중심" 위치 %예요.
+                              <img
+                                src="/logo.svg"
+                                alt="Keepic"
+                                onClick={() => selectBackCoverLogo()}
+                                className={`absolute cursor-pointer opacity-80 transition ${
+                                  backCoverLogoSelected ? "outline outline-2 outline-[var(--color-sky)]" : ""
+                                }`}
+                                style={{
+                                  left: `${backCoverLogo.xPct}%`,
+                                  top: `${backCoverLogo.yPct}%`,
+                                  width: `${34 * (backCoverLogo.scalePct / 100)}%`,
+                                  maxWidth: `${96 * (backCoverLogo.scalePct / 100)}px`,
+                                  transform: "translate(-50%, -50%)",
+                                }}
+                              />
                             )}
                             <TextBoxLayer
                               boxes={backCoverTextBoxes}
