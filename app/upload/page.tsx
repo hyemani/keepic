@@ -4391,7 +4391,7 @@ function UploadPageContent() {
                               </button>
                             ))}
                           </div>
-                          <div className="lg:w-72 lg:shrink-0 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">
+                          <div className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1">
                           {activeCoverEditTab === "photo" && (
                             <div className="flex flex-col gap-3">
                               {coverPhoto && (
@@ -4979,7 +4979,7 @@ function UploadPageContent() {
                                   </button>
                                 ))}
                               </div>
-                              <div className="lg:w-64 lg:shrink-0">
+                              <div className="flex min-h-0 flex-col overflow-y-auto lg:w-64 lg:shrink-0">
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-medium">
                                 {i === 0 ? "표지/1" : formatSpreadPageLabel(i)}페이지
