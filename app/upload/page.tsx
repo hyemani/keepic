@@ -4663,7 +4663,14 @@ function UploadPageContent() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEditorMode(editorMode === "edit" ? "preview" : "edit")}
+                  onClick={() => {
+                    if (editorMode === "edit") {
+                      setEditorMode("preview");
+                    } else {
+                      setEditorMode("edit");
+                      setIsPrintPreview(false);
+                    }
+                  }}
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                     editorMode === "preview"
                       ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
@@ -4672,6 +4679,20 @@ function UploadPageContent() {
                 >
                   {editorMode === "edit" ? "미리보기" : "✏️ 편집하기"}
                 </button>
+                {editorMode === "preview" && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPrintPreview((v) => !v)}
+                    title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                      isPrintPreview
+                        ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                        : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                    }`}
+                  >
+                    🖨️ 인쇄 미리보기
+                  </button>
+                )}
                 <div className="flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs shadow-sm">
                   <button
                     type="button"
@@ -4698,6 +4719,32 @@ function UploadPageContent() {
                     +
                   </button>
                 </div>
+                {isPhotoCountValid ? (
+                  <button
+                    type="button"
+                    onClick={() => handleProceed(nextUrl, photos)}
+                    disabled={isSaving}
+                    className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-medium text-white transition ${
+                      isSaving
+                        ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                        : "bg-[var(--color-charcoal)] hover:opacity-90"
+                    }`}
+                  >
+                    {isGeneratingPrintFiles
+                      ? "인쇄 파일 만드는 중..."
+                      : isSaving
+                        ? "사진 올리는 중..."
+                        : "다음"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="shrink-0 cursor-not-allowed rounded-full bg-[var(--color-hairline)] px-4 py-1.5 text-xs font-medium text-white/70"
+                  >
+                    다음
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -4799,21 +4846,8 @@ function UploadPageContent() {
               className="mx-auto mt-2 flex w-full max-w-6xl flex-1 flex-col lg:max-w-none"
               style={{ minHeight: 420 }}
             >
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 pb-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPrintPreview((v) => !v)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                    isPrintPreview
-                      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                      : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-                  }`}
-                >
-                  🖨️ {isPrintPreview ? "인쇄 미리보기 끄기" : "인쇄 미리보기"}
-                </button>
-              </div>
-
-              {/* 텍스트박스 바깥(빈 곳)을 누르면 선택이 풀려요 — TextBoxOverlay 쪽 mousedown은
+              {/* 인쇄 미리보기 버튼은 상단바 "미리보기" 옆 보조 버튼으로 옮겼어요(2026-09).
+                  텍스트박스 바깥(빈 곳)을 누르면 선택이 풀려요 — TextBoxOverlay 쪽 mousedown은
                   stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요.
                   2026-09 화면 배치 개편: 왼쪽 페이지 목록은 하단 바(아래 BottomPageBar)로
                   옮겼고, 실행취소·다시실행·미리보기·확대축소는 상단바로 옮겨서 여기는
@@ -6667,31 +6701,8 @@ function UploadPageContent() {
             </p>
           )}
 
-          {photos.length > 0 &&
-            (isPhotoCountValid ? (
-              <button
-                onClick={() => handleProceed(nextUrl, photos)}
-                disabled={isSaving}
-                className={`mt-10 rounded-full px-8 py-4 text-sm font-medium text-white transition ${
-                  isSaving
-                    ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
-                    : "bg-[var(--color-charcoal)] hover:opacity-90"
-                }`}
-              >
-                {isGeneratingPrintFiles
-                  ? "인쇄 파일 만드는 중..."
-                  : isSaving
-                    ? "사진 올리는 중..."
-                    : "다음"}
-              </button>
-            ) : (
-              <button
-                disabled
-                className="mt-10 cursor-not-allowed rounded-full bg-[var(--color-hairline)] px-8 py-4 text-sm font-medium text-white/70"
-              >
-                다음
-              </button>
-            ))}
+          {/* "다음" 진행 버튼은 상단바로 옮겼어요(2026-09) — 저장/진행 로직은
+              handleProceed 그대로, 버튼만 위로 이동. */}
         </section>
         </div>
       </main>
