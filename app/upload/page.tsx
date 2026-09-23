@@ -45,6 +45,7 @@ import {
   LayoutApplyRange,
   templatesForRange,
   slotToSpreadCoords,
+  COVER_LAYOUT_TEMPLATES,
 } from "@/lib/photoLayoutTemplates";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
@@ -103,9 +104,13 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
-type CoverEditTabId = "photo" | "title" | "background" | "textbox";
+type CoverEditTabId = "photo" | "layout" | "title" | "background" | "textbox";
 const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
   { id: "photo", label: "사진", icon: "🖼️" },
+  // 2026-09-24, 혜민님 요청: 표지도 내지처럼 사진 여러 장을 미리 정해둔 배치로 한 번에
+  // 넣을 수 있는 "레이아웃" 탭이에요. 앞표지/뒤표지 각각 따로 적용해요(책등은 사진 칸이
+  // 없어서 대상에서 빼고, 표지 전체를 가로지르는 파노라마는 별도 기능이라 여기 포함 안 해요).
+  { id: "layout", label: "레이아웃", icon: "▦" },
   { id: "title", label: "제목", icon: "Tt" },
   { id: "background", label: "배경", icon: "🎨" },
   { id: "textbox", label: "텍스트박스", icon: "💬" },
@@ -2835,6 +2840,19 @@ function UploadPageContent() {
   const [coverFrontBackgroundColor, setCoverFrontBackgroundColor] = useState<string | undefined>(undefined);
   // 표지 앞면에 자유롭게 배치하는 텍스트박스예요(제목과는 별개예요).
   const [coverTextBoxes, setCoverTextBoxes] = useState<TextBoxDef[]>([]);
+  // 표지 "레이아웃" 탭(2026-09-24 추가)에서 여러 장짜리 템플릿을 적용하면 쓰는 사진
+  // 배열이에요. 내지의 imageBoxes와 완전히 같은 구조(ImageBoxDef)라서 빈 프레임·
+  // "+사진 추가"·"사진만 빼기"/"프레임 삭제" 구분이 그대로 재사용돼요. 비어있으면
+  // (레이아웃을 아직 안 썼으면) 기존처럼 coverPhoto/backCoverPhoto 사진 1장 방식을 그대로
+  // 써요 — 레이아웃을 처음 적용하는 순간 그 사진이 새 배열의 첫 칸으로 이어받아져요.
+  const [coverImageBoxes, setCoverImageBoxes] = useState<ImageBoxDef[]>([]);
+  const [backCoverImageBoxes, setBackCoverImageBoxes] = useState<ImageBoxDef[]>([]);
+  // 표지 레이아웃 탭에서 지금 선택된 사진박스예요(캔버스에서 클릭해 고른 박스의 편집
+  // 버튼들을 보여주는 데 씀 — 내지의 activeImageBox와 같은 역할).
+  const [activeCoverImageBox, setActiveCoverImageBox] = useState<{
+    target: "front" | "back";
+    boxId: string;
+  } | null>(null);
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
   // "마지막 소개 페이지"(발행 정보)예요. 발행일은 최초 생성 시 한국 날짜로 한 번만
   // 정하고(아래 useEffect), 그 뒤로는 다시 열거나 PDF를 저장해도 자동으로 바뀌지
@@ -2903,6 +2921,17 @@ function UploadPageContent() {
     candidates: ImageBoxDef[];
   } | null>(null);
   const [pendingLayoutApplySelectedIds, setPendingLayoutApplySelectedIds] = useState<string[]>([]);
+  // 표지 레이아웃 탭용 — 위 pendingLayoutApply/layoutApplyMessage와 같은 역할인데
+  // 표지(앞표지/뒤표지)에 적용할 때만 써요(2026-09-24 추가). 적용 대상(앞표지/뒤표지)은
+  // 내지의 "적용 범위"에 대응하는 값이에요.
+  const [coverLayoutApplyTarget, setCoverLayoutApplyTarget] = useState<"front" | "back">("front");
+  const [coverLayoutApplyMessage, setCoverLayoutApplyMessage] = useState<string | null>(null);
+  const [pendingCoverLayoutApply, setPendingCoverLayoutApply] = useState<{
+    target: "front" | "back";
+    template: PhotoLayoutTemplate;
+    candidates: ImageBoxDef[];
+  } | null>(null);
+  const [pendingCoverLayoutApplySelectedIds, setPendingCoverLayoutApplySelectedIds] = useState<string[]>([]);
   const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("photo");
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   // 예전엔 체크박스로 각각 켜고 끌 수 있었는데, 2026-09-19부터 항상 보이도록 고정하고
@@ -3504,6 +3533,99 @@ function UploadPageContent() {
     );
   }
 
+  // 표지(앞표지·뒤표지)에 레이아웃 템플릿을 적용해요 — 위 applyLayoutTemplate(내지용)과
+  // 같은 방식이에요(칸보다 사진이 적으면 빈 프레임, 많으면 선택 팝업). 다만 표지는
+  // "범위"(왼쪽/오른쪽/펼침면) 개념이 없이 앞표지·뒤표지 각각 사진 배열 하나씩이라 더
+  // 단순해요. 레이아웃을 처음 쓰는 표지라면(=배열이 비어있고 기존 방식대로 사진이 1장
+  // 있으면, coverPhoto/backCoverPhoto) 그 사진을 새 배열의 첫 칸으로 이어받아요(2026-09-24
+  // 추가 — "레이아웃 적용하면 기존 사진이 사라진다"는 혼란을 막기 위해서예요). natural
+  // 크기를 다시 읽어야 해서 이 이어받는 부분만 비동기로 처리해요.
+  function applyCoverLayoutTemplate(target: "front" | "back", template: PhotoLayoutTemplate, selectedIds?: string[]) {
+    const isFront = target === "front";
+    const existingBoxes = isFront ? coverImageBoxes : backCoverImageBoxes;
+    const legacyPhoto = isFront ? coverPhoto : backCoverPhoto;
+
+    function finish(baseBoxes: ImageBoxDef[]) {
+      const usable = selectedIds
+        ? selectedIds.map((id) => baseBoxes.find((b) => b.id === id)).filter((b): b is ImageBoxDef => !!b)
+        : baseBoxes.slice(0, template.slots.length);
+      const extraBoxes = selectedIds
+        ? baseBoxes.filter((b) => !selectedIds.includes(b.id))
+        : baseBoxes.slice(template.slots.length);
+      const placed = template.slots.map((slot, idx) => {
+        const existing = usable[idx];
+        if (existing) {
+          return { ...existing, xPct: slot.xPct, yPct: slot.yPct, widthPct: slot.widthPct, heightPct: slot.heightPct };
+        }
+        const emptyBox: ImageBoxDef = {
+          id: crypto.randomUUID(),
+          url: "",
+          naturalWidth: 1,
+          naturalHeight: 1,
+          xPct: slot.xPct,
+          yPct: slot.yPct,
+          widthPct: slot.widthPct,
+          heightPct: slot.heightPct,
+          innerOffsetXPct: 0,
+          innerOffsetYPct: 0,
+          innerScale: 1,
+        };
+        return emptyBox;
+      });
+      setCoverLayoutApplyMessage(
+        extraBoxes.length > 0
+          ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 사진이 더 있어서 앞 ${template.slots.length}장만 채우고 나머지는 그대로 남겨뒀어요.`
+          : null
+      );
+      if (isFront) {
+        setCoverImageBoxes([...extraBoxes, ...placed]);
+        setCoverPhoto(null);
+      } else {
+        setBackCoverImageBoxes([...extraBoxes, ...placed]);
+        setBackCoverPhoto(null);
+      }
+    }
+
+    if (existingBoxes.length > 0 || !legacyPhoto) {
+      finish(existingBoxes);
+      return;
+    }
+    const img = new window.Image();
+    img.onload = () => {
+      finish([
+        {
+          id: crypto.randomUUID(),
+          url: legacyPhoto.url,
+          naturalWidth: img.naturalWidth || 1,
+          naturalHeight: img.naturalHeight || 1,
+          xPct: 0,
+          yPct: 0,
+          widthPct: 100,
+          heightPct: 100,
+          innerOffsetXPct: 0,
+          innerOffsetYPct: 0,
+          innerScale: 1,
+        },
+      ]);
+    };
+    img.src = legacyPhoto.url;
+  }
+
+  function handleCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
+    setCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+  }
+  function handleDeleteCoverImageBox(boxId: string) {
+    setCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
+    setActiveCoverImageBox((prev) => (prev && prev.target === "front" && prev.boxId === boxId ? null : prev));
+  }
+  function handleBackCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
+    setBackCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+  }
+  function handleDeleteBackCoverImageBox(boxId: string) {
+    setBackCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
+    setActiveCoverImageBox((prev) => (prev && prev.target === "back" && prev.boxId === boxId ? null : prev));
+  }
+
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
     // "AI 맞춤 레이아웃"에서 박스 자체의 ✕ 버튼으로 지울 때도, 반대 방향으로
     // "전체 사진 목록"의 사진 목록이 계속 남아있지 않도록 짝이 되는 사진도 같이 지워요.
@@ -3597,6 +3719,8 @@ function UploadPageContent() {
       coverSpineBackgroundColor,
       coverFrontBackgroundColor,
       coverTextBoxes,
+      coverImageBoxes,
+      backCoverImageBoxes,
     });
   }
 
@@ -3624,7 +3748,10 @@ function UploadPageContent() {
     setCoverSpineBackgroundColor(s.coverSpineBackgroundColor);
     setCoverFrontBackgroundColor(s.coverFrontBackgroundColor);
     setCoverTextBoxes(s.coverTextBoxes);
+    setCoverImageBoxes(s.coverImageBoxes ?? []);
+    setBackCoverImageBoxes(s.backCoverImageBoxes ?? []);
     setActiveTextBox(null);
+    setActiveCoverImageBox(null);
   }
 
   // 매 렌더마다 지금 상태를 스냅샷으로 찍어서, 직전 스냅샷과 다르면(=혜민님이 뭔가
@@ -3680,6 +3807,8 @@ function UploadPageContent() {
     coverSpineBackgroundColor,
     coverFrontBackgroundColor,
     coverTextBoxes,
+    coverImageBoxes,
+    backCoverImageBoxes,
   ]);
 
   function handleUndo() {
@@ -3887,6 +4016,8 @@ function UploadPageContent() {
       coverSpineBackgroundColor,
       coverFrontBackgroundColor,
       coverTextBoxes,
+      coverImageBoxes,
+      backCoverImageBoxes,
     });
 
     const uuid = () => crypto.randomUUID();
@@ -4363,6 +4494,106 @@ function UploadPageContent() {
             </div>
           </div>
         )}
+        {/* 표지 레이아웃 탭용 선택 팝업이에요 — 위 pendingLayoutApply 팝업(내지용)과
+            같은 구조·같은 동작이에요(2026-09-24 추가). 취소하면(바깥 클릭 포함) 아무것도
+            안 바뀌고 그대로 닫혀요. */}
+        {pendingCoverLayoutApply && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            onClick={() => setPendingCoverLayoutApply(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-xl"
+            >
+              <div className="border-b border-[var(--color-hairline)] px-4 py-3">
+                <p className="text-sm font-semibold">이 템플릿에 쓸 사진을 골라주세요</p>
+                <p className="mt-0.5 text-[11px] text-[var(--color-charcoal)]/50">
+                  사진 칸 {pendingCoverLayoutApply.template.slots.length}개예요. 지금
+                  사진이 {pendingCoverLayoutApply.candidates.length}장 있어서, 쓸 사진을
+                  정확히 {pendingCoverLayoutApply.template.slots.length}장 골라야 해요. 고르지
+                  않은 사진은 그대로 남아요.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 overflow-y-auto p-4">
+                {pendingCoverLayoutApply.candidates.map((box) => {
+                  const checked = pendingCoverLayoutApplySelectedIds.includes(box.id);
+                  const atLimit =
+                    !checked &&
+                    pendingCoverLayoutApplySelectedIds.length >= pendingCoverLayoutApply.template.slots.length;
+                  return (
+                    <button
+                      key={box.id}
+                      type="button"
+                      disabled={atLimit}
+                      onClick={() =>
+                        setPendingCoverLayoutApplySelectedIds((prev) =>
+                          checked ? prev.filter((id) => id !== box.id) : [...prev, box.id]
+                        )
+                      }
+                      className={`relative aspect-square overflow-hidden rounded-md border-2 transition ${
+                        checked
+                          ? "border-[var(--color-sky)]"
+                          : atLimit
+                            ? "cursor-not-allowed border-[var(--color-hairline)] opacity-40"
+                            : "border-transparent hover:border-[var(--color-sky)]/50"
+                      }`}
+                    >
+                      {box.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={box.url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40">
+                          빈 프레임
+                        </div>
+                      )}
+                      {checked && (
+                        <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-sky)] text-[9px] text-white">
+                          {pendingCoverLayoutApplySelectedIds.indexOf(box.id) + 1}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-2 border-t border-[var(--color-hairline)] px-4 py-3">
+                <p className="text-[11px] text-[var(--color-charcoal)]/50">
+                  {pendingCoverLayoutApplySelectedIds.length} / {pendingCoverLayoutApply.template.slots.length}개 선택
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingCoverLayoutApply(null)}
+                    className="rounded-full border border-[var(--color-hairline)] px-4 py-1.5 text-xs text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      pendingCoverLayoutApplySelectedIds.length !== pendingCoverLayoutApply.template.slots.length
+                    }
+                    onClick={() => {
+                      applyCoverLayoutTemplate(
+                        pendingCoverLayoutApply.target,
+                        pendingCoverLayoutApply.template,
+                        pendingCoverLayoutApplySelectedIds
+                      );
+                      setPendingCoverLayoutApply(null);
+                    }}
+                    className={`rounded-full px-4 py-1.5 text-xs font-medium text-white transition ${
+                      pendingCoverLayoutApplySelectedIds.length === pendingCoverLayoutApply.template.slots.length
+                        ? "bg-[var(--color-charcoal)] hover:opacity-90"
+                        : "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                    }`}
+                  >
+                    적용
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* 편집기 전용 상단바 — 2026-09 화면 배치 개편으로 로고 아래 빈 여백을 없애고,
             뒤로가기·로고·책 이름·실행취소/다시실행·미리보기·확대축소를 한 줄에 정돈함.
             좁은 화면에서는 flex-wrap으로 줄바꿈돼서 버튼이 겹치지 않아요. 실제로 동작하지
@@ -4569,6 +4800,7 @@ function UploadPageContent() {
                 onMouseDown={() => {
                   setActiveTextBox(null);
                   setActiveImageBox(null);
+                  setActiveCoverImageBox(null);
                 }}
               >
                   <div
@@ -4640,11 +4872,19 @@ function UploadPageContent() {
                           )}
                           {activeCoverEditTab === "photo" && (
                             <div className="flex flex-col gap-3">
-                              {coverPhoto && (
-                                <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                                  표지 사진 바꾸기
-                                  <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
-                                </label>
+                              {coverImageBoxes.length > 0 ? (
+                                <p className="rounded-lg bg-[var(--color-ivory)] px-3 py-2 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
+                                  지금 앞표지는 “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 캔버스에서
+                                  사진 박스를 눌러 바꾸거나, 레이아웃 탭에서 “꽉 채우기”를 다시 골라
+                                  사진 1장 방식으로 되돌릴 수 있어요.
+                                </p>
+                              ) : (
+                                coverPhoto && (
+                                  <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                                    표지 사진 바꾸기
+                                    <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                                  </label>
+                                )
                               )}
                               <div className="rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
                                 <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
@@ -4675,21 +4915,170 @@ function UploadPageContent() {
                                       작은 사진
                                     </button>
                                   </div>
-                                  {backCoverMode === "photo" && (
-                                    <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                                      {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleBackCoverFileSelect}
-                                        className="hidden"
-                                      />
-                                    </label>
-                                  )}
+                                  {backCoverMode === "photo" &&
+                                    (backCoverImageBoxes.length > 0 ? (
+                                      <p className="text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+                                        레이아웃 탭에서 여러 장 배치로 관리 중이에요.
+                                      </p>
+                                    ) : (
+                                      <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                                        {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={handleBackCoverFileSelect}
+                                          className="hidden"
+                                        />
+                                      </label>
+                                    ))}
                                 </div>
                               </div>
                             </div>
                           )}
+                          {activeCoverEditTab === "layout" && (() => {
+                            const target: "front" | "back" = coverLayoutApplyTarget;
+                            const isFront = target === "front";
+                            const boxesForTarget = isFront ? coverImageBoxes : backCoverImageBoxes;
+                            const legacyPhotoForTarget = isFront ? coverPhoto : backCoverPhoto;
+                            // 레이아웃을 아직 한 번도 안 썼으면(배열이 비어있으면), 기존
+                            // 사진 1장(있으면)을 "지금 사진 개수 1장"으로 쳐서 필터·안내
+                            // 문구를 보여줘요 — 실제로 배열에 이어받는 건 적용 순간에요.
+                            const currentCount = boxesForTarget.length > 0 ? boxesForTarget.length : legacyPhotoForTarget ? 1 : 0;
+                            const visibleTemplates = COVER_LAYOUT_TEMPLATES.filter((t) => {
+                              if (layoutCountFilter === "auto") return t.photoCount === currentCount;
+                              if (layoutCountFilter === "all") return true;
+                              if (layoutCountFilter === "6+") return t.photoCount >= 6;
+                              return t.photoCount === layoutCountFilter;
+                            });
+                            return (
+                              <div className="flex flex-col gap-3">
+                                <div>
+                                  <p className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 대상</p>
+                                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                    {(
+                                      [
+                                        { id: "front" as const, label: "앞표지" },
+                                        { id: "back" as const, label: "뒤표지" },
+                                      ]
+                                    ).map((opt) => (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setCoverLayoutApplyTarget(opt.id);
+                                          setCoverLayoutApplyMessage(null);
+                                        }}
+                                        className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                                          target === opt.id
+                                            ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                            : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50">
+                                    {!isFront && backCoverMode === "logo"
+                                      ? "뒤표지는 지금 \"키픽 로고\"예요 — 레이아웃을 적용하면 자동으로 \"작은 사진\" 모드로 바뀌어요."
+                                      : `지금 사진이 ${currentCount}장 있어요.`}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-[var(--color-charcoal)]/70">사진 개수</p>
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {LAYOUT_COUNT_FILTERS.filter((f) => f.id === "auto" || f.id === "all" || (typeof f.id === "number" && f.id <= 3)).map((f) => (
+                                      <button
+                                        key={String(f.id)}
+                                        type="button"
+                                        onClick={() => setLayoutCountFilter(f.id)}
+                                        className={`rounded-full px-2.5 py-1 text-[10px] transition ${
+                                          layoutCountFilter === f.id
+                                            ? "bg-[var(--color-brand-purple)] text-white"
+                                            : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+                                        }`}
+                                      >
+                                        {f.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {coverLayoutApplyMessage && (
+                                  <p className="rounded-lg bg-[var(--color-ivory)] px-3 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
+                                    {coverLayoutApplyMessage}
+                                  </p>
+                                )}
+                                <div className="grid grid-cols-2 gap-2">
+                                  {visibleTemplates.map((t) => (
+                                    <button
+                                      key={t.id}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!isFront && backCoverMode === "logo") setBackCoverMode("photo");
+                                        if (currentCount > t.slots.length) {
+                                          const candidates =
+                                            boxesForTarget.length > 0
+                                              ? boxesForTarget
+                                              : legacyPhotoForTarget
+                                                ? [
+                                                    {
+                                                      id: "__legacy__",
+                                                      url: legacyPhotoForTarget.url,
+                                                      naturalWidth: 1,
+                                                      naturalHeight: 1,
+                                                      xPct: 0,
+                                                      yPct: 0,
+                                                      widthPct: 100,
+                                                      heightPct: 100,
+                                                      innerOffsetXPct: 0,
+                                                      innerOffsetYPct: 0,
+                                                      innerScale: 1,
+                                                    } as ImageBoxDef,
+                                                  ]
+                                                : [];
+                                          setPendingCoverLayoutApply({ target, template: t, candidates });
+                                          setPendingCoverLayoutApplySelectedIds(
+                                            candidates.slice(0, t.slots.length).map((b) => b.id)
+                                          );
+                                          return;
+                                        }
+                                        applyCoverLayoutTemplate(target, t);
+                                      }}
+                                      className="rounded-lg border border-[var(--color-hairline)] p-1.5 text-left transition hover:border-[var(--color-sky)]"
+                                    >
+                                      <div className="relative w-full overflow-hidden rounded bg-[var(--color-ivory)]" style={{ aspectRatio: "1 / 1" }}>
+                                        {t.slots.map((slot, idx) => (
+                                          <div
+                                            key={idx}
+                                            className="absolute rounded-[2px] border border-white bg-[var(--color-sky)]/60"
+                                            style={{
+                                              left: `${slot.xPct}%`,
+                                              top: `${slot.yPct}%`,
+                                              width: `${slot.widthPct}%`,
+                                              height: `${slot.heightPct}%`,
+                                            }}
+                                          />
+                                        ))}
+                                      </div>
+                                      <p className="mt-1 truncate text-[10px] text-[var(--color-charcoal)]/70">
+                                        {t.name}
+                                        {t.hasCaptionSpace ? " · 문구 공간" : ""}
+                                      </p>
+                                      <p className="mt-0.5 text-[9px] text-[var(--color-charcoal)]/50">
+                                        사진 칸 {t.photoCount}개
+                                        {t.photoCount !== currentCount ? ` · 지금 ${currentCount}장` : ""}
+                                      </p>
+                                    </button>
+                                  ))}
+                                  {visibleTemplates.length === 0 && (
+                                    <p className="col-span-2 text-[11px] text-[var(--color-charcoal)]/40">
+                                      이 조건에 맞는 템플릿이 없어요.
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
                           {activeCoverEditTab === "title" && (
                             <div className="flex flex-col gap-2">
                               <textarea
@@ -4986,6 +5375,21 @@ function UploadPageContent() {
                                 alt="Keepic"
                                 className="pointer-events-none w-[34%] max-w-24 opacity-80"
                               />
+                            ) : backCoverImageBoxes.length > 0 ? (
+                              // 레이아웃 탭에서 여러 장 배치를 적용한 뒤표지예요 — 내지와 같은
+                              // ImageBoxLayer를 그대로 재사용해서, 빈 프레임 채우기·사진만
+                              // 빼기/프레임 삭제·확대·반전이 똑같이 동작해요(2026-09-24).
+                              <ImageBoxLayer
+                                boxes={backCoverImageBoxes}
+                                onChange={handleBackCoverImageBoxChange}
+                                onDelete={handleDeleteBackCoverImageBox}
+                                activeBoxId={
+                                  activeCoverImageBox?.target === "back" ? activeCoverImageBox.boxId : null
+                                }
+                                onSelect={(boxId) => setActiveCoverImageBox({ target: "back", boxId })}
+                                guidesX={[]}
+                                guidesY={[]}
+                              />
                             ) : backCoverPhoto ? (
                               <img
                                 src={backCoverPhoto.url}
@@ -5049,7 +5453,19 @@ function UploadPageContent() {
                             className="group relative h-full overflow-hidden"
                             style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
                           >
-                            {coverPhoto ? (
+                            {coverImageBoxes.length > 0 ? (
+                              <ImageBoxLayer
+                                boxes={coverImageBoxes}
+                                onChange={handleCoverImageBoxChange}
+                                onDelete={handleDeleteCoverImageBox}
+                                activeBoxId={
+                                  activeCoverImageBox?.target === "front" ? activeCoverImageBox.boxId : null
+                                }
+                                onSelect={(boxId) => setActiveCoverImageBox({ target: "front", boxId })}
+                                guidesX={[]}
+                                guidesY={[]}
+                              />
+                            ) : coverPhoto ? (
                               <PhotoCell
                                 photo={coverPhoto}
                                 requiredMinPx={requiredMinPx}
@@ -6004,8 +6420,12 @@ function UploadPageContent() {
                           className="relative h-full overflow-hidden"
                           style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
                         >
-                          {coverPhoto && (
-                            <img src={coverPhoto.url} alt="" className="h-full w-full object-cover" />
+                          {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
+                            <img
+                              src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
                           )}
                         </div>
                       </div>
@@ -6097,8 +6517,12 @@ function UploadPageContent() {
                       }`}
                     >
                       <div className="pointer-events-none flex h-14 items-end overflow-hidden rounded bg-white p-1 shadow-sm" style={{ aspectRatio: "2 / 1" }}>
-                        {coverPhoto && (
-                          <img src={coverPhoto.url} alt="" className="h-1/2 w-1/2 rounded-sm object-cover" />
+                        {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
+                          <img
+                            src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
+                            alt=""
+                            className="h-1/2 w-1/2 rounded-sm object-cover"
+                          />
                         )}
                       </div>
                       <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">

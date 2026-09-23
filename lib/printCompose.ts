@@ -335,6 +335,52 @@ function drawImageBoxOnCanvas(
   ctx.restore();
 }
 
+// 표지 앞표지·뒤표지의 "레이아웃" 탭(여러 장 배치, 2026-09-24)용이에요 — 위
+// drawImageBoxOnCanvas와 같은 계산(computeImageBoxCoverRect)을 쓰지만, 스프레드처럼
+// 페이지 경계를 넘나들 일이 없는 패널 하나(앞표지 칸 또는 뒤표지 칸) 안에서만 그려서 더
+// 단순해요. box의 xPct 등은 이 패널 자체를 100%로 보는 좌표예요(화면 편집기의 표지
+// 레이아웃 탭과 같은 좌표계). 빈 프레임(url이 빈 문자열)은 그대로 건너뛰어요.
+async function drawImageBoxesInPanel(
+  ctx: CanvasRenderingContext2D,
+  boxes: ImageBoxDef[],
+  originXpx: number,
+  originYpx: number,
+  panelWpx: number,
+  panelHpx: number
+) {
+  for (const box of boxes) {
+    if (!box.url) continue;
+    const img = await loadImage(box.url);
+    const boxLeftPx = originXpx + (box.xPct / 100) * panelWpx;
+    const boxTopPx = originYpx + (box.yPct / 100) * panelHpx;
+    const boxWidthPx = (box.widthPct / 100) * panelWpx;
+    const boxHeightPx = (box.heightPct / 100) * panelHpx;
+    const rect = computeImageBoxCoverRect(
+      boxWidthPx,
+      boxHeightPx,
+      img.naturalWidth || box.naturalWidth,
+      img.naturalHeight || box.naturalHeight,
+      box.innerOffsetXPct ?? 0,
+      box.innerOffsetYPct ?? 0,
+      box.innerScale ?? 1
+    );
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx);
+    ctx.clip();
+    if (box.flipX) {
+      ctx.save();
+      ctx.translate(boxLeftPx + rect.x + rect.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, boxTopPx + rect.y, rect.width, rect.height);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, boxLeftPx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
+    }
+    ctx.restore();
+  }
+}
+
 async function drawPageTemplate(
   ctx: CanvasRenderingContext2D,
   templateId: PageTemplateId,
@@ -1006,6 +1052,8 @@ export async function buildCoverPrintPdf({
   coverSpineBackgroundColor,
   coverFrontBackgroundColor,
   coverTextBoxes,
+  coverImageBoxes,
+  backCoverImageBoxes,
 }: {
   cover: PhotobookCoverId;
   sizeInnerTrimMm: number; // 내지 재단 사이즈(정사각형 한 변, mm) — 예: L=300
@@ -1037,6 +1085,11 @@ export async function buildCoverPrintPdf({
   coverSpineBackgroundColor?: string; // 지정 안 하면 기존 기본색(아이보리 #f4f1ea) 그대로예요.
   coverFrontBackgroundColor?: string; // 지정 안 하면 흰색 그대로예요(사진 뒤로 비치는 여백 색).
   coverTextBoxes?: TextBoxDef[]; // 표지 앞면에 자유 배치한 텍스트박스예요.
+  // 표지 "레이아웃" 탭(2026-09-24, 화면 app/upload/page.tsx)에서 여러 장짜리 템플릿을
+  // 적용했을 때 쓰는 사진 배열이에요. 비어있으면(레이아웃을 안 썼으면) 기존처럼
+  // coverPhoto/backCoverPhoto 사진 1장 방식 그대로 그려요.
+  coverImageBoxes?: ImageBoxDef[];
+  backCoverImageBoxes?: ImageBoxDef[];
 }): Promise<PrintPdfResult> {
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
@@ -1080,7 +1133,11 @@ export async function buildCoverPrintPdf({
   }
   const backCenterXpx = backCellWpx / 2;
   const backCenterYpx = backCellHpx / 2;
-  if (backCoverMode === "photo" && backCoverPhoto?.url) {
+  if (backCoverMode === "photo" && backCoverImageBoxes && backCoverImageBoxes.length > 0) {
+    // 레이아웃 탭에서 여러 장 배치를 적용한 뒤표지예요 — 화면 편집기와 같은 좌표계로
+    // 그 자리에 그대로 그려요.
+    await drawImageBoxesInPanel(ctx, backCoverImageBoxes, 0, 0, backCellWpx, backCellHpx);
+  } else if (backCoverMode === "photo" && backCoverPhoto?.url) {
     const backImg = await loadImage(backCoverPhoto.url);
     const naturalW = backImg.naturalWidth || 1;
     const naturalH = backImg.naturalHeight || 1;
@@ -1165,7 +1222,11 @@ export async function buildCoverPrintPdf({
     ctx.fillStyle = coverFrontBackgroundColor;
     ctx.fillRect(frontX, 0, frontCellWpx, frontCellHpx);
   }
-  if (coverPhoto?.url) {
+  if (coverImageBoxes && coverImageBoxes.length > 0) {
+    // 레이아웃 탭에서 여러 장 배치를 적용한 앞표지예요 — 화면 편집기와 같은 좌표계로
+    // 그 자리에 그대로 그려요.
+    await drawImageBoxesInPanel(ctx, coverImageBoxes, frontX, 0, frontCellWpx, frontCellHpx);
+  } else if (coverPhoto?.url) {
     const img = await loadImage(coverPhoto.url);
     drawPhotoInCell(ctx, img, coverPhoto, frontX, 0, frontCellWpx, frontCellHpx);
   }

@@ -145,6 +145,15 @@ export const HALF_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
   { id: "half-9-grid", name: "9장 격자", photoCount: 9, scope: "half", slots: grid(3, 3) },
 ];
 
+// 표지(앞표지·뒤표지) 레이아웃 탭에서 쓰는 템플릿이에요(2026-09-24, 혜민님 요청) — 표지
+// 앞면·뒷면은 정사각형 낱장 하나라서 위 "half" 스코프 템플릿을 그대로 재사용해요(따로 새
+// 템플릿을 만들 필요가 없었어요). 요청하신 "사진 꽉 채우기·여백형·사진+제목 공간·2장·
+// 3장 콜라주" 구성에 맞게 사진 1~3장짜리만 골라서 보여줘요(표지 전체를 가로지르는
+// 파노라마는 별도 기능이라 여기 포함 안 해요).
+export const COVER_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = HALF_LAYOUT_TEMPLATES.filter(
+  (t) => t.photoCount <= 3
+);
+
 export const SPREAD_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
   {
     id: "spread-1-panorama",
