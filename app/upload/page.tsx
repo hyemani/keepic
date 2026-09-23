@@ -104,16 +104,19 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
-type CoverEditTabId = "photo" | "layout" | "title" | "background" | "textbox";
+type CoverEditTabId = "photo" | "layout" | "decorate" | "text" | "background";
 const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
   { id: "photo", label: "사진", icon: "🖼️" },
   // 2026-09-24, 혜민님 요청: 표지도 내지처럼 사진 여러 장을 미리 정해둔 배치로 한 번에
   // 넣을 수 있는 "레이아웃" 탭이에요. 앞표지/뒤표지 각각 따로 적용해요(책등은 사진 칸이
   // 없어서 대상에서 빼고, 표지 전체를 가로지르는 파노라마는 별도 기능이라 여기 포함 안 해요).
   { id: "layout", label: "레이아웃", icon: "▦" },
-  { id: "title", label: "제목", icon: "Tt" },
+  // 2026-09, "키픽 로고 vs 작은 사진" 뒤표지 모드 전환을 사진 탭에서 여기로 옮겼어요.
+  { id: "decorate", label: "꾸미기", icon: "✨" },
+  // 2026-09, 표지의 "제목"·"텍스트박스" 탭을 내지처럼 "텍스트" 하나로 합쳤어요 —
+  // 제목 필드(글자 크기·행간·자간·서체·책등 연결)와 텍스트박스 추가 버튼을 한 곳에서.
+  { id: "text", label: "텍스트", icon: "Tt" },
   { id: "background", label: "배경", icon: "🎨" },
-  { id: "textbox", label: "텍스트박스", icon: "💬" },
 ];
 function measureSpineTitleFontSizeMm(
   title: string,
@@ -2940,6 +2943,10 @@ function UploadPageContent() {
   } | null>(null);
   const [pendingCoverLayoutApplySelectedIds, setPendingCoverLayoutApplySelectedIds] = useState<string[]>([]);
   const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("photo");
+  // 표지 배경 탭에서 "지금 어느 범위(전체/앞표지/책등/뒤표지)에 색을 적용할지" 고르는
+  // 순수 UI 상태예요 — 데이터가 아니라 선택 상태라 히스토리 스냅샷에는 포함하지 않아요
+  // (사진·글상자 선택 상태(activeTextBox 등)와 같은 급).
+  const [coverBackgroundScope, setCoverBackgroundScope] = useState<"all" | "front" | "spine" | "back">("all");
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   // 예전엔 체크박스로 각각 켜고 끌 수 있었는데, 2026-09-19부터 항상 보이도록 고정하고
   // (체크박스 UI는 없앴어요) 대신 "인쇄 미리보기"를 켜면 전부 숨기고 재단선 안쪽만 종이
@@ -3201,7 +3208,7 @@ function UploadPageContent() {
     setCustomSpreads((prev) =>
       prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
     );
-    setActiveTextBox({ ref: { scope: "spread", spreadIndex, side }, boxId: box.id });
+    selectTextBox({ scope: "spread", spreadIndex, side }, box.id);
   }
 
   function handleTextBoxChange(
@@ -3231,7 +3238,7 @@ function UploadPageContent() {
   function handleAddCoverTextBox() {
     const box = makeTextBox();
     setCoverTextBoxes((prev) => [...prev, box]);
-    setActiveTextBox({ ref: { scope: "cover" }, boxId: box.id });
+    selectTextBox({ scope: "cover" }, box.id);
   }
 
   function handleCoverTextBoxChange(boxId: string, changes: Partial<TextBoxDef>) {
@@ -3247,7 +3254,7 @@ function UploadPageContent() {
   function handleAddBackCoverTextBox() {
     const box = makeTextBox();
     setBackCoverTextBoxes((prev) => [...prev, box]);
-    setActiveTextBox({ ref: { scope: "backCover" }, boxId: box.id });
+    selectTextBox({ scope: "backCover" }, box.id);
   }
 
   function handleBackCoverTextBoxChange(boxId: string, changes: Partial<TextBoxDef>) {
@@ -3262,6 +3269,19 @@ function UploadPageContent() {
   // 낱장인지) 있는지 가리켜요. 상단 툴바(TextBoxToolbar)가 이 값 하나만 보고 어떤
   // 텍스트박스를 고치는지 알 수 있게 해요.
   const [activeTextBox, setActiveTextBox] = useState<{ ref: TextBoxRef; boxId: string } | null>(null);
+
+  // 텍스트박스를 캔버스에서 선택하면 왼쪽 패널이 자동으로 "텍스트" 탭으로 전환돼서
+  // 바로 속성을 고칠 수 있게 해요(2026-09, 표지 제목·텍스트박스 메뉴 통합). setState를
+  // 이펙트 안에서 동기 호출하면 렌더가 연쇄될 수 있어서, 선택이 실제로 바뀌는
+  // 이벤트 핸들러 쪽에서 직접 호출하는 방식(selectTextBox)으로 처리해요.
+  function selectTextBox(ref: TextBoxRef, boxId: string) {
+    setActiveTextBox({ ref, boxId });
+    if (ref.scope === "cover" || ref.scope === "backCover") {
+      setActiveCoverEditTab("text");
+    } else if (ref.scope === "spread") {
+      setActiveEditTab("text");
+    }
+  }
 
   function getTextBoxesForRef(ref: TextBoxRef): TextBoxDef[] {
     if (ref.scope === "cover") return coverTextBoxes;
@@ -3866,7 +3886,7 @@ function UploadPageContent() {
         prev.map((s, i) => (i === ref.spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
       );
     }
-    setActiveTextBox({ ref, boxId: box.id });
+    selectTextBox(ref, box.id);
   }
 
   function handleCopyActiveTextBox() {
@@ -4916,7 +4936,9 @@ function UploadPageContent() {
                             ))}
                           </div>
                           <div className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1">
-                          {activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
+                          {activeCoverEditTab === "text" &&
+                            activeTextBox &&
+                            (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
                             <TextBoxToolbar
                               box={activeTextBoxDef}
                               onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
@@ -4939,6 +4961,10 @@ function UploadPageContent() {
                                   </label>
                                 )
                               )}
+                            </div>
+                          )}
+                          {activeCoverEditTab === "decorate" && (
+                            <div className="flex flex-col gap-3">
                               <div className="rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
                                 <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   뒤표지 꾸미기
@@ -5132,7 +5158,7 @@ function UploadPageContent() {
                               </div>
                             );
                           })()}
-                          {activeCoverEditTab === "title" && (
+                          {activeCoverEditTab === "text" && (
                             <div className="flex flex-col gap-2">
                               <textarea
                                 value={coverTitle}
@@ -5279,66 +5305,101 @@ function UploadPageContent() {
                                   </div>
                                 </div>
                               </div>
+                              <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-3">
+                                <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
+                                  텍스트박스 추가
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={handleAddCoverTextBox}
+                                  className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                >
+                                  + 앞표지에 텍스트박스 추가
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleAddBackCoverTextBox}
+                                  className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                >
+                                  + 뒤표지에 텍스트박스 추가
+                                </button>
+                              </div>
                             </div>
                           )}
-                          {activeCoverEditTab === "background" && (
+                          {activeCoverEditTab === "background" && (() => {
+                            const scopeValue =
+                              coverBackgroundScope === "back"
+                                ? backCoverBackgroundColor ?? "#ffffff"
+                                : coverBackgroundScope === "spine"
+                                  ? coverSpineBackgroundColor ?? "#ffffff"
+                                  : coverBackgroundScope === "front"
+                                    ? coverFrontBackgroundColor ?? "#ffffff"
+                                    : backCoverBackgroundColor ?? "#ffffff";
+                            const applyScopeColor = (hex: string) => {
+                              if (coverBackgroundScope === "all") {
+                                setBackCoverBackgroundColor(hex);
+                                setCoverSpineBackgroundColor(hex);
+                                setCoverFrontBackgroundColor(hex);
+                              } else if (coverBackgroundScope === "back") {
+                                setBackCoverBackgroundColor(hex);
+                              } else if (coverBackgroundScope === "spine") {
+                                setCoverSpineBackgroundColor(hex);
+                              } else {
+                                setCoverFrontBackgroundColor(hex);
+                              }
+                            };
+                            const scopeOptions: { id: "all" | "front" | "spine" | "back"; label: string }[] = [
+                              { id: "all", label: "전체 표지" },
+                              { id: "front", label: "앞표지" },
+                              { id: "spine", label: "책등" },
+                              { id: "back", label: "뒤표지" },
+                            ];
+                            return (
                             <div className="rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs text-[var(--color-charcoal)]/60">배경색(뒤표지·책등·표지 세트로)</span>
-                                {SPREAD_BACKGROUND_PRESETS.map((preset) => {
-                                  const isActive =
-                                    (backCoverBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase() &&
-                                    (coverSpineBackgroundColor ?? "#f4f1ea").toLowerCase() === preset.color.toLowerCase() &&
-                                    (coverFrontBackgroundColor ?? "#ffffff").toLowerCase() === preset.color.toLowerCase();
-                                  return (
-                                    <button
-                                      key={preset.color}
-                                      type="button"
-                                      title={`${preset.label} — 뒤표지·책등·표지 모두 이 색으로`}
-                                      onClick={() => {
-                                        const next = preset.color === "#ffffff" ? undefined : preset.color;
-                                        setBackCoverBackgroundColor(next);
-                                        setCoverSpineBackgroundColor(next);
-                                        setCoverFrontBackgroundColor(next);
-                                      }}
-                                      className={`h-6 w-6 rounded-full border transition ${
-                                        isActive
-                                          ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                          : "border-[var(--color-hairline)]"
-                                      }`}
-                                      style={{ backgroundColor: preset.color }}
-                                    />
-                                  );
-                                })}
+                              <span className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 범위</span>
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                {scopeOptions.map((opt) => (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => setCoverBackgroundScope(opt.id)}
+                                    className={`rounded-full border px-3 py-1 text-xs transition ${
+                                      coverBackgroundScope === opt.id
+                                        ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                                        : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70"
+                                    }`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
                               </div>
-                              <div className="mt-2 flex flex-wrap items-center gap-4">
-                                <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
-                                  뒤표지
-                                  <input
-                                    type="color"
-                                    value={backCoverBackgroundColor ?? "#ffffff"}
-                                    onChange={(e) => setBackCoverBackgroundColor(e.target.value)}
-                                    className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                              {coverBackgroundScope === "all" && (
+                                <p className="mt-1.5 text-[11px] text-amber-700 break-keep">
+                                  ⚠ 앞표지·책등·뒤표지 색을 한 번에 같은 색으로 덮어써요.
+                                </p>
+                              )}
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-[var(--color-charcoal)]/60">배경색</span>
+                                {SPREAD_BACKGROUND_PRESETS.map((preset) => (
+                                  <button
+                                    key={preset.color}
+                                    type="button"
+                                    title={preset.label}
+                                    onClick={() => applyScopeColor(preset.color === "#ffffff" ? "#ffffff" : preset.color)}
+                                    className={`h-6 w-6 rounded-full border transition ${
+                                      scopeValue.toLowerCase() === preset.color.toLowerCase()
+                                        ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                                        : "border-[var(--color-hairline)]"
+                                    }`}
+                                    style={{ backgroundColor: preset.color }}
                                   />
-                                </label>
-                                <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
-                                  책등
-                                  <input
-                                    type="color"
-                                    value={coverSpineBackgroundColor ?? "#f4f1ea"}
-                                    onChange={(e) => setCoverSpineBackgroundColor(e.target.value)}
-                                    className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                                  />
-                                </label>
-                                <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
-                                  앞표지
-                                  <input
-                                    type="color"
-                                    value={coverFrontBackgroundColor ?? "#ffffff"}
-                                    onChange={(e) => setCoverFrontBackgroundColor(e.target.value)}
-                                    className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                                  />
-                                </label>
+                                ))}
+                                <input
+                                  type="color"
+                                  value={scopeValue}
+                                  onChange={(e) => applyScopeColor(e.target.value)}
+                                  className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                                />
                               </div>
                               <div className="mt-3">
                                 <span className="text-xs text-[var(--color-charcoal)]/60">
@@ -5376,25 +5437,8 @@ function UploadPageContent() {
                                 </div>
                               </div>
                             </div>
-                          )}
-                          {activeCoverEditTab === "textbox" && (
-                            <div className="flex flex-col gap-2">
-                              <button
-                                type="button"
-                                onClick={handleAddCoverTextBox}
-                                className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                              >
-                                + 앞표지에 텍스트박스 추가
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleAddBackCoverTextBox}
-                                className="rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                              >
-                                + 뒤표지에 텍스트박스 추가
-                              </button>
-                            </div>
-                          )}
+                            );
+                          })()}
                           </div>
                         </div>
                         )}
@@ -5462,7 +5506,7 @@ function UploadPageContent() {
                               onAdd={handleAddBackCoverTextBox}
                               onChange={handleBackCoverTextBoxChange}
                               activeBoxId={activeTextBox?.ref.scope === "backCover" ? activeTextBox.boxId : null}
-                              onSelect={(boxId) => setActiveTextBox({ ref: { scope: "backCover" }, boxId })}
+                              onSelect={(boxId) => selectTextBox({ scope: "backCover" }, boxId)}
                             />
                           </div>
                           <div
@@ -5548,7 +5592,7 @@ function UploadPageContent() {
                               onAdd={handleAddCoverTextBox}
                               onChange={handleCoverTextBoxChange}
                               activeBoxId={activeTextBox?.ref.scope === "cover" ? activeTextBox.boxId : null}
-                              onSelect={(boxId) => setActiveTextBox({ ref: { scope: "cover" }, boxId })}
+                              onSelect={(boxId) => selectTextBox({ scope: "cover" }, boxId)}
                             />
                           </div>
 
@@ -5678,7 +5722,7 @@ function UploadPageContent() {
                                 ))}
                               </div>
                               <div className="flex min-h-0 flex-col overflow-y-auto lg:w-64 lg:shrink-0">
-                            {activeTextBox && activeTextBox.ref.scope === "spread" && (
+                            {activeEditTab === "text" && activeTextBox && activeTextBox.ref.scope === "spread" && (
                               <TextBoxToolbar
                                 box={activeTextBoxDef}
                                 onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
@@ -6404,7 +6448,7 @@ function UploadPageContent() {
                                           : null
                                       }
                                       onSelect={(boxId) =>
-                                        setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "left" }, boxId })
+                                        selectTextBox({ scope: "spread", spreadIndex: i, side: "left" }, boxId)
                                       }
                                     />
                                   </>
@@ -6449,7 +6493,7 @@ function UploadPageContent() {
                                       : null
                                   }
                                   onSelect={(boxId) =>
-                                    setActiveTextBox({ ref: { scope: "spread", spreadIndex: i, side: "right" }, boxId })
+                                    selectTextBox({ scope: "spread", spreadIndex: i, side: "right" }, boxId)
                                   }
                                 />
                               </div>
