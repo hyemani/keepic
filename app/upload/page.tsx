@@ -169,6 +169,12 @@ type TextBoxRef =
   | { scope: "backCover" }
   | { scope: "spread"; spreadIndex: number; side: "left" | "right" };
 
+function textBoxScopeLabel(ref: TextBoxRef): string {
+  if (ref.scope === "cover") return "앞표지 텍스트박스";
+  if (ref.scope === "backCover") return "뒤표지 텍스트박스";
+  return `내지 ${ref.side === "left" ? "왼쪽" : "오른쪽"} 페이지 텍스트박스`;
+}
+
 const captionSizeClass: Record<Photo["size"], string> = {
   sm: "text-xs",
   base: "text-sm",
@@ -1270,10 +1276,14 @@ function TextBoxToolbar({
   box,
   onChange,
   onDelete,
+  scopeLabel,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
   onDelete: () => void;
+  // 지금 고르고 있는 게 앞표지/뒤표지/내지 중 어떤 텍스트박스인지 — 혼동하지 않도록
+  // 항상 보여줘요(2026-09-23 요청).
+  scopeLabel?: string;
 }) {
   function cycleAlign() {
     if (!box) return;
@@ -1296,7 +1306,9 @@ function TextBoxToolbar({
     <div className="z-30 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-hairline)] bg-white/95 px-3 py-2 shadow-sm">
       {box ? (
         <>
-          <span className="text-[11px] font-medium text-[var(--color-charcoal)]/60">텍스트박스</span>
+          <span className="text-[11px] font-medium text-[var(--color-charcoal)]/60">
+            {scopeLabel ?? "텍스트박스"}
+          </span>
           <select
             value={box.fontFamily}
             onChange={(e) => onChange({ fontFamily: e.target.value })}
@@ -4331,6 +4343,7 @@ function UploadPageContent() {
                       box={activeTextBoxDef}
                       onChange={(c) => activeTextBox && updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
                       onDelete={() => activeTextBox && deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+                      scopeLabel={activeTextBox ? textBoxScopeLabel(activeTextBox.ref) : undefined}
                     />
                   )}
                   <div
@@ -4466,28 +4479,23 @@ function UploadPageContent() {
                                     글자 크기(pt)
                                   </label>
                                   <div className="flex items-center gap-2">
-                                    <select
-                                      value={COVER_TITLE_PT_PRESETS.includes(coverTitleFontSizePt) ? coverTitleFontSizePt : "custom"}
-                                      onChange={(e) => {
-                                        if (e.target.value !== "custom") setCoverTitleFontSizePt(Number(e.target.value));
-                                      }}
-                                      className="rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                    >
-                                      {COVER_TITLE_PT_PRESETS.map((pt) => (
-                                        <option key={pt} value={pt}>
-                                          {pt}pt
-                                        </option>
-                                      ))}
-                                      <option value="custom">직접 입력</option>
-                                    </select>
                                     <input
                                       type="number"
                                       min={8}
                                       max={200}
+                                      list="titlePtPresets"
                                       value={coverTitleFontSizePt}
                                       onChange={(e) => setCoverTitleFontSizePt(Math.max(8, Math.min(200, Number(e.target.value) || 8)))}
-                                      className="w-16 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                      className="w-24 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                     />
+                                    <span className="text-xs text-[var(--color-charcoal)]/40">
+                                      pt · 직접 입력하거나 목록에서 골라주세요
+                                    </span>
+                                    <datalist id="titlePtPresets">
+                                      {COVER_TITLE_PT_PRESETS.map((pt) => (
+                                        <option key={pt} value={pt} />
+                                      ))}
+                                    </datalist>
                                   </div>
                                 </div>
                                 <div>
@@ -4551,40 +4559,30 @@ function UploadPageContent() {
                                       글자 크기(pt)
                                     </label>
                                     <div className="flex items-center gap-2">
-                                      <select
-                                        value={
-                                          spineTitleFontSizePt === null
-                                            ? "auto"
-                                            : COVER_TITLE_PT_PRESETS.includes(spineTitleFontSizePt)
-                                              ? spineTitleFontSizePt
-                                              : "custom"
-                                        }
-                                        onChange={(e) => {
-                                          if (e.target.value === "auto") setSpineTitleFontSizePt(null);
-                                          else if (e.target.value !== "custom") setSpineTitleFontSizePt(Number(e.target.value));
-                                        }}
-                                        className="rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                      >
-                                        <option value="auto">자동</option>
-                                        {COVER_TITLE_PT_PRESETS.map((pt) => (
-                                          <option key={pt} value={pt}>
-                                            {pt}pt
-                                          </option>
-                                        ))}
-                                        <option value="custom">직접 입력</option>
-                                      </select>
                                       <input
                                         type="number"
                                         min={8}
                                         max={200}
+                                        list="titlePtPresets"
                                         value={spineTitleFontSizePt ?? ""}
                                         placeholder="자동"
                                         onChange={(e) => {
                                           const v = e.target.value;
                                           setSpineTitleFontSizePt(v === "" ? null : Math.max(8, Math.min(200, Number(v) || 8)));
                                         }}
-                                        className="w-16 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                        className="w-20 rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                       />
+                                      <button
+                                        type="button"
+                                        onClick={() => setSpineTitleFontSizePt(null)}
+                                        className={`shrink-0 rounded-lg border px-3 py-2.5 text-xs font-medium transition ${
+                                          spineTitleFontSizePt === null
+                                            ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                            : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
+                                        }`}
+                                      >
+                                        자동
+                                      </button>
                                     </div>
                                   </div>
                                   <div>
