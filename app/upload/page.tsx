@@ -4396,6 +4396,14 @@ function UploadPageContent() {
                             ))}
                           </div>
                           <div className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1">
+                          {activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
+                            <TextBoxToolbar
+                              box={activeTextBoxDef}
+                              onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
+                              onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+                              scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
+                            />
+                          )}
                           {activeCoverEditTab === "photo" && (
                             <div className="flex flex-col gap-3">
                               {coverPhoto && (
@@ -4870,16 +4878,6 @@ function UploadPageContent() {
                               확인하면 돼요). 책등 경계는 위 패널 테두리(항상 표시)만으로 보여줘요. */}
                         </div>
                         </CanvasStage>
-                        {editorMode === "edit" && activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
-                          <div className="lg:w-72 lg:shrink-0">
-                            <TextBoxToolbar
-                              box={activeTextBoxDef}
-                              onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
-                              onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
-                              scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
-                            />
-                          </div>
-                        )}
                       </div>
                     </div>
                   ) : selectedPageKey === "intro" ? (
@@ -4979,6 +4977,14 @@ function UploadPageContent() {
                                 ))}
                               </div>
                               <div className="flex min-h-0 flex-col overflow-y-auto lg:w-64 lg:shrink-0">
+                            {activeTextBox && activeTextBox.ref.scope === "spread" && (
+                              <TextBoxToolbar
+                                box={activeTextBoxDef}
+                                onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
+                                onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+                                scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
+                              />
+                            )}
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-medium">
                                 {i === 0 ? "표지/1" : formatSpreadPageLabel(i)}페이지
@@ -5695,16 +5701,6 @@ function UploadPageContent() {
                               </div>
                               </div>
                             </CanvasStage>
-                            {editorMode === "edit" && activeTextBox && activeTextBox.ref.scope === "spread" && (
-                              <div className="lg:w-72 lg:shrink-0">
-                                <TextBoxToolbar
-                                  box={activeTextBoxDef}
-                                  onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
-                                  onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
-                                  scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
-                                />
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
