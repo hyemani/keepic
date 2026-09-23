@@ -58,7 +58,10 @@ export type TextBoxDef = {
 // 하나로 이어져 보이게 해요.
 export type ImageBoxDef = {
   id: string;
-  url: string; // 사진 원본 URL
+  // 사진 원본 URL이에요. 빈 문자열("")이면 "빈 프레임"(레이아웃은 적용됐지만 아직 사진을
+  // 안 채운 칸)이에요 — 2026-09-23, "사진 수가 안 맞으면 레이아웃 적용을 막는다"는
+  // 예전 조건을 폐기하면서 추가됨. 미리보기·인쇄 파일에는 빈 프레임을 그리지 않아요.
+  url: string;
   naturalWidth: number;
   naturalHeight: number;
   xPct: number; // 스프레드 전체 폭 기준 왼쪽 끝 위치(0~100, 왼쪽 페이지는 0~50, 오른쪽 페이지는 50~100)

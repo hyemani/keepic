@@ -262,6 +262,9 @@ async function drawPage(
   await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId);
   if (imageBoxes && pageOffsetPx !== undefined && spreadWidthPx !== undefined) {
     for (const box of imageBoxes) {
+      // 아직 사진을 안 채운 빈 프레임(url이 빈 문자열)은 인쇄 파일에 아무것도 안
+      // 그려요(2026-09-23) — 미리보기 화면에서만 "+사진 추가" 안내로 보여요.
+      if (!box.url) continue;
       const img = await loadImage(box.url);
       drawImageBoxOnCanvas(ctx, box, img, pageW, pageH, pageOffsetPx, spreadWidthPx);
     }

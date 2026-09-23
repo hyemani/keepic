@@ -1549,6 +1549,26 @@ const ImageBoxOverlay = forwardRef<
     dir: "se" as TextBoxResizeDir,
   });
   const panStart = useRef({ mouseX: 0, mouseY: 0, offsetX: 0, offsetY: 0 });
+  // 빈 프레임(url이 없는 이미지박스)을 눌렀을 때 파일 선택창을 열기 위한 숨김 입력이에요
+  // (2026-09-23 추가 — "사진이 없어도 레이아웃을 적용하고, 빈 프레임에 나중에 사진을
+  // 넣을 수 있어야 한다"는 요청).
+  const emptyFrameFileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFillEmptyFrame(file: File) {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      onChange({
+        url,
+        naturalWidth: img.naturalWidth || 1,
+        naturalHeight: img.naturalHeight || 1,
+        innerOffsetXPct: 0,
+        innerOffsetYPct: 0,
+        innerScale: 1,
+      });
+    };
+    img.src = url;
+  }
 
   // 박스가 실제로 화면에 몇 px로 그려지는지 재요 — 사진이 박스를 항상 꽉 채우도록
   // 계산(computeImageBoxCoverRect)하려면 박스의 실제 픽셀 크기가 필요해요.
@@ -1619,6 +1639,12 @@ const ImageBoxOverlay = forwardRef<
     e.preventDefault();
     e.stopPropagation();
     onSelect();
+    // 빈 프레임(사진 없음)은 옮길 사진 자체가 없어서 "사진 위치 조정 모드"에 들어갈
+    // 이유가 없어요 — 대신 파일 선택창을 열어요.
+    if (!box.url) {
+      emptyFrameFileInputRef.current?.click();
+      return;
+    }
     setPhotoEditMode((v) => !v);
   }
 
@@ -1905,31 +1931,76 @@ const ImageBoxOverlay = forwardRef<
           )}
         </>
       )}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <img
-          src={box.url}
-          alt=""
-          draggable={false}
-          // max-w-none/max-h-none: Tailwind 기본 스타일(img { max-width: 100% })이
-          // 없으면, 사진이 박스보다 크게(cover 계산 결과) 커져야 할 때도 브라우저가
-          // 폭을 박스 크기로 강제로 줄여버려서(높이는 style로 고정) 사진이 박스를
-          // 다 못 채우고 한쪽에 빈 공간이 생겨요 — 특히 책등 쪽에서 보였던 문제의
-          // 진짜 원인이에요(2026-09).
-          className="pointer-events-none absolute max-w-none max-h-none select-none"
-          style={{
-            left: coverRect.x,
-            top: coverRect.y,
-            width: coverRect.width,
-            height: coverRect.height,
-            transform: box.flipX ? "scaleX(-1)" : undefined,
+      {box.url ? (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <img
+            src={box.url}
+            alt=""
+            draggable={false}
+            // max-w-none/max-h-none: Tailwind 기본 스타일(img { max-width: 100% })이
+            // 없으면, 사진이 박스보다 크게(cover 계산 결과) 커져야 할 때도 브라우저가
+            // 폭을 박스 크기로 강제로 줄여버려서(높이는 style로 고정) 사진이 박스를
+            // 다 못 채우고 한쪽에 빈 공간이 생겨요 — 특히 책등 쪽에서 보였던 문제의
+            // 진짜 원인이에요(2026-09).
+            className="pointer-events-none absolute max-w-none max-h-none select-none"
+            style={{
+              left: coverRect.x,
+              top: coverRect.y,
+              width: coverRect.width,
+              height: coverRect.height,
+              transform: box.flipX ? "scaleX(-1)" : undefined,
+            }}
+          />
+        </div>
+      ) : (
+        // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면(또는
+        // 더블클릭하면) 파일을 골라 채울 수 있어요. 미리보기·PDF에는 안 그려져요.
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+            emptyFrameFileInputRef.current?.click();
           }}
-        />
-      </div>
+          className="absolute inset-0 flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-[var(--color-hairline)] bg-[var(--color-ivory)]/60 text-[10px] text-[var(--color-charcoal)]/50 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
+        >
+          <span className="text-lg leading-none">+</span>
+          <span>사진 추가</span>
+        </button>
+      )}
+      <input
+        ref={emptyFrameFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFillEmptyFrame(file);
+          e.target.value = "";
+        }}
+      />
       {isActive && !photoEditMode && (
         <>
+          {/* 사진만 빼기(프레임은 남기고 빈 프레임으로) — 프레임 자체를 지우는 아래 ✕
+              버튼과 구분돼요(2026-09-23, "사진 제거 vs 프레임 삭제 구분" 요청). 빈
+              프레임엔 뺄 사진이 없어서 이 버튼을 안 보여줘요. */}
+          {box.url && (
+            <button
+              type="button"
+              title="이 칸의 사진만 빼요 (프레임은 남아요)"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onChange({ url: "", innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 });
+              }}
+              className="absolute -right-1.5 -top-8 z-40 flex h-5 items-center justify-center whitespace-nowrap rounded-full border border-white bg-[var(--color-charcoal)]/80 px-1.5 text-[9px] text-white shadow"
+            >
+              사진만 빼기
+            </button>
+          )}
           <button
             type="button"
-            title="이미지박스 삭제"
+            title="프레임 삭제"
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -3344,31 +3415,65 @@ function UploadPageContent() {
   // 위치)와 반대쪽 범위의 박스, 텍스트·스티커·배경은 전혀 안 건드려요. 슬롯 배정 순서는
   // 매번 새로 계산하지 않고 스프레드에 저장된 imageBoxOrder를 그대로 재사용해서, 비대칭
   // 배치나 수동 드래그 뒤에 템플릿을 바꿔도 사진 순서가 흐트러지지 않아요.
+  //
+  // 2026-09-23: "사진 수가 템플릿 칸 수와 정확히 같아야만 적용 가능"하던 예전 조건을
+  // 폐기했어요 — 이제 사진이 0장이어도, 칸보다 적어도, 많아도 항상 적용할 수 있어요.
+  // 칸보다 사진이 적으면 있는 사진부터 순서대로 채우고 나머지 칸은 "빈 프레임"(url이
+  // 빈 문자열인 이미지박스)으로 만들어서 나중에 사진을 채울 수 있게 해요. 칸보다
+  // 사진이 많으면 일단 앞쪽 칸부터 순서대로 채우고 남는 사진은 그대로 남겨둬요 — "어떤
+  // 사진을 쓸지 고르는 선택 UI"는 아직 없어서, 사진을 지우지 않는 안전한 기본값으로
+  // 남겨두는 중간 단계예요(다음에 선택 UI를 추가할 예정).
   function applyLayoutTemplate(spreadIndex: number, range: LayoutApplyRange, template: PhotoLayoutTemplate) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
     const allBoxes = spread.imageBoxes ?? [];
     const inRange = imageBoxesInRange(allBoxes, range);
-    if (inRange.length !== template.photoCount) {
-      setLayoutApplyMessage(
-        `이 템플릿은 사진 ${template.photoCount}장이 필요해요 (지금 이 범위엔 ${inRange.length}장 있어요).`
-      );
-      return;
-    }
-    setLayoutApplyMessage(null);
     const outOfRange = allBoxes.filter((b) => !inRange.includes(b));
     const fullOrder = getSpreadImageBoxOrder(spread);
     const inRangeById = new Map(inRange.map((b) => [b.id, b] as const));
-    const ordered = fullOrder.filter((id) => inRangeById.has(id)).map((id) => inRangeById.get(id)!);
-    const updated = ordered.map((box, idx) => {
-      const slot = template.slots[idx];
+    const orderedExisting = fullOrder.filter((id) => inRangeById.has(id)).map((id) => inRangeById.get(id)!);
+
+    const usable = orderedExisting.slice(0, template.slots.length);
+    const extraBoxes = orderedExisting.slice(template.slots.length);
+    const placed = template.slots.map((slot, idx) => {
       const { xPct, widthPct } = slotToSpreadCoords(slot, range);
-      return { ...box, xPct, widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
+      const existing = usable[idx];
+      if (existing) {
+        return { ...existing, xPct, widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
+      }
+      // 채울 사진이 없는 칸 — 빈 프레임을 새로 만들어요. 나중에 캔버스에서 "+사진
+      // 추가"를 누르거나 드래그해서 채울 수 있어요.
+      const emptyBox: ImageBoxDef = {
+        id: crypto.randomUUID(),
+        url: "",
+        naturalWidth: 1,
+        naturalHeight: 1,
+        xPct,
+        yPct: slot.yPct,
+        widthPct,
+        heightPct: slot.heightPct,
+        innerOffsetXPct: 0,
+        innerOffsetYPct: 0,
+        innerScale: 1,
+      };
+      return emptyBox;
     });
+
+    setLayoutApplyMessage(
+      extraBoxes.length > 0
+        ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 지금 이 범위에 사진이 ${inRange.length}장 있어서, 앞 ${template.slots.length}장만 채우고 나머지 ${extraBoxes.length}장은 그대로 남겨뒀어요.`
+        : null
+    );
+
+    const preservedOrder = [
+      ...fullOrder.filter((id) => outOfRange.some((b) => b.id === id) || extraBoxes.some((b) => b.id === id)),
+      ...placed.map((b) => b.id),
+    ];
+
     setCustomSpreads((prev) =>
       prev.map((s, i) =>
         i === spreadIndex
-          ? { ...s, imageBoxes: [...outOfRange, ...updated], imageBoxOrder: fullOrder }
+          ? { ...s, imageBoxes: [...outOfRange, ...extraBoxes, ...placed], imageBoxOrder: preservedOrder }
           : s
       )
     );
@@ -5302,7 +5407,7 @@ function UploadPageContent() {
                                       </div>
                                     </div>
                                     {layoutApplyMessage && (
-                                      <p className="rounded-lg bg-red-50 px-3 py-2 text-[11px] text-red-600 break-keep">
+                                      <p className="rounded-lg bg-[var(--color-ivory)] px-3 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
                                         {layoutApplyMessage}
                                       </p>
                                     )}
@@ -5312,11 +5417,7 @@ function UploadPageContent() {
                                           key={t.id}
                                           type="button"
                                           onClick={() => applyLayoutTemplate(i, effectiveRange, t)}
-                                          className={`rounded-lg border p-1.5 text-left transition ${
-                                            t.photoCount === rangePhotoCount
-                                              ? "border-[var(--color-hairline)] hover:border-[var(--color-sky)]"
-                                              : "border-[var(--color-hairline)] opacity-50"
-                                          }`}
+                                          className="rounded-lg border border-[var(--color-hairline)] p-1.5 text-left transition hover:border-[var(--color-sky)]"
                                         >
                                           <div
                                             className="relative w-full overflow-hidden rounded bg-[var(--color-ivory)]"
@@ -5339,11 +5440,10 @@ function UploadPageContent() {
                                             {t.name}
                                             {t.hasCaptionSpace ? " · 문구 공간" : ""}
                                           </p>
-                                          {t.photoCount !== rangePhotoCount && (
-                                            <p className="mt-0.5 text-[9px] font-medium text-red-500">
-                                              사진 {t.photoCount}장 필요
-                                            </p>
-                                          )}
+                                          <p className="mt-0.5 text-[9px] text-[var(--color-charcoal)]/50">
+                                            사진 칸 {t.photoCount}개
+                                            {t.photoCount !== rangePhotoCount ? ` · 지금 ${rangePhotoCount}장` : ""}
+                                          </p>
                                         </button>
                                       ))}
                                       {visibleTemplates.length === 0 && (
@@ -5817,21 +5917,25 @@ function UploadPageContent() {
                               같은 스프레드 전체 0~100% 좌표를 그대로 써서 이 썸네일 위에
                               따로 겹쳐 그려요 — 별도 축소 계산 없이 그대로 얹으면 실제
                               배치와 항상 같은 자리에 보여요. */}
-                          {(spread.imageBoxes ?? []).map((box) => (
-                            <img
-                              key={box.id}
-                              src={box.url}
-                              alt=""
-                              className="pointer-events-none absolute rounded-[1px] border border-white/70 object-cover"
-                              style={{
-                                left: `${box.xPct}%`,
-                                top: `${box.yPct}%`,
-                                width: `${box.widthPct}%`,
-                                height: `${box.heightPct}%`,
-                                transform: box.flipX ? "scaleX(-1)" : undefined,
-                              }}
-                            />
-                          ))}
+                          {(spread.imageBoxes ?? [])
+                            // 빈 프레임(사진 없음)은 이 작은 썸네일에서도 실제 인쇄·미리보기와
+                            // 똑같이 안 보여야 해서 제외해요(2026-09-23).
+                            .filter((box) => box.url)
+                            .map((box) => (
+                              <img
+                                key={box.id}
+                                src={box.url}
+                                alt=""
+                                className="pointer-events-none absolute rounded-[1px] border border-white/70 object-cover"
+                                style={{
+                                  left: `${box.xPct}%`,
+                                  top: `${box.yPct}%`,
+                                  width: `${box.widthPct}%`,
+                                  height: `${box.heightPct}%`,
+                                  transform: box.flipX ? "scaleX(-1)" : undefined,
+                                }}
+                              />
+                            ))}
                         </div>
                         <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
                           {formatSpreadPageLabel(i)}
