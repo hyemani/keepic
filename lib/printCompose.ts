@@ -1082,7 +1082,7 @@ export async function buildCoverPrintPdf({
   backCoverBackgroundColor?: string;
   backCoverPatternId?: string; // 뒤표지 그래픽·패턴·텍스처예요. 지정하면 배경색보다 우선해요.
   backCoverTextBoxes?: TextBoxDef[]; // 뒤표지에 자유 배치한 텍스트박스예요.
-  coverSpineBackgroundColor?: string; // 지정 안 하면 기존 기본색(아이보리 #f4f1ea) 그대로예요.
+  coverSpineBackgroundColor?: string; // 지정 안 하면 앞·뒤표지와 같은 흰색(#ffffff) 그대로예요(2026-09-25, 혜민님 요청 — 예전엔 아이보리 #f4f1ea가 기본값이라 흰 표지인데 책등만 베이지로 보이는 문제가 있었어요).
   coverFrontBackgroundColor?: string; // 지정 안 하면 흰색 그대로예요(사진 뒤로 비치는 여백 색).
   coverTextBoxes?: TextBoxDef[]; // 표지 앞면에 자유 배치한 텍스트박스예요.
   // 표지 "레이아웃" 탭(2026-09-24, 화면 app/upload/page.tsx)에서 여러 장짜리 템플릿을
@@ -1183,7 +1183,7 @@ export async function buildCoverPrintPdf({
 
   // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
   const spineX = bleedPx + panelPx;
-  ctx.fillStyle = coverSpineBackgroundColor ?? "#f4f1ea";
+  ctx.fillStyle = coverSpineBackgroundColor ?? "#ffffff";
   ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
 
   const spineLogoLayout = computeSpineLogoLayoutPx(spinePx);

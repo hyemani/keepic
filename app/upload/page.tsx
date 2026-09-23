@@ -2232,7 +2232,7 @@ function CoverTitleOverlay({
   return (
     <div
       ref={boxRef}
-      className="group/ct absolute z-20"
+      className="group/ct absolute z-28"
       style={{ left: `${xPct}%`, top: `${yPct}%`, width: `${widthPct}%` }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
@@ -2825,6 +2825,13 @@ function UploadPageContent() {
   const [spineTitleFontFamily, setSpineTitleFontFamily] = useState(fontOptions[0].id);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
+  // 표지 제목⇄책등 제목 서체 연결 스위치예요(2026-09-25, 혜민님 요청). 기본 켜짐 — 켜진
+  // 동안은 둘 중 어느 쪽 서체를 바꿔도 같이 바뀌어요(아래 handleCoverTitleFontFamilyChange/
+  // handleSpineTitleFontFamilyChange 참고). 크기·위치·회전은 서로 영향 안 받고 각자 값
+  // 그대로 유지돼요. 불러온 프로젝트에서 두 서체가 이미 다르더라도, 이 스위치가 켜져
+  // 있다고 해서 불러오자마자 강제로 맞추진 않아요 — 실제 동기화는 누군가 서체를
+  // 바꾸는 시점에만 일어나요.
+  const [titleFontLinked, setTitleFontLinked] = useState(true);
   // 뒤표지예요 — 무지(흰 배경)로 비워두지 않고, 기본으로 키픽 로고를 가운데에 배치해요.
   // "사진"을 고르면 작은 사진을 대신 넣을 수 있고, 배경색도 내지처럼 자유롭게 바꿀 수 있어요.
   const [backCoverMode, setBackCoverMode] = useState<"logo" | "photo">("logo");
@@ -3626,6 +3633,20 @@ function UploadPageContent() {
     setActiveCoverImageBox((prev) => (prev && prev.target === "back" && prev.boxId === boxId ? null : prev));
   }
 
+  // 표지 제목 서체를 바꿀 때 쓰는 핸들러예요. "연결" 스위치(titleFontLinked)가 켜져
+  // 있으면 책등 서체도 같이 맞춰줘요. 글자 크기·위치·회전은 여기서 안 건드려요 — 각자
+  // 값 그대로 유지돼요.
+  function handleCoverTitleFontFamilyChange(fontId: string) {
+    setCoverTitleFontFamily(fontId);
+    if (titleFontLinked) setSpineTitleFontFamily(fontId);
+  }
+  // 책등 서체를 바꿀 때도 반대 방향으로 똑같이 동작해요 — 연결이 켜져 있으면 표지
+  // 제목 서체도 같이 바뀌어요.
+  function handleSpineTitleFontFamilyChange(fontId: string) {
+    setSpineTitleFontFamily(fontId);
+    if (titleFontLinked) setCoverTitleFontFamily(fontId);
+  }
+
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
     // "AI 맞춤 레이아웃"에서 박스 자체의 ✕ 버튼으로 지울 때도, 반대 방향으로
     // "전체 사진 목록"의 사진 목록이 계속 남아있지 않도록 짝이 되는 사진도 같이 지워요.
@@ -3711,6 +3732,7 @@ function UploadPageContent() {
       spineTitleHeightPct,
       spineTitleFontSizePt,
       spineTitleFontFamily,
+      titleFontLinked,
       backCoverMode,
       backCoverPhoto,
       backCoverBackgroundColor,
@@ -3740,6 +3762,7 @@ function UploadPageContent() {
     setSpineTitleHeightPct(s.spineTitleHeightPct);
     setSpineTitleFontSizePt(s.spineTitleFontSizePt ?? null);
     setSpineTitleFontFamily(s.spineTitleFontFamily ?? fontOptions[0].id);
+    setTitleFontLinked(s.titleFontLinked ?? true);
     setBackCoverMode(s.backCoverMode);
     setBackCoverPhoto(s.backCoverPhoto);
     setBackCoverBackgroundColor(s.backCoverBackgroundColor);
@@ -3799,6 +3822,7 @@ function UploadPageContent() {
     spineTitleHeightPct,
     spineTitleFontSizePt,
     spineTitleFontFamily,
+    titleFontLinked,
     backCoverMode,
     backCoverPhoto,
     backCoverBackgroundColor,
@@ -5155,7 +5179,7 @@ function UploadPageContent() {
                                 </label>
                                 <select
                                   value={coverTitleFontFamily}
-                                  onChange={(e) => setCoverTitleFontFamily(e.target.value)}
+                                  onChange={(e) => handleCoverTitleFontFamilyChange(e.target.value)}
                                   className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
                                   style={{ fontFamily: coverTitleFontFamily }}
                                 >
@@ -5175,6 +5199,15 @@ function UploadPageContent() {
                                   고를 수 있어요. 책등 양옆 여백은 항상 1.5mm를 넘지 않도록
                                   자동으로 잘라줘요(너무 크게 고르면 그 안에서 최대치로 맞춰져요).
                                 </p>
+                                <label className="mb-2 flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
+                                  <input
+                                    type="checkbox"
+                                    checked={titleFontLinked}
+                                    onChange={(e) => setTitleFontLinked(e.target.checked)}
+                                    className="h-3.5 w-3.5"
+                                  />
+                                  표지 제목과 책등 제목 서체 연결(어느 쪽에서 바꿔도 같이 적용돼요)
+                                </label>
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                   <div>
                                     <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
@@ -5213,7 +5246,7 @@ function UploadPageContent() {
                                     </label>
                                     <select
                                       value={spineTitleFontFamily}
-                                      onChange={(e) => setSpineTitleFontFamily(e.target.value)}
+                                      onChange={(e) => handleSpineTitleFontFamilyChange(e.target.value)}
                                       className="w-full rounded-lg border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                       style={{ fontFamily: spineTitleFontFamily }}
                                     >
@@ -5416,8 +5449,10 @@ function UploadPageContent() {
                             />
                           </div>
                           <div
-                            className="relative h-full overflow-hidden border-x border-[#1a1a1a]/70 px-1"
-                            style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
+                            className={`relative h-full overflow-hidden px-1 ${
+                              isPrintPreview ? "" : "border-x border-[#1a1a1a]/70"
+                            }`}
+                            style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#ffffff" }}
                           >
                             {/* 책등엔 책등 제목과 키픽 로고만 보여줘요 — 제목 텍스트박스는 끌어서
                                 위치를, 아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등 폭에
@@ -6414,7 +6449,7 @@ function UploadPageContent() {
                         />
                         <div
                           className="h-full border-x border-[#1a1a1a]/60"
-                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#f4f1ea" }}
+                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#ffffff" }}
                         />
                         <div
                           className="relative h-full overflow-hidden"
