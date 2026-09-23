@@ -2547,11 +2547,15 @@ function renderPage(
 function CanvasStage({
   aspect,
   zoom,
+  fitToken,
   className,
   children,
 }: {
   aspect: number;
   zoom: number;
+  // "화면에 맞추기" 버튼을 누른 횟수예요 — 이 값이 바뀔 때만 맞춤 크기를 다시 계산해요.
+  // 생략하면 최초 진입 시 1번만 맞추고 그 뒤로는 전혀 다시 계산하지 않아요.
+  fitToken?: number;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -2571,17 +2575,40 @@ function CanvasStage({
   // 눈금자·여백 등 캔버스 바깥 자잘한 요소들을 위한 여유 공간이에요. 정확히 딱 맞추기보다,
   // 약간 여유를 둬서 어떤 경우에도 스크롤 없이 전체가 보이도록 해요.
   const SAFETY_PX = 28;
-  const availW = Math.max(0, box.w - SAFETY_PX * 2);
-  const availH = Math.max(0, box.h - SAFETY_PX * 2);
 
-  let fitW = availW;
-  let fitH = availW / aspect;
-  if (fitH > availH && availH > 0) {
-    fitH = availH;
-    fitW = availH * aspect;
-  }
-  const ready = box.w > 0 && box.h > 0 && fitW > 0 && fitH > 0;
-  const displayW = fitW * zoom;
+  // "화면에 맞추기" 기준 크기(zoom=1일 때의 크기)예요. 예전엔 뷰포트 크기가 바뀔 때마다
+  // (ResizeObserver 콜백마다) 매번 다시 계산해서, 창 크기를 줄이거나 왼쪽 패널이
+  // 열리고 닫힐 때마다 사용자가 정한 배율과 무관하게 책이 저절로 커지거나 작아졌어요
+  // (2026-09-23 혜민님 지적). 이제는 "최초로 뷰포트 크기를 잴 수 있게 된 시점"에 딱
+  // 한 번만 계산해서 고정하고, 그 뒤로는 fitToken이 바뀔 때(=사용자가 "화면에 맞추기"를
+  // 직접 눌렀을 때)만 다시 계산해요. 그 사이 창 크기가 바뀌면 이 컨테이너의 overflow-auto가
+  // 스크롤/이동으로 대응해요(자동 재배율 없음). 실제 인쇄 좌표(%)는 이 값과 전혀 무관해요
+  // — 화면에 몇 px로 그려지는지만 바뀔 뿐, 원본 좌표 데이터는 손대지 않아요.
+  const [baseFit, setBaseFit] = useState<{ w: number; h: number } | null>(null);
+  const hasFitOnceRef = useRef(false);
+  const prevFitTokenRef = useRef(fitToken);
+
+  useEffect(() => {
+    if (box.w <= 0 || box.h <= 0) return;
+    const tokenChanged = fitToken !== prevFitTokenRef.current;
+    if (hasFitOnceRef.current && !tokenChanged) return;
+    prevFitTokenRef.current = fitToken;
+    const availW = Math.max(0, box.w - SAFETY_PX * 2);
+    const availH = Math.max(0, box.h - SAFETY_PX * 2);
+    let fitW = availW;
+    let fitH = availW / aspect;
+    if (fitH > availH && availH > 0) {
+      fitH = availH;
+      fitW = availH * aspect;
+    }
+    if (fitW > 0 && fitH > 0) {
+      setBaseFit({ w: fitW, h: fitH });
+      hasFitOnceRef.current = true;
+    }
+  }, [box, aspect, fitToken]);
+
+  const ready = !!baseFit;
+  const displayW = baseFit ? baseFit.w * zoom : 0;
 
   return (
     <div
@@ -3357,20 +3384,15 @@ function UploadPageContent() {
   // 인쇄에 실제로 들어가는 내용만 담고, 화면 전용 설정(가이드선 표시 여부, 확대 배율,
   // 현재 보고 있는 페이지 등)은 담지 않아요 — 그런 것까지 되돌리면 오히려 헷갈려요.
   const [canvasZoom, setCanvasZoom] = useState(1);
-  // 상단바 실제 높이를 재서, 그 아래 편집 영역이 "화면 전체 - 상단바" 높이를 정확히
-  // 채우도록 해요(좁은 화면에서 상단바 버튼이 줄바꿈돼도 자동으로 맞아요, 2026-09 화면
-  // 배치 개편).
-  const topBarRef = useRef<HTMLElement>(null);
-  const [topBarH, setTopBarH] = useState(64);
-  useEffect(() => {
-    const el = topBarRef.current;
-    if (!el) return;
-    const update = () => setTopBarH(el.getBoundingClientRect().height);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  // 편집 영역 높이는 이제(2026-09-23) 상단바 높이를 JS로 재서 calc()로 빼는 방식 대신,
+  // <main>을 뷰포트 높이(h-dvh)에 고정하고 그 안을 flex 레이아웃으로 나누는 구조로
+  // 바꿨어요(음수 마진이나 수동 높이 계산 없이, 상단바는 shrink-0, 편집 영역은
+  // flex-1로 자동으로 남은 공간을 채움) — 그래서 이 높이 측정용 ref/state는 더 이상
+  // 필요 없어서 지웠어요.
+  // "화면에 맞추기"를 몇 번 눌렀는지 세는 값이에요 — CanvasStage는 이 값이 바뀔 때만
+  // 맞춤 크기를 다시 계산해요(최초 진입 시 1회 + 사용자가 버튼을 누를 때만, 창 크기가
+  // 저절로 바뀌었다고 배율이 따라 바뀌지 않도록, 2026-09-23 요청).
+  const [canvasFitToken, setCanvasFitToken] = useState(0);
   const undoStackRef = useRef<string[]>([]);
   const redoStackRef = useRef<string[]>([]);
   const isRestoringHistoryRef = useRef(false);
@@ -3570,6 +3592,9 @@ function UploadPageContent() {
   }
   function handleZoomReset() {
     setCanvasZoom(1);
+    // 창 크기가 바뀌어도 배율을 자동으로 안 바꾸는 대신, 사용자가 이 버튼을 직접 눌렀을
+    // 때만 지금 뷰포트 크기 기준으로 "화면에 맞추기"를 다시 계산해요.
+    setCanvasFitToken((t) => t + 1);
   }
 
   // 실행취소(Ctrl/Cmd+Z), 다시실행(Ctrl/Cmd+Shift+Z 또는 Ctrl/Cmd+Y), 텍스트박스
@@ -4091,15 +4116,14 @@ function UploadPageContent() {
     const coverSpineLogoCenterYPct = 100 - coverSpineLogoBottomMarginPct - coverSpineLogoVisibleHeightPct / 2;
 
     return (
-      <main className="min-h-screen bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
+      <main className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
         {/* 편집기 전용 상단바 — 2026-09 화면 배치 개편으로 로고 아래 빈 여백을 없애고,
             뒤로가기·로고·책 이름·실행취소/다시실행·미리보기·확대축소를 한 줄에 정돈함.
             좁은 화면에서는 flex-wrap으로 줄바꿈돼서 버튼이 겹치지 않아요. 실제로 동작하지
             않는 "저장" 버튼/상태 표시는 일부러 넣지 않았어요(혜민님 확인, 2026-09-23 —
             자동저장 기능은 이번 범위 밖). */}
         <header
-          ref={topBarRef}
-          className="sticky top-0 z-40 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur"
+          className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur"
         >
           <div className="mx-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 sm:px-6">
             <button
@@ -4178,8 +4202,9 @@ function UploadPageContent() {
           </div>
         </header>
 
-        <section className="mx-auto max-w-5xl px-6 pt-4 sm:px-10">
-          {isPdfLibTestMode && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {isPdfLibTestMode && (
+          <section className="mx-auto w-full max-w-5xl shrink-0 px-6 pt-4 sm:px-10">
             <div className="mt-4 rounded-xl border border-dashed border-[var(--color-charcoal)]/30 bg-white/60 p-4">
               <p className="text-sm font-medium">🧪 새 PDF 생성기 테스트 (pdf-lib) — 주문/저장과 무관해요</p>
               <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
@@ -4248,11 +4273,10 @@ function UploadPageContent() {
                 )}
               </div>
             </div>
-          )}
+          </section>
+        )}
 
-        </section>
-
-        <div className="w-full bg-[var(--color-hairline)]/15 px-4 pb-4 pt-10 sm:px-6 lg:px-8">
+        <div className="flex w-full min-h-0 flex-1 flex-col bg-[var(--color-hairline)]/15 px-4 pb-4 pt-4 sm:px-6 lg:px-8">
           {photos.length === 0 && (
             <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
               <p className="text-[var(--color-charcoal)]/70 break-keep">
@@ -4271,8 +4295,8 @@ function UploadPageContent() {
             // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
             <div
-              className="mx-auto mt-2 flex max-w-6xl flex-col lg:max-w-none"
-              style={{ height: `calc(100dvh - ${topBarH}px)`, minHeight: 420 }}
+              className="mx-auto mt-2 flex w-full max-w-6xl flex-1 flex-col lg:max-w-none"
+              style={{ minHeight: 420 }}
             >
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 pb-2">
                 <button
@@ -4704,7 +4728,7 @@ function UploadPageContent() {
                           </div>
                         </div>
                         )}
-                        <CanvasStage aspect={coverTotalWmm / coverTotalHmm} zoom={canvasZoom}>
+                        <CanvasStage aspect={coverTotalWmm / coverTotalHmm} zoom={canvasZoom} fitToken={canvasFitToken}>
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
                             좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
@@ -4893,7 +4917,7 @@ function UploadPageContent() {
                         </div>
                         </div>
                         )}
-                        <CanvasStage aspect={2} zoom={canvasZoom}>
+                        <CanvasStage aspect={2} zoom={canvasZoom} fitToken={canvasFitToken}>
                         <div className="relative flex w-full items-stretch bg-white shadow-sm">
                           <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                           <div className="aspect-square w-1/2">
@@ -5303,6 +5327,11 @@ function UploadPageContent() {
                                             {t.name}
                                             {t.hasCaptionSpace ? " · 문구 공간" : ""}
                                           </p>
+                                          {t.photoCount !== rangePhotoCount && (
+                                            <p className="mt-0.5 text-[9px] font-medium text-red-500">
+                                              사진 {t.photoCount}장 필요
+                                            </p>
+                                          )}
                                         </button>
                                       ))}
                                       {visibleTemplates.length === 0 && (
@@ -5460,7 +5489,7 @@ function UploadPageContent() {
                               </div>
                             </div>
                             )}
-                            <CanvasStage aspect={guideSpreadWorkMm / guidePageWorkMm} zoom={canvasZoom}>
+                            <CanvasStage aspect={guideSpreadWorkMm / guidePageWorkMm} zoom={canvasZoom} fitToken={canvasFitToken}>
                             <div
                               className={
                                 isPrintPreview
@@ -5739,33 +5768,58 @@ function UploadPageContent() {
                           selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
                         }`}
                       >
-                        <div className="pointer-events-none grid h-14 grid-cols-2 overflow-hidden rounded bg-white shadow-sm" style={{ aspectRatio: "2 / 1" }}>
-                          <div className="overflow-hidden">
-                            {i === 0 ? (
-                              <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)]" />
-                            ) : (
-                              renderPage(
-                                spread.left,
-                                leftPhotos,
-                                leftIndexes,
+                        <div className="pointer-events-none relative h-14 overflow-hidden rounded bg-white shadow-sm" style={{ aspectRatio: "2 / 1" }}>
+                          <div className="grid h-full grid-cols-2 overflow-hidden">
+                            <div className="overflow-hidden">
+                              {i === 0 ? (
+                                <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)]" />
+                              ) : (
+                                renderPage(
+                                  spread.left,
+                                  leftPhotos,
+                                  leftIndexes,
+                                  () => {},
+                                  () => {},
+                                  requiredMinPx,
+                                  resolveSpreadBackgroundCss(spread, "right")
+                                )
+                              )}
+                            </div>
+                            <div className="overflow-hidden">
+                              {renderPage(
+                                spread.right,
+                                rightPhotos,
+                                rightIndexes,
                                 () => {},
                                 () => {},
                                 requiredMinPx,
-                                resolveSpreadBackgroundCss(spread, "right")
-                              )
-                            )}
+                                resolveSpreadBackgroundCss(spread, "left")
+                              )}
+                            </div>
                           </div>
-                          <div className="overflow-hidden">
-                            {renderPage(
-                              spread.right,
-                              rightPhotos,
-                              rightIndexes,
-                              () => {},
-                              () => {},
-                              requiredMinPx,
-                              resolveSpreadBackgroundCss(spread, "left")
-                            )}
-                          </div>
+                          {/* 자유 배치 이미지박스("AI 맞춤 레이아웃" 상품 등)는 위 격자 칸
+                              렌더링(renderPage)이 사진을 전혀 안 그려요 — renderPage는 고정
+                              템플릿 칸(photos 배열의 순번) 기준이라, 스프레드 전체 기준
+                              자유 좌표인 imageBoxes는 아예 안 보고 있었어요(하단 썸네일이
+                              빈칸처럼 보이던 버그의 원인). 그래서 imageBoxes는 실제 캔버스와
+                              같은 스프레드 전체 0~100% 좌표를 그대로 써서 이 썸네일 위에
+                              따로 겹쳐 그려요 — 별도 축소 계산 없이 그대로 얹으면 실제
+                              배치와 항상 같은 자리에 보여요. */}
+                          {(spread.imageBoxes ?? []).map((box) => (
+                            <img
+                              key={box.id}
+                              src={box.url}
+                              alt=""
+                              className="pointer-events-none absolute rounded-[1px] border border-white/70 object-cover"
+                              style={{
+                                left: `${box.xPct}%`,
+                                top: `${box.yPct}%`,
+                                width: `${box.widthPct}%`,
+                                height: `${box.heightPct}%`,
+                                transform: box.flipX ? "scaleX(-1)" : undefined,
+                              }}
+                            />
+                          ))}
                         </div>
                         <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
                           {formatSpreadPageLabel(i)}
@@ -5816,7 +5870,7 @@ function UploadPageContent() {
           )}
         </div>
 
-        <section className="mx-auto max-w-5xl px-6 pb-24 pt-6 sm:px-10">
+        <section className="mx-auto w-full max-w-5xl shrink-0 px-6 pb-24 pt-6 sm:px-10">
           {photos.length > 0 && (
             <details className="mt-2">
               <summary className="cursor-pointer text-sm text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)]">
@@ -5924,6 +5978,7 @@ function UploadPageContent() {
               </button>
             ))}
         </section>
+        </div>
       </main>
     );
   }
