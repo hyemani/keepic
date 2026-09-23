@@ -4337,15 +4337,6 @@ function UploadPageContent() {
                   setActiveImageBox(null);
                 }}
               >
-                  {/* 텍스트박스 편집 툴바는 편집 중이 아닐 때는 아예 안 보여요. */}
-                  {editorMode === "edit" && (
-                    <TextBoxToolbar
-                      box={activeTextBoxDef}
-                      onChange={(c) => activeTextBox && updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
-                      onDelete={() => activeTextBox && deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
-                      scopeLabel={activeTextBox ? textBoxScopeLabel(activeTextBox.ref) : undefined}
-                    />
-                  )}
                   <div
                     className={
                       (editorMode === "preview" ? "pointer-events-none select-none " : "") +
@@ -4879,6 +4870,16 @@ function UploadPageContent() {
                               확인하면 돼요). 책등 경계는 위 패널 테두리(항상 표시)만으로 보여줘요. */}
                         </div>
                         </CanvasStage>
+                        {editorMode === "edit" && activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
+                          <div className="lg:w-72 lg:shrink-0">
+                            <TextBoxToolbar
+                              box={activeTextBoxDef}
+                              onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
+                              onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+                              scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : selectedPageKey === "intro" ? (
@@ -5694,6 +5695,16 @@ function UploadPageContent() {
                               </div>
                               </div>
                             </CanvasStage>
+                            {editorMode === "edit" && activeTextBox && activeTextBox.ref.scope === "spread" && (
+                              <div className="lg:w-72 lg:shrink-0">
+                                <TextBoxToolbar
+                                  box={activeTextBoxDef}
+                                  onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
+                                  onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+                                  scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
