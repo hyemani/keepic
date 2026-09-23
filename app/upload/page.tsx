@@ -1478,6 +1478,13 @@ const ImageBoxOverlay = forwardRef<
   const [photoEditMode, setPhotoEditMode] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [boxSizePx, setBoxSizePx] = useState({ w: 1, h: 1 });
+  // 박스를 끌 때 스프레드 가로 중앙(책등)·페이지 세로 중앙에 딱 붙는 느낌을 주는 안내선이에요
+  // (텍스트박스에 이미 있던 것과 같은 방식, 2026-09-23 이미지박스에도 추가).
+  const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
+    v: false,
+    h: false,
+    rect: null,
+  });
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
   const resizeStart = useRef({
@@ -1576,13 +1583,27 @@ const ImageBoxOverlay = forwardRef<
       }
       const dxPct = (dxPxRaw / dragStart.current.cellW) * 100;
       const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
-      const nextX = Math.min(100 - 4, Math.max(0, dragStart.current.xPct + dxPct));
-      const nextY = Math.min(100 - 4, Math.max(0, dragStart.current.yPct + dyPct));
+      let nextX = Math.min(100 - 4, Math.max(0, dragStart.current.xPct + dxPct));
+      let nextY = Math.min(100 - 4, Math.max(0, dragStart.current.yPct + dyPct));
+
+      // 가운데 정렬 스냅: 박스의 가로 중심이 스프레드 정중앙(책등, 50%)에, 세로 중심이
+      // 페이지 세로 정중앙(50%)에 가까워지면 자동으로 딱 맞춰요(텍스트박스와 같은 방식,
+      // 2026-09-23 요청).
+      const cellRect = boxRef.current?.parentElement?.getBoundingClientRect() ?? null;
+      const centerXTarget = 50 - box.widthPct / 2;
+      const centerYTarget = 50 - box.heightPct / 2;
+      const snapV = Math.abs(nextX - centerXTarget) < CENTER_SNAP_THRESHOLD_PCT;
+      const snapH = Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
+      if (snapV) nextX = centerXTarget;
+      if (snapH) nextY = centerYTarget;
+      setSnapGuide({ v: snapV, h: snapH, rect: cellRect });
+
       onChange({ xPct: nextX, yPct: nextY });
     }
     function handleMouseUp() {
       setMouseDownActive(false);
       setIsDragging(false);
+      setSnapGuide({ v: false, h: false, rect: null });
     }
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
@@ -1590,7 +1611,7 @@ const ImageBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [mouseDownActive, isDragging]);
+  }, [mouseDownActive, isDragging, box.widthPct, box.heightPct]);
 
   // "사진 위치 조정" 모드에서 박스를 끌면 박스(틀)가 아니라 그 안의 사진만 옮겨요 —
   // 사진이 박스를 벗어나 빈 여백이 생기지 않도록 매번 clampImageBoxInnerOffset으로
@@ -1810,6 +1831,30 @@ const ImageBoxOverlay = forwardRef<
       }`}
       style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%`, height: `${box.heightPct}%` }}
     >
+      {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
+        <>
+          {snapGuide.v && (
+            <div
+              className="pointer-events-none fixed z-40 w-px bg-[var(--color-sky)]"
+              style={{
+                left: snapGuide.rect.left + snapGuide.rect.width / 2,
+                top: snapGuide.rect.top,
+                height: snapGuide.rect.height,
+              }}
+            />
+          )}
+          {snapGuide.h && (
+            <div
+              className="pointer-events-none fixed z-40 h-px bg-[var(--color-sky)]"
+              style={{
+                top: snapGuide.rect.top + snapGuide.rect.height / 2,
+                left: snapGuide.rect.left,
+                width: snapGuide.rect.width,
+              }}
+            />
+          )}
+        </>
+      )}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <img
           src={box.url}
