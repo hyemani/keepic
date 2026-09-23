@@ -257,6 +257,22 @@ export function templatesForRange(range: LayoutApplyRange): PhotoLayoutTemplate[
   return range === "spread" ? SPREAD_LAYOUT_TEMPLATES : HALF_LAYOUT_TEMPLATES;
 }
 
+// 사진 아래 문구 공간(hasCaptionSpace) 템플릿에서 "사진 슬롯들이 안 쓰는 나머지 세로
+// 공간"이 정확히 어디인지 계산해요. 템플릿의 photo 슬롯들 중 가장 아래쪽 끝(yPct+
+// heightPct의 최댓값)을 구해서, 그 아래부터 100%까지를 캡션(문구) 영역으로 봐요 — 폭은
+// 항상 슬롯 전체 폭(0~100%, 해당 half/표지 앞뒤면 기준)을 그대로 써요. 사진 슬롯을 놓는
+// 것과 똑같은 좌표계(half 스코프는 0~100이 그 페이지/표지면 자신 기준 — applyLayoutTemplate/
+// applyCoverLayoutTemplate에서 사진박스에 slot.yPct·slot.heightPct를 그대로 쓰는 것과
+// 동일)라서, 텍스트박스(TextBoxDef)의 xPct/yPct/widthPct/heightPct에도 변환 없이 그대로
+// 쓸 수 있어요(텍스트박스도 "그 페이지/표지면 자신"을 0~100으로 보는 좌표계라서요).
+export function captionSlotFor(template: PhotoLayoutTemplate): LayoutSlot | null {
+  if (!template.hasCaptionSpace || template.slots.length === 0) return null;
+  const bottom = Math.max(...template.slots.map((s) => s.yPct + s.heightPct));
+  const heightPct = 100 - bottom;
+  if (heightPct <= 0) return null;
+  return { xPct: 0, yPct: bottom, widthPct: 100, heightPct };
+}
+
 export function slotToSpreadCoords(
   slot: LayoutSlot,
   range: LayoutApplyRange

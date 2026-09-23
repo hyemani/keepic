@@ -44,8 +44,10 @@ import { computeImageBoxCoverRect, clampImageBoxInnerOffset } from "@/lib/imageB
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
+  LayoutSlot,
   templatesForRange,
   slotToSpreadCoords,
+  captionSlotFor,
   COVER_LAYOUT_TEMPLATES,
 } from "@/lib/photoLayoutTemplates";
 
@@ -3298,6 +3300,37 @@ function UploadPageContent() {
     };
   }
 
+  // "사진 아래 문구 공간" 계열 레이아웃 템플릿(hasCaptionSpace)을 적용할 때 자동으로
+  // 만들어주는 캡션 텍스트박스예요. id를 이 접두어로 시작하게 해서(2026-09-24 추가),
+  // 같은 자리에 이미 자동 생성된 캡션 박스가 있으면 재적용 시 또 만들지 않고 건너뛸 수
+  // 있게 해요(사용자가 이미 입력한 문구를 덮어쓰지 않으려고, 재적용 때 이 id를 가진
+  // 박스가 있으면 그대로 둬요 — 위치/텍스트 둘 다 안 건드림). 스프레드 인덱스가 바뀌어도
+  // (스프레드 추가/삭제로 순서가 밀려도) 항상 같은 접두어라서 판별이 흔들리지 않아요.
+  const AUTO_CAPTION_ID_PREFIX = "autocaption-";
+  function hasAutoCaptionBox(boxes: TextBoxDef[] | undefined): boolean {
+    return (boxes ?? []).some((b) => b.id.startsWith(AUTO_CAPTION_ID_PREFIX));
+  }
+  // captionSlotFor()가 계산한 캡션 영역(그 페이지/표지면 자신을 0~100으로 보는 좌표 —
+  // 사진 슬롯과 완전히 같은 좌표계라서 변환 없이 그대로 xPct/yPct/widthPct/heightPct에
+  // 넣어요)에 맞춰 빈 텍스트박스를 하나 만들어요. 기본 서체/정렬은 makeTextBox()와
+  // 비슷하되, 문구 공간 안에서 가운데 정렬(가로·세로 모두)로 둬서 바로 보기 좋게 했어요.
+  function makeCaptionTextBox(slot: LayoutSlot): TextBoxDef {
+    return {
+      id: `${AUTO_CAPTION_ID_PREFIX}${crypto.randomUUID()}`,
+      text: "",
+      xPct: slot.xPct,
+      yPct: slot.yPct,
+      widthPct: slot.widthPct,
+      heightPct: slot.heightPct,
+      fontFamily: fontOptions[0].id,
+      fontScale: 1,
+      color: "#1a1a1a",
+      align: "center",
+      verticalAlign: "middle",
+      bold: false,
+    };
+  }
+
   // 내지 페이지(스프레드 하나의 왼쪽/오른쪽 낱장)에 텍스트박스를 추가·수정·삭제해요.
   function handleAddTextBox(spreadIndex: number, side: "left" | "right") {
     const box = makeTextBox();
@@ -3657,12 +3690,35 @@ function UploadPageContent() {
       ...placed.map((b) => b.id),
     ];
 
+    // "사진 아래 문구 공간" 템플릿이면 남는 세로 공간에 캡션 텍스트박스를 자동으로 하나
+    // 만들어줘요(range가 "left"/"right"일 때만 — hasCaptionSpace 템플릿은 half 스코프
+    // 라서 애초에 "spread" 범위로는 고를 수 없지만, 혹시 모를 경우를 대비해 안전하게
+    // left/right일 때만 처리해요). 같은 자리에 이미 자동 생성된 캡션 박스가 있으면
+    // (재적용) 또 만들지 않고 그대로 둬요.
+    const captionSlot = captionSlotFor(template);
+    const captionKey: "textBoxesLeft" | "textBoxesRight" | null =
+      captionSlot && (range === "left" || range === "right")
+        ? range === "left"
+          ? "textBoxesLeft"
+          : "textBoxesRight"
+        : null;
+
     setCustomSpreads((prev) =>
-      prev.map((s, i) =>
-        i === spreadIndex
-          ? { ...s, imageBoxes: [...outOfRange, ...extraBoxes, ...placed], imageBoxOrder: preservedOrder }
-          : s
-      )
+      prev.map((s, i) => {
+        if (i !== spreadIndex) return s;
+        const next: SpreadDef = {
+          ...s,
+          imageBoxes: [...outOfRange, ...extraBoxes, ...placed],
+          imageBoxOrder: preservedOrder,
+        };
+        if (captionKey && captionSlot) {
+          const existingTextBoxes = s[captionKey] ?? [];
+          if (!hasAutoCaptionBox(existingTextBoxes)) {
+            next[captionKey] = [...existingTextBoxes, makeCaptionTextBox(captionSlot)];
+          }
+        }
+        return next;
+      })
     );
   }
 
@@ -3677,6 +3733,10 @@ function UploadPageContent() {
     const isFront = target === "front";
     const existingBoxes = isFront ? coverImageBoxes : backCoverImageBoxes;
     const legacyPhoto = isFront ? coverPhoto : backCoverPhoto;
+    // "사진 아래 문구 공간" 템플릿이면(내지 applyLayoutTemplate과 같은 방식) 남는 세로
+    // 공간에 캡션 텍스트박스를 자동으로 하나 만들어줘요. 표지는 "범위" 개념이 없어서
+    // 항상 coverTextBoxes/backCoverTextBoxes 전체에 적용해요.
+    const captionSlot = captionSlotFor(template);
 
     function finish(baseBoxes: ImageBoxDef[]) {
       const usable = selectedIds
@@ -3713,9 +3773,15 @@ function UploadPageContent() {
       if (isFront) {
         setCoverImageBoxes([...extraBoxes, ...placed]);
         setCoverPhoto(null);
+        if (captionSlot) {
+          setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
+        }
       } else {
         setBackCoverImageBoxes([...extraBoxes, ...placed]);
         setBackCoverPhoto(null);
+        if (captionSlot) {
+          setBackCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
+        }
       }
     }
 
