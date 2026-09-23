@@ -5673,8 +5673,8 @@ function UploadPageContent() {
                                   </label>
                                 )
                               )}
-                              <div className="rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
-                                <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                              <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
+                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   뒤표지 꾸미기
                                 </label>
                                 {/* 2026-09, backCoverMode "키픽 로고"/"작은 사진" 배타적 토글을
@@ -5947,8 +5947,8 @@ function UploadPageContent() {
                                   ))}
                                 </select>
                               </div>
-                              <div className="mt-2 rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
-                                <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                              <div className="mt-2 rounded-lg border border-[var(--color-hairline)] bg-white p-3">
+                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   책등 제목 크기·서체
                                 </label>
                                 <label className="mb-2 flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
@@ -6061,7 +6061,7 @@ function UploadPageContent() {
                               { id: "back", label: "뒤표지" },
                             ];
                             return (
-                            <div className="rounded-xl border border-[var(--color-hairline)] bg-[var(--color-ivory)]/40 p-3">
+                            <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
                               <span className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 범위</span>
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {scopeOptions.map((opt) => (
@@ -6464,7 +6464,7 @@ function UploadPageContent() {
                                 ))}
                               </div>
                               <div
-                                className="flex min-h-0 flex-col overflow-y-auto lg:w-64 lg:shrink-0"
+                                className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1"
                               >
                             {activeEditTab === "text" &&
                               multiTextSelection &&
