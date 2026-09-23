@@ -11,7 +11,7 @@
 // 다시 생성해주세요.
 
 import { jsPDF } from "jspdf";
-import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, pageTemplates } from "@/lib/albumTemplates";
+import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, pageTemplates, sortStackedBoxes } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
 import {
@@ -283,17 +283,29 @@ async function drawPage(
   spreadWidthPx?: number
 ) {
   await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId);
-  if (imageBoxes && pageOffsetPx !== undefined && spreadWidthPx !== undefined) {
-    for (const box of imageBoxes) {
+  // 2026-09-25, "종류 상관없이 전부" 레이어 순서 기능: 사진박스·텍스트박스를 예전처럼
+  // "사진 전부 먼저, 텍스트 전부 나중"(두 단계 루프)으로 그리지 않고, 화면
+  // (app/upload/page.tsx의 ImageBoxLayer/TextBoxLayer)과 완전히 같은 sortStackedBoxes
+  // 정렬 순서로 한 번에 그려요 — 그래야 화면에서 사진을 텍스트 위로 올리면 PDF에서도
+  // 똑같이 사진이 위에 그려져요.
+  const canPlaceImages = imageBoxes && pageOffsetPx !== undefined && spreadWidthPx !== undefined;
+  const stackedOrder = sortStackedBoxes(canPlaceImages ? imageBoxes! : [], textBoxes ?? []);
+  const imageById = new Map((imageBoxes ?? []).map((b) => [b.id, b] as const));
+  const textById = new Map((textBoxes ?? []).map((b) => [b.id, b] as const));
+  for (const item of stackedOrder) {
+    if (item.kind === "image") {
+      if (!canPlaceImages) continue;
+      const box = imageById.get(item.id);
       // 아직 사진을 안 채운 빈 프레임(url이 빈 문자열)은 인쇄 파일에 아무것도 안
       // 그려요(2026-09-23) — 미리보기 화면에서만 "+사진 추가" 안내로 보여요.
-      if (!box.url) continue;
+      if (!box || !box.url) continue;
       const img = await loadImage(box.url);
-      drawImageBoxOnCanvas(ctx, box, img, pageW, pageH, pageOffsetPx, spreadWidthPx);
+      drawImageBoxOnCanvas(ctx, box, img, pageW, pageH, pageOffsetPx!, spreadWidthPx!);
+    } else {
+      const box = textById.get(item.id);
+      if (!box) continue;
+      drawTextBoxOnCanvas(ctx, box, pageW, pageH);
     }
-  }
-  if (textBoxes) {
-    for (const box of textBoxes) drawTextBoxOnCanvas(ctx, box, pageW, pageH);
   }
 }
 
@@ -1162,33 +1174,21 @@ export async function buildCoverPrintPdf({
   // 사진(레이아웃 여러 장 또는 사진 1장)과 로고는 이제 서로 독립된 객체라 함께
   // 있을 수 있어요(2026-09, backCoverMode 배타적 토글 제거) — 사진이 있으면 항상
   // 그리고, 로고는 backCoverLogo가 있을 때만 별도로 그 위·아래에 얹어요.
-  if (backCoverImageBoxes && backCoverImageBoxes.length > 0) {
-    // 레이아웃 탭에서 여러 장 배치를 적용한 뒤표지예요 — 화면 편집기와 같은 좌표계로
-    // 그 자리에 그대로 그려요.
-    await drawImageBoxesInPanel(ctx, backCoverImageBoxes, 0, 0, backCellWpx, backCellHpx);
-  } else if (backCoverPhoto?.url) {
-    const backImg = await loadImage(backCoverPhoto.url);
-    const naturalW = backImg.naturalWidth || 1;
-    const naturalH = backImg.naturalHeight || 1;
-    const squarePx = Math.min(backCellWpx, backCellHpx) * 0.46;
-    let sx = 0;
-    let sy = 0;
-    const sSize = Math.min(naturalW, naturalH);
-    if (naturalW > naturalH) sx = (naturalW - sSize) / 2;
-    else sy = (naturalH - sSize) / 2;
-    ctx.drawImage(
-      backImg,
-      sx,
-      sy,
-      sSize,
-      sSize,
-      backCenterXpx - squarePx / 2,
-      backCenterYpx - squarePx / 2,
-      squarePx,
-      squarePx
-    );
-  }
-  if (backCoverLogo) {
+  // 뒤표지 키픽 로고는 표지 제목과 같은 이유로 "레이어 순서" 시스템 밖에 있는
+  // 고정 요소예요(2026-09-25) — 화면(app/upload/page.tsx)에서도 별도 z-index로
+  // 그려서, 사진·텍스트 순서를 아무리 바꿔도 로고 자체는 재정렬 대상이 아니에요.
+  // 다만 "사진은 로고 아래, 텍스트는 로고 위"였던 예전 기본 모습은 그대로 지키고
+  // 싶어서, effectiveZOrder()의 기본 텍스트 기준선(1000)을 그대로 로고를 그리는
+  // 시점으로 재사용해요 — z<1000(기본 사진, 또는 명시적으로 뒤로 보낸 텍스트)은
+  // 로고보다 먼저, z>=1000(기본 텍스트, 또는 명시적으로 앞으로 보낸 사진)은 로고보다
+  // 나중에 그려요.
+  const BACK_LOGO_Z_THRESHOLD = 1000;
+  // TypeScript는 아래 화살표 함수(닫힘) 안에서 바깥 ctx의 non-null 좁히기를 그대로
+  // 이어받지 못해서(위에서 이미 throw로 null을 걸러냈는데도) 별도 상수로 한 번 더
+  // 확정해줘요.
+  const ctxNN: CanvasRenderingContext2D = ctx;
+  async function drawBackCoverLogo() {
+    if (!backCoverLogo) return;
     // xPct/yPct는 뒤표지 칸(backCellWpx × backCellHpx) 기준, 로고 "중심"의 위치 %예요
     // (화면 편집기의 CSS left/top % + translate(-50%,-50%)와 같은 기준 — 2026-09).
     // scalePct 100 = 예전 고정 크기(칸 너비의 34%)와 같은 크기예요.
@@ -1198,7 +1198,7 @@ export async function buildCoverPrintPdf({
     const backLogoHpx = backLogoWpx / KEEPIC_LOGO_ASPECT;
     const logoCenterXpx = backCellWpx * ((backCoverLogo.xPct ?? 50) / 100);
     const logoCenterYpx = backCellHpx * ((backCoverLogo.yPct ?? 50) / 100);
-    ctx.drawImage(
+    ctxNN.drawImage(
       backLogoImg,
       logoCenterXpx - backLogoWpx / 2,
       logoCenterYpx - backLogoHpx / 2,
@@ -1206,15 +1206,70 @@ export async function buildCoverPrintPdf({
       backLogoHpx
     );
   }
-  if (backCoverTextBoxes) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, backCellWpx, backCellHpx);
-    ctx.clip();
-    for (const box of backCoverTextBoxes) {
-      drawTextBoxOnCanvas(ctx, box, backCellWpx, backCellHpx, 0, 0);
+
+  if (backCoverImageBoxes && backCoverImageBoxes.length > 0) {
+    // 레이아웃 탭에서 여러 장 배치를 적용한 뒤표지예요 — 화면 편집기(ImageBoxLayer/
+    // TextBoxLayer)와 완전히 같은 sortStackedBoxes 순서로, 사진·텍스트를 종류
+    // 상관없이 하나로 섞어서 그려요(2026-09-25).
+    const backStack = sortStackedBoxes(backCoverImageBoxes, backCoverTextBoxes ?? []);
+    const backImgById = new Map(backCoverImageBoxes.map((b) => [b.id, b] as const));
+    const backTxtById = new Map((backCoverTextBoxes ?? []).map((b) => [b.id, b] as const));
+    let backLogoDrawn = !backCoverLogo;
+    for (const item of backStack) {
+      if (!backLogoDrawn && item.z >= BACK_LOGO_Z_THRESHOLD) {
+        await drawBackCoverLogo();
+        backLogoDrawn = true;
+      }
+      if (item.kind === "image") {
+        const box = backImgById.get(item.id);
+        if (box) await drawImageBoxesInPanel(ctx, [box], 0, 0, backCellWpx, backCellHpx);
+      } else {
+        const box = backTxtById.get(item.id);
+        if (box) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, backCellWpx, backCellHpx);
+          ctx.clip();
+          drawTextBoxOnCanvas(ctx, box, backCellWpx, backCellHpx, 0, 0);
+          ctx.restore();
+        }
+      }
     }
-    ctx.restore();
+    if (!backLogoDrawn) await drawBackCoverLogo();
+  } else {
+    if (backCoverPhoto?.url) {
+      const backImg = await loadImage(backCoverPhoto.url);
+      const naturalW = backImg.naturalWidth || 1;
+      const naturalH = backImg.naturalHeight || 1;
+      const squarePx = Math.min(backCellWpx, backCellHpx) * 0.46;
+      let sx = 0;
+      let sy = 0;
+      const sSize = Math.min(naturalW, naturalH);
+      if (naturalW > naturalH) sx = (naturalW - sSize) / 2;
+      else sy = (naturalH - sSize) / 2;
+      ctx.drawImage(
+        backImg,
+        sx,
+        sy,
+        sSize,
+        sSize,
+        backCenterXpx - squarePx / 2,
+        backCenterYpx - squarePx / 2,
+        squarePx,
+        squarePx
+      );
+    }
+    await drawBackCoverLogo();
+    if (backCoverTextBoxes) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, backCellWpx, backCellHpx);
+      ctx.clip();
+      for (const box of backCoverTextBoxes) {
+        drawTextBoxOnCanvas(ctx, box, backCellWpx, backCellHpx, 0, 0);
+      }
+      ctx.restore();
+    }
   }
 
   // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
@@ -1258,15 +1313,14 @@ export async function buildCoverPrintPdf({
     ctx.fillStyle = coverFrontBackgroundColor;
     ctx.fillRect(frontX, 0, frontCellWpx, frontCellHpx);
   }
-  if (coverImageBoxes && coverImageBoxes.length > 0) {
-    // 레이아웃 탭에서 여러 장 배치를 적용한 앞표지예요 — 화면 편집기와 같은 좌표계로
-    // 그 자리에 그대로 그려요.
-    await drawImageBoxesInPanel(ctx, coverImageBoxes, frontX, 0, frontCellWpx, frontCellHpx);
-  } else if (coverPhoto?.url) {
-    const img = await loadImage(coverPhoto.url);
-    drawPhotoInCell(ctx, img, coverPhoto, frontX, 0, frontCellWpx, frontCellHpx);
-  }
-  if (coverTitle.trim()) {
+  // 표지 "제목"(CoverTitleOverlay)은 뒤표지 로고와 같은 이유로 레이어 순서 시스템
+  // 밖에 있는 고정 요소예요(2026-09-25) — 화면에서도 별도 z-28로 그려서, 자유 배치
+  // 사진·텍스트박스를 서로 어떻게 재정렬해도 제목 자체는 그 목록에 안 섞여요. "사진은
+  // 제목 아래, 텍스트박스는 제목 위"였던 예전 기본 모습은 뒤표지 로고와 똑같이
+  // effectiveZOrder()의 텍스트 기준선(1000)을 재사용해서 지켜요.
+  const FRONT_TITLE_Z_THRESHOLD = 1000;
+  async function drawCoverTitle() {
+    if (!coverTitle.trim()) return;
     // 화면(CoverTitleOverlay)과 같은 칸 크기(frontCellWpx/Hpx)를 100%로 보는 퍼센트
     // 좌표라서, 화면에서 끌어다 놓은 자리와 인쇄 파일 자리가 같아요. 화면은 텍스트박스
     // 위에서 아래로 흐르는 왼쪽위 기준(top-left)이라, 여기서도 textBaseline을 top으로
@@ -1274,14 +1328,14 @@ export async function buildCoverPrintPdf({
     // 24pt, 36pt). Enter로 줄바꿈하면 여러 줄로 나눠 그리고, 줄 간격(행간)·자간도
     // 사용자가 지정한 값을 그대로 반영해요.
     const titlePx = mmToPx((coverTitleFontSizePt * 25.4) / 72);
-    ctx.font = `bold ${titlePx}px ${coverTitleFontFamily}`;
-    ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = titlePx * 0.4;
-    if ("letterSpacing" in ctx) {
-      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${titlePx * coverTitleLetterSpacingEm}px`;
+    ctxNN.font = `bold ${titlePx}px ${coverTitleFontFamily}`;
+    ctxNN.fillStyle = "#ffffff";
+    ctxNN.textAlign = "center";
+    ctxNN.textBaseline = "top";
+    ctxNN.shadowColor = "rgba(0,0,0,0.45)";
+    ctxNN.shadowBlur = titlePx * 0.4;
+    if ("letterSpacing" in ctxNN) {
+      (ctxNN as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${titlePx * coverTitleLetterSpacingEm}px`;
     }
     const titleXpx = frontX + (coverTitleXPct / 100) * frontCellWpx + (coverTitleWidthPct / 100) * frontCellWpx / 2;
     const titleYpx = (coverTitleYPct / 100) * frontCellHpx;
@@ -1289,32 +1343,75 @@ export async function buildCoverPrintPdf({
     const titleLinePx = titlePx * coverTitleLineHeightEm;
     const titleLines = coverTitle.trim().split("\n");
     titleLines.forEach((line, i) => {
-      ctx.fillText(line, titleXpx, titleYpx + i * titleLinePx, titleMaxWidthPx);
+      ctxNN.fillText(line, titleXpx, titleYpx + i * titleLinePx, titleMaxWidthPx);
     });
-    if ("letterSpacing" in ctx) {
-      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    if ("letterSpacing" in ctxNN) {
+      (ctxNN as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
     }
-    ctx.shadowBlur = 0;
+    ctxNN.shadowBlur = 0;
   }
 
-  // 표지 앞면 텍스트박스예요. 화면(앞표지 칸)과 같은 칸 크기(frontCellWpx/Hpx)를 100%로
-  // 보는 퍼센트 좌표라서, 화면에서 본 자리와 인쇄 파일 자리가 같아요.
-  if (coverTextBoxes && coverTextBoxes.length) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(frontX, 0, frontCellWpx, frontCellHpx);
-    ctx.clip();
-    for (const box of coverTextBoxes) {
-      drawTextBoxOnCanvas(
-        ctx,
-        { ...box, xPct: box.xPct, yPct: box.yPct, widthPct: box.widthPct },
-        frontCellWpx,
-        frontCellHpx,
-        frontX,
-        0
-      );
+  if (coverImageBoxes && coverImageBoxes.length > 0) {
+    // 레이아웃 탭에서 여러 장 배치를 적용한 앞표지예요 — 화면 편집기(ImageBoxLayer/
+    // TextBoxLayer)와 완전히 같은 sortStackedBoxes 순서로, 사진·텍스트박스를 종류
+    // 상관없이 하나로 섞어서 그려요(2026-09-25).
+    const frontStack = sortStackedBoxes(coverImageBoxes, coverTextBoxes ?? []);
+    const frontImgById = new Map(coverImageBoxes.map((b) => [b.id, b] as const));
+    const frontTxtById = new Map((coverTextBoxes ?? []).map((b) => [b.id, b] as const));
+    let titleDrawn = !coverTitle.trim();
+    for (const item of frontStack) {
+      if (!titleDrawn && item.z >= FRONT_TITLE_Z_THRESHOLD) {
+        await drawCoverTitle();
+        titleDrawn = true;
+      }
+      if (item.kind === "image") {
+        const box = frontImgById.get(item.id);
+        if (box) await drawImageBoxesInPanel(ctx, [box], frontX, 0, frontCellWpx, frontCellHpx);
+      } else {
+        const box = frontTxtById.get(item.id);
+        if (box) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(frontX, 0, frontCellWpx, frontCellHpx);
+          ctx.clip();
+          drawTextBoxOnCanvas(
+            ctx,
+            { ...box, xPct: box.xPct, yPct: box.yPct, widthPct: box.widthPct },
+            frontCellWpx,
+            frontCellHpx,
+            frontX,
+            0
+          );
+          ctx.restore();
+        }
+      }
     }
-    ctx.restore();
+    if (!titleDrawn) await drawCoverTitle();
+  } else {
+    if (coverPhoto?.url) {
+      const img = await loadImage(coverPhoto.url);
+      drawPhotoInCell(ctx, img, coverPhoto, frontX, 0, frontCellWpx, frontCellHpx);
+    }
+    await drawCoverTitle();
+    // 표지 앞면 텍스트박스예요. 화면(앞표지 칸)과 같은 칸 크기(frontCellWpx/Hpx)를
+    // 100%로 보는 퍼센트 좌표라서, 화면에서 본 자리와 인쇄 파일 자리가 같아요.
+    if (coverTextBoxes && coverTextBoxes.length) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(frontX, 0, frontCellWpx, frontCellHpx);
+      ctx.clip();
+      for (const box of coverTextBoxes) {
+        drawTextBoxOnCanvas(
+          ctx,
+          { ...box, xPct: box.xPct, yPct: box.yPct, widthPct: box.widthPct },
+          frontCellWpx,
+          frontCellHpx,
+          frontX,
+          0
+        );
+      }
+      ctx.restore();
+    }
   }
 
   const cleanDataUrl = canvasToJpegDataUrl(canvas);

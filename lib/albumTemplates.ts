@@ -55,6 +55,13 @@ export type TextBoxDef = {
   // 글자 양에 맞춰 자동으로 늘어나는 박스는 남는 공간이 없어서 항상 위와 같아요). 값이
   // 없으면 기존처럼 "위"로 취급해요(하위 호환, 2026-09-22 추가).
   verticalAlign?: "top" | "middle" | "bottom";
+  // 사진박스·다른 텍스트박스와 뒤섞어서 앞뒤 순서(쌓임 순서)를 매길 때 쓰는 값이에요
+  // (2026-09-25, "종류 상관없이 전부" 레이어 순서 기능 추가). 값이 클수록 나중에
+  // 그려져서(=화면·인쇄 모두) 더 위에 보여요. 값이 없으면(예전에 저장된 텍스트박스)
+  // "사진은 전부 아래, 텍스트는 전부 위"였던 기존 화면 그대로 보이도록
+  // effectiveZOrder()가 안전한 기본값을 대신 매겨요 — 불러온 프로젝트가 이 필드가
+  // 없다고 해서 갑자기 순서가 달라지지 않아요.
+  zOrder?: number;
 };
 
 // 자유 배치 이미지박스 하나예요(내지 스프레드·표지 앞면 공통으로 써요). 텍스트박스와
@@ -92,6 +99,10 @@ export type ImageBoxDef = {
   // 파일 둘 다 같은 값을 보고 그려요. 회전은 박스 크기 계산이 훨씬 복잡해져서 아직
   // 지원하지 않아요 — 필요하면 다음에 별도로 추가해요.
   flipX?: boolean;
+  // 텍스트박스의 zOrder와 같은 개념·같은 값 범위예요(둘을 하나로 섞어서 정렬해요).
+  // 값이 없으면(예전 이미지박스) effectiveZOrder()가 "사진은 전부 아래" 기본값을
+  // 매겨요.
+  zOrder?: number;
 };
 
 export type SpreadDef = {
@@ -368,4 +379,76 @@ export function generateAutoSpreads(
     spreads.push({ left: "blank", right: "blank" });
   }
   return spreads.slice(0, count);
+}
+// ---- 사진박스·텍스트박스 쌓임 순서(zOrder, 2026-09-25 추가) ----
+// "레이어" 메뉴에서 종류(사진/텍스트) 상관없이 앞뒤 순서를 바꿀 수 있게 하는 공용
+// 계산이에요. 화면(app/upload/page.tsx)과 인쇄(lib/printCompose.ts)가 이 파일의
+// effectiveZOrder·sortStackedBoxes·computeZOrderUpdates를 똑같이 가져다 써서, 화면에
+// 보이는 순서와 실제 PDF에 그려지는 순서가 절대 어긋나지 않도록 해요.
+
+export type StackKind = "image" | "text";
+
+export type StackedItem = { kind: StackKind; id: string; z: number };
+
+// zOrder가 없는(예전에 저장된) 박스에 매기는 기본값이에요. 사진은 배열 순서 그대로
+// 0부터, 텍스트는 배열 순서 그대로 1000부터 — 그래서 zOrder를 아무도 아직 안 건드린
+// 스프레드/표지 패널은 예전과 똑같이 "사진은 전부 아래, 텍스트는 전부 위"로 보여요
+// (한 패널에 사진이 1000장 넘게 있는 것처럼 극단적인 경우만 예외예요).
+export function effectiveZOrder(kind: StackKind, zOrder: number | undefined, arrayIndex: number): number {
+  if (zOrder !== undefined && Number.isFinite(zOrder)) return zOrder;
+  return kind === "image" ? arrayIndex : 1000 + arrayIndex;
+}
+
+// 같은 패널(스프레드 전체, 또는 표지 앞/뒤면 한 칸) 안의 사진박스·텍스트박스를 전부
+// 하나로 합쳐서 "아래→위" 순서로 정렬해요. z값이 같으면(드물게 zOrder를 직접 같은
+// 값으로 줬을 때) 원래 배열 순서(사진 배열 전체 다음 텍스트 배열 전체)를 그대로
+// 유지해요 — Array.prototype.sort는 안정 정렬이라 표준상 보장돼요.
+export function sortStackedBoxes(images: ImageBoxDef[], texts: TextBoxDef[]): StackedItem[] {
+  const items: StackedItem[] = [
+    ...images.map((b, i) => ({ kind: "image" as const, id: b.id, z: effectiveZOrder("image", b.zOrder, i) })),
+    ...texts.map((b, i) => ({ kind: "text" as const, id: b.id, z: effectiveZOrder("text", b.zOrder, i) })),
+  ];
+  return items.sort((a, b) => a.z - b.z);
+}
+
+export type StackOrderAction = "front" | "back" | "forward" | "backward";
+
+// 특정 박스 하나를 한 칸 앞으로/뒤로, 또는 맨 앞/맨 뒤로 보낼 때 실제로 zOrder를 새로
+// 써야 하는 대상들을 계산해요(1개 또는 2개). 한 칸 이동은 바로 이웃한 박스와 z값을
+// 맞바꾸는 방식이라 둘 다 결과에 포함되고, 맨 앞/맨 뒤는 지금 패널의 최댓값+1·최솟값-1로
+// 옮기는 거라 자기 자신만 포함돼요. 이미 맨 앞/맨 뒤라 옮길 곳이 없으면 빈 배열이에요.
+export function computeZOrderUpdates(
+  images: ImageBoxDef[],
+  texts: TextBoxDef[],
+  kind: StackKind,
+  id: string,
+  action: StackOrderAction
+): { kind: StackKind; id: string; z: number }[] {
+  const order = sortStackedBoxes(images, texts);
+  const idx = order.findIndex((it) => it.kind === kind && it.id === id);
+  if (idx === -1 || order.length === 0) return [];
+
+  if (action === "front") {
+    if (idx === order.length - 1) return [];
+    return [{ kind, id, z: order[order.length - 1].z + 1 }];
+  }
+  if (action === "back") {
+    if (idx === 0) return [];
+    return [{ kind, id, z: order[0].z - 1 }];
+  }
+  if (action === "forward") {
+    if (idx >= order.length - 1) return [];
+    const neighbor = order[idx + 1];
+    return [
+      { kind, id, z: neighbor.z },
+      { kind: neighbor.kind, id: neighbor.id, z: order[idx].z },
+    ];
+  }
+  // backward
+  if (idx <= 0) return [];
+  const neighbor = order[idx - 1];
+  return [
+    { kind, id, z: neighbor.z },
+    { kind: neighbor.kind, id: neighbor.id, z: order[idx].z },
+  ];
 }

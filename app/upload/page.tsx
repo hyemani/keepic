@@ -17,6 +17,10 @@ import {
   findAutoPhotoSlotPosition,
   calcRequiredSpreadCount,
   fitSpreadsToCount,
+  effectiveZOrder,
+  computeZOrderUpdates,
+  StackKind,
+  StackOrderAction,
 } from "@/lib/albumTemplates";
 import {
   photobookCovers,
@@ -1022,6 +1026,9 @@ function TextBoxOverlay({
   isMultiSelected = false,
   onSelect,
   onShiftSelect,
+  zIndex,
+  onDelete,
+  onStackAction,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -1034,6 +1041,15 @@ function TextBoxOverlay({
   // 2026-09 추가) — 일반 클릭(onSelect)과 달리 드래그를 시작하지 않고 딱 선택 상태만
   // 토글해요. 전달 안 하면(레이어가 아직 안 붙었으면) 일반 onSelect로 대체해요.
   onShiftSelect?: () => void;
+  // 사진박스·다른 텍스트박스와 섞어서 매긴 쌓임 순서예요(2026-09-25 "레이어" 기능
+  // 추가). 이 값을 그대로 CSS zIndex로 써서, 예전처럼 텍스트가 항상 사진 위(z-30
+  // 고정)가 아니라 실제 순서대로 보이게 해요 — TextBoxLayer가 effectiveZOrder()로
+  // 계산해서 내려줘요.
+  zIndex: number;
+  // 아래 뜨는 작은 "레이어" 툴바(삭제·앞으로·뒤로·맨앞·맨뒤)용이에요. 없으면(옵션)
+  // 툴바를 안 띄워요.
+  onDelete?: () => void;
+  onStackAction?: (action: StackOrderAction) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
@@ -1208,7 +1224,7 @@ function TextBoxOverlay({
     <div
       ref={boxRef}
       onMouseDown={handleMouseDown}
-      className={`absolute z-30 cursor-move border transition ${
+      className={`absolute cursor-move border transition ${
         isActive
           ? "border-[var(--color-sky)]"
           : isMultiSelected
@@ -1216,6 +1232,7 @@ function TextBoxOverlay({
           : "border-transparent hover:border-[var(--color-sky)]/40"
       }`}
       style={{
+        zIndex,
         left: `${box.xPct}%`,
         top: `${box.yPct}%`,
         width: `${box.widthPct}%`,
@@ -1297,7 +1314,75 @@ function TextBoxOverlay({
               className={`absolute z-40 h-3 w-3 rounded-sm border border-white bg-[var(--color-sky)] shadow ${cursor} ${className}`}
             />
           ))}
+          {(onDelete || onStackAction) && (
+            <StackOrderToolbar
+              // 박스 아래쪽이 페이지 밑바닥에 가까우면(대략 80% 아래) 툴바가 페이지
+              // 밖으로 잘려 안 보일 수 있어서, 그때만 위쪽에 띄워요(간단한 규칙 —
+              // 실제 화면 좌표를 재는 대신 %로만 대충 판단해요, 2026-09-25).
+              flip={box.yPct + (box.heightPct ?? 12) > 80}
+              onDelete={onDelete}
+              onStackAction={onStackAction}
+            />
+          )}
         </>
+      )}
+    </div>
+  );
+}
+
+// 사진박스·텍스트박스 공용 "레이어" 작은 떠있는 툴바예요(2026-09-25 추가) — 선택된
+// 박스 하나에만 뜨고, 삭제·한 칸 앞으로/뒤로·맨 앞으로/맨 뒤로 5개 아이콘만 있어요.
+// 종류(사진/텍스트) 상관없이 똑같은 모양이라 여기 하나로 공용으로 써요. 박스 자신의
+// 위치 기준(부모가 이미 xPct/yPct/widthPct/heightPct로 자리잡은 박스 div) 바로
+// 아래(또는 위)에 CSS로만 붙어서, 실제 화면 좌표를 따로 재지 않아도 항상 그 박스
+// 가까이에 보여요.
+function StackOrderToolbar({
+  flip,
+  onDelete,
+  onStackAction,
+}: {
+  flip: boolean;
+  onDelete?: () => void;
+  onStackAction?: (action: StackOrderAction) => void;
+}) {
+  const buttons: { key: string; title: string; icon: string; onClick: () => void }[] = [];
+  if (onStackAction) {
+    buttons.push(
+      { key: "back", title: "맨 뒤로", icon: "«", onClick: () => onStackAction("back") },
+      { key: "backward", title: "뒤로 한 칸", icon: "‹", onClick: () => onStackAction("backward") },
+      { key: "forward", title: "앞으로 한 칸", icon: "›", onClick: () => onStackAction("forward") },
+      { key: "front", title: "맨 앞으로", icon: "»", onClick: () => onStackAction("front") }
+    );
+  }
+  return (
+    <div
+      // 캔버스의 드래그·선택 로직(onMouseDown)이 부모 박스에 달려있어서, 여기서 누른
+      // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      className="absolute left-1/2 z-50 flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap rounded-full bg-[var(--color-charcoal)] px-1 py-1 text-white shadow-lg"
+      style={flip ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }}
+    >
+      {buttons.map((b) => (
+        <button
+          key={b.key}
+          type="button"
+          title={b.title}
+          onClick={b.onClick}
+          className="flex h-6 w-6 items-center justify-center rounded-full text-xs transition hover:bg-white/20"
+        >
+          {b.icon}
+        </button>
+      ))}
+      {onDelete && (
+        <button
+          type="button"
+          title="삭제"
+          onClick={onDelete}
+          className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs text-red-300 transition hover:bg-white/20"
+        >
+          ✕
+        </button>
       )}
     </div>
   );
@@ -1616,6 +1701,8 @@ function TextBoxLayer({
   boxes,
   onAdd,
   onChange,
+  onDelete,
+  onStackAction,
   activeBoxId,
   onSelect,
   onShiftSelect,
@@ -1625,6 +1712,10 @@ function TextBoxLayer({
   boxes: TextBoxDef[];
   onAdd: () => void;
   onChange: (boxId: string, changes: Partial<TextBoxDef>) => void;
+  // 캔버스에 뜨는 "레이어" 작은 툴바(2026-09-25 추가)의 삭제·앞뒤 순서 버튼용이에요.
+  // 안 넘기면(옵션) 툴바가 아예 안 떠요(정렬/분배 패널 같은 다중 선택 화면 등).
+  onDelete?: (boxId: string) => void;
+  onStackAction?: (boxId: string, action: StackOrderAction) => void;
   activeBoxId: string | null;
   onSelect: (boxId: string) => void;
   // Shift+클릭으로 다중 선택 목록에 넣고 빼는 콜백이에요(정렬/분배 패널용, 2026-09
@@ -1640,7 +1731,7 @@ function TextBoxLayer({
 }) {
   return (
     <>
-      {boxes.map((box) => (
+      {boxes.map((box, index) => (
         <TextBoxOverlay
           key={box.id}
           box={box}
@@ -1649,6 +1740,9 @@ function TextBoxLayer({
           isMultiSelected={(multiSelectedBoxIds ?? []).includes(box.id)}
           onSelect={() => onSelect(box.id)}
           onShiftSelect={onShiftSelect ? () => onShiftSelect(box.id) : undefined}
+          zIndex={effectiveZOrder("text", box.zOrder, index)}
+          onDelete={onDelete ? () => onDelete(box.id) : undefined}
+          onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
         />
       ))}
       {showAddButton && (
@@ -1732,9 +1826,14 @@ const ImageBoxOverlay = forwardRef<
     // 사진 위치 조정 모드(더블클릭으로 들어가는 모드)에 들어가거나 나올 때마다 부모에게
     // 알려줘요 — 왼쪽 "사진" 메뉴에 조작 버튼을 보여줄지 말지 결정하는 데 씀.
     onPhotoEditModeChange?: (active: boolean) => void;
+    // 텍스트박스와 섞어서 매긴 쌓임 순서예요(TextBoxOverlay의 zIndex와 같은 개념,
+    // 2026-09-25 "레이어" 기능 추가) — ImageBoxLayer가 effectiveZOrder()로 계산해서
+    // 내려줘요.
+    zIndex: number;
+    onStackAction?: (action: StackOrderAction) => void;
   }
 >(function ImageBoxOverlay(
-  { box, onChange, onDelete, isActive, onSelect, guidesX, guidesY, onPhotoEditModeChange },
+  { box, onChange, onDelete, isActive, onSelect, guidesX, guidesY, onPhotoEditModeChange, zIndex, onStackAction },
   ref
 ) {
   const [mouseDownActive, setMouseDownActive] = useState(false);
@@ -2115,7 +2214,7 @@ const ImageBoxOverlay = forwardRef<
       ref={boxRef}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
-      className={`absolute z-[25] border transition ${
+      className={`absolute border transition ${
         isActive && photoEditMode ? "cursor-grab" : "cursor-move"
       } ${
         isActive && photoEditMode
@@ -2124,7 +2223,13 @@ const ImageBoxOverlay = forwardRef<
             ? "border-[var(--color-sky)]"
             : "border-transparent hover:border-[var(--color-sky)]/40"
       }`}
-      style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%`, height: `${box.heightPct}%` }}
+      style={{
+        zIndex,
+        left: `${box.xPct}%`,
+        top: `${box.yPct}%`,
+        width: `${box.widthPct}%`,
+        height: `${box.heightPct}%`,
+      }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
         <>
@@ -2307,6 +2412,15 @@ const ImageBoxOverlay = forwardRef<
           </button>
         </div>
       )}
+      {isActive && (onDelete || onStackAction) && (
+        <StackOrderToolbar
+          // 텍스트박스와 같은 규칙 — 박스 아래쪽이 페이지 밑바닥에 가까우면 위쪽에
+          // 띄워요.
+          flip={box.yPct + box.heightPct > 80}
+          onDelete={onDelete}
+          onStackAction={onStackAction}
+        />
+      )}
     </div>
   );
 });
@@ -2318,6 +2432,7 @@ function ImageBoxLayer({
   boxes,
   onChange,
   onDelete,
+  onStackAction,
   activeBoxId,
   onSelect,
   guidesX,
@@ -2328,6 +2443,9 @@ function ImageBoxLayer({
   boxes: ImageBoxDef[];
   onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
   onDelete: (boxId: string) => void;
+  // 캔버스에 뜨는 "레이어" 작은 툴바(2026-09-25 추가)의 앞뒤 순서 버튼용이에요. 안
+  // 넘기면(옵션) 그 4개 버튼은 안 떠요(삭제 버튼은 onDelete만 있어도 떠요).
+  onStackAction?: (boxId: string, action: StackOrderAction) => void;
   activeBoxId: string | null;
   onSelect: (boxId: string) => void;
   // 크기 조절 손잡이가 달라붙을 안내선 위치예요(스프레드 전체를 0~100으로 보는 %,
@@ -2345,7 +2463,7 @@ function ImageBoxLayer({
   // 아이콘 메뉴("사진"/"스티커" 탭)로 옮겨졌어요 — 이 레이어는 이제 박스 렌더링만 해요.
   return (
     <>
-      {boxes.map((box) => (
+      {boxes.map((box, index) => (
         <ImageBoxOverlay
           key={box.id}
           ref={(instance) => registerBoxRef?.(box.id, instance)}
@@ -2357,6 +2475,8 @@ function ImageBoxLayer({
           onPhotoEditModeChange={box.id === activeBoxId ? onPhotoEditModeChange : undefined}
           guidesX={guidesX}
           guidesY={guidesY}
+          zIndex={effectiveZOrder("image", box.zOrder, index)}
+          onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
         />
       ))}
     </>
@@ -4192,6 +4312,48 @@ function UploadPageContent() {
       )
     );
     setActiveImageBox(null);
+  }
+
+  // ---- 레이어(쌓임) 순서 — 사진박스·텍스트박스를 종류 상관없이 앞뒤로 옮기기
+  // (2026-09-25 추가) ----
+  // 스프레드(내지) 한 장의 레이어 순서 조작이에요. 사진박스는 스프레드 전체를 공유하고
+  // 텍스트박스는 왼쪽/오른쪽 낱장이 따로 있지만, 화면에서 이 셋은 이미 같은 자리에
+  // 겹쳐 보이는 하나의 무리라(z-25/z-30이 스프레드 전체 기준으로 비교되던 예전 구조와
+  // 같아요) 왼쪽+오른쪽 텍스트박스를 합쳐서 "이 스프레드의 텍스트 전체"로 취급해요.
+  function applySpreadStackAction(spreadIndex: number, kind: StackKind, boxId: string, action: StackOrderAction) {
+    const spread = customSpreads[spreadIndex];
+    if (!spread) return;
+    const texts = [...(spread.textBoxesLeft ?? []), ...(spread.textBoxesRight ?? [])];
+    const updates = computeZOrderUpdates(spread.imageBoxes ?? [], texts, kind, boxId, action);
+    for (const u of updates) {
+      if (u.kind === "image") {
+        handleImageBoxChange(spreadIndex, u.id, { zOrder: u.z });
+      } else {
+        // 텍스트박스는 왼쪽/오른쪽 중 어디 있는지 먼저 찾아야 handleTextBoxChange를
+        // 부를 수 있어요.
+        const side = (spread.textBoxesLeft ?? []).some((b) => b.id === u.id) ? "left" : "right";
+        handleTextBoxChange(spreadIndex, side, u.id, { zOrder: u.z });
+      }
+    }
+  }
+
+  // 표지 앞면("front")·뒤표지("back") 한 칸의 레이어 순서 조작이에요. 표지는 스프레드처럼
+  // 왼쪽/오른쪽으로 나뉘지 않고 칸 하나(앞면 또는 뒤면)가 곧 한 무리라 더 단순해요.
+  // 뒤표지 키픽 로고는 표지 제목과 마찬가지로 이 레이어 시스템 밖의 고정 요소라(위
+  // lib/printCompose.ts와 같은 설계) 여기서 다루지 않아요.
+  function applyCoverStackAction(target: "front" | "back", kind: StackKind, boxId: string, action: StackOrderAction) {
+    const images = target === "front" ? coverImageBoxes : backCoverImageBoxes;
+    const texts = target === "front" ? coverTextBoxes : backCoverTextBoxes;
+    const updates = computeZOrderUpdates(images, texts, kind, boxId, action);
+    for (const u of updates) {
+      if (target === "front") {
+        if (u.kind === "image") handleCoverImageBoxChange(u.id, { zOrder: u.z });
+        else handleCoverTextBoxChange(u.id, { zOrder: u.z });
+      } else {
+        if (u.kind === "image") handleBackCoverImageBoxChange(u.id, { zOrder: u.z });
+        else handleBackCoverTextBoxChange(u.id, { zOrder: u.z });
+      }
+    }
   }
 
   // ---- 편집기 단축키: 실행취소/다시실행, 복사/붙여넣기, 확대·축소 ----
@@ -6184,6 +6346,7 @@ function UploadPageContent() {
                                 boxes={backCoverImageBoxes}
                                 onChange={handleBackCoverImageBoxChange}
                                 onDelete={handleDeleteBackCoverImageBox}
+                                onStackAction={(boxId, action) => applyCoverStackAction("back", "image", boxId, action)}
                                 activeBoxId={
                                   activeCoverImageBox?.target === "back" ? activeCoverImageBox.boxId : null
                                 }
@@ -6238,6 +6401,8 @@ function UploadPageContent() {
                               boxes={backCoverTextBoxes}
                               onAdd={handleAddBackCoverTextBox}
                               onChange={handleBackCoverTextBoxChange}
+                              onDelete={(boxId) => deleteTextBoxByRef({ scope: "backCover" }, boxId)}
+                              onStackAction={(boxId, action) => applyCoverStackAction("back", "text", boxId, action)}
                               activeBoxId={activeTextBox?.ref.scope === "backCover" ? activeTextBox.boxId : null}
                               onSelect={(boxId) => selectTextBox({ scope: "backCover" }, boxId)}
                               onShiftSelect={(boxId) => toggleTextBoxMultiSelect({ scope: "backCover" }, boxId)}
@@ -6291,6 +6456,7 @@ function UploadPageContent() {
                                 boxes={coverImageBoxes}
                                 onChange={handleCoverImageBoxChange}
                                 onDelete={handleDeleteCoverImageBox}
+                                onStackAction={(boxId, action) => applyCoverStackAction("front", "image", boxId, action)}
                                 activeBoxId={
                                   activeCoverImageBox?.target === "front" ? activeCoverImageBox.boxId : null
                                 }
@@ -6333,6 +6499,8 @@ function UploadPageContent() {
                               boxes={coverTextBoxes}
                               onAdd={handleAddCoverTextBox}
                               onChange={handleCoverTextBoxChange}
+                              onDelete={(boxId) => deleteTextBoxByRef({ scope: "cover" }, boxId)}
+                              onStackAction={(boxId, action) => applyCoverStackAction("front", "text", boxId, action)}
                               activeBoxId={activeTextBox?.ref.scope === "cover" ? activeTextBox.boxId : null}
                               onSelect={(boxId) => selectTextBox({ scope: "cover" }, boxId)}
                               onShiftSelect={(boxId) => toggleTextBoxMultiSelect({ scope: "cover" }, boxId)}
@@ -7170,6 +7338,7 @@ function UploadPageContent() {
                                 boxes={spread.imageBoxes ?? []}
                                 onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
                                 onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
+                                onStackAction={(boxId, action) => applySpreadStackAction(i, "image", boxId, action)}
                                 activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
                                 onSelect={(boxId) => selectImageBox(i, boxId)}
                                 onPhotoEditModeChange={setImageBoxPhotoEditActive}
@@ -7215,6 +7384,8 @@ function UploadPageContent() {
                                       onAdd={() => handleAddTextBox(i, "left")}
                                       showAddButton={false}
                                       onChange={(boxId, c) => handleTextBoxChange(i, "left", boxId, c)}
+                                      onDelete={(boxId) => handleDeleteTextBox(i, "left", boxId)}
+                                      onStackAction={(boxId, action) => applySpreadStackAction(i, "text", boxId, action)}
                                       activeBoxId={
                                         activeTextBox?.ref.scope === "spread" &&
                                         activeTextBox.ref.spreadIndex === i &&
@@ -7270,6 +7441,8 @@ function UploadPageContent() {
                                   onAdd={() => handleAddTextBox(i, "right")}
                                   showAddButton={false}
                                   onChange={(boxId, c) => handleTextBoxChange(i, "right", boxId, c)}
+                                  onDelete={(boxId) => handleDeleteTextBox(i, "right", boxId)}
+                                  onStackAction={(boxId, action) => applySpreadStackAction(i, "text", boxId, action)}
                                   activeBoxId={
                                     activeTextBox?.ref.scope === "spread" &&
                                     activeTextBox.ref.spreadIndex === i &&
