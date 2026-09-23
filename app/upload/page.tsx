@@ -5194,19 +5194,14 @@ function UploadPageContent() {
                                 <label className="mb-2 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   책등 제목 크기·서체
                                 </label>
-                                <p className="mb-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                  책등 글자는 이 표지 제목 글자를 그대로 쓰지만, 크기·서체는 따로
-                                  고를 수 있어요. 책등 양옆 여백은 항상 1.5mm를 넘지 않도록
-                                  자동으로 잘라줘요(너무 크게 고르면 그 안에서 최대치로 맞춰져요).
-                                </p>
                                 <label className="mb-2 flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
                                   <input
                                     type="checkbox"
-                                    checked={titleFontLinked}
-                                    onChange={(e) => setTitleFontLinked(e.target.checked)}
+                                    checked={!titleFontLinked}
+                                    onChange={(e) => setTitleFontLinked(!e.target.checked)}
                                     className="h-3.5 w-3.5"
                                   />
-                                  표지 제목과 책등 제목 서체 연결(어느 쪽에서 바꿔도 같이 적용돼요)
+                                  서체 분리(기본은 표지 제목과 동기화돼요)
                                 </label>
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                   <div>
