@@ -4888,11 +4888,7 @@ function UploadPageContent() {
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-[var(--color-hairline)] bg-white p-5">
                       <div className="shrink-0">
-                        <p className="text-sm font-medium">앞표지 꾸미기</p>
-                        <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
-                          여기서 고른 사진과 제목이 실제 표지 인쇄 파일에 그대로 들어가요. 뒤표지·책등
-                          꾸미기는 아래에서 따로 설정할 수 있어요.
-                        </p>
+                        <p className="text-sm font-medium">표지</p>
                       </div>
 
                       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
@@ -4932,9 +4928,8 @@ function UploadPageContent() {
                             <div className="flex flex-col gap-3">
                               {coverImageBoxes.length > 0 ? (
                                 <p className="rounded-lg bg-[var(--color-ivory)] px-3 py-2 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
-                                  지금 앞표지는 “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 캔버스에서
-                                  사진 박스를 눌러 바꾸거나, 레이아웃 탭에서 “꽉 채우기”를 다시 골라
-                                  사진 1장 방식으로 되돌릴 수 있어요.
+                                  “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 되돌리려면 레이아웃
+                                  탭에서 “꽉 채우기”를 골라주세요.
                                 </p>
                               ) : (
                                 coverPhoto && (
@@ -5147,11 +5142,7 @@ function UploadPageContent() {
                                 className="flex-1 resize-none rounded-lg border border-[var(--color-hairline)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--color-sky)]"
                               />
                               <p className="text-xs text-[var(--color-charcoal)]/50 break-keep">
-                                제목은 비워둬도 괜찮아요. 사진 위에 흰 글씨로 들어가요. Enter를 누르면 줄이
-                                바뀌어요(2줄 이상도 가능해요).
-                              </p>
-                              <p className="text-xs text-[var(--color-charcoal)]/50 break-keep">
-                                이 제목이 책등에도 그대로 들어가요.
+                                책등에도 같은 제목이 들어가요.
                               </p>
                               <div className="mt-2 grid grid-cols-1 gap-3">
                                 <div>
@@ -5320,9 +5311,6 @@ function UploadPageContent() {
                                   );
                                 })}
                               </div>
-                              <p className="mt-2 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                아래에서 뒤표지·책등·표지를 각각 따로 지정할 수도 있어요.
-                              </p>
                               <div className="mt-2 flex flex-wrap items-center gap-4">
                                 <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-charcoal)]/70">
                                   뒤표지
@@ -5599,9 +5587,8 @@ function UploadPageContent() {
                       <div className="shrink-0">
                         <p className="text-sm font-medium">마지막 소개 페이지</p>
                         <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
-                          앞표지 사진·제목이 자동으로 반영돼요(여기서 사진 크기·위치를 조절해도 실제
-                          앞표지에는 영향을 주지 않아요). 오른쪽 면은 인쇄되지 않는 빈 면이에요 —
-                          내지 페이지 수·PDF에는 포함되지 않아요.
+                          앞표지 사진·제목이 자동 반영돼요(여기서 조절해도 앞표지엔 영향 없음).
+                          오른쪽 면은 인쇄되지 않는 빈 면이에요.
                         </p>
                       </div>
                       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
@@ -5730,10 +5717,7 @@ function UploadPageContent() {
                                       <p className="text-xs font-medium text-[var(--color-charcoal)]">
                                         선택한 사진박스
                                       </p>
-                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                        박스 크기·위치는 캔버스에서 손잡이로 조절하거나, 아래
-                                        버튼으로 펼침면 전체를 한 번에 채울 수 있어요.
-                                      </p>
+
                                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                         <button
                                           type="button"
@@ -5919,10 +5903,7 @@ function UploadPageContent() {
                                       <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
                                         이 페이지에 사진 추가
                                       </p>
-                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                        끌어서 옮기고 크기를 조절할 수 있는 사진을 이 펼침면에
-                                        자유롭게 얹어요(페이지 구성용 사진과는 별개예요).
-                                      </p>
+
                                       <label className="mt-1.5 inline-block cursor-pointer rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
                                         + 사진 추가
                                         <input
