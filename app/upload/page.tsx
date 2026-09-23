@@ -2921,7 +2921,13 @@ function UploadPageContent() {
             innerScale: 1,
           };
           spreads = spreads.map((s2, i) =>
-            i === pos.spreadIndex ? { ...s2, imageBoxes: [...(s2.imageBoxes ?? []), box] } : s2
+            i === pos.spreadIndex
+              ? {
+                  ...s2,
+                  imageBoxes: [...(s2.imageBoxes ?? []), box],
+                  imageBoxOrder: [...getSpreadImageBoxOrder(s2), box.id],
+                }
+              : s2
           );
         });
         return spreads;
@@ -2944,10 +2950,16 @@ function UploadPageContent() {
       const removedUrl = photos[index]?.url;
       if (removedUrl) {
         setCustomSpreads((prev) =>
-          prev.map((s) => ({
-            ...s,
-            imageBoxes: (s.imageBoxes ?? []).filter((b) => b.url !== removedUrl),
-          }))
+          prev.map((s) => {
+            const removedIds = (s.imageBoxes ?? []).filter((b) => b.url === removedUrl).map((b) => b.id);
+            if (removedIds.length === 0) return s;
+            const removedIdSet = new Set(removedIds);
+            return {
+              ...s,
+              imageBoxes: (s.imageBoxes ?? []).filter((b) => !removedIdSet.has(b.id)),
+              imageBoxOrder: getSpreadImageBoxOrder(s).filter((id) => !removedIdSet.has(id)),
+            };
+          })
         );
       }
     }
@@ -3161,7 +3173,15 @@ function UploadPageContent() {
         innerScale: 1,
       };
       setCustomSpreads((prev) =>
-        prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), box] } : s))
+        prev.map((s, i) =>
+          i === spreadIndex
+            ? {
+                ...s,
+                imageBoxes: [...(s.imageBoxes ?? []), box],
+                imageBoxOrder: [...getSpreadImageBoxOrder(s), box.id],
+              }
+            : s
+        )
       );
       setActiveImageBox({ spreadIndex, boxId: box.id });
     };
@@ -3203,7 +3223,14 @@ function UploadPageContent() {
     const key = side === "left" ? "left" : "right";
     setCustomSpreads((prev) =>
       prev.map((s, i) =>
-        i === spreadIndex ? { ...s, [key]: "freeform", imageBoxes: [...(s.imageBoxes ?? []), box] } : s
+        i === spreadIndex
+          ? {
+              ...s,
+              [key]: "freeform",
+              imageBoxes: [...(s.imageBoxes ?? []), box],
+              imageBoxOrder: [...getSpreadImageBoxOrder(s), box.id],
+            }
+          : s
       )
     );
     handleRemovePhoto(realIndex);
@@ -3239,9 +3266,9 @@ function UploadPageContent() {
     return boxes.filter((b) => imageBoxSide(b) === range);
   }
 
-  // 처음 템플릿을 적용할 때는 "왼쪽→오른쪽, 위→아래" 읽는 순서로 슬롯을 배정하고, 템플릿을
-  // 바꿀 때도 이 순서 그대로 다시 배정해요(각 템플릿의 슬롯 자체가 이미 읽는 순서로
-  // 정의돼 있어서, 매번 이 기준으로 다시 정렬해도 사진 순서가 흐트러지지 않아요).
+  // 처음 템플릿을 적용할 때(또는 아직 순서가 저장 안 돼 있을 때) "왼쪽→오른쪽, 위→아래"
+  // 읽는 순서로 슬롯을 배정하는 데 쓰는 기본 정렬이에요. 이후엔 이 정렬 결과가 아니라
+  // spread.imageBoxOrder에 저장된 순서를 그대로 재사용해요(아래 getSpreadImageBoxOrder).
   function sortImageBoxesReadingOrder(boxes: ImageBoxDef[]): ImageBoxDef[] {
     return [...boxes].sort((a, b) => {
       const rowA = Math.round((a.yPct + a.heightPct / 2) / 8);
@@ -3251,9 +3278,26 @@ function UploadPageContent() {
     });
   }
 
+  // 스프레드의 "저장된 읽는 순서"(imageBoxOrder)를 돌려줘요. 아직 한 번도 저장된 적
+  // 없는 스프레드(과거 데이터, 또는 아직 레이아웃 템플릿을 적용한 적 없는 스프레드)는
+  // 읽는 순서로 한 번 계산해서 그 결과를 써요(최초 부트스트랩). 저장된 순서가 있지만
+  // 그 뒤 사진이 추가/삭제돼서 목록과 안 맞을 수도 있으니, 지금 실제 있는 박스만
+  // 걸러내고, 순서 목록에 없는(새로 생긴) 박스는 읽는 순서로 보정해서 끝에 붙여요.
+  function getSpreadImageBoxOrder(spread: SpreadDef): string[] {
+    const boxes = spread.imageBoxes ?? [];
+    const boxIds = new Set(boxes.map((b) => b.id));
+    const saved = (spread.imageBoxOrder ?? []).filter((id) => boxIds.has(id));
+    const savedSet = new Set(saved);
+    const missing = boxes.filter((b) => !savedSet.has(b.id));
+    const missingOrdered = sortImageBoxesReadingOrder(missing).map((b) => b.id);
+    return [...saved, ...missingOrdered];
+  }
+
   // 레이아웃 템플릿을 적용해요 — 선택한 범위(왼쪽/오른쪽/펼침면)에 있는 이미지박스들의
   // 위치·크기만 템플릿이 정한 자리로 옮기고, 그 사진 자체(url·회전·반전·박스 안 사진
-  // 위치)와 반대쪽 범위의 박스, 텍스트·스티커·배경은 전혀 안 건드려요.
+  // 위치)와 반대쪽 범위의 박스, 텍스트·스티커·배경은 전혀 안 건드려요. 슬롯 배정 순서는
+  // 매번 새로 계산하지 않고 스프레드에 저장된 imageBoxOrder를 그대로 재사용해서, 비대칭
+  // 배치나 수동 드래그 뒤에 템플릿을 바꿔도 사진 순서가 흐트러지지 않아요.
   function applyLayoutTemplate(spreadIndex: number, range: LayoutApplyRange, template: PhotoLayoutTemplate) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
@@ -3267,14 +3311,20 @@ function UploadPageContent() {
     }
     setLayoutApplyMessage(null);
     const outOfRange = allBoxes.filter((b) => !inRange.includes(b));
-    const ordered = sortImageBoxesReadingOrder(inRange);
+    const fullOrder = getSpreadImageBoxOrder(spread);
+    const inRangeById = new Map(inRange.map((b) => [b.id, b] as const));
+    const ordered = fullOrder.filter((id) => inRangeById.has(id)).map((id) => inRangeById.get(id)!);
     const updated = ordered.map((box, idx) => {
       const slot = template.slots[idx];
       const { xPct, widthPct } = slotToSpreadCoords(slot, range);
       return { ...box, xPct, widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
     });
     setCustomSpreads((prev) =>
-      prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...outOfRange, ...updated] } : s))
+      prev.map((s, i) =>
+        i === spreadIndex
+          ? { ...s, imageBoxes: [...outOfRange, ...updated], imageBoxOrder: fullOrder }
+          : s
+      )
     );
   }
 
@@ -3288,7 +3338,15 @@ function UploadPageContent() {
       }
     }
     setCustomSpreads((prev) =>
-      prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: (s.imageBoxes ?? []).filter((b) => b.id !== boxId) } : s))
+      prev.map((s, i) =>
+        i === spreadIndex
+          ? {
+              ...s,
+              imageBoxes: (s.imageBoxes ?? []).filter((b) => b.id !== boxId),
+              imageBoxOrder: getSpreadImageBoxOrder(s).filter((id) => id !== boxId),
+            }
+          : s
+      )
     );
     setActiveImageBox(null);
   }

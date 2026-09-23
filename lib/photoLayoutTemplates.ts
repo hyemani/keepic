@@ -213,6 +213,31 @@ export const SPREAD_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
     scope: "spread",
     slots: [...grid(3, 1, SPREAD_LEFT), ...grid(3, 1, SPREAD_RIGHT)],
   },
+  // 9장 — 양쪽을 똑같이 나누지 않고 왼쪽/오른쪽 각각 자기 페이지 안에서만 배치해서
+  // (한쪽은 2x2 격자, 한쪽은 큰 사진 1장+아래 4컷), 두 페이지의 사진이 서로 겹치지
+  // 않고 중앙 제본 영역도 피하도록 했어요.
+  {
+    id: "spread-9-leftFourRightFive",
+    name: "왼쪽 4장+오른쪽 5장",
+    photoCount: 9,
+    scope: "spread",
+    slots: [
+      ...grid(2, 2, SPREAD_LEFT),
+      { xPct: SPREAD_RIGHT.x, yPct: 0, widthPct: SPREAD_RIGHT.w, heightPct: 56 },
+      ...grid(1, 4, { x: SPREAD_RIGHT.x, y: 56, w: SPREAD_RIGHT.w, h: 44 }),
+    ],
+  },
+  {
+    id: "spread-9-rightFourLeftFive",
+    name: "오른쪽 4장+왼쪽 5장",
+    photoCount: 9,
+    scope: "spread",
+    slots: [
+      { xPct: SPREAD_LEFT.x, yPct: 0, widthPct: SPREAD_LEFT.w, heightPct: 56 },
+      ...grid(1, 4, { x: SPREAD_LEFT.x, y: 56, w: SPREAD_LEFT.w, h: 44 }),
+      ...grid(2, 2, SPREAD_RIGHT),
+    ],
+  },
 ];
 
 export const ALL_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [...HALF_LAYOUT_TEMPLATES, ...SPREAD_LAYOUT_TEMPLATES];
