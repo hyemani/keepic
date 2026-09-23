@@ -2892,6 +2892,17 @@ function UploadPageContent() {
   const [layoutApplyRange, setLayoutApplyRange] = useState<LayoutApplyRange>("spread");
   const [layoutCountFilter, setLayoutCountFilter] = useState<LayoutCountFilter>("auto");
   const [layoutApplyMessage, setLayoutApplyMessage] = useState<string | null>(null);
+  // 템플릿 칸보다 사진이 많을 때 "어떤 사진을 쓸지" 고르는 팝업의 상태예요(2026-09-23
+  // 추가). candidates는 팝업에 보여줄 사진들(저장된 순서 그대로), selectedIds는 지금
+  // 체크한 것들 — 정확히 template.slots.length개를 골라야 "적용" 버튼이 활성화돼요.
+  // 취소하면(팝업을 닫으면) 아무것도 안 바뀌어요.
+  const [pendingLayoutApply, setPendingLayoutApply] = useState<{
+    spreadIndex: number;
+    range: LayoutApplyRange;
+    template: PhotoLayoutTemplate;
+    candidates: ImageBoxDef[];
+  } | null>(null);
+  const [pendingLayoutApplySelectedIds, setPendingLayoutApplySelectedIds] = useState<string[]>([]);
   const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("photo");
   // 편집 화면에서 재단선·안전선을 겹쳐 보여줄지 여부예요. (내지 스프레드에만 적용돼요)
   // 예전엔 체크박스로 각각 켜고 끌 수 있었는데, 2026-09-19부터 항상 보이도록 고정하고
@@ -3423,7 +3434,17 @@ function UploadPageContent() {
   // 사진이 많으면 일단 앞쪽 칸부터 순서대로 채우고 남는 사진은 그대로 남겨둬요 — "어떤
   // 사진을 쓸지 고르는 선택 UI"는 아직 없어서, 사진을 지우지 않는 안전한 기본값으로
   // 남겨두는 중간 단계예요(다음에 선택 UI를 추가할 예정).
-  function applyLayoutTemplate(spreadIndex: number, range: LayoutApplyRange, template: PhotoLayoutTemplate) {
+  // 칸보다 사진이 많을 때는 곧바로 적용하지 않고, 먼저 "어떤 사진을 쓸지 고르는" 선택
+  // 팝업을 띄워요(2026-09-23 추가) — 이 팝업에서 고른 사진들의 id를 순서대로
+  // `selectedIds`에 담아 넘기면, 그 사진들만 템플릿 칸에 들어가고 나머지는 그대로
+  // 남아요. `selectedIds`를 안 넘기면(칸보다 사진이 같거나 적을 때) 기존처럼 저장된
+  // 순서 그대로 앞에서부터 채워요.
+  function applyLayoutTemplate(
+    spreadIndex: number,
+    range: LayoutApplyRange,
+    template: PhotoLayoutTemplate,
+    selectedIds?: string[]
+  ) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
     const allBoxes = spread.imageBoxes ?? [];
@@ -3433,8 +3454,12 @@ function UploadPageContent() {
     const inRangeById = new Map(inRange.map((b) => [b.id, b] as const));
     const orderedExisting = fullOrder.filter((id) => inRangeById.has(id)).map((id) => inRangeById.get(id)!);
 
-    const usable = orderedExisting.slice(0, template.slots.length);
-    const extraBoxes = orderedExisting.slice(template.slots.length);
+    const usable = selectedIds
+      ? selectedIds.map((id) => inRangeById.get(id)).filter((b): b is ImageBoxDef => !!b)
+      : orderedExisting.slice(0, template.slots.length);
+    const extraBoxes = selectedIds
+      ? orderedExisting.filter((b) => !selectedIds.includes(b.id))
+      : orderedExisting.slice(template.slots.length);
     const placed = template.slots.map((slot, idx) => {
       const { xPct, widthPct } = slotToSpreadCoords(slot, range);
       const existing = usable[idx];
@@ -4241,6 +4266,103 @@ function UploadPageContent() {
 
     return (
       <main className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
+        {/* 사진이 템플릿 칸보다 많을 때 "어떤 사진을 쓸지" 고르는 팝업이에요(2026-09-23
+            추가) — 취소를 누르면(바깥 클릭 포함) 아무것도 안 바뀌고 그대로 닫혀요. */}
+        {pendingLayoutApply && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            onClick={() => setPendingLayoutApply(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-white shadow-xl"
+            >
+              <div className="border-b border-[var(--color-hairline)] px-4 py-3">
+                <p className="text-sm font-semibold">이 템플릿에 쓸 사진을 골라주세요</p>
+                <p className="mt-0.5 text-[11px] text-[var(--color-charcoal)]/50">
+                  사진 칸 {pendingLayoutApply.template.slots.length}개예요. 지금 이 범위에
+                  사진이 {pendingLayoutApply.candidates.length}장 있어서, 쓸 사진을
+                  정확히 {pendingLayoutApply.template.slots.length}장 골라야 해요. 고르지
+                  않은 사진은 그대로 남아요.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 overflow-y-auto p-4">
+                {pendingLayoutApply.candidates.map((box) => {
+                  const checked = pendingLayoutApplySelectedIds.includes(box.id);
+                  const atLimit =
+                    !checked && pendingLayoutApplySelectedIds.length >= pendingLayoutApply.template.slots.length;
+                  return (
+                    <button
+                      key={box.id}
+                      type="button"
+                      disabled={atLimit}
+                      onClick={() =>
+                        setPendingLayoutApplySelectedIds((prev) =>
+                          checked ? prev.filter((id) => id !== box.id) : [...prev, box.id]
+                        )
+                      }
+                      className={`relative aspect-square overflow-hidden rounded-md border-2 transition ${
+                        checked
+                          ? "border-[var(--color-sky)]"
+                          : atLimit
+                            ? "cursor-not-allowed border-[var(--color-hairline)] opacity-40"
+                            : "border-transparent hover:border-[var(--color-sky)]/50"
+                      }`}
+                    >
+                      {box.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={box.url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)] text-[10px] text-[var(--color-charcoal)]/40">
+                          빈 프레임
+                        </div>
+                      )}
+                      {checked && (
+                        <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-sky)] text-[9px] text-white">
+                          {pendingLayoutApplySelectedIds.indexOf(box.id) + 1}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-2 border-t border-[var(--color-hairline)] px-4 py-3">
+                <p className="text-[11px] text-[var(--color-charcoal)]/50">
+                  {pendingLayoutApplySelectedIds.length} / {pendingLayoutApply.template.slots.length}개 선택
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingLayoutApply(null)}
+                    className="rounded-full border border-[var(--color-hairline)] px-4 py-1.5 text-xs text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pendingLayoutApplySelectedIds.length !== pendingLayoutApply.template.slots.length}
+                    onClick={() => {
+                      applyLayoutTemplate(
+                        pendingLayoutApply.spreadIndex,
+                        pendingLayoutApply.range,
+                        pendingLayoutApply.template,
+                        pendingLayoutApplySelectedIds
+                      );
+                      setPendingLayoutApply(null);
+                    }}
+                    className={`rounded-full px-4 py-1.5 text-xs font-medium text-white transition ${
+                      pendingLayoutApplySelectedIds.length === pendingLayoutApply.template.slots.length
+                        ? "bg-[var(--color-charcoal)] hover:opacity-90"
+                        : "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+                    }`}
+                  >
+                    적용
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* 편집기 전용 상단바 — 2026-09 화면 배치 개편으로 로고 아래 빈 여백을 없애고,
             뒤로가기·로고·책 이름·실행취소/다시실행·미리보기·확대축소를 한 줄에 정돈함.
             좁은 화면에서는 flex-wrap으로 줄바꿈돼서 버튼이 겹치지 않아요. 실제로 동작하지
@@ -5416,7 +5538,30 @@ function UploadPageContent() {
                                         <button
                                           key={t.id}
                                           type="button"
-                                          onClick={() => applyLayoutTemplate(i, effectiveRange, t)}
+                                          onClick={() => {
+                                            // 칸보다 사진이 많으면 곧바로 적용하지 않고
+                                            // "어떤 사진을 쓸지" 고르는 팝업부터 띄워요.
+                                            if (boxesInRange.length > t.slots.length) {
+                                              const order = getSpreadImageBoxOrder(spread);
+                                              const byId = new Map(boxesInRange.map((b) => [b.id, b] as const));
+                                              const orderedCandidates = order
+                                                .filter((id) => byId.has(id))
+                                                .map((id) => byId.get(id)!);
+                                              setPendingLayoutApply({
+                                                spreadIndex: i,
+                                                range: effectiveRange,
+                                                template: t,
+                                                candidates: orderedCandidates,
+                                              });
+                                              // 처음엔 저장된 순서 앞에서부터 칸 수만큼 미리 체크해둬요 —
+                                              // 아무것도 안 고르고 시작하지 않도록.
+                                              setPendingLayoutApplySelectedIds(
+                                                orderedCandidates.slice(0, t.slots.length).map((b) => b.id)
+                                              );
+                                              return;
+                                            }
+                                            applyLayoutTemplate(i, effectiveRange, t);
+                                          }}
                                           className="rounded-lg border border-[var(--color-hairline)] p-1.5 text-left transition hover:border-[var(--color-sky)]"
                                         >
                                           <div
