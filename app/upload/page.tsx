@@ -80,7 +80,7 @@ const STICKERS: { id: string; url: string; label: string }[] = [
 // 펼쳐진 패널로만 있었는데, 이제 다른 사진책 편집기들처럼 아이콘을 눌러야 해당 메뉴가
 // 열리는 구조로 통일해요. "표지변경"(테마 골라서 한 번에 바꾸기)과 "손글씨스티커"는 아직
 // 실제 기능이 없어서 "준비 중" 안내만 보여줘요.
-type EditTabId = "layout" | "background" | "theme" | "sticker" | "handwriting" | "text" | "decorate";
+type EditTabId = "layout" | "background" | "theme" | "sticker" | "handwriting" | "text" | "photo";
 const EDIT_TABS: { id: EditTabId; label: string; icon: string }[] = [
   { id: "layout", label: "레이아웃", icon: "▦" },
   { id: "background", label: "배경", icon: "🎨" },
@@ -91,7 +91,7 @@ const EDIT_TABS: { id: EditTabId; label: string; icon: string }[] = [
   // 2026-09-23, 혜민님 요청: 독립된 "사진" 탭(과 별도 "사진 추가" 버튼)을 없애고, 레이아웃
   // 밖에서 사진을 자유롭게 추가·정리하는 기능(사진 보관함 업로드·전체 목록·이 페이지에
   // 사진 추가)을 여기 "꾸미기" 탭으로 합쳤어요 — 표지 편집의 "꾸미기" 탭과 같은 자리예요.
-  { id: "decorate", label: "꾸미기", icon: "✨" },
+  { id: "photo", label: "사진", icon: "📷" },
 ];
 // "레이아웃" 탭 안에서 셀 개수(사진 몇 장용 템플릿인지)로 골라볼 수 있는 필터예요.
 // "auto"는 지금 적용 범위(왼쪽/오른쪽/펼침면)에 있는 실제 사진 개수에 맞는 템플릿만
@@ -110,7 +110,7 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
-type CoverEditTabId = "layout" | "decorate" | "text" | "background";
+type CoverEditTabId = "layout" | "photo" | "text" | "background";
 const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
   // 2026-09-24, 혜민님 요청: 표지도 내지처럼 사진 여러 장을 미리 정해둔 배치로 한 번에
   // 넣을 수 있는 "레이아웃" 탭이에요. 앞표지/뒤표지 각각 따로 적용해요(책등은 사진 칸이
@@ -118,7 +118,7 @@ const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
   { id: "layout", label: "레이아웃", icon: "▦" },
   // 2026-09, "키픽 로고 vs 작은 사진" 뒤표지 모드 전환을 사진 탭에서 여기로 옮겼어요.
   // 2026-09-23, 독립 "사진" 탭을 없애면서 앞표지 "사진 바꾸기"도 이 탭으로 합쳤어요.
-  { id: "decorate", label: "꾸미기", icon: "✨" },
+  { id: "photo", label: "사진", icon: "📷" },
   // 2026-09, 표지의 "제목"·"텍스트박스" 탭을 내지처럼 "텍스트" 하나로 합쳤어요 —
   // 제목 필드(글자 크기·행간·자간·서체·책등 연결)와 텍스트박스 추가 버튼을 한 곳에서.
   { id: "text", label: "텍스트", icon: "Tt" },
@@ -3066,7 +3066,7 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setActiveCoverImageBox(null);
     setBackCoverLogoSelected(true);
-    setActiveCoverEditTab("decorate");
+    setActiveCoverEditTab("photo");
   }
   const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
@@ -3107,7 +3107,7 @@ function UploadPageContent() {
     setCoverImageBoxPhotoEditActive(false);
     setActiveCoverImageBox({ target, boxId });
     setBackCoverLogoSelected(false);
-    setActiveCoverEditTab("decorate");
+    setActiveCoverEditTab("photo");
   }
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
   // "마지막 소개 페이지"(발행 정보)예요. 발행일은 최초 생성 시 한국 날짜로 한 번만
@@ -3777,7 +3777,7 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setImageBoxPhotoEditActive(false);
     setActiveImageBox({ spreadIndex, boxId });
-    setActiveEditTab("decorate");
+    setActiveEditTab("photo");
   }
   // 지금 "선택된" 이미지박스가 사진 위치 조정 모드(더블클릭으로 들어가는 모드)인지예요.
   // 왼쪽 "사진" 편집 메뉴에 조작 버튼(확대/축소/반전/초기화/완료)을 보여줄지 결정하는 데
@@ -5464,7 +5464,7 @@ function UploadPageContent() {
                               pageWidthMm={coverPanelMm + coverBleedMm}
                             />
                           )}
-                          {activeCoverEditTab === "decorate" && (
+                          {activeCoverEditTab === "photo" && (
                             <div className="flex flex-col gap-3">
                               {activeCoverImageBox ? (
                                 <>
@@ -6511,7 +6511,7 @@ function UploadPageContent() {
                               </div>
                             </div>
                             <div className="mt-3">
-                              {activeEditTab === "decorate" && (
+                              {activeEditTab === "photo" && (
                                 <div className="flex flex-col gap-3">
                                   {activeImageBox?.spreadIndex === i ? (
                                     <>
