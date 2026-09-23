@@ -183,6 +183,19 @@ type TextBoxRef =
   | { scope: "backCover" }
   | { scope: "spread"; spreadIndex: number; side: "left" | "right" };
 
+// 다중 선택 정렬(align) 종류예요(2026-09 추가) — 가로 3개(left/hcenter/right), 세로
+// 3개(top/vmiddle/bottom). 세로 정렬 중 vmiddle·bottom은 박스 높이(heightPct)가 고정된
+// 경우에만 계산할 수 있어요(자세한 이유는 computeTextBoxAlignChanges 주석 참고).
+type TextBoxAlignMode = "left" | "hcenter" | "right" | "top" | "vmiddle" | "bottom";
+
+function textBoxRefsEqual(a: TextBoxRef, b: TextBoxRef): boolean {
+  if (a.scope !== b.scope) return false;
+  if (a.scope === "spread" && b.scope === "spread") {
+    return a.spreadIndex === b.spreadIndex && a.side === b.side;
+  }
+  return true;
+}
+
 function textBoxScopeLabel(ref: TextBoxRef): string {
   if (ref.scope === "cover") return "앞표지 텍스트박스";
   if (ref.scope === "backCover") return "뒤표지 텍스트박스";
@@ -1006,12 +1019,21 @@ function TextBoxOverlay({
   box,
   onChange,
   isActive,
+  isMultiSelected = false,
   onSelect,
+  onShiftSelect,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
   isActive: boolean;
+  // 다중 선택(정렬/분배 패널, 2026-09 추가)에 포함된 박스인지예요 — isActive(단일 선택,
+  // 파란 테두리)와는 구분되는 보라색 테두리로 보여줘요. 여러 개 동시에 켜질 수 있어요.
+  isMultiSelected?: boolean;
   onSelect: () => void;
+  // Shift를 누른 채 클릭하면 이 박스를 다중 선택 목록에 넣거나 빼요(정렬/분배 패널용,
+  // 2026-09 추가) — 일반 클릭(onSelect)과 달리 드래그를 시작하지 않고 딱 선택 상태만
+  // 토글해요. 전달 안 하면(레이어가 아직 안 붙었으면) 일반 onSelect로 대체해요.
+  onShiftSelect?: () => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
@@ -1043,6 +1065,12 @@ function TextBoxOverlay({
   // stopPropagation으로 상위(페이지 바깥 클릭 시 선택 해제하는) 핸들러만 막아요.
   function handleMouseDown(e: React.MouseEvent) {
     e.stopPropagation();
+    // Shift+클릭이면 드래그를 시작하지 않고 다중 선택 토글만 해요(2026-09 추가) — 실수로
+    // 박스를 옮기지 않도록, 여기서 바로 return해요.
+    if (e.shiftKey && onShiftSelect) {
+      onShiftSelect();
+      return;
+    }
     onSelect();
     const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
     dragStart.current = {
@@ -1181,7 +1209,11 @@ function TextBoxOverlay({
       ref={boxRef}
       onMouseDown={handleMouseDown}
       className={`absolute z-30 cursor-move border transition ${
-        isActive ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/40"
+        isActive
+          ? "border-[var(--color-sky)]"
+          : isMultiSelected
+          ? "border-[var(--color-brand-purple)]"
+          : "border-transparent hover:border-[var(--color-sky)]/40"
       }`}
       style={{
         left: `${box.xPct}%`,
@@ -1468,6 +1500,115 @@ function TextBoxToolbar({
   );
 }
 
+// 텍스트박스 다중 선택(Shift+클릭, 2026-09 추가)일 때 보여주는 정렬(align)/분배
+// (distribute) 패널이에요. 기준점은 항상 "지금 선택된 박스들의 바운딩 박스"예요(가장
+// 간단하고 예측하기 쉬운 기준이라, 페이지/캔버스 기준이나 "첫 선택 박스" 기준 같은
+// 추가 옵션은 이번 라운드에서 더하지 않았어요). canVerticalAlign이 false면(선택된 박스
+// 중 높이가 자동인 것이 있으면) 세로 가운데·아래 정렬과 세로 분배 버튼을 비활성화해요 —
+// 실제 렌더링 높이를 알 수 없는 상태에서 계산하면 위치가 어긋날 수 있어서예요.
+function MultiTextAlignPanel({
+  count,
+  canVerticalAlign,
+  onAlign,
+  onDistribute,
+  onClear,
+}: {
+  count: number;
+  canVerticalAlign: boolean;
+  onAlign: (mode: TextBoxAlignMode) => void;
+  onDistribute: (axis: "horizontal" | "vertical") => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-[var(--color-brand-purple)]">텍스트박스 {count}개 선택됨</p>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
+        >
+          선택 해제
+        </button>
+      </div>
+      <div>
+        <p className="mb-1 text-[11px] text-[var(--color-charcoal)]/60">가로 정렬 (선택 영역 기준)</p>
+        <div className="flex gap-1">
+          {(
+            [
+              ["left", "왼쪽"],
+              ["hcenter", "가운데"],
+              ["right", "오른쪽"],
+            ] as [TextBoxAlignMode, string][]
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => onAlign(mode)}
+              className="flex-1 rounded-md border border-[var(--color-hairline)] py-1.5 text-xs"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="mb-1 text-[11px] text-[var(--color-charcoal)]/60">
+          세로 정렬 (선택 영역 기준)
+          {!canVerticalAlign && " — 높이가 고정 안 된 박스가 있어 가운데·아래는 비활성화"}
+        </p>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => onAlign("top")}
+            className="flex-1 rounded-md border border-[var(--color-hairline)] py-1.5 text-xs"
+          >
+            위
+          </button>
+          <button
+            type="button"
+            disabled={!canVerticalAlign}
+            onClick={() => onAlign("vmiddle")}
+            className="flex-1 rounded-md border border-[var(--color-hairline)] py-1.5 text-xs disabled:opacity-30"
+          >
+            가운데
+          </button>
+          <button
+            type="button"
+            disabled={!canVerticalAlign}
+            onClick={() => onAlign("bottom")}
+            className="flex-1 rounded-md border border-[var(--color-hairline)] py-1.5 text-xs disabled:opacity-30"
+          >
+            아래
+          </button>
+        </div>
+      </div>
+      {count >= 3 && (
+        <div>
+          <p className="mb-1 text-[11px] text-[var(--color-charcoal)]/60">균등 분배 (3개 이상일 때만)</p>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => onDistribute("horizontal")}
+              className="flex-1 rounded-md border border-[var(--color-hairline)] py-1.5 text-xs"
+            >
+              가로 분배
+            </button>
+            <button
+              type="button"
+              disabled={!canVerticalAlign}
+              onClick={() => onDistribute("vertical")}
+              className="flex-1 rounded-md border border-[var(--color-hairline)] py-1.5 text-xs disabled:opacity-30"
+            >
+              세로 분배
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 한 페이지(또는 표지 앞면) 안의 텍스트박스들 + "+ 텍스트 추가" 버튼을 함께 그려요.
 // renderPage()가 그리는 사진 레이아웃 위에 얹는 투명한 오버레이라서, 어떤 사진 템플릿을
 // 쓰든 상관없이 항상 같은 방식으로 붙어요.
@@ -1477,6 +1618,8 @@ function TextBoxLayer({
   onChange,
   activeBoxId,
   onSelect,
+  onShiftSelect,
+  multiSelectedBoxIds,
   showAddButton = true,
 }: {
   boxes: TextBoxDef[];
@@ -1484,6 +1627,12 @@ function TextBoxLayer({
   onChange: (boxId: string, changes: Partial<TextBoxDef>) => void;
   activeBoxId: string | null;
   onSelect: (boxId: string) => void;
+  // Shift+클릭으로 다중 선택 목록에 넣고 빼는 콜백이에요(정렬/분배 패널용, 2026-09
+  // 추가). 안 넘기면(옵션) Shift+클릭도 그냥 일반 선택으로 동작해요.
+  onShiftSelect?: (boxId: string) => void;
+  // 지금 다중 선택에 들어있는 박스 id들이에요 — 여기 있는 박스는 보라색 테두리로
+  // 표시돼요(isActive와는 별개예요). 없으면 아무도 다중 선택 표시 안 함.
+  multiSelectedBoxIds?: string[];
   // 내지 스프레드는 왼쪽 아이콘 메뉴("텍스트" 탭)에 이미 글상자 추가 버튼이 있어서, 캔버스
   // 위에 떠 있던 이 검은 버튼은 중복이라 꺼요(2026-09-19, 혜민님 요청). 표지·뒤표지는
   // 아직 그 메뉴가 없어서 그대로 둬요.
@@ -1497,7 +1646,9 @@ function TextBoxLayer({
           box={box}
           onChange={(c) => onChange(box.id, c)}
           isActive={box.id === activeBoxId}
+          isMultiSelected={(multiSelectedBoxIds ?? []).includes(box.id)}
           onSelect={() => onSelect(box.id)}
+          onShiftSelect={onShiftSelect ? () => onShiftSelect(box.id) : undefined}
         />
       ))}
       {showAddButton && (
@@ -3400,11 +3551,25 @@ function UploadPageContent() {
   // 텍스트박스를 고치는지 알 수 있게 해요.
   const [activeTextBox, setActiveTextBox] = useState<{ ref: TextBoxRef; boxId: string } | null>(null);
 
+  // 다중 선택(정렬/분배 패널, 2026-09 추가)에 들어있는 텍스트박스들이에요. 반드시 같은
+  // TextBoxRef(같은 표지 앞면/뒤표지/같은 스프레드의 같은 쪽 낱장) 안에서만 묶여요 —
+  // 좌표계가 다른 텍스트박스끼리(예: 왼쪽 페이지와 오른쪽 페이지) 정렬을 시도하면 결과가
+  // 어긋날 수 있어서, 아예 이 타입 자체가 "한 ref, 여러 boxId" 구조로 섞이는 걸
+  // 막아요(다른 ref의 박스를 Shift+클릭하면 그 ref로 다중 선택이 새로 시작돼요 — 아래
+  // toggleTextBoxMultiSelect 참고). 이미지박스는 아직 다중 선택 대상이 아니에요(내지
+  // 자유배치 이미지박스는 스프레드 전체(0~100%) 기준인데, 텍스트박스는 그 페이지 자신
+  // (0~100%) 기준이라 두 좌표계가 섞이면 위치가 어긋나요 — 2026-09 이번 라운드에서는
+  // 텍스트박스만 지원해요).
+  const [multiTextSelection, setMultiTextSelection] = useState<{ ref: TextBoxRef; boxIds: string[] } | null>(
+    null
+  );
+
   // 텍스트박스를 캔버스에서 선택하면 왼쪽 패널이 자동으로 "텍스트" 탭으로 전환돼서
   // 바로 속성을 고칠 수 있게 해요(2026-09, 표지 제목·텍스트박스 메뉴 통합). setState를
   // 이펙트 안에서 동기 호출하면 렌더가 연쇄될 수 있어서, 선택이 실제로 바뀌는
   // 이벤트 핸들러 쪽에서 직접 호출하는 방식(selectTextBox)으로 처리해요.
   function selectTextBox(ref: TextBoxRef, boxId: string) {
+    setMultiTextSelection(null);
     setActiveTextBox({ ref, boxId });
     setBackCoverLogoSelected(false);
     if (ref.scope === "cover" || ref.scope === "backCover") {
@@ -3412,6 +3577,30 @@ function UploadPageContent() {
     } else if (ref.scope === "spread") {
       setActiveEditTab("text");
     }
+  }
+
+  // Shift+클릭으로 텍스트박스를 다중 선택 목록에 넣거나 빼요(정렬/분배 패널용,
+  // 2026-09 추가). 다른 ref(다른 표지면/다른 스프레드·쪽)의 박스를 Shift+클릭하면
+  // 기존 다중 선택은 버리고 그 ref로 새로 시작해요 — 서로 다른 좌표계를 한 선택 안에
+  // 섞지 않기 위해서예요(위 multiTextSelection 주석 참고). 단일 선택(activeTextBox)은
+  // 다중 선택 중엔 패널이 헷갈리지 않도록 비워둬요.
+  function toggleTextBoxMultiSelect(ref: TextBoxRef, boxId: string) {
+    setActiveTextBox(null);
+    setBackCoverLogoSelected(false);
+    setActiveCoverImageBox(null);
+    if (ref.scope === "cover" || ref.scope === "backCover") {
+      setActiveCoverEditTab("text");
+    } else if (ref.scope === "spread") {
+      setActiveEditTab("text");
+    }
+    setMultiTextSelection((prev) => {
+      if (!prev || !textBoxRefsEqual(prev.ref, ref)) {
+        return { ref, boxIds: [boxId] };
+      }
+      const exists = prev.boxIds.includes(boxId);
+      const boxIds = exists ? prev.boxIds.filter((id) => id !== boxId) : [...prev.boxIds, boxId];
+      return boxIds.length > 0 ? { ref, boxIds } : null;
+    });
   }
 
   function getTextBoxesForRef(ref: TextBoxRef): TextBoxDef[] {
@@ -3433,6 +3622,145 @@ function UploadPageContent() {
     else if (ref.scope === "backCover") handleDeleteBackCoverTextBox(boxId);
     else handleDeleteTextBox(ref.spreadIndex, ref.side, boxId);
     setActiveTextBox(null);
+  }
+
+  // 지금 다중 선택된 텍스트박스들의 실제 데이터(TextBoxDef)예요 — multiTextSelection은
+  // ref+id만 들고 있어서, 정렬 계산에 필요한 xPct/widthPct 등은 여기서 매번 다시 찾아요.
+  function multiTextSelectedBoxes(): TextBoxDef[] {
+    if (!multiTextSelection) return [];
+    const all = getTextBoxesForRef(multiTextSelection.ref);
+    return multiTextSelection.boxIds
+      .map((id) => all.find((b) => b.id === id))
+      .filter((b): b is TextBoxDef => !!b);
+  }
+
+  // 다중 선택된 텍스트박스들에 계산한 변경사항(changesById)을 한 번의 setState 호출로
+  // 적용해요 — applyLayoutTemplate과 같은 패턴이에요(여러 박스를 한꺼번에 바꾸는 한
+  // 번의 상태 변경 = 실행취소 스택엔 한 단계만 쌓여요, buildHistorySnapshot이 매 렌더
+  // 끝에 한 번만 스냅샷을 찍고 그 전후 차이를 실행취소 한 단계로 묶기 때문이에요 —
+  // 박스마다 따로 setState를 호출해도 React 18에서는 한 이벤트 핸들러 안이면 어차피
+  // 한 번에 커밋되긴 하지만, applyLayoutTemplate과 똑같이 "박스 배열 하나를 한 번에
+  // 통째로 바꾸는" 방식으로 맞춰서 실행취소가 확실히 한 단계로 묶이게 했어요).
+  function applyTextBoxAlignment(changesById: Map<string, Partial<TextBoxDef>>) {
+    if (!multiTextSelection || changesById.size === 0) return;
+    const ref = multiTextSelection.ref;
+    if (ref.scope === "cover") {
+      setCoverTextBoxes((prev) =>
+        prev.map((b) => (changesById.has(b.id) ? { ...b, ...changesById.get(b.id)! } : b))
+      );
+    } else if (ref.scope === "backCover") {
+      setBackCoverTextBoxes((prev) =>
+        prev.map((b) => (changesById.has(b.id) ? { ...b, ...changesById.get(b.id)! } : b))
+      );
+    } else {
+      const key = ref.side === "left" ? "textBoxesLeft" : "textBoxesRight";
+      setCustomSpreads((prev) =>
+        prev.map((s, i) =>
+          i === ref.spreadIndex
+            ? {
+                ...s,
+                [key]: (s[key] ?? []).map((b) =>
+                  changesById.has(b.id) ? { ...b, ...changesById.get(b.id)! } : b
+                ),
+              }
+            : s
+        )
+      );
+    }
+  }
+
+  // 다중 선택 정렬(align) — "선택한 박스들의 바운딩 박스"를 기준으로 맞춰요(가장 왼쪽
+  // 끝·오른쪽 끝·위쪽 끝·아래쪽 끝을 계산해서 거기 맞춤). 가로(left/hcenter/right)는
+  // xPct·widthPct만 쓰니까 항상 계산할 수 있어요. 세로(top/vmiddle/bottom) 중
+  // top은 yPct만 있으면 되지만, vmiddle·bottom은 박스의 실제 높이(heightPct)가 있어야
+  // 계산할 수 있어요 — heightPct가 없는 박스(글자 양에 맞춰 자동으로 늘어나는 박스,
+  // TextBoxDef.heightPct가 optional인 이유예요)는 화면에 실제로 렌더링해봐야 높이를 알 수
+  // 있어서, 여기 데이터만으로는 정확한 위치를 계산할 수 없어요. 그래서 vmiddle·bottom은
+  // 선택된 박스 전부가 heightPct를 갖고 있을 때만 패널에서 활성화돼요(MultiTextAlignPanel의
+  // canVerticalAlign) — 잘못된 값으로 텍스트박스를 화면 밖으로 밀어내거나 겹치게 만들
+  // 위험을 피하려고 일부러 막아뒀어요.
+  function computeTextBoxAlignChanges(
+    boxes: TextBoxDef[],
+    mode: TextBoxAlignMode
+  ): Map<string, Partial<TextBoxDef>> {
+    const changes = new Map<string, Partial<TextBoxDef>>();
+    if (boxes.length < 2) return changes;
+    if (mode === "left" || mode === "hcenter" || mode === "right") {
+      const lefts = boxes.map((b) => b.xPct);
+      const rights = boxes.map((b) => b.xPct + b.widthPct);
+      const minLeft = Math.min(...lefts);
+      const maxRight = Math.max(...rights);
+      const centerX = (minLeft + maxRight) / 2;
+      boxes.forEach((b) => {
+        const xPct = mode === "left" ? minLeft : mode === "right" ? maxRight - b.widthPct : centerX - b.widthPct / 2;
+        changes.set(b.id, { xPct });
+      });
+      return changes;
+    }
+    const tops = boxes.map((b) => b.yPct);
+    const minTop = Math.min(...tops);
+    if (mode === "top") {
+      boxes.forEach((b) => changes.set(b.id, { yPct: minTop }));
+      return changes;
+    }
+    if (boxes.some((b) => b.heightPct === undefined)) return changes; // 안전장치 — UI에서도 막지만 이중 확인
+    const bottoms = boxes.map((b) => b.yPct + (b.heightPct as number));
+    const maxBottom = Math.max(...bottoms);
+    const centerY = (minTop + maxBottom) / 2;
+    boxes.forEach((b) => {
+      const h = b.heightPct as number;
+      const yPct = mode === "bottom" ? maxBottom - h : centerY - h / 2;
+      changes.set(b.id, { yPct });
+    });
+    return changes;
+  }
+
+  // 다중 선택 분배(distribute) — 3개 이상 선택했을 때만 의미가 있어요(2개는 "간격"이라는
+  // 개념 자체가 없어요). 제일 왼쪽(또는 위쪽) 박스와 제일 오른쪽(또는 아래쪽) 박스는
+  // 그 자리 그대로 두고, 그 사이 박스들 간격이 전부 같아지도록 다시 배치해요(일러스트
+  // 레이터 "가로 간격 분배"와 같은 방식). 세로 분배는 align과 같은 이유로 heightPct가
+  // 없는 박스가 섞여 있으면 계산하지 않아요.
+  function computeTextBoxDistributeChanges(
+    boxes: TextBoxDef[],
+    axis: "horizontal" | "vertical"
+  ): Map<string, Partial<TextBoxDef>> {
+    const changes = new Map<string, Partial<TextBoxDef>>();
+    if (boxes.length < 3) return changes;
+    if (axis === "horizontal") {
+      const sorted = [...boxes].sort((a, b) => a.xPct - b.xPct);
+      const spanLeft = sorted[0].xPct;
+      const last = sorted[sorted.length - 1];
+      const spanRight = last.xPct + last.widthPct;
+      const sumWidths = sorted.reduce((sum, b) => sum + b.widthPct, 0);
+      const gap = (spanRight - spanLeft - sumWidths) / (sorted.length - 1);
+      let cursor = spanLeft;
+      sorted.forEach((b) => {
+        changes.set(b.id, { xPct: cursor });
+        cursor += b.widthPct + gap;
+      });
+      return changes;
+    }
+    if (boxes.some((b) => b.heightPct === undefined)) return changes;
+    const sorted = [...boxes].sort((a, b) => a.yPct - b.yPct);
+    const spanTop = sorted[0].yPct;
+    const last = sorted[sorted.length - 1];
+    const spanBottom = last.yPct + (last.heightPct as number);
+    const sumHeights = sorted.reduce((sum, b) => sum + (b.heightPct as number), 0);
+    const gap = (spanBottom - spanTop - sumHeights) / (sorted.length - 1);
+    let cursor = spanTop;
+    sorted.forEach((b) => {
+      changes.set(b.id, { yPct: cursor });
+      cursor += (b.heightPct as number) + gap;
+    });
+    return changes;
+  }
+
+  function alignMultiTextBoxes(mode: TextBoxAlignMode) {
+    applyTextBoxAlignment(computeTextBoxAlignChanges(multiTextSelectedBoxes(), mode));
+  }
+
+  function distributeMultiTextBoxes(axis: "horizontal" | "vertical") {
+    applyTextBoxAlignment(computeTextBoxDistributeChanges(multiTextSelectedBoxes(), axis));
   }
 
   const activeTextBoxDef: TextBoxDef | null = activeTextBox
@@ -5050,6 +5378,7 @@ function UploadPageContent() {
                 className="flex min-h-0 flex-1 flex-col"
                 onMouseDown={() => {
                   setActiveTextBox(null);
+                  setMultiTextSelection(null);
                   setActiveImageBox(null);
                   setActiveCoverImageBox(null);
                   setBackCoverLogoSelected(false);
@@ -5112,6 +5441,18 @@ function UploadPageContent() {
                           <div
                             className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1"
                           >
+                          {activeCoverEditTab === "text" &&
+                            multiTextSelection &&
+                            (multiTextSelection.ref.scope === "cover" || multiTextSelection.ref.scope === "backCover") &&
+                            multiTextSelection.boxIds.length >= 2 && (
+                            <MultiTextAlignPanel
+                              count={multiTextSelection.boxIds.length}
+                              canVerticalAlign={multiTextSelectedBoxes().every((b) => b.heightPct !== undefined)}
+                              onAlign={alignMultiTextBoxes}
+                              onDistribute={distributeMultiTextBoxes}
+                              onClear={() => setMultiTextSelection(null)}
+                            />
+                          )}
                           {activeCoverEditTab === "text" &&
                             activeTextBox &&
                             (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
@@ -5895,6 +6236,10 @@ function UploadPageContent() {
                               onChange={handleBackCoverTextBoxChange}
                               activeBoxId={activeTextBox?.ref.scope === "backCover" ? activeTextBox.boxId : null}
                               onSelect={(boxId) => selectTextBox({ scope: "backCover" }, boxId)}
+                              onShiftSelect={(boxId) => toggleTextBoxMultiSelect({ scope: "backCover" }, boxId)}
+                              multiSelectedBoxIds={
+                                multiTextSelection?.ref.scope === "backCover" ? multiTextSelection.boxIds : undefined
+                              }
                             />
                           </div>
                           <div
@@ -5986,6 +6331,10 @@ function UploadPageContent() {
                               onChange={handleCoverTextBoxChange}
                               activeBoxId={activeTextBox?.ref.scope === "cover" ? activeTextBox.boxId : null}
                               onSelect={(boxId) => selectTextBox({ scope: "cover" }, boxId)}
+                              onShiftSelect={(boxId) => toggleTextBoxMultiSelect({ scope: "cover" }, boxId)}
+                              multiSelectedBoxIds={
+                                multiTextSelection?.ref.scope === "cover" ? multiTextSelection.boxIds : undefined
+                              }
                             />
                           </div>
 
@@ -6117,6 +6466,18 @@ function UploadPageContent() {
                               <div
                                 className="flex min-h-0 flex-col overflow-y-auto lg:w-64 lg:shrink-0"
                               >
+                            {activeEditTab === "text" &&
+                              multiTextSelection &&
+                              multiTextSelection.ref.scope === "spread" &&
+                              multiTextSelection.boxIds.length >= 2 && (
+                              <MultiTextAlignPanel
+                                count={multiTextSelection.boxIds.length}
+                                canVerticalAlign={multiTextSelectedBoxes().every((b) => b.heightPct !== undefined)}
+                                onAlign={alignMultiTextBoxes}
+                                onDistribute={distributeMultiTextBoxes}
+                                onClear={() => setMultiTextSelection(null)}
+                              />
+                            )}
                             {activeEditTab === "text" && activeTextBox && activeTextBox.ref.scope === "spread" && (
                               <TextBoxToolbar
                                 box={activeTextBoxDef}
@@ -6860,6 +7221,16 @@ function UploadPageContent() {
                                       onSelect={(boxId) =>
                                         selectTextBox({ scope: "spread", spreadIndex: i, side: "left" }, boxId)
                                       }
+                                      onShiftSelect={(boxId) =>
+                                        toggleTextBoxMultiSelect({ scope: "spread", spreadIndex: i, side: "left" }, boxId)
+                                      }
+                                      multiSelectedBoxIds={
+                                        multiTextSelection?.ref.scope === "spread" &&
+                                        multiTextSelection.ref.spreadIndex === i &&
+                                        multiTextSelection.ref.side === "left"
+                                          ? multiTextSelection.boxIds
+                                          : undefined
+                                      }
                                     />
                                   </>
                                 )}
@@ -6904,6 +7275,16 @@ function UploadPageContent() {
                                   }
                                   onSelect={(boxId) =>
                                     selectTextBox({ scope: "spread", spreadIndex: i, side: "right" }, boxId)
+                                  }
+                                  onShiftSelect={(boxId) =>
+                                    toggleTextBoxMultiSelect({ scope: "spread", spreadIndex: i, side: "right" }, boxId)
+                                  }
+                                  multiSelectedBoxIds={
+                                    multiTextSelection?.ref.scope === "spread" &&
+                                    multiTextSelection.ref.spreadIndex === i &&
+                                    multiTextSelection.ref.side === "right"
+                                      ? multiTextSelection.boxIds
+                                      : undefined
                                   }
                                 />
                               </div>
