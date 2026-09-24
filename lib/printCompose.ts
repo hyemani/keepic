@@ -356,6 +356,9 @@ function drawImageBoxOnCanvas(
   ctx.beginPath();
   ctx.rect(boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
   ctx.clip();
+  // 투명도(2026-09-26 "편집툴 투명도" 요청으로 추가) — save()/restore() 안에서만
+  // 바꿔서, 이 박스를 다 그리고 나면 자동으로 원래 값(1)으로 돌아가요.
+  ctx.globalAlpha = box.opacity ?? 1;
   if (box.flipX) {
     // 화면 미리보기(scaleX(-1))와 똑같이, 그리는 좌표축만 좌우로 뒤집어서 그려요 —
     // 그러면 사진이 찌그러지지 않고 딱 그 자리에서 거울처럼 뒤집혀 보여요.
@@ -366,6 +369,22 @@ function drawImageBoxOnCanvas(
     ctx.restore();
   } else {
     ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
+  }
+  // 테두리(2026-09-26 "편집툴 테두리" 요청으로 추가) — 화면(ImageBoxOverlay)에서
+  // inset box-shadow로 박스 안쪽에 그린 것과 같은 결과가 되도록, strokeRect도 선
+  // 두께의 절반만큼 안쪽으로 밀어서 그려요(그냥 박스 경계에 그리면 선의 바깥 절반이
+  // 페이지 클립에 잘려서 화면보다 얇아 보여요). borderWidthPx는 화면 CSS px 기준이라,
+  // 인쇄 캔버스 해상도(PRINT_DPI)에 맞게 같은 비율(PRINT_DPI/96)로 환산해요.
+  if (box.borderWidthPx && box.borderWidthPx > 0) {
+    const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
+    ctx.lineWidth = printBorderPx;
+    ctx.strokeStyle = box.borderColor ?? "#ffffff";
+    ctx.strokeRect(
+      boxLeftPagePx + printBorderPx / 2,
+      boxTopPx + printBorderPx / 2,
+      boxWidthSpreadPx - printBorderPx,
+      boxHeightPx - printBorderPx
+    );
   }
   ctx.restore();
 }
@@ -403,6 +422,8 @@ async function drawImageBoxesInPanel(
     ctx.beginPath();
     ctx.rect(boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx);
     ctx.clip();
+    // 투명도·테두리(2026-09-26 추가) — drawImageBoxOnCanvas와 같은 방식이에요.
+    ctx.globalAlpha = box.opacity ?? 1;
     if (box.flipX) {
       ctx.save();
       ctx.translate(boxLeftPx + rect.x + rect.width, 0);
@@ -411,6 +432,17 @@ async function drawImageBoxesInPanel(
       ctx.restore();
     } else {
       ctx.drawImage(img, boxLeftPx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
+    }
+    if (box.borderWidthPx && box.borderWidthPx > 0) {
+      const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
+      ctx.lineWidth = printBorderPx;
+      ctx.strokeStyle = box.borderColor ?? "#ffffff";
+      ctx.strokeRect(
+        boxLeftPx + printBorderPx / 2,
+        boxTopPx + printBorderPx / 2,
+        boxWidthPx - printBorderPx,
+        boxHeightPx - printBorderPx
+      );
     }
     ctx.restore();
   }
