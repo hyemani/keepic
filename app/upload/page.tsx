@@ -8102,7 +8102,15 @@ function UploadPageContent() {
                           )}
                           {activeCoverEditTab === "photo" && (
                             <div className="flex flex-col gap-1.5">
-                              {activeCoverImageBox ? (
+                              {/* 2026-10-02, 혜민님 요청: "이미지 선택하면 '선택한
+                                  사진박스'라고 메뉴 뜨는데 왜뜨는지 이유를 모르겠습니다"
+                                  — 사진 위치 조정 모드(더블클릭)에 들어가지 않았으면 이
+                                  안내문 자체가 필요 없었어요(테두리·확대·반전 등은 캔버스
+                                  위 StackOrderToolbar로 이미 다 되고 있어서, 이 헤더+
+                                  뒤로가기만 있는 빈 화면은 이유 없이 목록을 가리고만
+                                  있었음). 실제로 조정 모드에 들어갔을 때만 이 화면으로
+                                  바뀌게 함. */}
+                              {activeCoverImageBox && coverImageBoxPhotoEditActive ? (
                                 <>
                                   {/* 표지 사진박스를 선택한 직후엔 목록 대신 이 박스의 속성부터
                                       바로 보여줘요(2026-09, 내지 꾸미기 탭과 같은 패턴). */}
@@ -8235,12 +8243,12 @@ function UploadPageContent() {
                               {/* 2026-10-02, 혜민님 요청: "뒤표지꾸미기 사진선택, 로고빼기도
                                   다 삭제 사진탭은 사진올리기, 프레임, 모서리 두께, 둥글게
                                   메뉴만 확인되게 해주세요" — "뒤표지 꾸미기"(사진선택/로고빼기)
-                                  블록 전체 삭제. 프레임·모서리 두께·둥글게는 사진박스를 선택했을
-                                  때 나오는 테두리 설정 패널(아래 imageBoxPhotoEditActive 근처가
-                                  아니라 내지와 같은 별도 패널)이 필요한데, 지금 코드에서 표지
-                                  사진박스엔 아직 그 패널이 연결돼 있지 않아요 — 범위가 더 커서
-                                  이번엔 손대지 않았고, 다음 라운드에서 내지의 테두리 패널을
-                                  표지에도 연결하는 작업으로 다시 요청해주세요. */}
+                                  블록 전체 삭제. 프레임·모서리 두께·둥글게는 이미 내지와 똑같은
+                                  ImageBoxLayer/ImageBoxOverlay를 표지에도 그대로 쓰고 있어서
+                                  (위 <ImageBoxLayer boxes={coverImageBoxes} .../> 참고), 사진
+                                  박스를 캔버스에서 선택하면 뜨는 StackOrderToolbar(레이어
+                                  툴바)에 테두리 두께·색·모서리 둥글게가 이미 있어요 — 별도로
+                                  연결할 게 없어서 추가 작업 없이 충족됨. */}
                                 </>
                               )}
                             </div>
@@ -8964,7 +8972,13 @@ function UploadPageContent() {
                             <div>
                               {activeEditTab === "photo" && (
                                 <div className="flex flex-col gap-1.5">
-                                  {activeImageBox?.spreadIndex === i ? (
+                                  {/* 2026-10-02, 혜민님 요청: "이미지 선택하면 '선택한
+                                      사진박스'라고 메뉴 뜨는데 왜뜨는지 이유를 모르겠습니다"
+                                      — 사진 위치 조정 모드(더블클릭)에 들어가지 않았으면 이
+                                      화면(헤더+뒤로가기만)으로 바뀔 이유가 없었어요(테두리·
+                                      확대·반전은 캔버스 위 StackOrderToolbar가 이미 담당).
+                                      실제로 조정 모드에 들어갔을 때만 이 화면으로 바뀌게 함. */}
+                                  {activeImageBox?.spreadIndex === i && imageBoxPhotoEditActive ? (
                                     <>
                                       {/* 사진박스를 선택한 직후엔 목록 대신 이 박스의 속성(꽉 채우기·
                                           mm 변형·사진 위치 조정)부터 바로 보여줘요(2026-09,
