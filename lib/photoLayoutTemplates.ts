@@ -45,6 +45,32 @@ function grid(rows: number, cols: number, rect: Rect = FULL_RECT): LayoutSlot[] 
   return slots;
 }
 
+// grid()와 같은 배치인데, 칸 사이(gutterPct)와 바깥 테두리(outerMarginPct)에 여백을 둬요
+// — 2026-09-24, 혜민님이 "여백이 너무 없다"고 하셔서 신설(기존 grid() 템플릿은 그대로
+// 두고, 여백 있는 버전을 "추가"만 함). outerMarginPct/gutterPct는 rect 기준 % 단위예요.
+function gridWithGutter(
+  rows: number,
+  cols: number,
+  rect: Rect = FULL_RECT,
+  outerMarginPct = 6,
+  gutterPct = 4
+): LayoutSlot[] {
+  const innerRect: Rect = {
+    x: rect.x + outerMarginPct,
+    y: rect.y + outerMarginPct,
+    w: Math.max(1, rect.w - outerMarginPct * 2),
+    h: Math.max(1, rect.h - outerMarginPct * 2),
+  };
+  const cells = grid(rows, cols, innerRect);
+  const halfGutter = gutterPct / 2;
+  return cells.map((slot) => ({
+    xPct: slot.xPct + halfGutter,
+    yPct: slot.yPct + halfGutter,
+    widthPct: Math.max(1, slot.widthPct - gutterPct),
+    heightPct: Math.max(1, slot.heightPct - gutterPct),
+  }));
+}
+
 const SPREAD_GUTTER_PCT = 1.6;
 const SPREAD_LEFT_END = 50 - SPREAD_GUTTER_PCT / 2;
 const SPREAD_RIGHT_START = 50 + SPREAD_GUTTER_PCT / 2;
@@ -227,6 +253,41 @@ export const HALF_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
     slots: [...grid(1, 4, { x: 0, y: 0, w: 100, h: 50 }), ...grid(1, 3, { x: 12.5, y: 50, w: 75, h: 50 })],
   },
   { id: "half-8-grid", name: "8장 격자(가로형)", photoCount: 8, scope: "half", slots: grid(2, 4) },
+  {
+    id: "half-2-marginSideBySide",
+    name: "좌우, 여백형",
+    photoCount: 2,
+    scope: "half",
+    slots: gridWithGutter(1, 2),
+  },
+  {
+    id: "half-3-marginCols",
+    name: "세로 3컷, 여백형",
+    photoCount: 3,
+    scope: "half",
+    slots: gridWithGutter(1, 3),
+  },
+  {
+    id: "half-4-marginGrid",
+    name: "2x2, 여백형",
+    photoCount: 4,
+    scope: "half",
+    slots: gridWithGutter(2, 2),
+  },
+  {
+    id: "half-5-marginGrid",
+    name: "5장 격자, 여백형",
+    photoCount: 5,
+    scope: "half",
+    slots: [...gridWithGutter(1, 2, { x: 0, y: 0, w: 100, h: 50 }), ...gridWithGutter(1, 3, { x: 0, y: 50, w: 100, h: 50 })],
+  },
+  {
+    id: "half-6-marginGrid",
+    name: "가로 격자, 여백형",
+    photoCount: 6,
+    scope: "half",
+    slots: gridWithGutter(2, 3),
+  },
 ];
 
 // 표지(앞표지·뒤표지) 레이아웃 탭에서 쓰는 템플릿이에요(2026-09-24, 혜민님 요청) — 표지
@@ -369,6 +430,27 @@ export const SPREAD_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
       { xPct: SPREAD_RIGHT.x, yPct: 0, widthPct: SPREAD_RIGHT.w, heightPct: 50 },
       ...grid(1, 2, { x: SPREAD_RIGHT.x, y: 50, w: SPREAD_RIGHT.w, h: 50 }),
     ],
+  },
+  {
+    id: "spread-2-marginSideBySide",
+    name: "양쪽 페이지 각 1장, 여백형",
+    photoCount: 2,
+    scope: "spread",
+    slots: [...gridWithGutter(1, 1, SPREAD_LEFT), ...gridWithGutter(1, 1, SPREAD_RIGHT)],
+  },
+  {
+    id: "spread-4-marginGrid",
+    name: "양쪽 페이지 각 2컷, 여백형",
+    photoCount: 4,
+    scope: "spread",
+    slots: [...gridWithGutter(2, 1, SPREAD_LEFT), ...gridWithGutter(2, 1, SPREAD_RIGHT)],
+  },
+  {
+    id: "spread-6-marginGrid",
+    name: "양쪽 페이지 각 3컷, 여백형",
+    photoCount: 6,
+    scope: "spread",
+    slots: [...gridWithGutter(3, 1, SPREAD_LEFT), ...gridWithGutter(3, 1, SPREAD_RIGHT)],
   },
 ];
 

@@ -111,6 +111,19 @@ export type ImageBoxDef = {
   kind?: "photo" | "sticker";
 };
 
+// `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),
+// 그 이전에 이미 캔버스에 놓여있던 스티커들은 이 필드가 비어있어요. `box.kind ===
+// "sticker"`만 보면 그런 "예전 스티커"가 사진으로 오판되어(선택 시 "사진" 탭으로 튕기고,
+// crop 방식으로 잘리는 문제 재발) 혜민님이 "스티커 선택시 사진탭으로 바뀐다"고 다시
+// 보고하신 원인이 됐어요(2026-09-24 재수정). `kind`가 없을 땐 스티커 파일 경로
+// (`/stickers/...`)인지로 한 번 더 판단해서, 예전에 추가된 스티커도 똑같이 스티커로
+// 인식하도록 고쳤어요.
+export function isStickerImageBox(box: { kind?: "photo" | "sticker"; url: string }): boolean {
+  if (box.kind === "sticker") return true;
+  if (box.kind === "photo") return false;
+  return box.url.startsWith("/stickers/");
+}
+
 export type SpreadDef = {
   left: PageTemplateId;
   right: PageTemplateId;

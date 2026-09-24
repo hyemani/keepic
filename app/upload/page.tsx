@@ -19,6 +19,7 @@ import {
   fitSpreadsToCount,
   effectiveZOrder,
   computeZOrderUpdates,
+  isStickerImageBox,
   StackKind,
   StackOrderAction,
 } from "@/lib/albumTemplates";
@@ -546,6 +547,14 @@ const layoutOptions: { id: PageTemplateId; label: string }[] = [
 // "전체 사진 목록" 펼침 패널에서 한 번에 몇 장씩 보여줄지예요. 사진이 많을 때
 // 한꺼번에 다 나열하지 않고, 이 수만큼 나눠서 옆으로 넘겨가며 보게 해요.
 const PHOTO_GRID_PAGE_SIZE = 8;
+
+// 화면 CSS px ↔ 실제 물리적 mm 환산 기준이에요(브라우저 표준 96dpi 가정: 1인치=96px,
+// 1인치=25.4mm). "줌 배율" 표시를 실제 크기 기준 %로 보여주기 위해 씀
+// (2026-09-24, 혜민님 요청 — 창을 줄여서 캔버스가 실제로 작아져도 줌 표시는 계속
+// "100%"로 남아있던 문제를 고침). 실제 모니터 배율/줌 설정에 따라 오차가 있을 수
+// 있지만, "지금 화면에 보이는 크기가 실제 크기 대비 몇 %인지"를 대략적으로라도
+// 보여주는 게 0%든 100%든 고정된 숫자보다 훨씬 유용해서 이 근사치를 씀.
+const CSS_PX_PER_MM = 96 / 25.4;
 
 const SPREAD_BACKGROUND_PRESETS: { color: string; label: string }[] = [
   { color: "#ffffff", label: "흰색(기본)" },
@@ -2069,7 +2078,7 @@ const ImageBoxOverlay = forwardRef<
   // 사진이 아니라 스티커(손글씨스티커 포함)인 박스예요 — crop/offset(사진 위치 조정)
   // 없이 이동+비율유지 크기조절만 가능하게 다르게 다뤄요(2026-09-24, "스티커는
   // 이미지박스(crop) 적용은 안 하는 게 좋겠다"는 요청 반영).
-  const isSticker = box.kind === "sticker";
+  const isSticker = isStickerImageBox(box);
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -2560,8 +2569,10 @@ const ImageBoxOverlay = forwardRef<
           // 안 그려져요 — 화면 스타일만 바뀐 거예요.
           className="absolute inset-0 flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-[var(--color-sky)]/40 bg-[var(--color-sky)]/10 text-[var(--color-sky)] transition hover:border-[var(--color-sky)] hover:bg-[var(--color-sky)]/15"
         >
+          {/* 2026-09-24, 혜민님 요청: "+ 사진 추가" 보조문구는 불필요해서 뺐어요 —
+              "PHOTO" 글자 하나만 남기고, 클릭하면 파일 선택창이 바로 열리는 동작은
+              그대로예요. */}
           <span className="text-[13px] font-semibold tracking-[0.15em]">PHOTO</span>
-          <span className="text-[9px] text-[var(--color-sky)]/70">+ 사진 추가</span>
         </button>
       )}
       <input
@@ -3260,6 +3271,8 @@ function CanvasStage({
   fitToken,
   className,
   children,
+  widthMm,
+  onActualSizePercentChange,
 }: {
   aspect: number;
   zoom: number;
@@ -3268,6 +3281,10 @@ function CanvasStage({
   fitToken?: number;
   className?: string;
   children: React.ReactNode;
+  // 지금 그리는 내용의 실제 폭(mm) — "줌 배율" 표시를 실제 크기 기준 %로 보여주는 데
+  // 씀(2026-09-24 신규). 생략하면 실제 크기 계산 없이 화면맞춤 배율만 보고돼요.
+  widthMm?: number;
+  onActualSizePercentChange?: (percent: number | null) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
@@ -3326,6 +3343,18 @@ function CanvasStage({
 
   const ready = !!baseFit;
   const displayW = baseFit ? baseFit.w * zoom : 0;
+
+  // 실제 크기(mm) 대비 화면에 지금 몇 %로 보이는지 상위로 알려줘요 — 창을 좁혀서
+  // baseFit이 작아지면(줌은 그대로 1이어도) 이 퍼센트는 같이 줄어들어요(2026-09-24).
+  useEffect(() => {
+    if (!onActualSizePercentChange) return;
+    if (!widthMm || widthMm <= 0 || !displayW) {
+      onActualSizePercentChange(null);
+      return;
+    }
+    const actualPx = widthMm * CSS_PX_PER_MM;
+    onActualSizePercentChange((displayW / actualPx) * 100);
+  }, [displayW, widthMm, onActualSizePercentChange]);
 
   return (
     <div
@@ -4260,7 +4289,7 @@ function UploadPageContent() {
     // 캔버스에서 스티커를 클릭하면 지금 열려있는 탭(보통 스티커/손글씨스티커) 그대로
     // 둔 채로 이동·크기조절만 가능한 선택 상태가 돼요.
     const box = customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === boxId);
-    if (box?.kind !== "sticker") {
+    if (!box || !isStickerImageBox(box)) {
       setActiveEditTab("photo");
     }
   }
@@ -4480,7 +4509,22 @@ function UploadPageContent() {
       const { xPct, widthPct } = slotToSpreadCoords(slot, range);
       const existing = usable[idx];
       if (existing) {
-        return { ...existing, xPct, widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
+        // 기존 사진을 새 칸에 다시 배정할 때 이전 칸 기준으로 맞춰뒀던 확대/이동값
+        // (innerOffsetXPct/innerOffsetYPct/innerScale)을 그대로 들고 오면, 새 칸의
+        // 가로세로 비율이 달라서 사진이 중앙에서 벗어나 보이거나 심하면 화면 밖으로
+        // 완전히 밀려나 "사진이 안 보이는" 것처럼 보일 수 있었어요 — 새 칸 기준으로
+        // 가운데 정렬된 기본값(오프셋 0, 배율 1)으로 리셋해서 항상 중앙 기준점에
+        // 맞도록 고쳤어요(2026-09-24, 혜민님 확인).
+        return {
+          ...existing,
+          xPct,
+          widthPct,
+          yPct: slot.yPct,
+          heightPct: slot.heightPct,
+          innerOffsetXPct: 0,
+          innerOffsetYPct: 0,
+          innerScale: 1,
+        };
       }
       // 채울 사진이 없는 칸 — 빈 프레임을 새로 만들어요. 나중에 캔버스에서 "+사진
       // 추가"를 누르거나 드래그해서 채울 수 있어요.
@@ -4569,7 +4613,18 @@ function UploadPageContent() {
       const placed = template.slots.map((slot, idx) => {
         const existing = usable[idx];
         if (existing) {
-          return { ...existing, xPct: slot.xPct, yPct: slot.yPct, widthPct: slot.widthPct, heightPct: slot.heightPct };
+          // 내지 applyLayoutTemplate과 같은 이유로, 표지도 새 칸에 재배정할 때 이전
+          // 확대/이동값을 리셋해서 중앙 기준점에 맞춰요(2026-09-24).
+          return {
+            ...existing,
+            xPct: slot.xPct,
+            yPct: slot.yPct,
+            widthPct: slot.widthPct,
+            heightPct: slot.heightPct,
+            innerOffsetXPct: 0,
+            innerOffsetYPct: 0,
+            innerScale: 1,
+          };
         }
         const emptyBox: ImageBoxDef = {
           id: crypto.randomUUID(),
@@ -4731,6 +4786,11 @@ function UploadPageContent() {
   // 인쇄에 실제로 들어가는 내용만 담고, 화면 전용 설정(가이드선 표시 여부, 확대 배율,
   // 현재 보고 있는 페이지 등)은 담지 않아요 — 그런 것까지 되돌리면 오히려 헷갈려요.
   const [canvasZoom, setCanvasZoom] = useState(1);
+  // CanvasStage가 보고해주는 "실제 크기(mm) 대비 지금 화면에 보이는 %"예요 — 창을
+  // 좁히면 baseFit이 작아지면서 이 값도 같이 줄어들어요(2026-09-24). 아직 계산 전이거나
+  // (소개 페이지처럼) 실제 mm 기준이 없는 화면일 때는 null — 그때는 아래 표시에서
+  // canvasZoom(줌 배율)로 되돌아가요.
+  const [actualSizePercent, setActualSizePercent] = useState<number | null>(null);
   // 편집 영역 높이는 이제(2026-09-23) 상단바 높이를 JS로 재서 calc()로 빼는 방식 대신,
   // <main>을 뷰포트 높이(h-dvh)에 고정하고 그 안을 flex 레이아웃으로 나누는 구조로
   // 바꿨어요(음수 마진이나 수동 높이 계산 없이, 상단바는 shrink-0, 편집 영역은
@@ -5761,10 +5821,14 @@ function UploadPageContent() {
                   <button
                     type="button"
                     onClick={handleZoomReset}
-                    title="화면에 맞추기 (Ctrl+0)"
+                    title="화면에 맞추기 (Ctrl+0) — 지금 화면에 보이는 크기가 실제 크기 대비 몇 %인지예요"
                     className="w-14 rounded-full px-1 py-1 text-center text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
-                    {Math.round(canvasZoom * 100)}%
+                    {/* 2026-09-24, 혜민님 요청: 창을 좁혀 캔버스가 실제로 작아져도 이 숫자가
+                        계속 "100%"로 고정돼 있던 문제 — 이제 CanvasStage가 보고하는 실제
+                        크기(mm) 기준 % (actualSizePercent)를 우선 보여주고, 그 값이 아직
+                        없을 때만(예: 소개 페이지처럼 mm 기준이 없는 화면) 줌 배율로 대체해요. */}
+                    {Math.round(actualSizePercent ?? canvasZoom * 100)}%
                   </button>
                   <button
                     type="button"
@@ -6657,7 +6721,13 @@ function UploadPageContent() {
                           </div>
                         </div>
                         )}
-                        <CanvasStage aspect={coverTotalWmm / coverTotalHmm} zoom={canvasZoom} fitToken={canvasFitToken}>
+                        <CanvasStage
+                          aspect={coverTotalWmm / coverTotalHmm}
+                          zoom={canvasZoom}
+                          fitToken={canvasFitToken}
+                          widthMm={coverTotalWmm}
+                          onActualSizePercentChange={setActualSizePercent}
+                        >
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
                             좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
@@ -7597,7 +7667,13 @@ function UploadPageContent() {
                               </div>
                             </div>
                             )}
-                            <CanvasStage aspect={guideSpreadWorkMm / guidePageWorkMm} zoom={canvasZoom} fitToken={canvasFitToken}>
+                            <CanvasStage
+                              aspect={guideSpreadWorkMm / guidePageWorkMm}
+                              zoom={canvasZoom}
+                              fitToken={canvasFitToken}
+                              widthMm={guideSpreadWorkMm}
+                              onActualSizePercentChange={setActualSizePercent}
+                            >
                             <div
                               className={
                                 isPrintPreview
