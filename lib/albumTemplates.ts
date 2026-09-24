@@ -128,17 +128,15 @@ export type ImageBoxDef = {
   // 안 그려요. 화면·인쇄 파일 둘 다 반영돼요.
   borderWidthPx?: number;
   borderColor?: string;
-  // 모서리 둥글게(px, 화면 기준) — 2026-09-27 요청으로 추가. rotation과 같은 이유로
-  // 화면 미리보기 전용이에요(인쇄 파일 쪽 클리핑은 아직 반영 안 함).
-  borderRadiusPx?: number;
-  // 테두리 "프레임" 모양(2026-09-28 요청: "프레임은 동그라미, 반달, 별, 라운드,
-  // 액자모양 등 적용하고싶습니다") — 이번 라운드는 CSS로 정확하게 그릴 수 있는
-  // "타원/원형"만 먼저 넣었어요(border-radius:50%는 정사각형이면 원, 직사각형이면
-  // 타원이 돼요 — 사진·테두리·모서리 둥글기 전부 자연스럽게 그 모양을 따라가요).
-  // 별·반달·액자 모양은 box-shadow 테두리로는 모서리 두께가 고르게 안 나와서(clip-path
-  // 만으로는 제대로 된 테두리를 그릴 수 없어요) SVG 윤곽선이 필요한 더 큰 작업이라
-  // 다음에 따로 만들어요. borderRadiusPx와 같은 이유로 화면 전용이에요.
-  frameShape?: "rect" | "ellipse";
+  // 모서리 둥글게 — 0~50(%) 슬라이더 하나로 사각형(0)부터 완전한 원/타원(50, CSS
+  // border-radius:50%와 같은 값 — 정사각형 박스면 정원, 직사각형이면 타원이 됨)까지
+  // 자연스럽게 이어져요(2026-09-28 재요청: "타원(원형)만 있는데 둥글게 직접
+  // 조절할수있도록 만들어주세요. 타원말고 둥글게를 최대치로하면 원이 되도록요" —
+  // 예전엔 "사각형/타원" 두 모드로 나뉘어 있었는데, 하나의 슬라이더로 합침).
+  // rotation과 같은 이유로 화면 미리보기 전용이에요(인쇄 파일 쪽 클리핑은 아직 반영
+  // 안 함). 별·반달·액자 모양은 box-shadow 테두리로는 두께가 고르게 안 나와서 SVG
+  // 윤곽선이 필요한 더 큰 작업이라 다음에 따로 만들어요.
+  borderRadiusPct?: number;
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),
@@ -457,6 +455,17 @@ export function effectiveZOrder(kind: StackKind, zOrder: number | undefined, arr
 // 하나로 합쳐서 "아래→위" 순서로 정렬해요. z값이 같으면(드물게 zOrder를 직접 같은
 // 값으로 줬을 때) 원래 배열 순서(사진 배열 전체 다음 텍스트 배열 전체)를 그대로
 // 유지해요 — Array.prototype.sort는 안정 정렬이라 표준상 보장돼요.
+// 이 패널(스프레드 전체, 또는 표지 앞/뒤면 한 칸)에서 "지금 가장 위"보다 한 칸 더
+// 위에 놓을 zOrder 값이에요 — 사진을 새로 올렸을 때 기존 사진·스티커·텍스트박스 중
+// zOrder를 직접 조작한(예: "맨 앞으로") 것이 있으면, effectiveZOrder의 기본값(배열
+// 순번)만으로는 그 값보다 낮아서 뒤에 가려질 수 있었던 버그(2026-09-28, "사진
+// 올릴때 사진이 맨 뒤로 적용되어 안보이는 현상")를 막기 위해, 새 박스를 만들 때
+// 이 값을 명시적으로 zOrder에 넣어요.
+export function nextTopZOrder(images: ImageBoxDef[], texts: TextBoxDef[]): number {
+  const order = sortStackedBoxes(images, texts);
+  return order.length ? order[order.length - 1].z + 1 : 0;
+}
+
 export function sortStackedBoxes(images: ImageBoxDef[], texts: TextBoxDef[]): StackedItem[] {
   const items: StackedItem[] = [
     ...images.map((b, i) => ({ kind: "image" as const, id: b.id, z: effectiveZOrder("image", b.zOrder, i) })),

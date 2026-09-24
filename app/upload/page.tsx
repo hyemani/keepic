@@ -18,6 +18,7 @@ import {
   calcRequiredSpreadCount,
   fitSpreadsToCount,
   effectiveZOrder,
+  nextTopZOrder,
   computeZOrderUpdates,
   isStickerImageBox,
   StackKind,
@@ -1557,7 +1558,7 @@ function TextBoxOverlay({
       const cellRect = parentEl?.getBoundingClientRect() ?? null;
       const dxPct = (dxPxRaw / dragStart.current.cellW) * 100;
       const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
-      let nextX = Math.min(96, Math.max(0, dragStart.current.xPct + dxPct));
+      let nextX = Math.min(196, Math.max(-100, dragStart.current.xPct + dxPct));
       let nextY = Math.min(96, Math.max(0, dragStart.current.yPct + dyPct));
 
       // 박스 실제 크기(픽셀)를 페이지 크기 대비 %로 환산해서, "박스의 가운데"가 페이지
@@ -1599,12 +1600,14 @@ function TextBoxOverlay({
       // 빼주세요" — 일반 border는 박스 테두리 선 자체(레이아웃 안쪽)에 그려져서 안으로
       // 들어가 보였는데, outline은 박스 바깥쪽에 겹치지 않고 그려지니까
       // outline-offset을 줘서 선택 표시를 박스 밖으로 확실히 떼어냈어요.
+      // 2026-09-28, 혜민님 요청(스위트북 비교): 실선 대신 점선(marching ants 느낌)으로
+      // 바꿔서 "선택 표시"라는 게 더 잘 드러나게 했어요.
       className={`absolute cursor-move outline outline-2 outline-offset-[6px] transition ${
  isActive
-          ? "outline-[var(--color-sky)]"
+          ? "outline-dashed outline-[var(--color-sky)]"
           : isMultiSelected
-          ? "outline-[var(--color-brand-purple)]"
-          : "outline-transparent hover:outline-[var(--color-sky)]/40"
+          ? "outline-dashed outline-[var(--color-brand-purple)]"
+          : "outline-transparent hover:outline-dashed hover:outline-[var(--color-sky)]/40"
       }`}
       style={{
         zIndex,
@@ -1843,54 +1846,42 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
       return (
         <svg {...common}>
           <path d="M4 3v18" />
-          <rect x="7" y="5" width="12" height="4" rx="0.5" />
-          <rect x="7" y="11" width="7" height="4" rx="0.5" />
-          <rect x="7" y="17" width="10" height="4" rx="0.5" />
+          <path d="M8 7h12M8 12h8M8 17h10" />
         </svg>
       );
     case "alignHCenter":
       return (
         <svg {...common}>
           <path d="M12 3v18" />
-          <rect x="6" y="5" width="12" height="4" rx="0.5" />
-          <rect x="8.5" y="11" width="7" height="4" rx="0.5" />
-          <rect x="7" y="17" width="10" height="4" rx="0.5" />
+          <path d="M6 7h12M8.5 12h7M7 17h10" />
         </svg>
       );
     case "alignRight":
       return (
         <svg {...common}>
           <path d="M20 3v18" />
-          <rect x="5" y="5" width="12" height="4" rx="0.5" />
-          <rect x="10" y="11" width="7" height="4" rx="0.5" />
-          <rect x="7" y="17" width="10" height="4" rx="0.5" />
+          <path d="M4 7h12M8 12h8M6 17h10" />
         </svg>
       );
     case "alignTop":
       return (
         <svg {...common}>
           <path d="M3 4h18" />
-          <rect x="5" y="7" width="4" height="12" rx="0.5" />
-          <rect x="11" y="7" width="4" height="7" rx="0.5" />
-          <rect x="17" y="7" width="4" height="10" rx="0.5" />
+          <path d="M7 8v12M12 8v8M17 8v10" />
         </svg>
       );
     case "alignVCenter":
       return (
         <svg {...common}>
           <path d="M3 12h18" />
-          <rect x="5" y="6" width="4" height="12" rx="0.5" />
-          <rect x="11" y="8.5" width="4" height="7" rx="0.5" />
-          <rect x="17" y="7" width="4" height="10" rx="0.5" />
+          <path d="M7 6v12M12 8.5v7M17 7v10" />
         </svg>
       );
     case "alignBottom":
       return (
         <svg {...common}>
           <path d="M3 20h18" />
-          <rect x="5" y="5" width="4" height="12" rx="0.5" />
-          <rect x="11" y="10" width="4" height="7" rx="0.5" />
-          <rect x="17" y="7" width="4" height="10" rx="0.5" />
+          <path d="M7 4v12M12 9v8M17 6v10" />
         </svg>
       );
     // 2026-09-27, 혜민님 요청: 텍스트 가로 정렬 버튼은 (위 alignLeft 등, 박스 여러 개를
@@ -1975,8 +1966,7 @@ function StackOrderToolbar({
   onOpacityChange,
   borderWidthPx,
   borderColor,
-  borderRadiusPx,
-  frameShape = "rect",
+  borderRadiusPct,
   onBorderChange,
 }: {
   flip: boolean;
@@ -1997,9 +1987,8 @@ function StackOrderToolbar({
   onOpacityChange?: (v: number) => void;
   borderWidthPx?: number;
   borderColor?: string;
-  borderRadiusPx?: number;
-  frameShape?: "rect" | "ellipse";
-  onBorderChange?: (widthPx: number, color: string, radiusPx: number, frameShape: "rect" | "ellipse") => void;
+  borderRadiusPct?: number;
+  onBorderChange?: (widthPx: number, color: string, radiusPct: number) => void;
 }) {
   // "투명도"·"테두리" 아이콘을 누르면 그 아래 작은 조절판이 열려요 — 다시 누르면
   // 닫혀요(2026-09-26 신규 기능이라 바깥 클릭 감지 같은 복잡한 처리는 넣지 않고, 아이콘
@@ -2100,51 +2089,28 @@ function StackOrderToolbar({
                   max={12}
                   step={1}
                   value={borderWidthPx ?? 0}
-                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff", borderRadiusPx ?? 0, frameShape)}
+                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff", borderRadiusPct ?? 0)}
                   className="flex-1"
                 />
                 <input
                   type="color"
                   value={borderColor ?? "#ffffff"}
-                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value, borderRadiusPx ?? 0, frameShape)}
+                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value, borderRadiusPct ?? 0)}
                   className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
                 />
               </div>
-              <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">프레임 모양</p>
-              <div className="mb-2 flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", borderRadiusPx ?? 0, "rect")}
-                  className={`flex-1 border border-[var(--color-hairline)] py-1 text-[10px] ${
-                    frameShape === "rect" ? "bg-[var(--color-charcoal)] text-white" : "text-[var(--color-charcoal)]/70"
-                  }`}
-                >
-                  사각형
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", borderRadiusPx ?? 0, "ellipse")}
-                  className={`flex-1 border border-[var(--color-hairline)] py-1 text-[10px] ${
-                    frameShape === "ellipse" ? "bg-[var(--color-charcoal)] text-white" : "text-[var(--color-charcoal)]/70"
-                  }`}
-                >
-                  타원(원형)
-                </button>
-              </div>
-              {frameShape === "rect" && (
-                <>
-                  <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">모서리 둥글게 {borderRadiusPx ?? 0}px</p>
-                  <input
-                    type="range"
-                    min={0}
-                    max={40}
-                    step={1}
-                    value={borderRadiusPx ?? 0}
-                    onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value), "rect")}
-                    className="w-full"
-                  />
-                </>
-              )}
+              <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
+                모서리 둥글게 {borderRadiusPct ?? 0}% {(borderRadiusPct ?? 0) >= 50 ? "(원)" : ""}
+              </p>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={1}
+                value={borderRadiusPct ?? 0}
+                onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value))}
+                className="w-full"
+              />
             </div>
           )}
         </div>
@@ -2176,9 +2142,11 @@ function StackOrderToolbar({
 function MultiAlignFloatingToolbar({
   bounds,
   onAlign,
+  disabledModes,
 }: {
   bounds: { left: number; top: number; right: number; bottom: number };
   onAlign: (mode: TextBoxAlignMode) => void;
+  disabledModes?: TextBoxAlignMode[];
 }) {
   const modes: { mode: TextBoxAlignMode; icon: LayerIconName; title: string }[] = [
     { mode: "left", icon: "alignLeft", title: "왼쪽 정렬" },
@@ -2195,17 +2163,21 @@ function MultiAlignFloatingToolbar({
       className="absolute z-50 grid grid-cols-3 gap-0.5 bg-[var(--color-charcoal)] p-1 text-white shadow-lg"
       style={{ left: `${bounds.right}%`, top: `${bounds.top}%`, transform: "translate(2px, -100%) translateY(-6px)" }}
     >
-      {modes.map((m) => (
-        <button
-          key={m.mode}
-          type="button"
-          title={m.title}
-          onClick={() => onAlign(m.mode)}
-          className="flex h-6 w-6 items-center justify-center transition hover:bg-white/20"
-        >
-          <LayerIcon name={m.icon} />
-        </button>
-      ))}
+      {modes.map((m) => {
+        const disabled = disabledModes?.includes(m.mode) ?? false;
+        return (
+          <button
+            key={m.mode}
+            type="button"
+            title={disabled ? `${m.title}(높이가 자동인 텍스트박스가 있어 비활성화)` : m.title}
+            disabled={disabled}
+            onClick={() => onAlign(m.mode)}
+            className="flex h-6 w-6 items-center justify-center transition hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <LayerIcon name={m.icon} />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -2716,6 +2688,12 @@ const ImageBoxOverlay = forwardRef<
     // Shift+클릭이면 다중 선택 목록에 넣거나 빼요(정렬 툴바용, 2026-09-26 추가) —
     // TextBoxOverlay의 onShiftSelect와 같은 패턴이에요.
     onShiftSelect?: () => void;
+    // Alt(옵션)를 누른 채 드래그를 시작하면 호출돼요(일러스트레이터 Alt-드래그 복사,
+    // 2026-09-28 재작업 — 기존 Ctrl/Cmd+Alt+D 단축키가 "적용이 안 된다"는 혜민님
+    // 피드백을 받아서, 단축키 대신 드래그 자체로 복사되는 방식으로 바꿨어요). 지금
+    // 위치에 그대로 남는 사본을 부모가 새 id로 만들고, 이 박스(같은 id)는 그대로 계속
+    // 드래그돼요 — 그래서 "원본은 남고 복사본이 떨어져 나가는" 것처럼 보여요.
+    onAltDragDuplicate?: () => void;
     guidesX: number[];
     guidesY: number[];
     // 사진 위치 조정 모드(더블클릭으로 들어가는 모드)에 들어가거나 나올 때마다 부모에게
@@ -2736,6 +2714,7 @@ const ImageBoxOverlay = forwardRef<
     isMultiSelected = false,
     onSelect,
     onShiftSelect,
+    onAltDragDuplicate,
     guidesX,
     guidesY,
     onPhotoEditModeChange,
@@ -2748,9 +2727,10 @@ const ImageBoxOverlay = forwardRef<
   // 없이 이동+비율유지 크기조절만 가능하게 다르게 다뤄요(2026-09-24, "스티커는
   // 이미지박스(crop) 적용은 안 하는 게 좋겠다"는 요청 반영).
   const isSticker = isStickerImageBox(box);
-  // borderRadiusPx·frameShape로부터 실제 CSS border-radius 값을 계산해요 — 타원이면
-  // 박스 크기와 상관없이 "50%"(정사각형이면 원, 직사각형이면 타원)로 그려요.
-  const cssRadius = box.frameShape === "ellipse" ? "50%" : box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined;
+  // 모서리 둥글기를 %로 계산해요 — 0%는 사각형, 50%는 CSS border-radius:50%와 같은
+  // 값이라 정사각형 박스면 정원, 직사각형이면 타원이 자연스럽게 나와요(2026-09-28,
+  // "둥글게를 최대치로 하면 원이 되도록").
+  const cssRadius = box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -2859,6 +2839,13 @@ const ImageBoxOverlay = forwardRef<
     // 스테일 상태 정리: 이전에 이 박스가 사진 위치 조정 모드였는데 비활성 상태를 거쳐
     // 다시 선택된 거라면, 박스 모드로 확실히 되돌려요.
     if (photoEditMode) setPhotoEditMode(false);
+    // Alt-드래그 복사(2026-09-28): 지금 위치에 사본을 하나 남겨두고, 이 박스는 그대로
+    // 평소처럼 드래그를 시작해요(onChange가 바뀔 필요 없이 그대로 이 박스 id를
+    // 움직이니 훨씬 단순해요) — 결과적으로 원본이 제자리에 남고 든 손 쪽(드래그되는
+    // 쪽)이 복사본처럼 떨어져 나가요.
+    if (e.altKey && onAltDragDuplicate) {
+      onAltDragDuplicate();
+    }
     const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
     dragStart.current = {
       mouseX: e.clientX,
@@ -3177,16 +3164,22 @@ const ImageBoxOverlay = forwardRef<
       ref={boxRef}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
-      className={`absolute border transition ${
+      // 2026-09-28, 혜민님 요청(스위트북 비교, "점선이 위로 보여야"): 예전엔 일반
+      // border라 박스 테두리 선 자체(사진 안쪽 가장자리)에 그려져서 사진에 가려진
+      // 것처럼 보일 수 있었어요 — 글상자와 같은 outline+offset+점선 방식으로 바꿔서
+      // 사진 바깥으로 확실히 떠 보이게 했어요(사진 위치 조정 모드는 보라색 실선 그대로,
+      // 그 모드는 "선택"이 아니라 "지금 사진 안쪽을 만지는 중"이라는 다른 의미라서
+      // 점선으로 안 바꿨어요).
+      className={`absolute outline outline-2 outline-offset-[4px] transition ${
         isActive && photoEditMode ? "cursor-grab" : "cursor-move"
       } ${
         isActive && photoEditMode
-          ? "border-[var(--color-brand-purple)]"
+          ? "outline-[var(--color-brand-purple)]"
           : isActive
-            ? "border-[var(--color-sky)]"
+            ? "outline-dashed outline-[var(--color-sky)]"
             : isMultiSelected
-              ? "border-[var(--color-brand-purple)]"
-              : "border-transparent hover:border-[var(--color-sky)]/40"
+              ? "outline-dashed outline-[var(--color-brand-purple)]"
+              : "outline-transparent hover:outline-dashed hover:outline-[var(--color-sky)]/40"
       }`}
       style={{
         zIndex,
@@ -3450,10 +3443,9 @@ const ImageBoxOverlay = forwardRef<
           onOpacityChange={(v) => onChange({ opacity: v })}
           borderWidthPx={box.borderWidthPx ?? 0}
           borderColor={box.borderColor ?? "#ffffff"}
-          borderRadiusPx={box.borderRadiusPx ?? 0}
-          frameShape={box.frameShape ?? "rect"}
-          onBorderChange={(widthPx, color, radiusPx, frameShape) =>
-            onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPx: radiusPx, frameShape })
+          borderRadiusPct={box.borderRadiusPct ?? 0}
+          onBorderChange={(widthPx, color, radiusPct) =>
+            onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPct: radiusPct })
           }
         />
       )}
@@ -3472,6 +3464,7 @@ function ImageBoxLayer({
   activeBoxId,
   onSelect,
   onShiftSelect,
+  onAltDuplicate,
   multiSelectedBoxIds,
   guidesX,
   guidesY,
@@ -3488,6 +3481,9 @@ function ImageBoxLayer({
   onSelect: (boxId: string) => void;
   // Shift+클릭 다중 선택(정렬 툴바용, 2026-09-26 추가) — TextBoxLayer와 같은 패턴이에요.
   onShiftSelect?: (boxId: string) => void;
+  // Alt-드래그 복사(2026-09-28) — 드래그가 시작된 박스의 "드래그 시작 시점" 데이터를
+  // 그대로 넘겨줘서, 상위가 그 내용 그대로 새 id로 복사본을 만들어 제자리에 남겨요.
+  onAltDuplicate?: (box: ImageBoxDef) => void;
   // 지금 다중 선택에 들어있는 박스 id들이에요 — 여기 있는 박스는 보라색 테두리로 보여요.
   multiSelectedBoxIds?: string[];
   // 크기 조절 손잡이가 달라붙을 안내선 위치예요(스프레드 전체를 0~100으로 보는 %,
@@ -3516,6 +3512,7 @@ function ImageBoxLayer({
           isMultiSelected={(multiSelectedBoxIds ?? []).includes(box.id)}
           onSelect={() => onSelect(box.id)}
           onShiftSelect={onShiftSelect ? () => onShiftSelect(box.id) : undefined}
+          onAltDragDuplicate={onAltDuplicate ? () => onAltDuplicate(box) : undefined}
           onPhotoEditModeChange={box.id === activeBoxId ? onPhotoEditModeChange : undefined}
           guidesX={guidesX}
           guidesY={guidesY}
@@ -4127,9 +4124,18 @@ function CanvasStage({
 
   return (
     <div ref={measureRef} className={`relative flex min-h-0 min-w-0 flex-1 ${className ?? ""}`}>
+      {/* 2026-09-24 items-start -> items-center: 책 비율(aspect)이 컨테이너 비율과
+          다르면 항상 위/아래 또는 좌/우 중 한쪽에 여백이 남는데(레터박싱, 스위트북도
+          마찬가지), items-start였을 때는 그 여백이 전부 "아래쪽"에만 몰려서 옅은
+          배경색+흰 여백이 두드러져 보였어요(혜민님, "하단에 옅은 하늘색의 배경이
+          보이고 그밑에 하얀 여백까지"). 위아래로 똑같이 나눠 중앙 정렬하면 여백이
+          절반씩 갈라져 훨씬 덜 눈에 띄고, 페이지 이동 화살표(top-1/2로 이 래퍼
+          기준 세로 중앙에 떠요)도 책의 실제 세로 중앙과 다시 맞아떨어져요(혜민님,
+          "화살표가 너무 아래에 치우쳐있고"). baseFit이 항상 availW/availH 안에 딱
+          맞게 계산하니 실제로 넘칠 일은 없어서 overflow-auto는 안전망일 뿐이에요. */}
       <div
         ref={viewportRef}
-        className="flex h-full w-full items-start justify-center overflow-auto"
+        className="flex h-full w-full items-center justify-center overflow-auto"
       >
         <div
           className="shrink-0"
@@ -5358,6 +5364,7 @@ function UploadPageContent() {
       // (heightPct 계산식 참고), 확대/위치는 기본값(꽉 채움, 이동 없음)으로 시작해요 —
       // 이후 박스 크기를 자유롭게 조절해도 사진은 항상 박스를 빈틈없이 꽉 채워요
       // ("이미지를 불러올 때 꽉 채워지는 비율이 기본", 2026-09-22 확인).
+      const spreadForZ = customSpreads[spreadIndex];
       const box: ImageBoxDef = {
         id: crypto.randomUUID(),
         url,
@@ -5371,6 +5378,10 @@ function UploadPageContent() {
         innerOffsetYPct: 0,
         innerScale: 1,
         kind,
+        zOrder: nextTopZOrder(
+          spreadForZ?.imageBoxes ?? [],
+          [...(spreadForZ?.textBoxesLeft ?? []), ...(spreadForZ?.textBoxesRight ?? [])]
+        ),
       };
       setCustomSpreads((prev) =>
         prev.map((s, i) =>
@@ -5498,6 +5509,16 @@ function UploadPageContent() {
           ? { ...s, imageBoxes: (s.imageBoxes ?? []).map((b) => (b.id === boxId ? { ...b, ...changes } : b)) }
           : s
       )
+    );
+  }
+
+  // Alt-드래그 복사(2026-09-28): 드래그가 막 시작된 박스의 "드래그 시작 시점" 데이터
+  // 그대로 새 id를 붙여 같은 자리에 하나 더 추가해요 — 드래그 중인 원래 id는 그대로
+  // 계속 움직이니, 결과적으로 이 사본이 제자리에 남아요.
+  function handleAltDuplicateImageBox(spreadIndex: number, box: ImageBoxDef) {
+    const newBox: ImageBoxDef = { ...box, id: crypto.randomUUID() };
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), newBox] } : s))
     );
   }
 
@@ -5952,12 +5973,19 @@ function UploadPageContent() {
     setCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
     setActiveCoverImageBox((prev) => (prev && prev.target === "front" && prev.boxId === boxId ? null : prev));
   }
+  // Alt-드래그 복사(2026-09-28) — handleAltDuplicateImageBox(스프레드용)와 같은 원리예요.
+  function handleAltDuplicateCoverImageBox(box: ImageBoxDef) {
+    setCoverImageBoxes((prev) => [...prev, { ...box, id: crypto.randomUUID() }]);
+  }
   function handleBackCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
     setBackCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
   }
   function handleDeleteBackCoverImageBox(boxId: string) {
     setBackCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
     setActiveCoverImageBox((prev) => (prev && prev.target === "back" && prev.boxId === boxId ? null : prev));
+  }
+  function handleAltDuplicateBackCoverImageBox(box: ImageBoxDef) {
+    setBackCoverImageBoxes((prev) => [...prev, { ...box, id: crypto.randomUUID() }]);
   }
 
   // 표지 제목 서체를 바꿀 때 쓰는 핸들러예요. "연결" 스위치(titleFontLinked)가 켜져
@@ -7347,6 +7375,199 @@ function UploadPageContent() {
               className="mx-auto mt-2 flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
               style={{ minHeight: 420 }}
             >
+              {/* 왼쪽(데스크톱)/하단(모바일) 페이지 목록 — "미리보기" 모드일 때만 보여요.
+                  2026-09-28 재확인: "스프레드 페이지 왼쪽패널로 옮기는 부분 적용
+                  안됐습니다" — 예전 커밋 코멘트엔 "왼쪽 세로 사이드바"라고 적혀
+                  있었지만, 실제로는 이 블록이 캔버스 영역 뒤(같은 lg:flex-row 안의
+                  두 번째 자식)에 그대로 있어서 화면엔 오른쪽에 보이고 있었어요 — DOM
+                  순서만 캔버스보다 앞으로 옮겨서 실제로 왼쪽에 오도록 고침. min-h-0을
+                  더해서(2026-09-28, "페이지 패널이 세로로 너무 깁니다") flex 자식
+                  기본값(min-height:auto) 때문에 내부 overflow-y-auto가 안 먹히고
+                  페이지가 많을수록 패널 전체가 책자 높이보다 길게 늘어나던 문제도
+                  같이 고침 — 이제 책자(캔버스)와 같은 높이로 고정되고 그 안에서만
+                  스크롤돼요. */}
+              {editorMode === "preview" && (
+              <div
+                className="mt-3 flex min-h-0 shrink-0 items-center gap-2 lg:mt-0 lg:h-full lg:w-28 lg:flex-none lg:flex-col lg:items-stretch lg:border-r lg:border-[var(--color-hairline)] lg:pr-2"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    const order = pageOrder;
+                    const idx = order.findIndex((k) => k === selectedPageKey);
+                    if (idx > 0) setSelectedPageKey(order[idx - 1]);
+                  }}
+                  disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
+                  aria-label="이전 페이지"
+                >
+                  ‹
+                </button>
+                <div
+                  className="flex min-h-0 flex-1 gap-2 overflow-x-auto bg-white p-2 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto"
+                  // 이 줄 바로 위(표지·내지 캔버스 테두리)를 없앴더니, 여기 남아있던
+                  // border-t가 허공에 떠 있는 선처럼 보이고, 기본 스크롤바까지 겹쳐서
+                  // "박스 안에 또 박스"처럼 보인다는 피드백(2026-09-26)에 따라 border-t를
+                  // 빼고 스크롤바도 다른 가로 스크롤 영역(카테고리 바 등)과 같이 얇게
+                  // 바꿨어요.
+                  style={{ scrollbarWidth: "thin" }}
+                >
+                  {isPhotobook && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPageKey("cover")}
+                      className={`shrink-0 border-2 p-1 transition lg:w-full ${
+ selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
+                      }`}
+                    >
+                      <div
+                        className="pointer-events-none flex h-14 overflow-hidden bg-white lg:h-auto lg:w-full"
+                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
+                      >
+                        <div
+                          className="h-full"
+                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
+                        />
+                        <div
+                          className="h-full border-x border-[#1a1a1a]/60"
+                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#ffffff" }}
+                        />
+                        <div
+                          className="relative h-full overflow-hidden"
+                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
+                        >
+                          {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
+                            <img
+                              src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">표지</p>
+                    </button>
+                  )}
+                  {customSpreads.map((spread, i) => {
+                    const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
+                    const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
+                    const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSelectedPageKey(i)}
+                        className={`shrink-0 border-2 p-1 transition lg:w-full ${
+ selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
+                        }`}
+                      >
+                        <div className="pointer-events-none relative h-14 overflow-hidden bg-white lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
+                          <div className="grid h-full grid-cols-2 overflow-hidden">
+                            <div className="overflow-hidden">
+                              {i === 0 ? (
+                                <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)]" />
+                              ) : (
+                                renderPage(
+                                  spread.left,
+                                  leftPhotos,
+                                  leftIndexes,
+                                  () => {},
+                                  () => {},
+                                  requiredMinPx,
+                                  resolveSpreadBackgroundCss(spread, "right")
+                                )
+                              )}
+                            </div>
+                            <div className="overflow-hidden">
+                              {renderPage(
+                                spread.right,
+                                rightPhotos,
+                                rightIndexes,
+                                () => {},
+                                () => {},
+                                requiredMinPx,
+                                resolveSpreadBackgroundCss(spread, "left")
+                              )}
+                            </div>
+                          </div>
+                          {/* 자유 배치 이미지박스("AI 맞춤 레이아웃" 상품 등)는 위 격자 칸
+                              렌더링(renderPage)이 사진을 전혀 안 그려요 — renderPage는 고정
+                              템플릿 칸(photos 배열의 순번) 기준이라, 스프레드 전체 기준
+                              자유 좌표인 imageBoxes는 아예 안 보고 있었어요(하단 썸네일이
+                              빈칸처럼 보이던 버그의 원인). 그래서 imageBoxes는 실제 캔버스와
+                              같은 스프레드 전체 0~100% 좌표를 그대로 써서 이 썸네일 위에
+                              따로 겹쳐 그려요 — 별도 축소 계산 없이 그대로 얹으면 실제
+                              배치와 항상 같은 자리에 보여요. */}
+                          {(spread.imageBoxes ?? [])
+                            // 빈 프레임(사진 없음)은 이 작은 썸네일에서도 실제 인쇄·미리보기와
+                            // 똑같이 안 보여야 해서 제외해요(2026-09-23).
+                            .filter((box) => box.url)
+                            .map((box) => (
+                              <img
+                                key={box.id}
+                                src={box.url}
+                                alt=""
+                                className="pointer-events-none absolute -[1px] border border-white/70 object-cover"
+                                style={{
+                                  left: `${box.xPct}%`,
+                                  top: `${box.yPct}%`,
+                                  width: `${box.widthPct}%`,
+                                  height: `${box.heightPct}%`,
+                                  transform: box.flipX ? "scaleX(-1)" : undefined,
+                                }}
+                              />
+                            ))}
+                        </div>
+                        <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
+                          {formatSpreadPageLabel(i)}
+                        </p>
+                      </button>
+                    );
+                  })}
+                  {isPhotobook && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPageKey("intro")}
+                      className={`shrink-0 border-2 p-1 transition lg:w-full ${
+ selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
+                      }`}
+                    >
+                      <div className="pointer-events-none flex h-14 items-end overflow-hidden bg-white p-1 lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
+                        {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
+                          <img
+                            src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
+                            alt=""
+                            className="h-1/2 w-1/2 -sm object-cover"
+                          />
+                        )}
+                      </div>
+                      <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
+                        소개 페이지
+                      </p>
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const order = pageOrder;
+                    const idx = order.findIndex((k) => k === selectedPageKey);
+                    if (idx >= 0 && idx < order.length - 1) setSelectedPageKey(order[idx + 1]);
+                  }}
+                  disabled={(() => {
+                    const idx = pageOrder.findIndex((k) => k === selectedPageKey);
+                    return idx < 0 || idx >= pageOrder.length - 1;
+                  })()}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
+                  aria-label="다음 페이지"
+                >
+                  ›
+                </button>
+                <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50 lg:text-center">
+                  {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
+                </span>
+              </div>
+              )}
               {/* 인쇄 미리보기 버튼은 상단바 "미리보기" 옆 보조 버튼으로 옮겼어요(2026-09).
                   텍스트박스 바깥(빈 곳)을 누르면 선택이 풀려요 — TextBoxOverlay 쪽 mousedown은
                   stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요.
@@ -7402,13 +7623,13 @@ function UploadPageContent() {
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-visible">
+                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-1.5 lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveCoverEditTab(tab.id)}
-                                className={`flex shrink-0 flex-col items-center gap-0.5 px-1.5 py-1.5 text-[10px] transition ${
+                                className={`flex shrink-0 flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] transition ${
                                   activeCoverEditTab === tab.id
                                     ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                     : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
@@ -8204,6 +8425,7 @@ function UploadPageContent() {
                                 boxes={backCoverImageBoxes}
                                 onChange={handleBackCoverImageBoxChange}
                                 onDelete={handleDeleteBackCoverImageBox}
+                                onAltDuplicate={handleAltDuplicateBackCoverImageBox}
                                 onStackAction={(boxId, action) => applyCoverStackAction("back", "image", boxId, action)}
                                 activeBoxId={
                                   activeCoverImageBox?.target === "back" ? activeCoverImageBox.boxId : null
@@ -8314,6 +8536,7 @@ function UploadPageContent() {
                                 boxes={coverImageBoxes}
                                 onChange={handleCoverImageBoxChange}
                                 onDelete={handleDeleteCoverImageBox}
+                                onAltDuplicate={handleAltDuplicateCoverImageBox}
                                 onStackAction={(boxId, action) => applyCoverStackAction("front", "image", boxId, action)}
                                 activeBoxId={
                                   activeCoverImageBox?.target === "front" ? activeCoverImageBox.boxId : null
@@ -8468,7 +8691,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-visible">
+                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-1.5 lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
@@ -8477,7 +8700,7 @@ function UploadPageContent() {
                                     key={tab.id}
                                     type="button"
                                     onClick={() => setActiveEditTab(tab.id)}
-                                    className={`flex shrink-0 flex-col items-center gap-0.5 px-1.5 py-1.5 text-[10px] transition ${
+                                    className={`flex shrink-0 flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] transition ${
                                       activeEditTab === tab.id
                                         ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                         : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
@@ -9032,6 +9255,7 @@ function UploadPageContent() {
                                 boxes={spread.imageBoxes ?? []}
                                 onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
                                 onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
+                                onAltDuplicate={(box) => handleAltDuplicateImageBox(i, box)}
                                 onStackAction={(boxId, action) => applySpreadStackAction(i, "image", boxId, action)}
                                 activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
                                 onSelect={(boxId) => selectImageBox(i, boxId)}
@@ -9055,10 +9279,14 @@ function UploadPageContent() {
                                 const kind = spreadMultiSelectionKind(i);
                                 if (kind === "mixed") {
                                   const bounds = combinedMultiSelectionBounds(i);
+                                  const hasAutoHeightText = multiTextSelectedBoxes().some(
+                                    (b) => b.heightPct === undefined
+                                  );
                                   return bounds ? (
                                     <MultiAlignFloatingToolbar
                                       bounds={bounds}
                                       onAlign={(mode) => alignCombinedSelection(i, mode)}
+                                      disabledModes={hasAutoHeightText ? ["vmiddle", "bottom"] : undefined}
                                     />
                                   ) : null;
                                 }
@@ -9227,194 +9455,6 @@ function UploadPageContent() {
                   </div>
               </div>
 
-              {/* 왼쪽(데스크톱)/하단(모바일) 페이지 목록 — "미리보기" 모드일 때만 보여요.
-                  2026-09-26에 잠깐 데스크톱에서는 편집 중에도 항상 보이게 바꿨었는데,
-                  "박스가 너무 많아 조잡해 보인다"는 피드백과 함께 "편집하기 누르면 페이지
-                  목록이 사라지고 왼쪽엔 편집 메뉴만 보이게" 다시 요청하셔서 원래 규칙(2026-
-                  09-24)으로 되돌렸어요 — 다만 위치는 이번 라운드 결정대로 왼쪽 세로 사이드바
-                  모양은 그대로 유지(예전엔 하단 가로 바였음). */}
-              {editorMode === "preview" && (
-              <div
-                className="mt-3 flex shrink-0 items-center gap-2 lg:mt-0 lg:h-full lg:w-28 lg:flex-none lg:flex-col lg:items-stretch"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    const order = pageOrder;
-                    const idx = order.findIndex((k) => k === selectedPageKey);
-                    if (idx > 0) setSelectedPageKey(order[idx - 1]);
-                  }}
-                  disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
-                  aria-label="이전 페이지"
-                >
-                  ‹
-                </button>
-                <div
-                  className="flex flex-1 gap-2 overflow-x-auto bg-white p-2 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto"
-                  // 이 줄 바로 위(표지·내지 캔버스 테두리)를 없앴더니, 여기 남아있던
-                  // border-t가 허공에 떠 있는 선처럼 보이고, 기본 스크롤바까지 겹쳐서
-                  // "박스 안에 또 박스"처럼 보인다는 피드백(2026-09-26)에 따라 border-t를
-                  // 빼고 스크롤바도 다른 가로 스크롤 영역(카테고리 바 등)과 같이 얇게
-                  // 바꿨어요.
-                  style={{ scrollbarWidth: "thin" }}
-                >
-                  {isPhotobook && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPageKey("cover")}
-                      className={`shrink-0 border-2 p-1 transition lg:w-full ${
- selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
-                      }`}
-                    >
-                      <div
-                        className="pointer-events-none flex h-14 overflow-hidden bg-white lg:h-auto lg:w-full"
-                        style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
-                      >
-                        <div
-                          className="h-full"
-                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
-                        />
-                        <div
-                          className="h-full border-x border-[#1a1a1a]/60"
-                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#ffffff" }}
-                        />
-                        <div
-                          className="relative h-full overflow-hidden"
-                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
-                        >
-                          {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
-                            <img
-                              src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">표지</p>
-                    </button>
-                  )}
-                  {customSpreads.map((spread, i) => {
-                    const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
-                    const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
-                    const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setSelectedPageKey(i)}
-                        className={`shrink-0 border-2 p-1 transition lg:w-full ${
- selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
-                        }`}
-                      >
-                        <div className="pointer-events-none relative h-14 overflow-hidden bg-white lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
-                          <div className="grid h-full grid-cols-2 overflow-hidden">
-                            <div className="overflow-hidden">
-                              {i === 0 ? (
-                                <div className="flex h-full w-full items-center justify-center bg-[var(--color-ivory)]" />
-                              ) : (
-                                renderPage(
-                                  spread.left,
-                                  leftPhotos,
-                                  leftIndexes,
-                                  () => {},
-                                  () => {},
-                                  requiredMinPx,
-                                  resolveSpreadBackgroundCss(spread, "right")
-                                )
-                              )}
-                            </div>
-                            <div className="overflow-hidden">
-                              {renderPage(
-                                spread.right,
-                                rightPhotos,
-                                rightIndexes,
-                                () => {},
-                                () => {},
-                                requiredMinPx,
-                                resolveSpreadBackgroundCss(spread, "left")
-                              )}
-                            </div>
-                          </div>
-                          {/* 자유 배치 이미지박스("AI 맞춤 레이아웃" 상품 등)는 위 격자 칸
-                              렌더링(renderPage)이 사진을 전혀 안 그려요 — renderPage는 고정
-                              템플릿 칸(photos 배열의 순번) 기준이라, 스프레드 전체 기준
-                              자유 좌표인 imageBoxes는 아예 안 보고 있었어요(하단 썸네일이
-                              빈칸처럼 보이던 버그의 원인). 그래서 imageBoxes는 실제 캔버스와
-                              같은 스프레드 전체 0~100% 좌표를 그대로 써서 이 썸네일 위에
-                              따로 겹쳐 그려요 — 별도 축소 계산 없이 그대로 얹으면 실제
-                              배치와 항상 같은 자리에 보여요. */}
-                          {(spread.imageBoxes ?? [])
-                            // 빈 프레임(사진 없음)은 이 작은 썸네일에서도 실제 인쇄·미리보기와
-                            // 똑같이 안 보여야 해서 제외해요(2026-09-23).
-                            .filter((box) => box.url)
-                            .map((box) => (
-                              <img
-                                key={box.id}
-                                src={box.url}
-                                alt=""
-                                className="pointer-events-none absolute -[1px] border border-white/70 object-cover"
-                                style={{
-                                  left: `${box.xPct}%`,
-                                  top: `${box.yPct}%`,
-                                  width: `${box.widthPct}%`,
-                                  height: `${box.heightPct}%`,
-                                  transform: box.flipX ? "scaleX(-1)" : undefined,
-                                }}
-                              />
-                            ))}
-                        </div>
-                        <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
-                          {formatSpreadPageLabel(i)}
-                        </p>
-                      </button>
-                    );
-                  })}
-                  {isPhotobook && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPageKey("intro")}
-                      className={`shrink-0 border-2 p-1 transition lg:w-full ${
- selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
-                      }`}
-                    >
-                      <div className="pointer-events-none flex h-14 items-end overflow-hidden bg-white p-1 lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
-                        {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
-                          <img
-                            src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
-                            alt=""
-                            className="h-1/2 w-1/2 -sm object-cover"
-                          />
-                        )}
-                      </div>
-                      <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
-                        소개 페이지
-                      </p>
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const order = pageOrder;
-                    const idx = order.findIndex((k) => k === selectedPageKey);
-                    if (idx >= 0 && idx < order.length - 1) setSelectedPageKey(order[idx + 1]);
-                  }}
-                  disabled={(() => {
-                    const idx = pageOrder.findIndex((k) => k === selectedPageKey);
-                    return idx < 0 || idx >= pageOrder.length - 1;
-                  })()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
-                  aria-label="다음 페이지"
-                >
-                  ›
-                </button>
-                <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50 lg:text-center">
-                  {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
-                </span>
-              </div>
-              )}
             </div>
           )}
         </div>
