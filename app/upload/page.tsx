@@ -3821,7 +3821,7 @@ function CanvasStage({
     <div ref={measureRef} className={`relative flex min-h-0 min-w-0 flex-1 ${className ?? ""}`}>
       <div
         ref={viewportRef}
-        className="flex h-full w-full items-center justify-center overflow-auto"
+        className="flex h-full w-full items-start justify-start overflow-auto"
       >
         <div
           className="shrink-0"
@@ -6315,29 +6315,21 @@ function UploadPageContent() {
             </span>
             {photos.length > 0 && (
               <>
-                {/* 미리보기/편집하기 전환 버튼 — 2026-09-26, 참고 화면(스위트북)처럼 상단
-                    가운데에서 눈에 잘 띄도록 옮겼어요. sm 이상에서만 절대위치로 중앙 고정
-                    (부모 헤더 줄에 relative를 걸어둠), 좁은 모바일 화면에서는 줄바꿈과 겹치는
-                    걸 피하려고 원래 자리(제목 옆)에 그대로 흐름대로 둬요. */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editorMode === "edit") {
-                      setEditorMode("preview");
-                    } else {
-                      setEditorMode("edit");
-                      setIsPrintPreview(false);
-                    }
-                  }}
-                  className={` border px-3 py-1.5 text-xs font-semibold transition sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 ${
- editorMode === "preview"
-                      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                      : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-                  }`}
-                >
-                  {editorMode === "edit" ? "미리보기" : "✏️ 편집하기"}
-                </button>
+                {/* 미리보기/편집하기 전환 버튼은 없앴어요(2026-09-26 요청) — 포토북 위에
+                    마우스를 올리면 뜨는 "편집하기" 오버레이(아래 CanvasStage 안,
+                    aria-label="편집하기")로 편집 모드에 들어가요. 편집 중엔 페이지를 바꾸지
+                    않고도 미리보기로 돌아갈 수 있어야 해서, 같은 자리에 작은 "완료" 버튼만
+                    남겨뒀어요(편집 중일 때만 보임). */}
               <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                {editorMode === "edit" && (
+                  <button
+                    type="button"
+                    onClick={() => setEditorMode("preview")}
+                    className="border border-[var(--color-hairline)] bg-white px-2.5 py-1.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                  >
+                    ✓ 완료
+                  </button>
+                )}
                 <div className="flex items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs ">
                   <button
                     type="button"
@@ -6561,7 +6553,10 @@ function UploadPageContent() {
                     {editorMode === "preview" && (
                       <button
                         type="button"
-                        onClick={() => setEditorMode("edit")}
+                        onClick={() => {
+                          setEditorMode("edit");
+                          setIsPrintPreview(false);
+                        }}
                         aria-label="편집하기"
                         className="group pointer-events-auto absolute inset-0 z-30 flex cursor-pointer items-center justify-center"
                       >
@@ -6610,10 +6605,6 @@ function UploadPageContent() {
                     )}
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col p-2.5">
-                      <div className="shrink-0">
-                        <p className="text-sm font-medium">표지</p>
-                      </div>
-
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                         {editorMode === "edit" && (
                         <div className="flex gap-2 lg:shrink-0">
@@ -7693,30 +7684,7 @@ function UploadPageContent() {
                                 pageWidthMm={guidePageWorkMm}
                               />
                             )}
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium">
-                                {i === 0 ? "표지/1" : formatSpreadPageLabel(i)}페이지
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={i === 0}
-                                  onClick={() => setSelectedPageKey(i - 1)}
-                                  className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-sm disabled:opacity-30"
-                                >
-                                  ‹
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={i === customSpreads.length - 1}
-                                  onClick={() => setSelectedPageKey(i + 1)}
-                                  className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-sm disabled:opacity-30"
-                                >
-                                  ›
-                                </button>
-                              </div>
-                            </div>
-                            <div className="mt-3">
+                            <div>
                               {activeEditTab === "photo" && (
                                 <div className="flex flex-col gap-1.5">
                                   {activeImageBox?.spreadIndex === i ? (
@@ -8236,7 +8204,7 @@ function UploadPageContent() {
                                   <>
                                     {/* 눈금자 왼쪽 위 빈 모서리 칸(일러스트레이터 편집대지와 같은 자리) */}
                                     <div
-                                      className="pointer-events-none absolute left-0 top-0 z-30 bg-[var(--color-ivory)]"
+                                      className="pointer-events-none absolute left-0 top-0 z-30 bg-[var(--color-hairline)]/30"
                                       style={{ width: RULER_THICKNESS_PX.w, height: RULER_THICKNESS_PX.h }}
                                     />
                                     <div
