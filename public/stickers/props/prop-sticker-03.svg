@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="90.31mm" height="90.31mm" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 256 256">
+  <!-- Generator: Adobe Illustrator 30.8.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: url(#linear-gradient1);
+      }
+
+      .st1 {
+        fill: #666766;
+      }
+
+      .st2 {
+        fill: url(#linear-gradient);
+      }
+
+      .st3 {
+        isolation: isolate;
+      }
+
+      .st4, .st5 {
+        mix-blend-mode: multiply;
+      }
+
+      .st6 {
+        fill: #999899;
+      }
+
+      .st7 {
+        fill: #e0ebf2;
+      }
+
+      .st8 {
+        fill: #ce477a;
+      }
+
+      .st9 {
+        fill: #313333;
+      }
+
+      .st5 {
+        fill: url(#linear-gradient2);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="132.44" y1="226.23" x2="180.31" y2="184.18" gradientTransform="translate(21.47 -42.75) rotate(9.17)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#999899"/>
+      <stop offset="1" stop-color="#fff"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient1" x1="130.22" y1="223.7" x2="178.09" y2="181.65" xlink:href="#linear-gradient"/>
+    <linearGradient id="linear-gradient2" x1="327.07" y1="244.93" x2="327.07" y2="242.18" gradientTransform="translate(-136.26 -75.79)" xlink:href="#linear-gradient"/>
+  </defs>
+  <g class="st3">
+    <g id="_레이어_1" data-name="레이어_1">
+      <g>
+        <g>
+          <polygon class="st9" points="174.82 63.21 69.83 46.26 49 175.25 176.08 195.77 192.4 94.71 174.82 63.21"/>
+          <rect class="st7" x="90.38" y="55.38" width="68.57" height="41.2" transform="translate(13.71 -18.9) rotate(9.17)"/>
+          <rect class="st9" x="137.94" y="65.47" width="10.32" height="27.81" transform="translate(14.48 -21.8) rotate(9.17)"/>
+          <path class="st7" d="M69.41,116.55h94.75c.81,0,1.46.66,1.46,1.46v67.74h-97.67v-67.74c0-.81.66-1.46,1.46-1.46Z" transform="translate(25.59 -16.68) rotate(9.17)"/>
+          <path class="st6" d="M157.44,137.97l-76.06-12.28c-1.3-.21-2.19-1.44-1.98-2.74h0c.21-1.3,1.44-2.19,2.74-1.98l76.06,12.28c1.3.21,2.19,1.44,1.98,2.74h0c-.21,1.3-1.44,2.19-2.74,1.98Z"/>
+          <path class="st6" d="M155.95,147.17l-76.06-12.28c-1.3-.21-2.19-1.44-1.98-2.74h0c.21-1.3,1.44-2.19,2.74-1.98l76.06,12.28c1.3.21,2.19,1.44,1.98,2.74h0c-.21,1.3-1.44,2.19-2.74,1.98Z"/>
+          <path class="st6" d="M154.47,156.38l-76.06-12.28c-1.3-.21-2.19-1.44-1.98-2.74h0c.21-1.3,1.44-2.19,2.74-1.98l76.06,12.28c1.3.21,2.19,1.44,1.98,2.74h0c-.21,1.3-1.44,2.19-2.74,1.98Z"/>
+          <path class="st6" d="M152.98,165.58l-76.06-12.28c-1.3-.21-2.19-1.44-1.98-2.74h0c.21-1.3,1.44-2.19,2.74-1.98l76.06,12.28c1.3.21,2.19,1.44,1.98,2.74h0c-.21,1.3-1.44,2.19-2.74,1.98Z"/>
+          <path class="st6" d="M151.5,174.78l-76.06-12.28c-1.3-.21-2.19-1.44-1.98-2.74h0c.21-1.3,1.44-2.19,2.74-1.98l76.06,12.28c1.3.21,2.19,1.44,1.98,2.74h0c-.21,1.3-1.44,2.19-2.74,1.98Z"/>
+          <path class="st6" d="M150.01,183.98l-76.06-12.28c-1.3-.21-2.19-1.44-1.98-2.74h0c.21-1.3,1.44-2.19,2.74-1.98l76.06,12.28c1.3.21,2.19,1.44,1.98,2.74h0c-.21,1.3-1.44,2.19-2.74,1.98Z"/>
+          <rect class="st1" x="165.49" y="184.96" width="6.06" height="6.06" transform="translate(32.13 -24.46) rotate(9.17)"/>
+        </g>
+        <g class="st4">
+          <path class="st2" d="M181.86,160.01l-4-9.09-54.14,23.83c-4.8,2.11-8.01,6.34-9.04,11.11l44.81,7.24.61.1,17.66-7.78,4.1-25.4Z"/>
+          <polygon class="st0" points="179.42 154.46 181.86 160.01 183.01 152.88 179.42 154.46"/>
+        </g>
+        <g>
+          <path class="st8" d="M116.83,200.32h0c-3.51-7.97.11-17.27,8.08-20.78l54.14-23.83,12.71,28.86-54.14,23.83c-7.97,3.51-17.27-.11-20.78-8.08Z"/>
+          <rect class="st7" x="175.58" y="166.96" width="23.77" height="4.53" transform="translate(266.81 -70.54) rotate(66.24)"/>
+          <rect class="st7" x="186.17" y="158.05" width="20.13" height="14.63" transform="translate(268.52 -80.87) rotate(66.24)"/>
+          <rect class="st5" x="180.73" y="166.38" width="20.13" height="2.75" transform="translate(267.46 -74.46) rotate(66.24)"/>
+          <path class="st9" d="M198.06,160.37h0c-.36-.82-1.31-1.19-2.13-.83l-3.77,1.66c-.82.36-1.19,1.31-.83,2.13h0c.36.82,1.31,1.19,2.13.83l3.77-1.66c.82-.36,1.19-1.31.83-2.13Z"/>
+          <path class="st9" d="M201.19,167.47h0c-.36-.82-1.31-1.19-2.13-.83l-3.77,1.66c-.82.36-1.19,1.31-.83,2.13h0c.36.82,1.31,1.19,2.13.83l3.77-1.66c.82-.36,1.19-1.31.83-2.13Z"/>
+          <rect class="st7" x="159.97" y="171.84" width="31.53" height="5.09" transform="translate(264.54 -56.72) rotate(66.24)"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

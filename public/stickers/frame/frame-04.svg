@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_레이어_1" data-name="레이어_1" xmlns="http://www.w3.org/2000/svg" width="141.11mm" height="169.33mm" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 400 480">
+  <!-- Generator: Adobe Illustrator 30.8.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        filter: url(#drop-shadow-1);
+      }
+
+      .st1 {
+        fill: #fff;
+      }
+    </style>
+    <filter id="drop-shadow-1" x="1.86" y="2.04" width="402" height="482" filterUnits="userSpaceOnUse">
+      <feOffset dx="2.83" dy="2.83"/>
+      <feGaussianBlur result="blur" stdDeviation="2.83"/>
+      <feFlood flood-color="#000" flood-opacity=".3"/>
+      <feComposite in2="blur" operator="in"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+  </defs>
+  <g class="st0">
+    <path class="st1" d="M392,8H8v464h384V8ZM356,44v300H44V44h312Z"/>
+  </g>
+</svg>

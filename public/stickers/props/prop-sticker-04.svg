@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="90.31mm" height="90.31mm" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 256 256">
+  <!-- Generator: Adobe Illustrator 30.8.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #725a9d;
+      }
+
+      .st1 {
+        filter: url(#drop-shadow-1);
+      }
+
+      .st2 {
+        fill: url(#linear-gradient1);
+      }
+
+      .st3 {
+        fill: #df8e5b;
+      }
+
+      .st4 {
+        isolation: isolate;
+      }
+
+      .st5 {
+        fill: #856ca8;
+      }
+
+      .st6 {
+        fill: #fff;
+      }
+
+      .st7 {
+        fill: #86c5b7;
+      }
+
+      .st8 {
+        fill: #ebc671;
+      }
+
+      .st9 {
+        fill: #86a1ce;
+      }
+
+      .st10 {
+        fill: url(#linear-gradient);
+        mix-blend-mode: multiply;
+      }
+
+      .st11 {
+        fill: #4c599e;
+      }
+
+      .st12 {
+        fill: #ce477a;
+      }
+
+      .st13 {
+        fill: #c0d257;
+      }
+
+      .st14 {
+        fill: #91c26e;
+      }
+
+      .st15 {
+        fill: #72bfc3;
+      }
+    </style>
+    <filter id="drop-shadow-1" x="40.5" y="40.49" width="181" height="181" filterUnits="userSpaceOnUse">
+      <feOffset dx="2.83" dy="2.83"/>
+      <feGaussianBlur result="blur" stdDeviation="2.83"/>
+      <feFlood flood-color="#040000" flood-opacity=".3"/>
+      <feComposite in2="blur" operator="in"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+    <linearGradient id="linear-gradient" x1="113.42" y1="111.32" x2="116.43" y2="116.48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="1" stop-color="#b3b3b3"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient1" x1="97.22" y1="149.59" x2="95.93" y2="155.82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b3b3b3"/>
+      <stop offset="1" stop-color="#fff"/>
+    </linearGradient>
+  </defs>
+  <g class="st4">
+    <g id="_레이어_1" data-name="레이어_1">
+      <g class="st1">
+        <g>
+          <rect class="st6" x="103.61" y="48.95" width="43.05" height="158.09" transform="translate(51.2 -35.02) rotate(19.95)"/>
+          <rect class="st7" x="131.91" y="59.75" width="26.42" height="26.42" transform="translate(33.61 -45.15) rotate(19.95)"/>
+          <rect class="st9" x="120.3" y="91.72" width="26.42" height="26.42" transform="translate(43.82 -39.26) rotate(19.95)"/>
+          <rect class="st14" x="108.7" y="123.69" width="26.42" height="26.42" transform="translate(54.04 -33.38) rotate(19.95)"/>
+          <rect class="st0" x="97.09" y="155.66" width="26.42" height="26.42" transform="translate(64.25 -27.5) rotate(19.95)"/>
+        </g>
+        <g>
+          <rect class="st6" x="106.47" y="55.56" width="43.05" height="158.09" transform="translate(180.44 -43.59) rotate(59.96)"/>
+          <rect class="st3" x="165.48" y="92.08" width="26.42" height="26.42" transform="translate(180.37 -102.1) rotate(59.96)"/>
+          <rect class="st8" x="136.04" y="109.11" width="26.42" height="26.42" transform="translate(180.41 -68.11) rotate(59.96)"/>
+          <rect class="st12" x="106.59" y="126.14" width="26.42" height="26.42" transform="translate(180.45 -34.12) rotate(59.96)"/>
+          <rect class="st13" x="77.15" y="143.17" width="26.42" height="26.42" transform="translate(180.49 -.13) rotate(59.96)"/>
+        </g>
+        <polygon class="st10" points="83.96 178.34 141.93 144.81 164.79 81.86 106.82 115.39 83.96 178.34"/>
+        <g>
+          <rect class="st6" x="106.47" y="55.56" width="43.05" height="158.09" transform="translate(180.44 -43.59) rotate(59.96)"/>
+          <rect class="st3" x="165.48" y="92.08" width="26.42" height="26.42" transform="translate(180.37 -102.1) rotate(59.96)"/>
+          <rect class="st8" x="136.04" y="109.11" width="26.42" height="26.42" transform="translate(180.41 -68.11) rotate(59.96)"/>
+          <rect class="st12" x="106.59" y="126.14" width="26.42" height="26.42" transform="translate(180.45 -34.12) rotate(59.96)"/>
+          <rect class="st13" x="77.15" y="143.17" width="26.42" height="26.42" transform="translate(180.49 -.13) rotate(59.96)"/>
+        </g>
+        <g>
+          <rect class="st6" x="106.47" y="55.56" width="43.05" height="158.09" transform="translate(180.44 -43.59) rotate(59.96)"/>
+          <rect class="st3" x="165.48" y="92.08" width="26.42" height="26.42" transform="translate(180.37 -102.1) rotate(59.96)"/>
+          <rect class="st8" x="136.04" y="109.11" width="26.42" height="26.42" transform="translate(180.41 -68.11) rotate(59.96)"/>
+          <rect class="st12" x="106.59" y="126.14" width="26.42" height="26.42" transform="translate(180.45 -34.12) rotate(59.96)"/>
+          <rect class="st13" x="77.15" y="143.17" width="26.42" height="26.42" transform="translate(180.49 -.13) rotate(59.96)"/>
+        </g>
+        <g>
+          <rect class="st6" x="106.47" y="55.56" width="43.05" height="158.09" transform="translate(287.1 38.75) rotate(102.49)"/>
+          <rect class="st11" x="171.96" y="134.06" width="26.42" height="26.42" transform="translate(369 -1.66) rotate(102.49)"/>
+          <rect class="st5" x="138.75" y="126.71" width="26.42" height="26.42" transform="translate(321.43 21.81) rotate(102.49)"/>
+          <rect class="st15" x="105.55" y="119.35" width="26.42" height="26.42" transform="translate(273.86 45.29) rotate(102.49)"/>
+          <rect class="st12" x="72.34" y="111.99" width="26.42" height="26.42" transform="translate(226.29 68.76) rotate(102.49)"/>
+        </g>
+        <polygon class="st2" points="69.35 143.66 131.52 157.43 123.58 162.03 61.59 148.15 69.35 143.66"/>
+      </g>
+    </g>
+  </g>
+</svg>

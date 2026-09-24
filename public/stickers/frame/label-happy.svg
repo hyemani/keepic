@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_레이어_1" data-name="레이어_1" xmlns="http://www.w3.org/2000/svg" width="77.61mm" height="35.28mm" version="1.1" viewBox="0 0 220 100">
+  <!-- Generator: Adobe Illustrator 30.8.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        isolation: isolate;
+      }
+
+      .st1 {
+        fill: #bc8c37;
+      }
+
+      .st2 {
+        fill: #fff7e9;
+        stroke: #ffd48a;
+        stroke-width: 3px;
+      }
+    </style>
+  </defs>
+  <rect class="st2" x="10" y="16" width="200" height="68"/>
+  <g class="st0">
+    <path class="st1" d="M54.93,51.31v19.99h-2.79V28.77h2.79v19.98h13.24v-19.98h2.86v42.52h-2.86v-19.99h-13.24Z"/>
+    <path class="st1" d="M79.96,61.88l-2.13,9.42h-2.55l9.29-42.58h4.07l9.48,42.58h-2.79l-2.13-9.42h-13.24ZM80.38,59.45h12.39l-6.26-27.52-6.14,27.52Z"/>
+    <path class="st1" d="M111.18,28.77c6.56,0,9.11,4.13,9.11,10.33v4.62c0,6.74-3.1,10.08-9.84,10.08h-5.28v17.5h-2.79V28.77h8.81ZM110.46,51.25c4.92,0,7.05-2.19,7.05-7.35v-4.98c0-4.62-1.58-7.59-6.32-7.59h-6.01v19.92h5.28Z"/>
+    <path class="st1" d="M133.42,28.77c6.56,0,9.11,4.13,9.11,10.33v4.62c0,6.74-3.1,10.08-9.84,10.08h-5.28v17.5h-2.79V28.77h8.81ZM132.69,51.25c4.92,0,7.05-2.19,7.05-7.35v-4.98c0-4.62-1.58-7.59-6.32-7.59h-6.01v19.92h5.28Z"/>
+    <path class="st1" d="M155.47,54.95l-9.54-26.18h2.92l8.14,22.35,8.14-22.35h2.73l-9.6,26.18v16.34h-2.79v-16.34Z"/>
+  </g>
+</svg>

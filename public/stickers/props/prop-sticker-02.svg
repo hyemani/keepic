@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="90.31mm" height="90.31mm" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 256 256">
+  <!-- Generator: Adobe Illustrator 30.8.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        filter: url(#drop-shadow-1);
+      }
+
+      .st1 {
+        fill: #7ebed5;
+      }
+
+      .st2 {
+        isolation: isolate;
+      }
+
+      .st3 {
+        fill: #89ae61;
+      }
+
+      .st4 {
+        fill: #fff;
+      }
+
+      .st5 {
+        fill: #ebc671;
+      }
+
+      .st6 {
+        fill: url(#linear-gradient);
+        mix-blend-mode: multiply;
+      }
+
+      .st7 {
+        fill: #91c26e;
+      }
+    </style>
+    <filter id="drop-shadow-1" x="21.5" y="31.49" width="218" height="198" filterUnits="userSpaceOnUse">
+      <feOffset dx="2.83" dy="2.83"/>
+      <feGaussianBlur result="blur" stdDeviation="2.83"/>
+      <feFlood flood-color="#040000" flood-opacity=".3"/>
+      <feComposite in2="blur" operator="in"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+    <linearGradient id="linear-gradient" x1="64.18" y1="177.45" x2="178.83" y2="62.8" gradientTransform="translate(11.4 -13.22) rotate(5.73)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="1" stop-color="#999899"/>
+    </linearGradient>
+  </defs>
+  <g class="st2">
+    <g id="_레이어_1" data-name="레이어_1">
+      <g class="st0">
+        <g>
+          <rect class="st4" x="35" y="52.38" width="124.73" height="143.27" transform="translate(12.87 -9.11) rotate(5.73)"/>
+          <rect class="st1" x="45.69" y="62.91" width="106.54" height="90.49" transform="translate(11.3 -9.34) rotate(5.73)"/>
+          <polygon class="st7" points="43.47 127.52 86.29 110.52 148.43 144.42 147.02 158.45 41.43 147.85 43.47 127.52"/>
+          <polygon class="st3" points="116.69 127.11 140.85 116 150.57 123.05 148.43 144.42 116.69 127.11"/>
+          <path class="st5" d="M83.43,86.04c.67-6.66-4.19-12.6-10.85-13.27-6.66-.67-12.6,4.19-13.27,10.85-.67,6.66,4.19,12.6,10.85,13.27s12.6-4.19,13.27-10.85Z"/>
+        </g>
+        <g>
+          <rect class="st4" x="80.34" y="56.36" width="124.73" height="143.27" transform="translate(60.29 -45.08) rotate(22.65)"/>
+          <rect class="st1" x="95.57" y="68.04" width="106.54" height="90.49" transform="translate(55.1 -48.58) rotate(22.65)"/>
+          <polygon class="st7" points="90.12 115.68 136.04 111.87 185.62 162.39 180.19 175.39 82.26 134.53 90.12 115.68"/>
+          <polygon class="st3" points="160.29 136.58 186.64 132.99 193.89 142.56 185.62 162.39 160.29 136.58"/>
+          <path class="st5" d="M140.42,87.61c2.58-6.18-.34-13.27-6.52-15.85-6.18-2.58-13.27.34-15.85,6.52-2.58,6.18.34,13.27,6.52,15.85,6.18,2.58,13.27-.34,15.85-6.52Z"/>
+        </g>
+        <path class="st6" d="M97.25,52l-52.24,121.03,55.56,23.29s25.14,2.52,25.65,2.58c.51.05-68.66-28.81-68.66-28.81l48.89-117.17-9.2-.92Z"/>
+      </g>
+    </g>
+  </g>
+</svg>
