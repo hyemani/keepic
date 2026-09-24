@@ -2066,6 +2066,10 @@ const ImageBoxOverlay = forwardRef<
   { box, onChange, onDelete, isActive, onSelect, guidesX, guidesY, onPhotoEditModeChange, zIndex, onStackAction },
   ref
 ) {
+  // 사진이 아니라 스티커(손글씨스티커 포함)인 박스예요 — crop/offset(사진 위치 조정)
+  // 없이 이동+비율유지 크기조절만 가능하게 다르게 다뤄요(2026-09-24, "스티커는
+  // 이미지박스(crop) 적용은 안 하는 게 좋겠다"는 요청 반영).
+  const isSticker = box.kind === "sticker";
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -2187,6 +2191,9 @@ const ImageBoxOverlay = forwardRef<
     e.preventDefault();
     e.stopPropagation();
     onSelect();
+    // 스티커는 "사진 위치 조정 모드"(잘라내기/이동/확대) 자체가 없어요 — 선택만 하고
+    // 끝나요(이동은 일반 드래그로, 크기는 모서리 손잡이로).
+    if (isSticker) return;
     // 빈 프레임(사진 없음)은 옮길 사진 자체가 없어서 "사진 위치 조정 모드"에 들어갈
     // 이유가 없어요 — 대신 파일 선택창을 열어요.
     if (!box.url) {
@@ -2313,7 +2320,22 @@ const ImageBoxOverlay = forwardRef<
       // Shift: 모서리 손잡이에서 정사각형으로 — 가로·세로 칸 크기(cellW/cellH)가 서로
       // 다를 수 있어서 %가 아니라 실제 화면 px 기준으로 맞춰야 진짜 정사각형이 돼요.
       // 두 축 중 더 많이 움직인 쪽을 기준으로 나머지 축을 맞춰요.
-      if (e.shiftKey && isCorner) {
+      //
+      // 스티커(isSticker)는 Shift를 안 눌러도 "항상" 비율을 지켜요 — 다만 정사각형이
+      // 아니라 스티커 원본 비율(naturalWidth/naturalHeight)로요(2026-09-24, "스티커는
+      // 크기조절만, 잘리지 않게"). 가로 이동량을 기준으로 세로를 원본 비율에 맞게
+      // 다시 계산해요(모서리 손잡이에서만 — 변 손잡이는 애초에 렌더링에서 제외해요).
+      if (isSticker && isCorner) {
+        const naturalRatio =
+          box.naturalWidth > 0 && box.naturalHeight > 0 ? box.naturalWidth / box.naturalHeight : s.widthPct / (s.heightPct || 1);
+        const currentWidthPx = (s.widthPct / 100) * s.cellW;
+        const widthDeltaPx = (widthDeltaPct / 100) * s.cellW;
+        const nextWidthPx = Math.max(1, currentWidthPx + widthDeltaPx);
+        const nextHeightPx = nextWidthPx / naturalRatio;
+        const currentHeightPx = (s.heightPct / 100) * s.cellH;
+        widthDeltaPct = ((nextWidthPx - currentWidthPx) / s.cellW) * 100;
+        heightDeltaPct = ((nextHeightPx - currentHeightPx) / s.cellH) * 100;
+      } else if (e.shiftKey && isCorner) {
         const widthDeltaPx = (widthDeltaPct / 100) * s.cellW;
         const heightDeltaPx = (heightDeltaPct / 100) * s.cellH;
         const magnitudePx = Math.max(Math.abs(widthDeltaPx), Math.abs(heightDeltaPx));
@@ -2486,26 +2508,42 @@ const ImageBoxOverlay = forwardRef<
         </>
       )}
       {box.url ? (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <img
-            src={box.url}
-            alt=""
-            draggable={false}
-            // max-w-none/max-h-none: Tailwind 기본 스타일(img { max-width: 100% })이
-            // 없으면, 사진이 박스보다 크게(cover 계산 결과) 커져야 할 때도 브라우저가
-            // 폭을 박스 크기로 강제로 줄여버려서(높이는 style로 고정) 사진이 박스를
-            // 다 못 채우고 한쪽에 빈 공간이 생겨요 — 특히 책등 쪽에서 보였던 문제의
-            // 진짜 원인이에요(2026-09).
-            className="pointer-events-none absolute max-w-none max-h-none select-none"
-            style={{
-              left: coverRect.x,
-              top: coverRect.y,
-              width: coverRect.width,
-              height: coverRect.height,
-              transform: box.flipX ? "scaleX(-1)" : undefined,
-            }}
-          />
-        </div>
+        isSticker ? (
+          // 스티커는 사진처럼 박스를 "꽉 채우도록 잘라내는(cover)" 계산을 아예 안 써요
+          // — 박스 크기 자체를 이동+모서리 손잡이로 항상 원본 비율대로만 조절하니까,
+          // object-fit: contain으로 그리면 어떤 경우에도(옛 데이터로 비율이 살짝
+          // 어긋나 있어도) 스티커가 잘리지 않고 항상 통째로 보여요(2026-09-24,
+          // "잘리는 부분이 생기지 않도록 이미지박스 적용은 안 하는 게 좋겠다" 요청).
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <img
+              src={box.url}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+            />
+          </div>
+        ) : (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <img
+              src={box.url}
+              alt=""
+              draggable={false}
+              // max-w-none/max-h-none: Tailwind 기본 스타일(img { max-width: 100% })이
+              // 없으면, 사진이 박스보다 크게(cover 계산 결과) 커져야 할 때도 브라우저가
+              // 폭을 박스 크기로 강제로 줄여버려서(높이는 style로 고정) 사진이 박스를
+              // 다 못 채우고 한쪽에 빈 공간이 생겨요 — 특히 책등 쪽에서 보였던 문제의
+              // 진짜 원인이에요(2026-09).
+              className="pointer-events-none absolute max-w-none max-h-none select-none"
+              style={{
+                left: coverRect.x,
+                top: coverRect.y,
+                width: coverRect.width,
+                height: coverRect.height,
+                transform: box.flipX ? "scaleX(-1)" : undefined,
+              }}
+            />
+          </div>
+        )
       ) : (
         // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면(또는
         // 더블클릭하면) 파일을 골라 채울 수 있어요. 미리보기·PDF에는 안 그려져요.
@@ -2541,8 +2579,10 @@ const ImageBoxOverlay = forwardRef<
         <>
           {/* 사진만 빼기(프레임은 남기고 빈 프레임으로) — 프레임 자체를 지우는 아래 ✕
               버튼과 구분돼요(2026-09-23, "사진 제거 vs 프레임 삭제 구분" 요청). 빈
-              프레임엔 뺄 사진이 없어서 이 버튼을 안 보여줘요. */}
-          {box.url && (
+              프레임엔 뺄 사진이 없어서 이 버튼을 안 보여줘요. 스티커는 "빼고 빈 프레임만
+              남기기"라는 개념 자체가 없어서(스티커는 항상 사진이 있음) 안 보여줘요 —
+              지울 땐 아래 ✕(삭제)만 써요(2026-09-24).*/}
+          {box.url && !isSticker && (
             <button
               type="button"
               title="이 칸의 사진만 빼요 (프레임은 남아요)"
@@ -2568,7 +2608,10 @@ const ImageBoxOverlay = forwardRef<
           >
             ✕
           </button>
-          {TEXT_BOX_RESIZE_HANDLES.map(({ dir, className, cursor, title }) => (
+          {/* 스티커는 모서리(대각선) 손잡이만 보여줘요 — 위/아래/좌/우 변 손잡이는
+              한쪽 축만 늘려서 비율이 깨지는 조작이라, 애초에 크기조절을 "비율유지"로만
+              허용하는 스티커에는 의미가 없어서 렌더링 자체를 제외해요(2026-09-24). */}
+          {TEXT_BOX_RESIZE_HANDLES.filter((h) => !isSticker || h.dir.length === 2).map(({ dir, className, cursor, title }) => (
             <div
               key={dir}
               onMouseDown={(e) => handleResizeStart(dir, e)}
@@ -2576,22 +2619,26 @@ const ImageBoxOverlay = forwardRef<
               className={`absolute z-40 h-3.5 w-3.5 rounded-sm border border-white bg-[var(--color-sky)] shadow ${cursor} ${className}`}
             />
           ))}
-          <div
-            onMouseDown={(e) => e.stopPropagation()}
-            className="absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap"
-          >
-            <button
-              type="button"
-              title="이 사진박스로 펼침면(양쪽 페이지) 전체를 꽉 채워요"
-              onClick={handleFillSpread}
-              className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white"
+          {/* "스프레드 전체 채우기"·더블클릭 안내는 사진 전용 기능(꽉 채우기·사진 위치
+              조정)이라 스티커에는 안 보여줘요(2026-09-24). */}
+          {!isSticker && (
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              className="absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap"
             >
-              스프레드 전체 채우기
-            </button>
-            <span className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
-              더블클릭하면 안의 사진 위치를 옮길 수 있어요
-            </span>
-          </div>
+              <button
+                type="button"
+                title="이 사진박스로 펼침면(양쪽 페이지) 전체를 꽉 채워요"
+                onClick={handleFillSpread}
+                className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white"
+              >
+                스프레드 전체 채우기
+              </button>
+              <span className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
+                더블클릭하면 안의 사진 위치를 옮길 수 있어요
+              </span>
+            </div>
+          )}
         </>
       )}
       {isActive && photoEditMode && (
@@ -3239,23 +3286,28 @@ function CanvasStage({
   // 약간 여유를 둬서 어떤 경우에도 스크롤 없이 전체가 보이도록 해요.
   const SAFETY_PX = 28;
 
-  // "화면에 맞추기" 기준 크기(zoom=1일 때의 크기)예요. 예전엔 뷰포트 크기가 바뀔 때마다
-  // (ResizeObserver 콜백마다) 매번 다시 계산해서, 창 크기를 줄이거나 왼쪽 패널이
-  // 열리고 닫힐 때마다 사용자가 정한 배율과 무관하게 책이 저절로 커지거나 작아졌어요
-  // (2026-09-23 혜민님 지적). 이제는 "최초로 뷰포트 크기를 잴 수 있게 된 시점"에 딱
-  // 한 번만 계산해서 고정하고, 그 뒤로는 fitToken이 바뀔 때(=사용자가 "화면에 맞추기"를
-  // 직접 눌렀을 때)만 다시 계산해요. 그 사이 창 크기가 바뀌면 이 컨테이너의 overflow-auto가
-  // 스크롤/이동으로 대응해요(자동 재배율 없음). 실제 인쇄 좌표(%)는 이 값과 전혀 무관해요
-  // — 화면에 몇 px로 그려지는지만 바뀔 뿐, 원본 좌표 데이터는 손대지 않아요.
-  const [baseFit, setBaseFit] = useState<{ w: number; h: number } | null>(null);
-  const hasFitOnceRef = useRef(false);
-  const prevFitTokenRef = useRef(fitToken);
-
-  useEffect(() => {
-    if (box.w <= 0 || box.h <= 0) return;
-    const tokenChanged = fitToken !== prevFitTokenRef.current;
-    if (hasFitOnceRef.current && !tokenChanged) return;
-    prevFitTokenRef.current = fitToken;
+  // "화면에 맞추기" 기준 크기(zoom=1일 때의 크기)예요.
+  //
+  // 2026-09-24: 혜민님이 "배율이 항상 100%로 적용되어있는데 실제 사이즈에 맞춰서
+  // 컴퓨터창이 작아지면 작아진 비율에 맞게 줄여주세요 / 편집창 좌우 잘림현상이 그대로
+  // 유지된것이 확인됩니다"로 요청 — 창(뷰포트) 크기가 바뀔 때마다 이 기준 크기를 다시
+  // 계산해서, 창이 좁아지면 편집 캔버스가 자동으로 줄어들어 좌우가 잘리지 않고 항상 전체
+  // 폭이 보이도록 되돌렸어요. (2026-09-23엔 정반대로 "뷰포트가 바뀔 때마다 재계산되면
+  // 사용자가 정한 배율과 무관하게 책이 저절로 커지거나 작아진다"는 이유로 최초 1회만
+  // 계산하도록 바꿨던 적이 있어요 — 이번 요청은 그 판단을 다시 뒤집는 거라 혜민님께
+  // 명시적으로 보고해요.) fitToken은 "화면에 맞추기" 버튼을 눌렀을 때 값이 바뀌는데,
+  // 이제 뷰포트 크기 변화만으로도 항상 재계산되니 그 버튼과 사실상 같은 효과를 내지만,
+  // prop 자체는 그대로 두고 의존성 배열에 남겨서(호출부를 안 건드리려고) 버튼을 눌러도
+  // 여전히 정상 동작해요. 실제 인쇄 좌표(%)는 이 값과 전혀 무관해요 — 화면에 몇 px로
+  // 그려지는지만 바뀔 뿐, 원본 좌표 데이터는 손대지 않아요.
+  // useEffect+setState 대신 useMemo로 순수 계산해요 — box(뷰포트 크기)나 aspect가
+  // 바뀔 때마다 렌더링 중에 바로 다시 계산되는 파생값이라, 이펙트 안에서 매번 setState를
+  // 부르는(리액트 훅 린트가 "연쇄 렌더 위험"으로 지적하는) 패턴을 안 써도 돼요. fitToken은
+  // "화면에 맞추기" 버튼을 눌렀을 때만 바뀌던 예전 트리거였는데, 이제 뷰포트 크기 변화만
+  // 으로도 항상 최신 값으로 다시 계산되니 실질적으로 더 이상 필요 없어요(호출부 3곳을
+  // 안 건드리려고 prop 자체는 그대로 남겨뒀어요).
+  const baseFit = useMemo(() => {
+    if (box.w <= 0 || box.h <= 0) return null;
     const availW = Math.max(0, box.w - SAFETY_PX * 2);
     const availH = Math.max(0, box.h - SAFETY_PX * 2);
     let fitW = availW;
@@ -3264,10 +3316,12 @@ function CanvasStage({
       fitH = availH;
       fitW = availH * aspect;
     }
-    if (fitW > 0 && fitH > 0) {
-      setBaseFit({ w: fitW, h: fitH });
-      hasFitOnceRef.current = true;
-    }
+    if (fitW <= 0 || fitH <= 0) return null;
+    return { w: fitW, h: fitH };
+    // fitToken은 계산에 안 쓰이지만(이제 뷰포트 크기 변화만으로 항상 최신으로
+    // 재계산돼요) 의존성에 남겨둬요 — "화면에 맞추기" 버튼을 눌렀을 때도(같은 크기라도)
+    // 이 메모가 확실히 다시 평가되도록 보장하는 안전장치예요.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box, aspect, fitToken]);
 
   const ready = !!baseFit;
@@ -4200,7 +4254,15 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setImageBoxPhotoEditActive(false);
     setActiveImageBox({ spreadIndex, boxId });
-    setActiveEditTab("photo");
+    // 스티커(손글씨스티커 포함)는 "사진" 탭에 편집할 속성(꽉 채우기/변형mm/사진 위치
+    // 조정)이 아예 없어서, 선택해도 왼쪽 패널을 "사진" 탭으로 옮기지 않아요 — 혜민님이
+    // "스티커 선택했을때 사진 메뉴로 이동하는 오류"로 보고하신 버그 수정(2026-09-24).
+    // 캔버스에서 스티커를 클릭하면 지금 열려있는 탭(보통 스티커/손글씨스티커) 그대로
+    // 둔 채로 이동·크기조절만 가능한 선택 상태가 돼요.
+    const box = customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === boxId);
+    if (box?.kind !== "sticker") {
+      setActiveEditTab("photo");
+    }
   }
   // 지금 "선택된" 이미지박스가 사진 위치 조정 모드(더블클릭으로 들어가는 모드)인지예요.
   // 왼쪽 "사진" 편집 메뉴에 조작 버튼(확대/축소/반전/초기화/완료)을 보여줄지 결정하는 데
@@ -4213,7 +4275,7 @@ function UploadPageContent() {
 
   // 사진 파일이든 스티커든 결국 "이미지박스 하나 추가"라 로직을 공유해요 — url과
   // 기본 크기(widthPct)만 다르게 넘겨요.
-  function handleAddImageBoxFromUrl(spreadIndex: number, url: string, widthPct: number) {
+  function handleAddImageBoxFromUrl(spreadIndex: number, url: string, widthPct: number, kind?: "photo" | "sticker") {
     const img = new window.Image();
     img.onload = () => {
       // 스프레드 전체 폭이 페이지(정사각형) 두 배라서, 가로 %와 세로 %의 실제 축척이
@@ -4246,6 +4308,7 @@ function UploadPageContent() {
         innerOffsetXPct: 0,
         innerOffsetYPct: 0,
         innerScale: 1,
+        kind,
       };
       setCustomSpreads((prev) =>
         prev.map((s, i) =>
@@ -4313,14 +4376,14 @@ function UploadPageContent() {
   }
 
   function handleAddSticker(spreadIndex: number, stickerUrl: string) {
-    handleAddImageBoxFromUrl(spreadIndex, stickerUrl, 14);
+    handleAddImageBoxFromUrl(spreadIndex, stickerUrl, 14, "sticker");
   }
 
-  // 손글씨 스티커도 스티커와 똑같이 이미지박스로 추가해요 — 지금은 HANDWRITING_ITEMS가
-  // 비어 있어서 실제로 호출될 일이 없지만, 아이템이 채워지면 바로 동작하도록 미리
-  // 배선해 둬요(2026-09-23).
+  // 손글씨 스티커도 스티커와 똑같이 이미지박스로 추가해요(kind: "sticker"도 동일하게
+  // 붙여서 — 이동+비율유지 크기조절만 되는 스티커 전용 편집 방식이 그대로 적용돼요,
+  // 2026-09-24).
   function handleAddHandwriting(spreadIndex: number, handwritingUrl: string) {
-    handleAddImageBoxFromUrl(spreadIndex, handwritingUrl, 14);
+    handleAddImageBoxFromUrl(spreadIndex, handwritingUrl, 14, "sticker");
   }
 
   function handleImageBoxChange(spreadIndex: number, boxId: string, changes: Partial<ImageBoxDef>) {
@@ -6272,33 +6335,7 @@ function UploadPageContent() {
                                       key={t.id}
                                       type="button"
                                       onClick={() => {
-                                        if (currentCount > t.slots.length) {
-                                          const candidates =
-                                            boxesForTarget.length > 0
-                                              ? boxesForTarget
-                                              : legacyPhotoForTarget
-                                                ? [
-                                                    {
-                                                      id: "__legacy__",
-                                                      url: legacyPhotoForTarget.url,
-                                                      naturalWidth: 1,
-                                                      naturalHeight: 1,
-                                                      xPct: 0,
-                                                      yPct: 0,
-                                                      widthPct: 100,
-                                                      heightPct: 100,
-                                                      innerOffsetXPct: 0,
-                                                      innerOffsetYPct: 0,
-                                                      innerScale: 1,
-                                                    } as ImageBoxDef,
-                                                  ]
-                                                : [];
-                                          setPendingCoverLayoutApply({ target, template: t, candidates });
-                                          setPendingCoverLayoutApplySelectedIds(
-                                            candidates.slice(0, t.slots.length).map((b) => b.id)
-                                          );
-                                          return;
-                                        }
+                                        // 내지와 같은 이유로 팝업 없이 즉시 적용(2026-09-24).
                                         applyCoverLayoutTemplate(target, t);
                                       }}
                                       className="rounded-lg border border-[var(--color-hairline)] p-1.5 text-left transition hover:border-[var(--color-sky)]"
@@ -7369,27 +7406,11 @@ function UploadPageContent() {
                                           key={t.id}
                                           type="button"
                                           onClick={() => {
-                                            // 칸보다 사진이 많으면 곧바로 적용하지 않고
-                                            // "어떤 사진을 쓸지" 고르는 팝업부터 띄워요.
-                                            if (boxesInRange.length > t.slots.length) {
-                                              const order = getSpreadImageBoxOrder(spread);
-                                              const byId = new Map(boxesInRange.map((b) => [b.id, b] as const));
-                                              const orderedCandidates = order
-                                                .filter((id) => byId.has(id))
-                                                .map((id) => byId.get(id)!);
-                                              setPendingLayoutApply({
-                                                spreadIndex: i,
-                                                range: effectiveRange,
-                                                template: t,
-                                                candidates: orderedCandidates,
-                                              });
-                                              // 처음엔 저장된 순서 앞에서부터 칸 수만큼 미리 체크해둬요 —
-                                              // 아무것도 안 고르고 시작하지 않도록.
-                                              setPendingLayoutApplySelectedIds(
-                                                orderedCandidates.slice(0, t.slots.length).map((b) => b.id)
-                                              );
-                                              return;
-                                            }
+                                            // 2026-09-24: "레이아웃 바로 적용되고..." 요청으로
+                                            // 사진 수가 안 맞아도 고르는 팝업 없이 즉시 적용해요
+                                            // (칸보다 적으면 빈 칸은 PHOTO 플레이스홀더로, 많으면
+                                            // 저장된 순서 앞에서부터 칸 수만큼만 채우고 나머지는
+                                            // 그대로 남겨둬요 — applyLayoutTemplate이 처리).
                                             applyLayoutTemplate(i, effectiveRange, t);
                                           }}
                                           className="rounded-lg border border-[var(--color-hairline)] p-1.5 text-left transition hover:border-[var(--color-sky)]"

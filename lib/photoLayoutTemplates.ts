@@ -143,6 +143,90 @@ export const HALF_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
   },
   { id: "half-6-grid", name: "6장 격자", photoCount: 6, scope: "half", slots: grid(3, 2) },
   { id: "half-9-grid", name: "9장 격자", photoCount: 9, scope: "half", slots: grid(3, 3) },
+
+  // 2026-09-24, 혜민님 요청("레이아웃이 너무 단조롭다 — 예시 이미지 참고해서 다양하게
+  // 만들었으면 좋겠습니다") — 슬롯 배치(사진 칸 모양·개수) 위주로 더 다양하게 추가한
+  // 템플릿들이에요. 배경색·스티커·문구가 미리 세팅된 "테마형"은 아니고(혜민님 확인),
+  // 사진 칸 크기·비율·순서만 다른 배치라는 점은 기존 템플릿들과 같아요.
+  {
+    id: "half-2-topBottomUneven",
+    name: "위 크게+아래 작게",
+    photoCount: 2,
+    scope: "half",
+    slots: [
+      { xPct: 0, yPct: 0, widthPct: 100, heightPct: 64 },
+      { xPct: 0, yPct: 64, widthPct: 100, heightPct: 36 },
+    ],
+  },
+  {
+    id: "half-2-smallBig",
+    name: "작은 사진+큰 사진",
+    photoCount: 2,
+    scope: "half",
+    slots: [
+      { xPct: 0, yPct: 0, widthPct: 34, heightPct: 100 },
+      { xPct: 34, yPct: 0, widthPct: 66, heightPct: 100 },
+    ],
+  },
+  {
+    id: "half-3-topTwoBottomBig",
+    name: "상단 2컷+하단 큰 사진",
+    photoCount: 3,
+    scope: "half",
+    slots: [
+      { xPct: 0, yPct: 0, widthPct: 50, heightPct: 40 },
+      { xPct: 50, yPct: 0, widthPct: 50, heightPct: 40 },
+      { xPct: 0, yPct: 40, widthPct: 100, heightPct: 60 },
+    ],
+  },
+  {
+    id: "half-3-leftColRightBig",
+    name: "좌측 세로 2칸+우측 큰 사진",
+    photoCount: 3,
+    scope: "half",
+    slots: [
+      { xPct: 0, yPct: 0, widthPct: 38, heightPct: 50 },
+      { xPct: 0, yPct: 50, widthPct: 38, heightPct: 50 },
+      { xPct: 38, yPct: 0, widthPct: 62, heightPct: 100 },
+    ],
+  },
+  {
+    id: "half-4-oneTopThreeBottom",
+    name: "상단 와이드+하단 3컷",
+    photoCount: 4,
+    scope: "half",
+    slots: [{ xPct: 0, yPct: 0, widthPct: 100, heightPct: 45 }, ...grid(1, 3, { x: 0, y: 45, w: 100, h: 55 })],
+  },
+  { id: "half-4-cols", name: "세로 4컷", photoCount: 4, scope: "half", slots: grid(1, 4) },
+  {
+    id: "half-5-twoTopThreeBottom",
+    name: "상단 2컷+하단 3컷",
+    photoCount: 5,
+    scope: "half",
+    slots: [...grid(1, 2, { x: 0, y: 0, w: 100, h: 45 }), ...grid(1, 3, { x: 0, y: 45, w: 100, h: 55 })],
+  },
+  {
+    id: "half-5-centerBigFourCorner",
+    name: "중앙 큰 사진+모서리 4컷",
+    photoCount: 5,
+    scope: "half",
+    slots: [
+      { xPct: 25, yPct: 25, widthPct: 50, heightPct: 50 },
+      { xPct: 0, yPct: 0, widthPct: 25, heightPct: 50 },
+      { xPct: 75, yPct: 0, widthPct: 25, heightPct: 50 },
+      { xPct: 0, yPct: 50, widthPct: 25, heightPct: 50 },
+      { xPct: 75, yPct: 50, widthPct: 25, heightPct: 50 },
+    ],
+  },
+  { id: "half-6-gridWide", name: "가로 격자", photoCount: 6, scope: "half", slots: grid(2, 3) },
+  {
+    id: "half-7-fourThree",
+    name: "상단 4컷+하단 3컷",
+    photoCount: 7,
+    scope: "half",
+    slots: [...grid(1, 4, { x: 0, y: 0, w: 100, h: 50 }), ...grid(1, 3, { x: 12.5, y: 50, w: 75, h: 50 })],
+  },
+  { id: "half-8-grid", name: "8장 격자(가로형)", photoCount: 8, scope: "half", slots: grid(2, 4) },
 ];
 
 // 표지(앞표지·뒤표지) 레이아웃 탭에서 쓰는 템플릿이에요(2026-09-24, 혜민님 요청) — 표지
@@ -245,6 +329,45 @@ export const SPREAD_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
       { xPct: SPREAD_LEFT.x, yPct: 0, widthPct: SPREAD_LEFT.w, heightPct: 56 },
       ...grid(1, 4, { x: SPREAD_LEFT.x, y: 56, w: SPREAD_LEFT.w, h: 44 }),
       ...grid(2, 2, SPREAD_RIGHT),
+    ],
+  },
+
+  // 2026-09-24 추가 — "레이아웃이 단조롭다" 요청으로 펼침면(spread) 템플릿도 몇 가지
+  // 더했어요. 파노라마를 빼고는 항상 왼쪽/오른쪽 페이지 안에서만 배치해서(SPREAD_LEFT/
+  // SPREAD_RIGHT), 기존 템플릿들과 똑같이 제본 경계를 넘지 않아요.
+  {
+    id: "spread-3-topWideEachSideBottom",
+    name: "각 페이지 상단 와이드+하단 1컷",
+    photoCount: 3,
+    scope: "spread",
+    slots: [
+      { xPct: SPREAD_LEFT.x, yPct: 0, widthPct: SPREAD_LEFT.w, heightPct: 62 },
+      { xPct: SPREAD_LEFT.x, yPct: 62, widthPct: SPREAD_LEFT.w, heightPct: 38 },
+      ...grid(1, 1, SPREAD_RIGHT),
+    ],
+  },
+  {
+    id: "spread-4-unevenCols",
+    name: "좌우 비대칭 2단",
+    photoCount: 4,
+    scope: "spread",
+    slots: [
+      { xPct: SPREAD_LEFT.x, yPct: 0, widthPct: SPREAD_LEFT.w, heightPct: 62 },
+      { xPct: SPREAD_LEFT.x, yPct: 62, widthPct: SPREAD_LEFT.w, heightPct: 38 },
+      { xPct: SPREAD_RIGHT.x, yPct: 0, widthPct: SPREAD_RIGHT.w, heightPct: 38 },
+      { xPct: SPREAD_RIGHT.x, yPct: 38, widthPct: SPREAD_RIGHT.w, heightPct: 62 },
+    ],
+  },
+  {
+    id: "spread-6-topBottomEachSide",
+    name: "6장(양쪽 페이지 각 상단 큰 사진+하단 2컷)",
+    photoCount: 6,
+    scope: "spread",
+    slots: [
+      { xPct: SPREAD_LEFT.x, yPct: 0, widthPct: SPREAD_LEFT.w, heightPct: 50 },
+      ...grid(1, 2, { x: SPREAD_LEFT.x, y: 50, w: SPREAD_LEFT.w, h: 50 }),
+      { xPct: SPREAD_RIGHT.x, yPct: 0, widthPct: SPREAD_RIGHT.w, heightPct: 50 },
+      ...grid(1, 2, { x: SPREAD_RIGHT.x, y: 50, w: SPREAD_RIGHT.w, h: 50 }),
     ],
   },
 ];
