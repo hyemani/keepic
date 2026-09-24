@@ -7149,7 +7149,7 @@ function UploadPageContent() {
                                         <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
                                           레이아웃과 관계없이 자유롭게 놓을 사진을 추가해요.
                                         </p>
-                                        <label className="mt-1.5 inline-block cursor-pointer rounded-full border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
+                                        <label className="mt-1.5 inline-block cursor-pointer border border-[var(--color-sky)] px-4 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
                                           + 사진 추가
                                           <input
                                             type="file"
@@ -7168,7 +7168,7 @@ function UploadPageContent() {
                                           전체 사진 관리 ({photos.length}장)
                                         </summary>
                                         <div className="mt-2">
-                                          <label className="inline-block cursor-pointer rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-4 py-2 text-xs font-medium text-white transition hover:opacity-90">
+                                          <label className="inline-block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-4 py-2 text-xs font-medium text-white transition hover:opacity-90">
                                             사진 더 올리기
                                             <input
                                               type="file"
@@ -7202,7 +7202,7 @@ function UploadPageContent() {
                                                           type="button"
                                                           onClick={() => setPhotoGridPage(Math.max(0, page - 1))}
                                                           disabled={page === 0}
-                                                          className="rounded-full border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
+                                                          className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
                                                         >
                                                           ‹ 이전
                                                         </button>
@@ -7214,7 +7214,7 @@ function UploadPageContent() {
                                                           type="button"
                                                           onClick={() => setPhotoGridPage(Math.min(pageCount - 1, page + 1))}
                                                           disabled={page >= pageCount - 1}
-                                                          className="rounded-full border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
+                                                          className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
                                                         >
                                                           다음 ›
                                                         </button>
@@ -7298,7 +7298,7 @@ function UploadPageContent() {
                                               setLayoutApplyRange(opt.id);
                                               setLayoutApplyMessage(null);
                                             }}
-                                            className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                                            className={`border px-3 py-1 text-[11px] transition ${
                                               effectiveRange === opt.id
                                                 ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
                                                 : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
@@ -7320,7 +7320,7 @@ function UploadPageContent() {
                                             key={String(f.id)}
                                             type="button"
                                             onClick={() => setLayoutCountFilter(f.id)}
-                                            className={`rounded-full px-2.5 py-1 text-[10px] transition ${
+                                            className={`px-2.5 py-1 text-[10px] transition ${
                                               layoutCountFilter === f.id
                                                 ? "bg-[var(--color-brand-purple)] text-white"
                                                 : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
@@ -7336,7 +7336,11 @@ function UploadPageContent() {
                                         {layoutApplyMessage}
                                       </p>
                                     )}
-                                    <div className="grid grid-cols-2 gap-2">
+                                    {/* 2026-09-24 혜민님 요청 — "라운드 되어있는 버튼들 전부
+                                        라운드 없애주시고 공간활용해서 배치해주세요"(참고: 다른
+                                        에디터의 각진 촘촘한 그리드) — 템플릿 카드 테두리도 각지게,
+                                        칸 사이 간격도 좁혀서 더 많이 보이게 했어요. */}
+                                    <div className="grid grid-cols-2 gap-1.5">
                                       {visibleTemplates.map((t) => (
                                         <button
                                           key={t.id}
@@ -7349,16 +7353,16 @@ function UploadPageContent() {
                                             // 그대로 남겨둬요 — applyLayoutTemplate이 처리).
                                             applyLayoutTemplate(i, effectiveRange, t);
                                           }}
-                                          className="rounded-lg border border-[var(--color-hairline)] p-1.5 text-left transition hover:border-[var(--color-sky)]"
+                                          className="border border-[var(--color-hairline)] p-1 text-left transition hover:border-[var(--color-sky)]"
                                         >
                                           <div
-                                            className="relative w-full overflow-hidden rounded bg-[var(--color-ivory)]"
+                                            className="relative w-full overflow-hidden bg-[var(--color-ivory)]"
                                             style={{ aspectRatio: t.scope === "spread" ? "2 / 1" : "1 / 1" }}
                                           >
                                             {t.slots.map((slot, idx) => (
                                               <div
                                                 key={idx}
-                                                className="absolute rounded-[2px] border border-white bg-[var(--color-sky)]/60"
+                                                className="absolute border border-white bg-[var(--color-sky)]/60"
                                                 style={{
                                                   left: `${slot.xPct}%`,
                                                   top: `${slot.yPct}%`,
