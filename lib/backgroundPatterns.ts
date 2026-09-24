@@ -100,6 +100,95 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     colors: ["#efe6d8", "#ddccae"],
     spacingMm: 2.2,
   },
+  // 2026-10-05, 혜민님 요청: "컬러팔레트 만들어줘 폴더에 예시색상 넣어뒀거든 그대로
+  // 넣어도 좋아. 그라데이션도 넣어줘" — Desktop/컬러칩 폴더에 넣어주신 참고 팔레트
+  // 12종(각 5색)의 첫색↔끝색을 이어 만든 그라데이션이에요. kind: "gradient"라 화면
+  // CSS(patternToCssBackground)와 인쇄 Canvas(drawBackgroundPatternOnCanvas)가 이미
+  // 똑같이 그려줘요(위 gradient-sunset/gradient-sage와 같은 방식).
+  {
+    id: "gradient-lavender-teal",
+    label: "그라데이션(라벤더-틸)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#CCABD8", "#055B5C"],
+  },
+  {
+    id: "gradient-teal-olive",
+    label: "그라데이션(청록-올리브)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#54C0CC", "#213502"],
+  },
+  {
+    id: "gradient-pastel-multi",
+    label: "그라데이션(파스텔 멀티)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#86E3CE", "#CCABD8"],
+  },
+  {
+    id: "gradient-navy-sky",
+    label: "그라데이션(네이비-스카이)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#001B48", "#D6EBEE"],
+  },
+  {
+    id: "gradient-sunset-sage",
+    label: "그라데이션(선셋-세이지)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#E25845", "#ADCB65"],
+  },
+  {
+    id: "gradient-blush-peach",
+    label: "그라데이션(블러시-피치)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F5CEC7", "#C6C09C"],
+  },
+  {
+    id: "gradient-sunset-blue",
+    label: "그라데이션(선셋-블루)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#EFC868", "#4F7D89"],
+  },
+  {
+    id: "gradient-rose-mauve",
+    label: "그라데이션(로즈-모브)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#E3B292", "#7F9680"],
+  },
+  {
+    id: "gradient-grey-blue",
+    label: "그라데이션(그레이-블루)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#EAE5BF", "#5D7295"],
+  },
+  {
+    id: "gradient-lime-olive",
+    label: "그라데이션(라임-올리브)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F2AA58", "#6B7F4C"],
+  },
+  {
+    id: "gradient-red-olive",
+    label: "그라데이션(레드-올리브)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#BFCA5F", "#72181A"],
+  },
+  {
+    id: "gradient-plum-slate",
+    label: "그라데이션(플럼-슬레이트)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F8CEB9", "#5B6D76"],
+  },
 ];
 
 export const backgroundPatternCategories: { id: BackgroundPatternCategory; label: string }[] = [

@@ -810,6 +810,129 @@ const SPREAD_BACKGROUND_CHART: { category: string; colors: { color: string; labe
       { color: "#4a3350", label: "플럼" },
     ],
   },
+  // 2026-10-05, 혜민님 요청: "컬러팔레트 만들어줘 폴더에 예시색상 넣어뒀거든 그대로
+  // 넣어도 좋아" — Desktop/컬러칩 폴더에 넣어주신 참고 팔레트 12종을 색상 그대로
+  // 카테고리로 추가했어요(각 5색, hex 원본 그대로).
+  {
+    category: "라벤더-틸",
+    colors: [
+      { color: "#CCABD8", label: "라일락" },
+      { color: "#8474A1", label: "더스티퍼플" },
+      { color: "#6EC6CA", label: "아쿠아" },
+      { color: "#08979D", label: "틸" },
+      { color: "#055B5C", label: "딥틸" },
+    ],
+  },
+  {
+    category: "청록-올리브",
+    colors: [
+      { color: "#54C0CC", label: "터콰이즈" },
+      { color: "#1F4F59", label: "딥틸그레이" },
+      { color: "#7EA00E", label: "올리브그린" },
+      { color: "#DCD964", label: "라임옐로우" },
+      { color: "#213502", label: "다크올리브" },
+    ],
+  },
+  {
+    category: "파스텔 멀티",
+    colors: [
+      { color: "#86E3CE", label: "민트" },
+      { color: "#D0E6A5", label: "라이트라임" },
+      { color: "#FFDD94", label: "파스텔옐로우2" },
+      { color: "#FA897B", label: "코랄" },
+      { color: "#CCABD8", label: "라일락2" },
+    ],
+  },
+  {
+    category: "네이비 그라데이션",
+    colors: [
+      { color: "#001B48", label: "딥네이비" },
+      { color: "#02457A", label: "네이비블루" },
+      { color: "#018ABE", label: "오션블루" },
+      { color: "#97CADB", label: "라이트블루" },
+      { color: "#D6EBEE", label: "스카이미스트" },
+    ],
+  },
+  {
+    category: "선셋-세이지",
+    colors: [
+      { color: "#E25845", label: "선셋레드" },
+      { color: "#FF8357", label: "코랄오렌지" },
+      { color: "#FAC172", label: "골드옐로우" },
+      { color: "#B9D5C9", label: "민트세이지" },
+      { color: "#ADCB65", label: "올리브라임" },
+    ],
+  },
+  {
+    category: "블러시 피치",
+    colors: [
+      { color: "#F5CEC7", label: "블러시" },
+      { color: "#E79796", label: "더스티로즈" },
+      { color: "#FFC98B", label: "피치" },
+      { color: "#FFB284", label: "애프리콧" },
+      { color: "#C6C09C", label: "카키베이지" },
+    ],
+  },
+  {
+    category: "선셋 블루",
+    colors: [
+      { color: "#EFC868", label: "머스타드옐로우" },
+      { color: "#F5AA76", label: "살몬" },
+      { color: "#DA6C52", label: "테라코타레드" },
+      { color: "#CD635B", label: "브릭레드" },
+      { color: "#4F7D89", label: "슬레이트블루" },
+    ],
+  },
+  {
+    category: "로즈 모브",
+    colors: [
+      { color: "#E3B292", label: "탠" },
+      { color: "#D07C7F", label: "더스티로즈2" },
+      { color: "#A86273", label: "모브로즈" },
+      { color: "#77626E", label: "플럼그레이" },
+      { color: "#7F9680", label: "세이지그린2" },
+    ],
+  },
+  {
+    category: "그레이 블루",
+    colors: [
+      { color: "#EAE5BF", label: "라이트카키" },
+      { color: "#DBDADA", label: "라이트그레이2" },
+      { color: "#A9B4C4", label: "페리윙클" },
+      { color: "#C1C3B6", label: "세이지그레이" },
+      { color: "#5D7295", label: "슬레이트네이비" },
+    ],
+  },
+  {
+    category: "라임 올리브",
+    colors: [
+      { color: "#F2AA58", label: "탠지오렌지" },
+      { color: "#E3DC9E", label: "크림옐로우" },
+      { color: "#A7B368", label: "올리브카키" },
+      { color: "#93BF3F", label: "그래스그린" },
+      { color: "#6B7F4C", label: "포레스트올리브" },
+    ],
+  },
+  {
+    category: "레드 올리브",
+    colors: [
+      { color: "#BFCA5F", label: "올리브라임2" },
+      { color: "#F09439", label: "탠지" },
+      { color: "#E83619", label: "버밀리온" },
+      { color: "#BB1B21", label: "크림슨" },
+      { color: "#72181A", label: "다크마룬" },
+    ],
+  },
+  {
+    category: "플럼 슬레이트",
+    colors: [
+      { color: "#F8CEB9", label: "라이트피치" },
+      { color: "#CF819D", label: "로즈모브" },
+      { color: "#615A85", label: "딥퍼플" },
+      { color: "#7594A5", label: "더스티블루2" },
+      { color: "#5B6D76", label: "슬레이트그레이" },
+    ],
+  },
 ];
 
 // 위 컬러차트를 배경색 패널 두 곳(내지 스프레드·표지)에서 똑같이 그려요 — 카테고리별
@@ -1818,6 +1941,14 @@ function TextBoxOverlay({
             : undefined,
       }}
     >
+      {/* 2026-10-05, 혜민님 리포트: "텍스트박스 이동하려고 하면 뒤에 있는 이미지가 움직여요,
+          텍스트박스는 선택 누락되고" — 선택된 박스의 파란 테두리(outline)가
+          outline-offset-[6px]로 박스 실제 경계보다 6px 바깥에 그려지는데(2026-09-27
+          변경), 그 테두리 선 자체는 클릭 영역이 아니어서 사용자가 자연스럽게 테두리
+          근처를 잡고 끌면 실제로는 박스 바깥의 다른 요소(뒤에 있는 이미지박스 등)를
+          누르게 됐었어요. 테두리가 그려지는 여백만큼(8px, 여유 있게) 투명한 히트 영역을
+          덧대서, 그 경계선 위/근처를 눌러도 항상 이 텍스트박스가 반응하도록 함. */}
+      <div className="absolute -inset-2" onMouseDown={handleMouseDown} />
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
         <>
           {snapGuide.v && (
@@ -5406,6 +5537,10 @@ function UploadPageContent() {
     setBackCoverLogoSelected(false);
     if (ref.scope === "cover" || ref.scope === "backCover") {
       setActiveCoverEditTab("text");
+      // 2026-10-05, 혜민님 요청: 앞/뒤표지 텍스트박스 추가 버튼을 "글상자 추가" 하나로
+      // 합치면서, 사진박스처럼 텍스트박스를 선택해도 "지금 작업 중인 쪽"이 자동으로
+      // 갱신되게 함(selectCoverImageBox와 같은 패턴).
+      setCoverLayoutApplyTarget(ref.scope === "backCover" ? "back" : "front");
     } else if (ref.scope === "spread") {
       setActiveEditTab("text");
     }
@@ -7722,7 +7857,11 @@ function UploadPageContent() {
         <header
           className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur"
         >
-          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-1.5 px-1.5 py-2 sm:px-1.5">
+          {/* 2026-10-05, 혜민님 요청: "현재 패널이 위쪽에 몰려있는데 사이 간격을 벌여줘
+              (세로폭만, 가로는 그대로 넓히지말고)" — 좁은 화면에서 버튼들이 여러 줄로
+              줄바꿈될 때 줄 사이 세로 간격만 넉넉하게(gap-y-1.5 -> gap-y-3) 늘리고, 한
+              줄 안의 버튼 간 가로 간격(gap-x-1.5)은 그대로 둠. */}
+          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5">
             <button
               type="button"
               onClick={() => router.back()}
@@ -8767,22 +8906,16 @@ function UploadPageContent() {
                                 </div>
                               </div>
                               <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-3">
-                                <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
-                                  텍스트박스 추가
-                                </p>
                                 <button
                                   type="button"
-                                  onClick={handleAddCoverTextBox}
+                                  onClick={() =>
+                                    coverLayoutApplyTarget === "back"
+                                      ? handleAddBackCoverTextBox()
+                                      : handleAddCoverTextBox()
+                                  }
                                   className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
                                 >
-                                  + 앞표지에 텍스트박스 추가
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleAddBackCoverTextBox}
-                                  className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                                >
-                                  + 뒤표지에 텍스트박스 추가
+                                  + 글상자 추가
                                 </button>
                               </div>
                             </div>
