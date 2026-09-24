@@ -1599,7 +1599,7 @@ function TextBoxOverlay({
       // 빼주세요" — 일반 border는 박스 테두리 선 자체(레이아웃 안쪽)에 그려져서 안으로
       // 들어가 보였는데, outline은 박스 바깥쪽에 겹치지 않고 그려지니까
       // outline-offset을 줘서 선택 표시를 박스 밖으로 확실히 떼어냈어요.
-      className={`absolute cursor-move outline outline-2 outline-offset-2 transition ${
+      className={`absolute cursor-move outline outline-2 outline-offset-[6px] transition ${
  isActive
           ? "outline-[var(--color-sky)]"
           : isMultiSelected
@@ -1976,6 +1976,7 @@ function StackOrderToolbar({
   borderWidthPx,
   borderColor,
   borderRadiusPx,
+  frameShape = "rect",
   onBorderChange,
 }: {
   flip: boolean;
@@ -1997,7 +1998,8 @@ function StackOrderToolbar({
   borderWidthPx?: number;
   borderColor?: string;
   borderRadiusPx?: number;
-  onBorderChange?: (widthPx: number, color: string, radiusPx: number) => void;
+  frameShape?: "rect" | "ellipse";
+  onBorderChange?: (widthPx: number, color: string, radiusPx: number, frameShape: "rect" | "ellipse") => void;
 }) {
   // "투명도"·"테두리" 아이콘을 누르면 그 아래 작은 조절판이 열려요 — 다시 누르면
   // 닫혀요(2026-09-26 신규 기능이라 바깥 클릭 감지 같은 복잡한 처리는 넣지 않고, 아이콘
@@ -2098,26 +2100,51 @@ function StackOrderToolbar({
                   max={12}
                   step={1}
                   value={borderWidthPx ?? 0}
-                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff", borderRadiusPx ?? 0)}
+                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff", borderRadiusPx ?? 0, frameShape)}
                   className="flex-1"
                 />
                 <input
                   type="color"
                   value={borderColor ?? "#ffffff"}
-                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value, borderRadiusPx ?? 0)}
+                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value, borderRadiusPx ?? 0, frameShape)}
                   className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
                 />
               </div>
-              <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">모서리 둥글게 {borderRadiusPx ?? 0}px</p>
-              <input
-                type="range"
-                min={0}
-                max={40}
-                step={1}
-                value={borderRadiusPx ?? 0}
-                onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value))}
-                className="w-full"
-              />
+              <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">프레임 모양</p>
+              <div className="mb-2 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", borderRadiusPx ?? 0, "rect")}
+                  className={`flex-1 border border-[var(--color-hairline)] py-1 text-[10px] ${
+                    frameShape === "rect" ? "bg-[var(--color-charcoal)] text-white" : "text-[var(--color-charcoal)]/70"
+                  }`}
+                >
+                  사각형
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", borderRadiusPx ?? 0, "ellipse")}
+                  className={`flex-1 border border-[var(--color-hairline)] py-1 text-[10px] ${
+                    frameShape === "ellipse" ? "bg-[var(--color-charcoal)] text-white" : "text-[var(--color-charcoal)]/70"
+                  }`}
+                >
+                  타원(원형)
+                </button>
+              </div>
+              {frameShape === "rect" && (
+                <>
+                  <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">모서리 둥글게 {borderRadiusPx ?? 0}px</p>
+                  <input
+                    type="range"
+                    min={0}
+                    max={40}
+                    step={1}
+                    value={borderRadiusPx ?? 0}
+                    onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value), "rect")}
+                    className="w-full"
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
@@ -2721,6 +2748,9 @@ const ImageBoxOverlay = forwardRef<
   // 없이 이동+비율유지 크기조절만 가능하게 다르게 다뤄요(2026-09-24, "스티커는
   // 이미지박스(crop) 적용은 안 하는 게 좋겠다"는 요청 반영).
   const isSticker = isStickerImageBox(box);
+  // borderRadiusPx·frameShape로부터 실제 CSS border-radius 값을 계산해요 — 타원이면
+  // 박스 크기와 상관없이 "50%"(정사각형이면 원, 직사각형이면 타원)로 그려요.
+  const cssRadius = box.frameShape === "ellipse" ? "50%" : box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined;
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -3170,7 +3200,7 @@ const ImageBoxOverlay = forwardRef<
         // border 대신 안쪽 box-shadow로 그려요.
         transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
         opacity: box.opacity ?? 1,
-        borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined,
+        borderRadius: cssRadius,
       }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
@@ -3206,7 +3236,7 @@ const ImageBoxOverlay = forwardRef<
           // "잘리는 부분이 생기지 않도록 이미지박스 적용은 안 하는 게 좋겠다" 요청).
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
-            style={{ borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined }}
+            style={{ borderRadius: cssRadius }}
           >
             <img
               src={box.url}
@@ -3219,7 +3249,7 @@ const ImageBoxOverlay = forwardRef<
         ) : (
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
-            style={{ borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined }}
+            style={{ borderRadius: cssRadius }}
           >
             <img
               src={box.url}
@@ -3246,7 +3276,7 @@ const ImageBoxOverlay = forwardRef<
         <div
           className="pointer-events-none absolute inset-0"
           style={{
-            borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined,
+            borderRadius: cssRadius,
             boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${box.borderColor ?? "#ffffff"}`,
           }}
         />
@@ -3421,8 +3451,9 @@ const ImageBoxOverlay = forwardRef<
           borderWidthPx={box.borderWidthPx ?? 0}
           borderColor={box.borderColor ?? "#ffffff"}
           borderRadiusPx={box.borderRadiusPx ?? 0}
-          onBorderChange={(widthPx, color, radiusPx) =>
-            onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPx: radiusPx })
+          frameShape={box.frameShape ?? "rect"}
+          onBorderChange={(widthPx, color, radiusPx, frameShape) =>
+            onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPx: radiusPx, frameShape })
           }
         />
       )}
@@ -4846,6 +4877,7 @@ function UploadPageContent() {
   function selectTextBox(ref: TextBoxRef, boxId: string) {
     setMultiTextSelection(null);
     setMultiImageSelection(null);
+    setActiveImageBox(null);
     setActiveTextBox({ ref, boxId });
     setBackCoverLogoSelected(false);
     if (ref.scope === "cover" || ref.scope === "backCover") {
@@ -4865,7 +4897,11 @@ function UploadPageContent() {
     setBackCoverLogoSelected(false);
     setActiveCoverImageBox(null);
     setActiveImageBox(null);
-    setMultiImageSelection(null);
+    // 같은 스프레드의 사진박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
+    // 2026-09-28 추가) — 다른 스프레드/표지 쪽이면(좌표계가 달라서) 새로 시작해요.
+    setMultiImageSelection((prev) =>
+      prev && ref.scope === "spread" && prev.spreadIndex === ref.spreadIndex ? prev : null
+    );
     if (ref.scope === "cover" || ref.scope === "backCover") {
       setActiveCoverEditTab("text");
     } else if (ref.scope === "spread") {
@@ -5062,6 +5098,7 @@ function UploadPageContent() {
   function selectImageBox(spreadIndex: number, boxId: string, knownBox?: ImageBoxDef) {
     setActiveTextBox(null);
     setMultiImageSelection(null);
+    setMultiTextSelection(null);
     setImageBoxPhotoEditActive(false);
     setActiveImageBox({ spreadIndex, boxId });
     // 스티커(손글씨스티커 포함)는 "사진" 탭에 편집할 속성(꽉 채우기/변형mm/사진 위치
@@ -5080,12 +5117,35 @@ function UploadPageContent() {
     }
   }
 
+  // 사진박스 복사(Ctrl/Cmd+Alt+D=제자리 복사, Ctrl/Cmd+Alt+Shift+D=같은 선상(x축)
+  // 복사, 2026-09-28 추가 — 일러스트레이터 Alt-드래그 복사를 단축키로 옮긴 거예요).
+  function handleDuplicateActiveImageBox(axisOnly: boolean) {
+    if (!activeImageBox) return;
+    const spreadIndex = activeImageBox.spreadIndex;
+    const box = customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === activeImageBox.boxId);
+    if (!box) return;
+    const newBox: ImageBoxDef = {
+      ...box,
+      id: crypto.randomUUID(),
+      xPct: Math.min(96 - box.widthPct, box.xPct + 4),
+      yPct: axisOnly ? box.yPct : Math.min(96 - box.heightPct, box.yPct + 4),
+    };
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), newBox] } : s))
+    );
+    selectImageBox(spreadIndex, newBox.id, newBox);
+  }
+
   // Shift+클릭으로 이미지박스를 다중 선택 목록에 넣거나 빼요(정렬 툴바용,
   // 2026-09-26 추가) — toggleTextBoxMultiSelect와 같은 패턴이에요.
   function toggleImageBoxMultiSelect(spreadIndex: number, boxId: string) {
     setActiveImageBox(null);
     setActiveTextBox(null);
-    setMultiTextSelection(null);
+    // 같은 스프레드의 텍스트박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
+    // 2026-09-28 추가).
+    setMultiTextSelection((prev) =>
+      prev && prev.ref.scope === "spread" && prev.ref.spreadIndex === spreadIndex ? prev : null
+    );
     setImageBoxPhotoEditActive(false);
     setMultiImageSelection((prev) => {
       if (!prev || prev.spreadIndex !== spreadIndex) {
@@ -5172,6 +5232,99 @@ function UploadPageContent() {
     const right = Math.max(...boxes.map((b) => b.xPct + b.widthPct));
     const bottom = Math.max(...boxes.map((b) => b.yPct + b.heightPct));
     return { left, top, right, bottom };
+  }
+
+  // 사진박스 다중 선택 + 텍스트박스 다중 선택이 "같은 스프레드"에서 동시에 있을 때가
+  // 혼합(사진+텍스트) 다중 선택이에요(2026-09-28 추가 — toggleImageBoxMultiSelect/
+  // toggleTextBoxMultiSelect가 이제 서로를 지우지 않고 같은 스프레드면 유지해요).
+  function spreadMultiSelectionKind(spreadIndex: number): "none" | "image" | "text" | "mixed" {
+    const imgCount = multiImageSelection?.spreadIndex === spreadIndex ? multiImageSelection.boxIds.length : 0;
+    const txtCount =
+      multiTextSelection?.ref.scope === "spread" && multiTextSelection.ref.spreadIndex === spreadIndex
+        ? multiTextSelection.boxIds.length
+        : 0;
+    if (imgCount > 0 && txtCount > 0) return "mixed";
+    if (imgCount >= 2) return "image";
+    if (txtCount >= 2) return "text";
+    return "none";
+  }
+
+  // 텍스트박스의 페이지 기준(0~100%, 왼쪽/오른쪽 낱장 폭) 좌표를 사진박스와 같은
+  // 스프레드 전체 기준(0~100%) 좌표로 바꿔요 — 혼합 다중 선택의 공통 바운딩 박스·정렬
+  // 계산에 써요.
+  function textBoxSpreadRect(
+    box: TextBoxDef,
+    side: "left" | "right"
+  ): { left: number; top: number; right: number; bottom: number } {
+    const left = side === "left" ? box.xPct * 0.5 : 50 + box.xPct * 0.5;
+    const width = box.widthPct * 0.5;
+    const top = box.yPct;
+    const bottom = box.yPct + (box.heightPct ?? 0);
+    return { left, top, right: left + width, bottom };
+  }
+
+  // 혼합(사진+텍스트) 다중 선택의 공통 바운딩 박스예요(스프레드 전체 0~100% 기준).
+  function combinedMultiSelectionBounds(
+    spreadIndex: number
+  ): { left: number; top: number; right: number; bottom: number } | null {
+    if (spreadMultiSelectionKind(spreadIndex) !== "mixed") return null;
+    const imgBoxes = multiSelectedImageBoxes();
+    const side = (multiTextSelection!.ref as { side: "left" | "right" }).side;
+    const txtBoxes = multiTextSelectedBoxes();
+    const rects = [
+      ...imgBoxes.map((b) => ({ left: b.xPct, top: b.yPct, right: b.xPct + b.widthPct, bottom: b.yPct + b.heightPct })),
+      ...txtBoxes.map((b) => textBoxSpreadRect(b, side)),
+    ];
+    if (rects.length === 0) return null;
+    return {
+      left: Math.min(...rects.map((r) => r.left)),
+      top: Math.min(...rects.map((r) => r.top)),
+      right: Math.max(...rects.map((r) => r.right)),
+      bottom: Math.max(...rects.map((r) => r.bottom)),
+    };
+  }
+
+  // 혼합(사진+텍스트) 다중 선택 정렬 — 공통 바운딩 박스를 기준으로 사진박스는
+  // computeImageBoxAlignChanges와 같은 계산을, 텍스트박스는 좌표를 스프레드 전체
+  // 기준으로 바꿔서 같은 계산을 한 뒤 다시 페이지 기준으로 되돌려요. 텍스트박스의
+  // 세로(vmiddle/bottom) 정렬은 computeTextBoxAlignChanges와 같은 이유로 heightPct가
+  // 있는 박스만 적용돼요(2026-09-28 추가).
+  function alignCombinedSelection(spreadIndex: number, mode: TextBoxAlignMode) {
+    const bounds = combinedMultiSelectionBounds(spreadIndex);
+    if (!bounds) return;
+    const side = (multiTextSelection!.ref as { side: "left" | "right" }).side;
+    const centerX = (bounds.left + bounds.right) / 2;
+    const centerY = (bounds.top + bounds.bottom) / 2;
+
+    const imgChanges = new Map<string, Partial<ImageBoxDef>>();
+    multiSelectedImageBoxes().forEach((b) => {
+      if (mode === "left" || mode === "hcenter" || mode === "right") {
+        const xPct = mode === "left" ? bounds.left : mode === "right" ? bounds.right - b.widthPct : centerX - b.widthPct / 2;
+        imgChanges.set(b.id, { xPct });
+      } else {
+        const yPct = mode === "top" ? bounds.top : mode === "bottom" ? bounds.bottom - b.heightPct : centerY - b.heightPct / 2;
+        imgChanges.set(b.id, { yPct });
+      }
+    });
+
+    const txtChanges = new Map<string, Partial<TextBoxDef>>();
+    multiTextSelectedBoxes().forEach((b) => {
+      const widthSpread = b.widthPct * 0.5;
+      if (mode === "left" || mode === "hcenter" || mode === "right") {
+        const xSpread =
+          mode === "left" ? bounds.left : mode === "right" ? bounds.right - widthSpread : centerX - widthSpread / 2;
+        const xPct = side === "left" ? xSpread / 0.5 : (xSpread - 50) / 0.5;
+        txtChanges.set(b.id, { xPct });
+      } else if (mode === "top") {
+        txtChanges.set(b.id, { yPct: bounds.top });
+      } else if (b.heightPct !== undefined) {
+        const yPct = mode === "bottom" ? bounds.bottom - b.heightPct : centerY - b.heightPct / 2;
+        txtChanges.set(b.id, { yPct });
+      }
+    });
+
+    applyImageBoxAlignment(imgChanges);
+    applyTextBoxAlignment(txtChanges);
   }
   // 지금 "선택된" 이미지박스가 사진 위치 조정 모드(더블클릭으로 들어가는 모드)인지예요.
   // 왼쪽 "사진" 편집 메뉴에 조작 버튼(확대/축소/반전/초기화/완료)을 보여줄지 결정하는 데
@@ -6250,6 +6403,9 @@ function UploadPageContent() {
       } else if (key === "c") {
         e.preventDefault();
         handleCopyActiveTextBox();
+      } else if (key === "d" && e.altKey && activeImageBox) {
+        e.preventDefault();
+        handleDuplicateActiveImageBox(e.shiftKey);
       } else if (key === "v") {
         e.preventDefault();
         handlePasteTextBox();
@@ -8895,14 +9051,25 @@ function UploadPageContent() {
                                   아이콘 툴바예요(2026-09-26 추가, 혜민님 요청 — 참고 이미지의
                                   일러스트레이터 정렬 패널처럼). 선택된 박스들의 바운딩 박스
                                   오른쪽 위에 붙어요. */}
-                              {multiImageSelection?.spreadIndex === i &&
-                                multiImageSelection.boxIds.length >= 2 &&
-                                (() => {
+                              {(() => {
+                                const kind = spreadMultiSelectionKind(i);
+                                if (kind === "mixed") {
+                                  const bounds = combinedMultiSelectionBounds(i);
+                                  return bounds ? (
+                                    <MultiAlignFloatingToolbar
+                                      bounds={bounds}
+                                      onAlign={(mode) => alignCombinedSelection(i, mode)}
+                                    />
+                                  ) : null;
+                                }
+                                if (kind === "image") {
                                   const bounds = multiImageSelectionBounds();
                                   return bounds ? (
                                     <MultiAlignFloatingToolbar bounds={bounds} onAlign={alignMultiImageBoxes} />
                                   ) : null;
-                                })()}
+                                }
+                                return null;
+                              })()}
                               <div className="group relative w-1/2">
                                 {i === 0 ? (
                                   <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-2" />
