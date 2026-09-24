@@ -6236,7 +6236,7 @@ function UploadPageContent() {
         <header
           className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur"
         >
-          <div className="mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-1.5 px-1.5 py-2 sm:px-1.5">
+          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-1.5 px-1.5 py-2 sm:px-1.5">
             <button
               type="button"
               onClick={() => router.back()}
@@ -6252,6 +6252,29 @@ function UploadPageContent() {
               {coverTitle.trim() || "제목 없는 포토북"}
             </span>
             {photos.length > 0 && (
+              <>
+                {/* 미리보기/편집하기 전환 버튼 — 2026-09-26, 참고 화면(스위트북)처럼 상단
+                    가운데에서 눈에 잘 띄도록 옮겼어요. sm 이상에서만 절대위치로 중앙 고정
+                    (부모 헤더 줄에 relative를 걸어둠), 좁은 모바일 화면에서는 줄바꿈과 겹치는
+                    걸 피하려고 원래 자리(제목 옆)에 그대로 흐름대로 둬요. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editorMode === "edit") {
+                      setEditorMode("preview");
+                    } else {
+                      setEditorMode("edit");
+                      setIsPrintPreview(false);
+                    }
+                  }}
+                  className={` border px-3 py-1.5 text-xs font-semibold transition sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 ${
+ editorMode === "preview"
+                      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                      : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                  }`}
+                >
+                  {editorMode === "edit" ? "미리보기" : "✏️ 편집하기"}
+                </button>
               <div className="ml-auto flex flex-wrap items-center gap-1.5">
                 <div className="flex items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs ">
                   <button
@@ -6271,24 +6294,6 @@ function UploadPageContent() {
                     ↷
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (editorMode === "edit") {
-                      setEditorMode("preview");
-                    } else {
-                      setEditorMode("edit");
-                      setIsPrintPreview(false);
-                    }
-                  }}
-                  className={` border px-1.5 py-1.5 text-xs font-medium transition ${
- editorMode === "preview"
-                      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                      : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-                  }`}
-                >
-                  {editorMode === "edit" ? "미리보기" : "✏️ 편집하기"}
-                </button>
                 {editorMode === "preview" && (
                   <button
                     type="button"
@@ -6360,6 +6365,7 @@ function UploadPageContent() {
                   </button>
                 )}
               </div>
+              </>
             )}
           </div>
         </header>
@@ -6501,6 +6507,44 @@ function UploadPageContent() {
                           ✏️ 편집하기
                         </span>
                       </button>
+                    )}
+                    {/* 편집 중에도 캔버스 위에서 바로 페이지를 넘길 수 있게 좌우에 떠있는
+                        화살표 버튼을 추가했어요(2026-09-26, 참고 화면처럼). 왼쪽 사이드바의
+                        ‹/› 버튼과 하는 일은 같아요(같은 pageOrder 이동 로직) — 데스크톱에서
+                        사이드바가 이미 보이고 있어도, 캔버스 바로 옆이라 더 빠르게 넘길 수
+                        있어서 같이 둬요. */}
+                    {editorMode === "edit" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const order = pageOrder;
+                            const idx = order.findIndex((k) => k === selectedPageKey);
+                            if (idx > 0) setSelectedPageKey(order[idx - 1]);
+                          }}
+                          disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
+                          aria-label="이전 페이지"
+                          className="pointer-events-auto absolute left-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:left-2"
+                        >
+                          ‹
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const order = pageOrder;
+                            const idx = order.findIndex((k) => k === selectedPageKey);
+                            if (idx >= 0 && idx < order.length - 1) setSelectedPageKey(order[idx + 1]);
+                          }}
+                          disabled={(() => {
+                            const idx = pageOrder.findIndex((k) => k === selectedPageKey);
+                            return idx < 0 || idx >= pageOrder.length - 1;
+                          })()}
+                          aria-label="다음 페이지"
+                          className="pointer-events-auto absolute right-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:right-2"
+                        >
+                          ›
+                        </button>
+                      </>
                     )}
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col bg-white p-2.5">
