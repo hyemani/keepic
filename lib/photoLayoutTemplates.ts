@@ -71,7 +71,13 @@ function gridWithGutter(
   }));
 }
 
-const SPREAD_GUTTER_PCT = 1.6;
+// 2026-09-27, 혜민님 요청: "레이아웃 접힘부 여백 주지마세요. 여백이 많이 들어가는
+// 레이아웃이 아니라면요. 어차피 레이플렛 제본이라 펼쳤을때 딱 벌어져서 괜찮아요." --
+// 접힘부(왼쪽/오른쪽 페이지 경계)에 일부러 두던 작은 틈(1.6%)을 0으로 없애서, 사진이
+// 접힘선까지 딱 맞닿게 해요. gridWithGutter() 기반 템플릿(사진 사이/바깥 여백이
+// 원래 넉넉한 버전)은 이 값과 무관하게 자기 자신의 outerMarginPct/gutterPct를 그대로
+// 써서 여백이 그대로 남아요 -- "여백 많은 레이아웃은 그대로" 요청 그대로예요.
+const SPREAD_GUTTER_PCT = 0;
 const SPREAD_LEFT_END = 50 - SPREAD_GUTTER_PCT / 2;
 const SPREAD_RIGHT_START = 50 + SPREAD_GUTTER_PCT / 2;
 const SPREAD_LEFT: Rect = { x: 0, y: 0, w: SPREAD_LEFT_END, h: 100 };

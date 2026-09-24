@@ -32,7 +32,7 @@ import {
   calcEstimatedSpineWidthMm,
   printFileSpec,
 } from "@/lib/photobookPricing";
-import { buildInnerPrintPdf, buildCoverPrintPdf, SpreadPhotoGroup } from "@/lib/printCompose";
+import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
   backgroundPatterns,
@@ -416,7 +416,7 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
-type CoverEditTabId = "theme" | "layout" | "photo" | "text" | "background";
+type CoverEditTabId = "theme" | "layout" | "photo" | "sticker" | "text" | "background";
 const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconName }[] = [
   // 2026-09-26, 혜민님 요청: 앞표지·뒤표지·책등을 하나씩 따로 안 만지고, 미리 만들어둔
   // "테마"를 골라 한 번에 어울리는 배경(+ 뒤표지 무늬)·제목 서체로 맞출 수 있는 탭이에요.
@@ -430,6 +430,9 @@ const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconNam
   // 2026-09, "키픽 로고 vs 작은 사진" 뒤표지 모드 전환을 사진 탭에서 여기로 옮겼어요.
   // 2026-09-23, 독립 "사진" 탭을 없애면서 앞표지 "사진 바꾸기"도 이 탭으로 합쳤어요.
   { id: "photo", label: "사진", icon: "photo" },
+  // 2026-09-27, 혜민님 재확인: "표지에 스티커패널이 없어졌어요" — 원래도 표지엔 스티커
+  // 탭이 없었는데(내지에만 있었음), 표지도 내지처럼 스티커를 붙일 수 있게 새로 추가해요.
+  { id: "sticker", label: "스티커", icon: "sticker" },
   // 2026-09, 표지의 "제목"·"텍스트박스" 탭을 내지처럼 "텍스트" 하나로 합쳤어요 —
   // 제목 필드(글자 크기·행간·자간·서체·책등 연결)와 텍스트박스 추가 버튼을 한 곳에서.
   { id: "text", label: "텍스트", icon: "text" },
@@ -986,11 +989,11 @@ function Ruler({
     if (existing) existing.major = true;
   }
   ticks.sort((a, b) => a.rawMm - b.rawMm);
-  // 눈금자 트랙 배경도 도련 안쪽 종이(흰색)와 구분되게 --color-hairline 톤으로(2026-09-26,
-  // 혜민님이 "눈금자에 하얀배경 보이는 부분" 추가 지적 — 왼쪽 위 모서리 칸만 고쳤던 걸
-  // 눈금자 몸통까지 확장).
+  // 2026-09-27, 혜민님 재요청: "눈금자 부분 배경 없애주세요. 회색보이는것도 싫어요" —
+  // 2026-09-26에 추가했던 회색 트랙 배경(--color-charcoal 8%)을 다시 없애서, 눈금자
+  // 몸통은 배경 없이 눈금·숫자만 보이게 해요(왼쪽 위 빈 모서리 칸도 아래서 같이 없앴어요).
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-[var(--color-charcoal)]/[0.08] text-[8px] text-[var(--color-charcoal)]/55`}>
+    <div className={`relative h-full w-full overflow-hidden text-[8px] text-[var(--color-charcoal)]/55`}>
       {ticks.map(({ labelMm, rawMm, major }) =>
         orientation === "horizontal" ? (
           <div
@@ -4160,7 +4163,7 @@ function UploadPageContent() {
   // 표지 이미지박스를 캔버스에서 선택하면 왼쪽 패널이 자동으로 "꾸미기" 탭으로
   // 전환돼서 바로 그 사진의 속성을 고칠 수 있게 해요(selectImageBox·selectTextBox와
   // 같은 패턴, 2026-09).
-  function selectCoverImageBox(target: "front" | "back", boxId: string) {
+  function selectCoverImageBox(target: "front" | "back", boxId: string, knownBox?: ImageBoxDef) {
     setActiveTextBox(null);
     setCoverImageBoxPhotoEditActive(false);
     setActiveCoverImageBox({ target, boxId });
@@ -4169,8 +4172,11 @@ function UploadPageContent() {
     // "사진" 탭에 편집할 속성이 없어서, 표지 스티커를 선택해도 왼쪽 패널을 "사진" 탭으로
     // 옮기지 않아요. "여전히 스티커를 만질 때 사진툴로 이동한다"는 재확인(2026-09-27)
     // 이후 보니, 내지만 고치고 표지(앞/뒤표지) 쪽은 그대로 빠져 있었던 게 원인이었어요.
+    // knownBox: 내지 selectImageBox와 같은 이유로 추가했어요(2026-09-27) — 방금 만든
+    // 새 스티커를 곧바로 선택할 때는 setState 직후라 coverImageBoxes/backCoverImageBoxes
+    // state가 아직 갱신 전이라, 호출부가 이미 들고 있는 박스 객체를 직접 넘겨받아요.
     const boxes = target === "front" ? coverImageBoxes : backCoverImageBoxes;
-    const box = boxes.find((b) => b.id === boxId);
+    const box = knownBox ?? boxes.find((b) => b.id === boxId);
     if (!box || !isStickerImageBox(box)) {
       setActiveCoverEditTab("photo");
     }
@@ -4853,7 +4859,7 @@ function UploadPageContent() {
   // 이미지박스를 캔버스에서 선택하면 왼쪽 패널이 자동으로 "꾸미기" 탭으로 전환돼서
   // 바로 그 사진의 속성을 고칠 수 있게 해요(2026-09, selectTextBox와 같은 패턴).
   // 확대/축소·스크롤 위치(canvasZoom/canvasFitToken)는 건드리지 않고 탭만 바꿔요.
-  function selectImageBox(spreadIndex: number, boxId: string) {
+  function selectImageBox(spreadIndex: number, boxId: string, knownBox?: ImageBoxDef) {
     setActiveTextBox(null);
     setMultiImageSelection(null);
     setImageBoxPhotoEditActive(false);
@@ -4863,7 +4869,12 @@ function UploadPageContent() {
     // "스티커 선택했을때 사진 메뉴로 이동하는 오류"로 보고하신 버그 수정(2026-09-24).
     // 캔버스에서 스티커를 클릭하면 지금 열려있는 탭(보통 스티커/손글씨스티커) 그대로
     // 둔 채로 이동·크기조절만 가능한 선택 상태가 돼요.
-    const box = customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === boxId);
+    // knownBox: 방금 만든 박스를 곧바로 선택할 때(예: handleAddImageBoxFromUrl)는
+    // setCustomSpreads의 상태 반영이 아직 안 된 시점이라 customSpreads에서 못 찾아서
+    // (undefined) 스티커여도 무조건 "사진" 탭으로 튀는 버그가 있었어요("스티커를
+    // 선택해서 책자 위에 올라가면 사진 패널이 선택됩니다", 2026-09-27) — 호출하는 쪽이
+    // 이미 만든 박스를 알고 있으면 이걸로 직접 넘겨서 이 상태 지연 문제를 피해요.
+    const box = knownBox ?? customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === boxId);
     if (!box || !isStickerImageBox(box)) {
       setActiveEditTab("photo");
     }
@@ -5019,7 +5030,7 @@ function UploadPageContent() {
             : s
         )
       );
-      selectImageBox(spreadIndex, box.id);
+      selectImageBox(spreadIndex, box.id, box);
     };
     img.src = url;
   }
@@ -5070,11 +5081,54 @@ function UploadPageContent() {
       )
     );
     handleRemovePhoto(realIndex);
-    selectImageBox(spreadIndex, boxId);
+    selectImageBox(spreadIndex, boxId, box);
   }
 
   function handleAddSticker(spreadIndex: number, stickerUrl: string) {
     handleAddImageBoxFromUrl(spreadIndex, stickerUrl, 14, "sticker");
+  }
+
+  // 표지(앞/뒤)에 스티커를 이미지박스로 추가해요 — 내지 handleAddImageBoxFromUrl과 같은
+  // 패턴이되, 대상 배열이 coverImageBoxes/backCoverImageBoxes로 갈라져요(2026-09-27,
+  // "표지에 스티커패널이 없어졌어요" 요청으로 새로 추가). 레이아웃 탭에서 이미 사진을
+  // 여러 장 배치 중이 아니어도(=배열이 비어 기존 coverPhoto/backCoverPhoto 1장 방식이어도)
+  // 스티커는 항상 이 배열에 더해요 — 스티커는 원래도 "여러 장 배치" 개념과 무관해요.
+  function handleAddCoverImageBoxFromUrl(target: "front" | "back", url: string, widthPct: number, kind?: "photo" | "sticker") {
+    const img = new window.Image();
+    img.onload = () => {
+      const naturalWidth = img.naturalWidth || 1;
+      const naturalHeight = img.naturalHeight || naturalWidth;
+      // 표지 앞/뒤 패널은 스프레드와 달리 세로:가로가 거의 1:1이라(정사각형 판형), 내지처럼
+      // 2배 축척 보정을 하지 않고 패널 기준 %를 그대로 써요.
+      const heightPct = widthPct * (naturalHeight / naturalWidth);
+      const xPct = Math.max(0, (100 - widthPct) / 2);
+      const yPct = 25;
+      const box: ImageBoxDef = {
+        id: crypto.randomUUID(),
+        url,
+        naturalWidth,
+        naturalHeight,
+        xPct,
+        yPct,
+        widthPct,
+        heightPct,
+        innerOffsetXPct: 0,
+        innerOffsetYPct: 0,
+        innerScale: 1,
+        kind,
+      };
+      if (target === "front") {
+        setCoverImageBoxes((prev) => [...prev, box]);
+      } else {
+        setBackCoverImageBoxes((prev) => [...prev, box]);
+      }
+      selectCoverImageBox(target, box.id, box);
+    };
+    img.src = url;
+  }
+
+  function handleAddCoverSticker(target: "front" | "back", stickerUrl: string) {
+    handleAddCoverImageBoxFromUrl(target, stickerUrl, 14, "sticker");
   }
 
   // 손글씨 스티커도 스티커와 똑같이 이미지박스로 추가해요(kind: "sticker"도 동일하게
@@ -5153,6 +5207,94 @@ function UploadPageContent() {
   // `selectedIds`에 담아 넘기면, 그 사진들만 템플릿 칸에 들어가고 나머지는 그대로
   // 남아요. `selectedIds`를 안 넘기면(칸보다 사진이 같거나 적을 때) 기존처럼 저장된
   // 순서 그대로 앞에서부터 채워요.
+
+  // 내지 스프레드 기준 안전영역(%) — 화면 안내선(imageBoxGuidesX/Y)과 같은 공식을
+  // 여기서도 다시 계산해요(그쪽은 JSX 렌더 블록 안에서만 쓰이는 지역 상수라 이 함수에서
+  // 바로 참조할 수 없어서, 같은 소스(selectedSizeInfo/photobookSizes)로 따로 계산).
+  function computeSpreadSafetyPct(): { xPct: number; yPct: number } {
+    const guideSizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+    const guideWorkMatch = (guideSizeInfo?.productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)/);
+    const guidePageWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
+    const guideSpreadWorkMm = guidePageWorkMm * 2;
+    const bleedMm = 5;
+    return {
+      xPct: ((bleedMm + GUIDE_SAFETY_MARGIN_MM) / guideSpreadWorkMm) * 100,
+      yPct: ((bleedMm + GUIDE_SAFETY_MARGIN_MM) / guidePageWorkMm) * 100,
+    };
+  }
+
+  // 표지 앞/뒤판 기준 안전영역(%) — 표지 이미지박스 좌표는 스프레드 전체가 아니라 그
+  // 판(앞표지 또는 뒤표지) 자기 자신을 0~100으로 보는 좌표계라서, 판 자신의 실제
+  // mm 폭 기준으로 따로 계산해요(coverSafetyXPct처럼 표지 전체 폭 기준으로 계산하면
+  // 판 폭이 아니라 표지 전체 폭을 나눈 값이 돼서 훨씬 작게 나와요).
+  function computeCoverPanelSafetyPct(): { xPct: number; yPct: number } {
+    const coverIsHardLocal = photobookCover === "hard";
+    const coverSizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+    const coverTrimMatch = (coverSizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
+    const coverTrimCm = coverTrimMatch ? parseFloat(coverTrimMatch[1]) : 30;
+    const coverInnerTrimMm = coverTrimCm * 10;
+    const coverPanelMmLocal = coverIsHardLocal
+      ? coverInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2
+      : coverInnerTrimMm;
+    const coverBleedMmLocal = coverIsHardLocal ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
+    const panelWidthMm = coverPanelMmLocal + coverBleedMmLocal;
+    const panelHeightMm = coverPanelMmLocal + coverBleedMmLocal * 2;
+    return {
+      xPct: panelWidthMm > 0 ? (GUIDE_SAFETY_MARGIN_MM / panelWidthMm) * 100 : 0,
+      yPct: panelHeightMm > 0 ? (GUIDE_SAFETY_MARGIN_MM / panelHeightMm) * 100 : 0,
+    };
+  }
+
+  // 슬롯의 네 변 중 트림(재단) 가장자리(0%/100%)에 닿아 있던 변만 안전영역 안쪽으로
+  // 당겨요 — min/max 클램프라 이미 안전영역보다 안쪽인 변(게터 있는 템플릿)은 안 건드려요.
+  function clampSlotToSpreadSafety(
+    xPct: number,
+    yPct: number,
+    widthPct: number,
+    heightPct: number,
+    safety: { xPct: number; yPct: number }
+  ) {
+    const left = Math.max(xPct, safety.xPct);
+    const right = Math.min(xPct + widthPct, 100 - safety.xPct);
+    const top = Math.max(yPct, safety.yPct);
+    const bottom = Math.min(yPct + heightPct, 100 - safety.yPct);
+    return {
+      xPct: left,
+      yPct: top,
+      widthPct: Math.max(1, right - left),
+      heightPct: Math.max(1, bottom - top),
+    };
+  }
+
+  // 표지 판(앞/뒤) 전용 버전 — 책등 쪽 경계는 안전영역 대상이 아니라서(혜민님 확인:
+  // "책등은 별도 안전영역 여백을 두지 않는다") 그쪽 변은 그대로 두고, 진짜 바깥쪽
+  // (트림) 가장자리 쪽 변만 당겨요. side="front"면 오른쪽이 바깥쪽, "back"이면 왼쪽이
+  // 바깥쪽이에요(coverFrontPct/coverBackPct 렌더링 순서 기준).
+  function clampSlotToCoverSafety(
+    xPct: number,
+    yPct: number,
+    widthPct: number,
+    heightPct: number,
+    safety: { xPct: number; yPct: number },
+    side: "front" | "back"
+  ) {
+    let left = xPct;
+    let right = xPct + widthPct;
+    if (side === "front") {
+      right = Math.min(right, 100 - safety.xPct);
+    } else {
+      left = Math.max(left, safety.xPct);
+    }
+    const top = Math.max(yPct, safety.yPct);
+    const bottom = Math.min(yPct + heightPct, 100 - safety.yPct);
+    return {
+      xPct: left,
+      yPct: top,
+      widthPct: Math.max(1, right - left),
+      heightPct: Math.max(1, bottom - top),
+    };
+  }
+
   function applyLayoutTemplate(
     spreadIndex: number,
     range: LayoutApplyRange,
@@ -5174,8 +5316,14 @@ function UploadPageContent() {
     const extraBoxes = selectedIds
       ? orderedExisting.filter((b) => !selectedIds.includes(b.id))
       : orderedExisting.slice(template.slots.length);
+    const spreadSafetyPct = computeSpreadSafetyPct();
     const placed = template.slots.map((slot, idx) => {
-      const { xPct, widthPct } = slotToSpreadCoords(slot, range);
+      const raw = slotToSpreadCoords(slot, range);
+      // 슬롯이 스프레드 바깥쪽(재단) 가장자리에 닿아 있으면 안전영역 안쪽으로 당겨요
+      // (2026-09-27, "안전영역에 맞물리게 작업해주세요"). 게터로 이미 안쪽에 있던
+      // 슬롯(예: 접힘부 여백이 있는 템플릿)은 클램프가 no-op이라 그대로 유지돼요.
+      const clamped = clampSlotToSpreadSafety(raw.xPct, slot.yPct, raw.widthPct, slot.heightPct, spreadSafetyPct);
+      const { xPct, yPct, widthPct, heightPct } = clamped;
       const existing = usable[idx];
       if (existing) {
         // 기존 사진을 새 칸에 다시 배정할 때 이전 칸 기준으로 맞춰뒀던 확대/이동값
@@ -5188,8 +5336,8 @@ function UploadPageContent() {
           ...existing,
           xPct,
           widthPct,
-          yPct: slot.yPct,
-          heightPct: slot.heightPct,
+          yPct,
+          heightPct,
           innerOffsetXPct: 0,
           innerOffsetYPct: 0,
           innerScale: 1,
@@ -5203,9 +5351,9 @@ function UploadPageContent() {
         naturalWidth: 1,
         naturalHeight: 1,
         xPct,
-        yPct: slot.yPct,
+        yPct,
         widthPct,
-        heightPct: slot.heightPct,
+        heightPct,
         innerOffsetXPct: 0,
         innerOffsetYPct: 0,
         innerScale: 1,
@@ -5272,6 +5420,8 @@ function UploadPageContent() {
     // 항상 coverTextBoxes/backCoverTextBoxes 전체에 적용해요.
     const captionSlot = captionSlotFor(template);
 
+    const coverPanelSafetyPct = computeCoverPanelSafetyPct();
+
     function finish(baseBoxes: ImageBoxDef[]) {
       const usable = selectedIds
         ? selectedIds.map((id) => baseBoxes.find((b) => b.id === id)).filter((b): b is ImageBoxDef => !!b)
@@ -5280,16 +5430,26 @@ function UploadPageContent() {
         ? baseBoxes.filter((b) => !selectedIds.includes(b.id))
         : baseBoxes.slice(template.slots.length);
       const placed = template.slots.map((slot, idx) => {
+        // 슬롯이 판의 바깥쪽(트림) 가장자리에 닿아 있으면 안전영역 안쪽으로 당겨요 —
+        // 책등 쪽 경계는 대상이 아니라서 손대지 않아요(2026-09-27).
+        const clamped = clampSlotToCoverSafety(
+          slot.xPct,
+          slot.yPct,
+          slot.widthPct,
+          slot.heightPct,
+          coverPanelSafetyPct,
+          isFront ? "front" : "back"
+        );
         const existing = usable[idx];
         if (existing) {
           // 내지 applyLayoutTemplate과 같은 이유로, 표지도 새 칸에 재배정할 때 이전
           // 확대/이동값을 리셋해서 중앙 기준점에 맞춰요(2026-09-24).
           return {
             ...existing,
-            xPct: slot.xPct,
-            yPct: slot.yPct,
-            widthPct: slot.widthPct,
-            heightPct: slot.heightPct,
+            xPct: clamped.xPct,
+            yPct: clamped.yPct,
+            widthPct: clamped.widthPct,
+            heightPct: clamped.heightPct,
             innerOffsetXPct: 0,
             innerOffsetYPct: 0,
             innerScale: 1,
@@ -5300,10 +5460,10 @@ function UploadPageContent() {
           url: "",
           naturalWidth: 1,
           naturalHeight: 1,
-          xPct: slot.xPct,
-          yPct: slot.yPct,
-          widthPct: slot.widthPct,
-          heightPct: slot.heightPct,
+          xPct: clamped.xPct,
+          yPct: clamped.yPct,
+          widthPct: clamped.widthPct,
+          heightPct: clamped.heightPct,
           innerOffsetXPct: 0,
           innerOffsetYPct: 0,
           innerScale: 1,
@@ -7059,6 +7219,42 @@ function UploadPageContent() {
                               )}
                             </div>
                           )}
+                          {activeCoverEditTab === "sticker" && (
+                            <div className="flex flex-col gap-1.5">
+                              <div>
+                                <p className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 대상</p>
+                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                  {(
+                                    [
+                                      { id: "front" as const, label: "앞표지" },
+                                      { id: "back" as const, label: "뒤표지" },
+                                    ]
+                                  ).map((opt) => (
+                                    <button
+                                      key={opt.id}
+                                      type="button"
+                                      onClick={() => setCoverLayoutApplyTarget(opt.id)}
+                                      className={` border px-1.5 py-1 text-[11px] transition ${
+                                        coverLayoutApplyTarget === opt.id
+                                          ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                          : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                                      }`}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <CategoryTabbedGrid
+                                categories={STICKER_CATEGORIES}
+                                items={STICKERS}
+                                activeCategoryId={stickerCategoryTab}
+                                onSelectCategory={setStickerCategoryTab}
+                                onItemClick={(item) => handleAddCoverSticker(coverLayoutApplyTarget, item.url)}
+                                emptyMessage="아직 스티커가 없어요."
+                              />
+                            </div>
+                          )}
                           {activeCoverEditTab === "layout" && (() => {
                             const target: "front" | "back" = coverLayoutApplyTarget;
                             const isFront = target === "front";
@@ -8324,9 +8520,11 @@ function UploadPageContent() {
                               >
                                 {!isPrintPreview && (
                                   <>
-                                    {/* 눈금자 왼쪽 위 빈 모서리 칸(일러스트레이터 편집대지와 같은 자리) */}
+                                    {/* 눈금자 왼쪽 위 빈 모서리 칸(일러스트레이터 편집대지와 같은 자리) —
+                                        2026-09-27, 혜민님 요청으로 회색 배경을 없앴어요(빈 칸 자체는
+                                        레이아웃 정렬을 위해 그대로 두되, 배경색만 제거). */}
                                     <div
-                                      className="pointer-events-none absolute left-0 top-0 z-30 bg-[var(--color-charcoal)]/[0.08]"
+                                      className="pointer-events-none absolute left-0 top-0 z-30"
                                       style={{ width: RULER_THICKNESS_PX.w, height: RULER_THICKNESS_PX.h }}
                                     />
                                     <div
