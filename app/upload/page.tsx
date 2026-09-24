@@ -6547,7 +6547,7 @@ function UploadPageContent() {
                       </>
                     )}
                   {selectedPageKey === "cover" ? (
-                    <div className="flex h-full min-h-0 flex-col bg-white p-2.5">
+                    <div className="flex h-full min-h-0 flex-col p-2.5">
                       <div className="shrink-0">
                         <p className="text-sm font-medium">표지</p>
                       </div>
@@ -7481,7 +7481,7 @@ function UploadPageContent() {
                       </div>
                     </div>
                   ) : selectedPageKey === "intro" ? (
-                    <div className="flex h-full min-h-0 flex-col bg-white p-2">
+                    <div className="flex h-full min-h-0 flex-col p-2">
                       <div className="shrink-0">
                         <p className="text-sm font-medium">마지막 소개 페이지</p>
                         <p className="mt-1 text-xs text-[var(--color-charcoal)]/60 break-keep">
@@ -7539,7 +7539,7 @@ function UploadPageContent() {
                       const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
                       const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
                       return (
-                        <div className="flex h-full min-h-0 flex-col bg-white p-2">
+                        <div className="flex h-full min-h-0 flex-col p-2">
                           <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                             {editorMode === "edit" && (
                             <div className="flex gap-2 lg:shrink-0">
