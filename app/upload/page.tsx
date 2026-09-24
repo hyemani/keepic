@@ -1725,7 +1725,9 @@ function TextBoxOverlay({
 type LayerIconName =
   | "delete"
   | "front"
+  | "forward"
   | "back"
+  | "backward"
   | "fit"
   | "zoomIn"
   | "zoomOut"
@@ -1775,11 +1777,31 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
           <rect x="11" y="6" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
         </svg>
       );
+    // 2026-09-28(2차), 혜민님 요청("맨뒤/맨앞" 말고 "앞으로/뒤로" 한 칸씩 이동도):
+    // computeZOrderUpdates에는 forward/backward 로직이 이미 있었는데 이 툴바에
+    // 버튼이 없어서 실제로 쓸 방법이 없었어요 — front/back과 같은 두 사각형 모양에
+    // "한 칸만" 이동한다는 뜻으로 작은 화살표를 얹었어요.
+    case "forward":
+      return (
+        <svg {...common}>
+          <rect x="4" y="9" width="9" height="9" rx="1" opacity="0.4" />
+          <rect x="11" y="6" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
+          <path d="M15.5 3v3.5M14 5l1.5-1.5L17 5" />
+        </svg>
+      );
     case "back":
       return (
         <svg {...common}>
           <rect x="11" y="6" width="9" height="9" rx="1" opacity="0.4" />
           <rect x="4" y="9" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
+        </svg>
+      );
+    case "backward":
+      return (
+        <svg {...common}>
+          <rect x="11" y="6" width="9" height="9" rx="1" opacity="0.4" />
+          <rect x="4" y="9" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
+          <path d="M8.5 18v3.5M7 20.5l1.5 1.5L10 20.5" />
         </svg>
       );
     case "fit":
@@ -1998,9 +2020,13 @@ function StackOrderToolbar({
   const buttons: { key: string; title: string; icon: LayerIconName; onClick: () => void; danger?: boolean }[] = [];
   if (onDelete) buttons.push({ key: "delete", title: "삭제", icon: "delete", onClick: onDelete, danger: true });
   if (onStackAction) {
+    // 2026-09-28(2차): "맨 앞으로/맨 뒤로"만 있고 한 칸씩 옮기는 "앞으로/뒤로"가 없어서
+    // 여러 개가 겹쳤을 때 원하는 순서를 세밀하게 맞추기 어려웠어요 — 4개 다 추가.
     buttons.push(
-      { key: "front", title: "맨 앞으로", icon: "front", onClick: () => onStackAction("front") },
-      { key: "back", title: "맨 뒤로", icon: "back", onClick: () => onStackAction("back") }
+      { key: "back", title: "맨 뒤로", icon: "back", onClick: () => onStackAction("back") },
+      { key: "backward", title: "뒤로(한 칸)", icon: "backward", onClick: () => onStackAction("backward") },
+      { key: "forward", title: "앞으로(한 칸)", icon: "forward", onClick: () => onStackAction("forward") },
+      { key: "front", title: "맨 앞으로", icon: "front", onClick: () => onStackAction("front") }
     );
   }
   if (mediaKind !== "text") {
@@ -3170,16 +3196,23 @@ const ImageBoxOverlay = forwardRef<
       // 사진 바깥으로 확실히 떠 보이게 했어요(사진 위치 조정 모드는 보라색 실선 그대로,
       // 그 모드는 "선택"이 아니라 "지금 사진 안쪽을 만지는 중"이라는 다른 의미라서
       // 점선으로 안 바꿨어요).
-      className={`absolute outline outline-2 outline-offset-[4px] transition ${
+      // 2026-09-28(2차) 혜민님 재지적("이미지박스 바깥으로 점선이 보이는 이상한 현상"):
+      // outline-offset(4px)을 줬더니 점선이 사진 가장자리에서 붕 떠 보여서 오히려
+      // 버그처럼 보였음 — 스위트북 참고 스크린샷을 보면 점선이 사진 가장자리에
+      // 딱 붙어 있고(오프셋 없음), 손잡이만 그 위에 살짝 걸쳐 있음. 텍스트박스는
+      // 자기 테두리가 원래 안 보여서 밖으로 떼어내는 게 의미가 있었지만, 사진은
+      // 사진 자체가 뚜렷한 가장자리라 그대로 붙여야 함 — outline 대신 다시 박스
+      // 자신의 border로 되돌리되 점선(border-dashed)으로.
+      className={`absolute border-2 transition ${
         isActive && photoEditMode ? "cursor-grab" : "cursor-move"
       } ${
         isActive && photoEditMode
-          ? "outline-[var(--color-brand-purple)]"
+          ? "border-solid border-[var(--color-brand-purple)]"
           : isActive
-            ? "outline-dashed outline-[var(--color-sky)]"
+            ? "border-dashed border-[var(--color-sky)]"
             : isMultiSelected
-              ? "outline-dashed outline-[var(--color-brand-purple)]"
-              : "outline-transparent hover:outline-dashed hover:outline-[var(--color-sky)]/40"
+              ? "border-dashed border-[var(--color-brand-purple)]"
+              : "border-solid border-transparent hover:border-dashed hover:border-[var(--color-sky)]/40"
       }`}
       style={{
         zIndex,
@@ -6413,6 +6446,25 @@ function UploadPageContent() {
         return;
       }
 
+      // 2026-09-28(2차), 혜민님 요청: "Ctrl+Alt = 복사 / Ctrl+Shift+Alt = 복사 후
+      // 좌우대칭으로만 이동" — 글자 키 없이 조합키만으로 누르는 방식이라 위 "meta"
+      // 판정(Ctrl/Cmd + 글자) 흐름과 별개로 처리해요. Alt·Control 두 키 중 나중에
+      // 눌리는 쪽의 keydown에서 두 modifier가 동시에 눌려있는 순간을 잡고,
+      // e.repeat(키를 누르고 있을 때 반복 발생하는 keydown)은 걸러서 눌렀다 뗄 때마다
+      // 딱 한 번만 복사돼요. 알트-드래그(캔버스에서 Alt를 누른 채 드래그)는 그대로
+      // 남겨두고, 이건 드래그 없이 제자리에 바로 복사하는 키보드 전용 방법이에요.
+      if (
+        (key === "alt" || key === "control") &&
+        e.ctrlKey &&
+        e.altKey &&
+        !e.repeat &&
+        !isTypingTarget(e.target) &&
+        activeImageBox
+      ) {
+        e.preventDefault();
+        handleDuplicateActiveImageBox(e.shiftKey);
+        return;
+      }
       if (!meta) return;
       if (isTypingTarget(e.target)) {
         // 텍스트박스 안에서도 "붙여넣기"는 박스 자체를 복제하는 우리 기능과 헷갈릴 수
@@ -7623,7 +7675,7 @@ function UploadPageContent() {
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-1.5 lg:overflow-visible">
+                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
@@ -8691,7 +8743,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-1.5 lg:overflow-visible">
+                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
