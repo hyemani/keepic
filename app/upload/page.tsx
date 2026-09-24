@@ -2352,6 +2352,8 @@ function StackOrderToolbar({
   onZoomIn,
   onZoomOut,
   onRotate,
+  rotation,
+  onRotationChange,
   onFlip,
   editActive,
   onToggleEdit,
@@ -2373,6 +2375,10 @@ function StackOrderToolbar({
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onRotate?: () => void;
+  // 2026-10-06, 혜민님 요청: "미세한 회전조절" — 기존 onRotate(90도씩 즉시회전)와
+  // 별개로, 슬라이더·숫자입력으로 임의 각도를 바로 지정하는 정밀 회전 컨트롤이에요.
+  rotation?: number;
+  onRotationChange?: (deg: number) => void;
   onFlip?: () => void;
   editActive?: boolean;
   onToggleEdit?: () => void;
@@ -2386,7 +2392,7 @@ function StackOrderToolbar({
   // "투명도"·"테두리" 아이콘을 누르면 그 아래 작은 조절판이 열려요 — 다시 누르면
   // 닫혀요(2026-09-26 신규 기능이라 바깥 클릭 감지 같은 복잡한 처리는 넣지 않고, 아이콘
   // 재클릭이나 박스 선택 해제로 닫히는 가장 단순한 방식으로 했어요).
-  const [openPanel, setOpenPanel] = useState<"opacity" | "border" | null>(null);
+  const [openPanel, setOpenPanel] = useState<"opacity" | "border" | "rotation" | null>(null);
 
   const buttons: { key: string; title: string; icon: LayerIconName; onClick: () => void; danger?: boolean }[] = [];
   if (onDelete) buttons.push({ key: "delete", title: "삭제", icon: "delete", onClick: onDelete, danger: true });
@@ -2508,6 +2514,61 @@ function StackOrderToolbar({
                 onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value))}
                 className="w-full"
               />
+            </div>
+          )}
+        </div>
+      )}
+      {mediaKind !== "text" && onRotationChange && (
+        <div className="relative">
+          <button
+            type="button"
+            title="정밀 회전"
+            onClick={() => setOpenPanel((v) => (v === "rotation" ? null : "rotation"))}
+            className={`flex h-6 w-6 items-center justify-center text-xs transition hover:bg-white/20 ${
+ openPanel === "rotation" ? "bg-white/20" : ""
+            }`}
+          >
+            <LayerIcon name="rotate" />
+          </button>
+          {openPanel === "rotation" && (
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              className="absolute left-1/2 top-full z-50 mt-1.5 w-40 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
+            >
+              {/* 2026-10-06, 혜민님 요청: "미세한 회전조절이 안되더라고요, 회전툴도
+                  추가해주세요" — 기존 90도 단위 회전 버튼과 별개로, 슬라이더(1도
+                  단위)·숫자 직접 입력 둘 다로 정밀하게 각도를 맞출 수 있어요. */}
+              <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">회전 {Math.round(rotation ?? 0)}°</p>
+              <input
+                type="range"
+                min={0}
+                max={359}
+                step={1}
+                value={Math.round(rotation ?? 0)}
+                onChange={(e) => onRotationChange(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="mt-1.5 flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={359}
+                  value={Math.round(rotation ?? 0)}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) onRotationChange(((v % 360) + 360) % 360);
+                  }}
+                  className="w-16 border border-[var(--color-hairline)] px-1.5 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                />
+                <span className="text-[11px] text-[var(--color-charcoal)]/50">도</span>
+                <button
+                  type="button"
+                  onClick={() => onRotationChange(0)}
+                  className="ml-auto text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
+                >
+                  초기화
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -4000,6 +4061,8 @@ const ImageBoxOverlay = forwardRef<
           onZoomIn={() => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
           onZoomOut={() => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
           onRotate={handleRotate}
+          rotation={box.rotation ?? 0}
+          onRotationChange={(deg) => onChange({ rotation: deg })}
           onFlip={() => onChange({ flipX: !box.flipX })}
           editActive={photoEditMode}
           onToggleEdit={isSticker ? undefined : () => setPhotoEditMode((v) => !v)}
@@ -8182,7 +8245,11 @@ function UploadPageContent() {
                           style={{
                             width: `${coverBackPct}%`,
                             background: coverPatternId
-                              ? resolveSpreadBackgroundCss({ backgroundColor: backCoverBackgroundColor, backgroundPattern: coverPatternId }, "right")
+                              ? resolveSpreadBackgroundCss(
+                                  { backgroundColor: backCoverBackgroundColor, backgroundPattern: coverPatternId },
+                                  "right",
+                                  { panelWidthPct: coverBackPct, offsetPct: 0 }
+                                )
                               : (backCoverBackgroundColor ?? "#ffffff"),
                           }}
                         />
@@ -8191,7 +8258,11 @@ function UploadPageContent() {
                           style={{
                             width: `${coverSpinePct}%`,
                             background: coverPatternId
-                              ? resolveSpreadBackgroundCss({ backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId })
+                              ? resolveSpreadBackgroundCss(
+                                  { backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId },
+                                  "left",
+                                  { panelWidthPct: coverSpinePct, offsetPct: coverSpineStartPct }
+                                )
                               : (coverSpineBackgroundColor ?? "#ffffff"),
                           }}
                         />
@@ -8200,7 +8271,11 @@ function UploadPageContent() {
                           style={{
                             width: `${coverFrontPct}%`,
                             background: coverPatternId
-                              ? resolveSpreadBackgroundCss({ backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId }, "left")
+                              ? resolveSpreadBackgroundCss(
+                                  { backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId },
+                                  "left",
+                                  { panelWidthPct: coverFrontPct, offsetPct: coverSpineEndPct }
+                                )
                               : (coverFrontBackgroundColor ?? "#ffffff"),
                           }}
                         >
@@ -8767,6 +8842,23 @@ function UploadPageContent() {
                           })()}
                           {activeCoverEditTab === "text" && (
                             <div className="flex flex-col gap-2">
+                              {/* 2026-10-06, 혜민님 요청: "글상자추가 버튼을 상단으로
+                                  올려주세요" — 원래 탭 맨 아래(타이틀·책등 필드들 뒤)에
+                                  있던 버튼을 탭 맨 위로 옮겼어요(선택 여부와 무관하게 항상
+                                  표시, 내지 텍스트 탭과 같은 방식). */}
+                              <div className="flex flex-col gap-1.5 border-b border-[var(--color-hairline)] pb-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    coverLayoutApplyTarget === "back"
+                                      ? handleAddBackCoverTextBox()
+                                      : handleAddCoverTextBox()
+                                  }
+                                  className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                >
+                                  + 글상자 추가
+                                </button>
+                              </div>
                               {/* 2026-10-02, 혜민님 요청(항목8): "표지에 넣을 제목을 타이틀로,
                                   글자크기, 행간, 자간처럼 텍스트로 넣어주고 밑에 박스에는
                                   (예:우리 가족의 여름) 내용만 넣습니다" — 아래 다른 필드들
@@ -8988,19 +9080,6 @@ function UploadPageContent() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-3">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    coverLayoutApplyTarget === "back"
-                                      ? handleAddBackCoverTextBox()
-                                      : handleAddCoverTextBox()
-                                  }
-                                  className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                                >
-                                  + 글상자 추가
-                                </button>
-                              </div>
                             </div>
                           )}
                           {activeCoverEditTab === "background" && (() => {
@@ -9095,10 +9174,11 @@ function UploadPageContent() {
                             style={{
                               width: `${coverBackPct}%`,
                               background: coverPatternId
-                                ? resolveSpreadBackgroundCss({
-                                    backgroundColor: backCoverBackgroundColor,
-                                    backgroundPattern: coverPatternId,
-                                  }, "right")
+                                ? resolveSpreadBackgroundCss(
+                                    { backgroundColor: backCoverBackgroundColor, backgroundPattern: coverPatternId },
+                                    "right",
+                                    { panelWidthPct: coverBackPct, offsetPct: 0 }
+                                  )
                                 : (backCoverBackgroundColor ?? "#ffffff"),
                             }}
                           >
@@ -9186,7 +9266,11 @@ function UploadPageContent() {
                             style={{
                               width: `${coverSpinePct}%`,
                               background: coverPatternId
-                                ? resolveSpreadBackgroundCss({ backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId })
+                                ? resolveSpreadBackgroundCss(
+                                    { backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId },
+                                    "left",
+                                    { panelWidthPct: coverSpinePct, offsetPct: coverSpineStartPct }
+                                  )
                                 : (coverSpineBackgroundColor ?? "#ffffff"),
                             }}
                           >
@@ -9225,7 +9309,11 @@ function UploadPageContent() {
                             style={{
                               width: `${coverFrontPct}%`,
                               background: coverPatternId
-                                ? resolveSpreadBackgroundCss({ backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId }, "left")
+                                ? resolveSpreadBackgroundCss(
+                                    { backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId },
+                                    "left",
+                                    { panelWidthPct: coverFrontPct, offsetPct: coverSpineEndPct }
+                                  )
                                 : (coverFrontBackgroundColor ?? "#ffffff"),
                             }}
                           >
@@ -9422,6 +9510,21 @@ function UploadPageContent() {
                                     : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
                                 }
                               >
+                            {activeEditTab === "text" && (
+                              <div className="mb-1.5 flex flex-col gap-1.5">
+                                {/* 2026-10-06, 혜민님 요청: "글상자추가 버튼을 상단으로
+                                    올려주세요" — 텍스트박스를 선택하면 바로 아래
+                                    TextBoxToolbar가 길어져서 버튼이 화면 밖으로 밀렸어요.
+                                    선택 여부와 무관하게 "텍스트" 탭 맨 위에 항상 보이게 함. */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
+                                  className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                >
+                                  + 글상자 추가
+                                </button>
+                              </div>
+                            )}
                             {activeEditTab === "text" &&
                               multiTextSelection &&
                               multiTextSelection.ref.scope === "spread" &&
@@ -9837,23 +9940,6 @@ function UploadPageContent() {
                                   onItemClick={(item) => handleAddHandwriting(i, item.url)}
                                   emptyMessage="손글씨 스티커는 준비 중이에요. 곧 추가할게요."
                                 />
-                              )}
-                              {activeEditTab === "text" && (
-                                <div className="flex flex-col gap-1.5">
-                                  {/* 2026-09-27 재확인: "글상자는 왼쪽페이지 오른쪽페이지
-                                      메뉴가 따로 필요없습니다" — 위치를 미리 고르는 토글을
-                                      없애고 버튼 하나만 남겼어요. 스프레드 1(i===0)의 왼쪽
-                                      면은 표지 뒷면이라 오른쪽에, 나머지는 왼쪽 페이지에
-                                      기본으로 추가돼요(필요하면 캔버스에서 새로 만든
-                                      텍스트박스를 바로 옮기거나 지우고 다시 만들 수 있어요). */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
-                                    className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                                  >
-                                    + 글상자 추가
-                                  </button>
-                                </div>
                               )}
                             </div>
                               </div>

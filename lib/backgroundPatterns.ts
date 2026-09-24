@@ -218,15 +218,33 @@ function mmToCssPx(mm: number): number {
 // 가운데를 기준으로 무늬가 대칭으로 맞아떨어지게 해요.
 export function patternToCssBackground(
   preset: BackgroundPatternPreset,
-  anchorSide: "left" | "right" = "left"
+  anchorSide: "left" | "right" = "left",
+  // 2026-10-06, 혜민님 요청: "그라데이션이 낱장만 적용되는데 스프레드페이지 기준으로
+  // 적용해주세요" — 이 낱장(패널)이 전체 펼침면(스프레드 또는 표지 전체) 중 몇 %를
+  // 차지하고, 왼쪽 끝에서 몇 % 지점부터 시작하는지 알려주면, 그라데이션을 "전체
+  // 펼침면 기준" 하나로 계산해서 이 낱장에 해당하는 조각만 보여줘요(표지는 뒤표지·
+  // 책등·앞표지 3칸의 폭이 서로 달라서 폭·시작위치를 직접 넘겨받아요). 안 넘기면
+  // anchorSide만으로 좌/우 절반(내지 스프레드 기본값)을 가정해요.
+  spreadSpan?: { panelWidthPct: number; offsetPct: number }
 ): string {
   const [c0, c1] = preset.colors;
   const posX = anchorSide === "right" ? "right" : "left";
   switch (preset.kind) {
     case "diagonalSplit":
       return `linear-gradient(135deg, ${c0} 50%, ${c1} 50%)`;
-    case "gradient":
+    case "gradient": {
+      const span = spreadSpan ?? { panelWidthPct: 50, offsetPct: anchorSide === "right" ? 50 : 0 };
+      if (span.panelWidthPct > 0 && span.panelWidthPct < 100) {
+        // background-size(%)는 "이 낱장(컨테이너) 자신의 크기" 기준이라, 전체
+        // 펼침면 폭만큼 이미지를 키우려면 (100/이_낱장이_차지하는_%)*100%가 필요해요.
+        // background-position(%)은 (컨테이너폭-이미지폭)*퍼센트/100 공식이라, 이
+        // 낱장의 시작위치(offsetPct)가 이미지 원점과 맞아떨어지도록 역산했어요.
+        const sizePct = (100 / span.panelWidthPct) * 100;
+        const posPct = (span.offsetPct * 100) / (100 - span.panelWidthPct);
+        return `linear-gradient(135deg, ${c0}, ${c1}) ${posPct}% 0% / ${sizePct}% 100%`;
+      }
       return `linear-gradient(135deg, ${c0}, ${c1})`;
+    }
     case "dots": {
       const s = mmToCssPx(preset.spacingMm ?? 6);
       return `radial-gradient(${c1} 22%, transparent 23%) ${posX} top/${s}px ${s}px, ${c0}`;
@@ -251,10 +269,11 @@ export function resolveSpreadBackgroundCss(
     backgroundColor?: string;
     backgroundPattern?: string;
   },
-  anchorSide: "left" | "right" = "left"
+  anchorSide: "left" | "right" = "left",
+  spreadSpan?: { panelWidthPct: number; offsetPct: number }
 ): string | undefined {
   const preset = findBackgroundPattern(spread.backgroundPattern);
-  if (preset) return patternToCssBackground(preset, anchorSide);
+  if (preset) return patternToCssBackground(preset, anchorSide, spreadSpan);
   return spread.backgroundColor;
 }
 
@@ -268,7 +287,11 @@ export function drawBackgroundPatternOnCanvas(
   y: number,
   w: number,
   h: number,
-  mmToPxFn: (mm: number) => number
+  mmToPxFn: (mm: number) => number,
+  // 2026-10-06, 혜민님 요청: "그라데이션이 낱장만 적용되는데 스프레드페이지 기준으로
+  // 적용해주세요" — 전체 펼침면(내지 스프레드 또는 표지 전체) 기준 좌표(px)예요.
+  // 안 넘기면 이 낱장(x,y,w,h) 하나만 기준으로 그리던 기존 방식 그대로예요.
+  fullSpan?: { x: number; y: number; w: number; h: number }
 ) {
   const [c0, c1] = preset.colors;
   ctx.save();
@@ -290,7 +313,8 @@ export function drawBackgroundPatternOnCanvas(
       break;
     }
     case "gradient": {
-      const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+      const span = fullSpan ?? { x, y, w, h };
+      const grad = ctx.createLinearGradient(span.x, span.y, span.x + span.w, span.y + span.h);
       grad.addColorStop(0, c0);
       grad.addColorStop(1, c1);
       ctx.fillStyle = grad;

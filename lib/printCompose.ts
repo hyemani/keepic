@@ -330,7 +330,7 @@ async function drawPage(
   pageOffsetPx?: number,
   spreadWidthPx?: number
 ) {
-  await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId);
+  await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId, pageOffsetPx, spreadWidthPx);
   // 2026-09-25, "종류 상관없이 전부" 레이어 순서 기능: 사진박스·텍스트박스를 예전처럼
   // "사진 전부 먼저, 텍스트 전부 나중"(두 단계 루프)으로 그리지 않고, 화면
   // (app/upload/page.tsx의 ImageBoxLayer/TextBoxLayer)과 완전히 같은 sortStackedBoxes
@@ -503,11 +503,19 @@ async function drawPageTemplate(
   pageW: number,
   pageH: number,
   backgroundColor: string = "#ffffff",
-  backgroundPatternId?: string
+  backgroundPatternId?: string,
+  // 2026-10-06, 혜민님 요청: "그라데이션이 낱장만 적용되는데 스프레드페이지 기준으로
+  // 적용해주세요" — 전체 스프레드 기준 좌표를 계산하기 위한 이 낱장의 오프셋·전체 폭.
+  pageOffsetPx?: number,
+  spreadWidthPx?: number
 ) {
   const pattern = findBackgroundPattern(backgroundPatternId);
   if (pattern) {
-    drawBackgroundPatternOnCanvas(ctx, pattern, 0, 0, pageW, pageH, mmToPx);
+    const fullSpan =
+      pageOffsetPx !== undefined && spreadWidthPx !== undefined
+        ? { x: -pageOffsetPx, y: 0, w: spreadWidthPx, h: pageH }
+        : undefined;
+    drawBackgroundPatternOnCanvas(ctx, pattern, 0, 0, pageW, pageH, mmToPx, fullSpan);
   } else {
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, pageW, pageH);
@@ -1251,8 +1259,13 @@ export async function buildCoverPrintPdf({
   // 그릴 때도 그대로 재사용해요(화면 미리보기의 resolveSpreadBackgroundCss와 같은
   // 레시피를 Canvas로 그리는 셈).
   const coverPattern = findBackgroundPattern(coverPatternId);
+  // 2026-10-06, 혜민님 요청: "그라데이션이 낱장만 적용되는데 스프레드페이지 기준으로
+  // 적용해주세요" — 뒤표지·책등·앞표지 전체 폭(coverTotalCoverSpanWpx)을 기준으로 한
+  // 그라데이션 하나를 세 군데 모두에 넘겨서, 제본 경계에서 끊기지 않고 이어지게 해요.
+  const coverTotalCoverSpanWpx = backCellWpx + spinePx + backCellWpx;
+  const coverFullSpan = { x: 0, y: 0, w: coverTotalCoverSpanWpx, h: backCellHpx };
   if (coverPattern) {
-    drawBackgroundPatternOnCanvas(ctx, coverPattern, 0, 0, backCellWpx, backCellHpx, mmToPx);
+    drawBackgroundPatternOnCanvas(ctx, coverPattern, 0, 0, backCellWpx, backCellHpx, mmToPx, coverFullSpan);
   } else if (backCoverBackgroundColor) {
     ctx.fillStyle = backCoverBackgroundColor;
     ctx.fillRect(0, 0, backCellWpx, backCellHpx);
@@ -1363,7 +1376,7 @@ export async function buildCoverPrintPdf({
   // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
   const spineX = bleedPx + panelPx;
   if (coverPattern) {
-    drawBackgroundPatternOnCanvas(ctx, coverPattern, spineX, bleedPx, spinePx, panelPx, mmToPx);
+    drawBackgroundPatternOnCanvas(ctx, coverPattern, spineX, bleedPx, spinePx, panelPx, mmToPx, coverFullSpan);
   } else {
     ctx.fillStyle = coverSpineBackgroundColor ?? "#ffffff";
     ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
@@ -1402,7 +1415,7 @@ export async function buildCoverPrintPdf({
   const frontCellWpx = panelPx + bleedPx;
   const frontCellHpx = panelPx + bleedPx * 2;
   if (coverPattern) {
-    drawBackgroundPatternOnCanvas(ctx, coverPattern, frontX, 0, frontCellWpx, frontCellHpx, mmToPx);
+    drawBackgroundPatternOnCanvas(ctx, coverPattern, frontX, 0, frontCellWpx, frontCellHpx, mmToPx, coverFullSpan);
   } else if (coverFrontBackgroundColor) {
     ctx.fillStyle = coverFrontBackgroundColor;
     ctx.fillRect(frontX, 0, frontCellWpx, frontCellHpx);
