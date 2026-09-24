@@ -4511,13 +4511,16 @@ function CategoryTabbedGrid({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-1 overflow-x-auto pb-1 text-[11px]" style={{ scrollbarWidth: "thin" }}>
+      {/* 2026-10-02, 혜민님 요청: "하단의 전체, 소품 꽃 식물 등등 메뉴는 가로여백없이
+          붙여주세요" — 버튼 사이 gap을 없애고(여백 없이 이어붙임), 대신 선택 표시가
+          안 겹치도록 버튼 자체 테두리(구분선)를 둠. */}
+      <div className="flex overflow-x-auto pb-1 text-[11px]" style={{ scrollbarWidth: "thin" }}>
         {categories.map((cat) => (
           <button
             key={cat.id}
             type="button"
             onClick={() => onSelectCategory(cat.id)}
-            className={`shrink-0 px-1.5 py-1 transition ${
+            className={`shrink-0 border-r border-white/40 px-1.5 py-1 transition last:border-r-0 ${
               activeCategoryId === cat.id
                 ? "bg-[var(--color-sky)] text-white"
                 : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
@@ -4723,6 +4726,10 @@ function UploadPageContent() {
     setCoverImageBoxPhotoEditActive(false);
     setActiveCoverImageBox({ target, boxId });
     setBackCoverLogoSelected(false);
+    // 2026-10-02, 혜민님 요청: "앞표지 뒤표지 메뉴 삭제, 스프레드 기준으로" — 레이아웃·
+    // 스티커 패널의 수동 "적용 대상" 토글을 없앤 대신, 캔버스에서 어느 쪽 사진박스를
+    // 선택하든 그 즉시 그 쪽이 "지금 작업 중인 쪽"이 되도록 자동으로 맞춰요.
+    setCoverLayoutApplyTarget(target);
     // 내지 selectImageBox와 같은 수정이에요(2026-09-24엔 내지만 고쳤었어요) — 스티커는
     // "사진" 탭에 편집할 속성이 없어서, 표지 스티커를 선택해도 왼쪽 패널을 "사진" 탭으로
     // 옮기지 않아요. "여전히 스티커를 만질 때 사진툴로 이동한다"는 재확인(2026-09-27)
@@ -4791,7 +4798,12 @@ function UploadPageContent() {
   // 편집 화면 왼쪽 아이콘 메뉴(레이아웃/배경/표지변경/스티커/손글씨스티커/텍스트/꾸미기) — 어떤
   // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "레이아웃" 탭부터 보여줘요(2026-09-23,
   // 독립 "사진" 탭 제거하면서 기본 탭도 바꿨어요).
-  const [activeEditTab, setActiveEditTab] = useState<EditTabId>("layout");
+  // 2026-10-02, 혜민님 요청: "미리보기에서 편집하기를 눌렀을 때 레이아웃이 선택되는
+  // 오류 확인됩니다. 처음에는 접혀있는 상태로 동작되게 해주세요" — 기본값이 항상
+  // "layout"이라 편집 모드에 들어가자마자 레이아웃 탭이 자동으로 열려 있었음.
+  // null(아무 탭도 안 고른 상태)을 표현할 수 있게 바꾸고, 편집하기를 누를 때마다
+  // null로 되돌림(아래 편집하기 버튼 onClick 참고).
+  const [activeEditTab, setActiveEditTab] = useState<EditTabId | null>(null);
   // "텍스트" 탭의 "+ 글상자 추가" 버튼이 왼쪽/오른쪽 페이지 중 어디에 넣을지 기억해두는
   // 작은 토글이에요(2026-09-27, 버튼 두 개를 하나로 합치면서 추가).
   // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
@@ -4831,7 +4843,7 @@ function UploadPageContent() {
     candidates: ImageBoxDef[];
   } | null>(null);
   const [pendingCoverLayoutApplySelectedIds, setPendingCoverLayoutApplySelectedIds] = useState<string[]>([]);
-  const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("layout");
+  const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId | null>(null);
   // 좁은 화면에서 왼쪽 속성 패널을 접어 캔버스를 더 넓게 볼 수 있게 하는 순수 레이아웃
   // 상태예요 — 줌/맞춤(canvasZoom·canvasFitToken)과는 완전히 무관해서, 이 토글을
   // 눌러도 지금 보고 있는 확대 비율·위치는 그대로 유지돼요.
@@ -7530,7 +7542,9 @@ function UploadPageContent() {
                     // 크기로 보이게 맞췄어요.
                     className="flex h-8 min-w-[68px] items-center justify-center border border-[var(--color-hairline)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
-                    ✓ 완료
+                    {/* 2026-10-02, 혜민님 요청: "완료 버튼을 미리보기로 문구 바꿔주세요" —
+                        실제로 누르면 미리보기 모드로 돌아가는 동작이라 문구를 동작에 맞춤. */}
+                    미리보기
                   </button>
                 )}
                 <div className="flex h-8 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 text-xs">
@@ -7720,10 +7734,12 @@ function UploadPageContent() {
             // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
             <div
-              // 2026-10-01, 혜민님 요청: "편집툴의 가로폭을 3분의2의 크기로 줄여주세요" —
-              // 넓은 모니터에서 lg:max-w-none으로 꽉 채우던 걸, 좌우에 적당히 여백을 두는
-              // 2/3 폭으로 되돌림(가운데 정렬은 mx-auto로 유지).
-              className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:w-2/3 lg:flex-row"
+              // 2026-10-02, 혜민님 요청: "가로폭을 3분의2로 줄여달라는 얘기를 잘못
+              // 알아들었나봅니다" — 편집 영역 전체가 아니라 왼쪽 아이콘 메뉴 옆에 뜨는
+              // "편집칸"(속성 패널, 아래 세 곳: 288px에서 224px로 축소)을 줄여야 하는
+              // 거였음. 전체 폭은 다시 lg:max-w-none으로 꽉 채움(2026-10-01의
+              // lg:w-2/3는 되돌림).
+              className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
               style={{ minHeight: 420 }}
             >
               {/* 왼쪽(데스크톱)/하단(모바일) 페이지 목록 — "미리보기" 모드일 때만 보여요.
@@ -7976,6 +7992,9 @@ function UploadPageContent() {
                         onClick={() => {
                           setEditorMode("edit");
                           setIsPrintPreview(false);
+                          // 편집하기 진입 시엔 항상 접힌(아무 탭도 안 고른) 상태로 시작.
+                          setActiveEditTab(null);
+                          setActiveCoverEditTab(null);
                         }}
                         aria-label="편집하기"
                         className="group pointer-events-auto absolute inset-0 z-30 flex cursor-pointer items-center justify-center"
@@ -8012,8 +8031,13 @@ function UploadPageContent() {
                               </button>
                             ))}
                           </div>
+                          {/* 2026-10-02: 탭을 하나도 안 골랐으면(접힌 상태) 패널 자체를
+                              안 그려서 폭을 0으로 접어요(안엔 대부분 어차피
+                              activeCoverEditTab==="..." 조건이라 내용은 안 보였지만, 빈
+                              칸만 224px 차지하고 있던 걸 없앰). */}
+                          {activeCoverEditTab && (
                           <div
-                            className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1"
+                            className="flex min-h-0 flex-col overflow-y-auto lg:w-56 lg:shrink-0 lg:pr-1"
                           >
                           {activeCoverEditTab === "text" &&
                             multiTextSelection &&
@@ -8182,78 +8206,13 @@ function UploadPageContent() {
                                       ‹ 뒤로가기
                                     </button>
                                   </div>
-                                  {backCoverLogo && (
-                                    <div className=" border border-[var(--color-hairline)] bg-white p-1.5">
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
-                                            가로 위치(%)
-                                          </label>
-                                          <input
-                                            type="number"
-                                            step={1}
-                                            min={0}
-                                            max={100}
-                                            value={Math.round(backCoverLogo.xPct)}
-                                            onChange={(e) => {
-                                              const v = Number(e.target.value);
-                                              if (Number.isFinite(v)) {
-                                                setBackCoverLogo((prev) => (prev ? { ...prev, xPct: Math.min(100, Math.max(0, v)) } : prev));
-                                              }
-                                            }}
-                                            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
-                                            세로 위치(%)
-                                          </label>
-                                          <input
-                                            type="number"
-                                            step={1}
-                                            min={0}
-                                            max={100}
-                                            value={Math.round(backCoverLogo.yPct)}
-                                            onChange={(e) => {
-                                              const v = Number(e.target.value);
-                                              if (Number.isFinite(v)) {
-                                                setBackCoverLogo((prev) => (prev ? { ...prev, yPct: Math.min(100, Math.max(0, v)) } : prev));
-                                              }
-                                            }}
-                                            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                          />
-                                        </div>
-                                        <div className="col-span-2">
-                                          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
-                                            크기(%, 100=기본)
-                                          </label>
-                                          <input
-                                            type="number"
-                                            step={5}
-                                            min={20}
-                                            max={300}
-                                            value={Math.round(backCoverLogo.scalePct)}
-                                            onChange={(e) => {
-                                              const v = Number(e.target.value);
-                                              if (Number.isFinite(v) && v > 0) {
-                                                setBackCoverLogo((prev) => (prev ? { ...prev, scalePct: v } : prev));
-                                              }
-                                            }}
-                                            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                          />
-                                        </div>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setBackCoverLogo({ xPct: 50, yPct: 50, scalePct: 100 });
-                                        }}
-                                        className="mt-2 bg-white px-1.5 py-1 text-[11px] text-[var(--color-charcoal)]/70 "
-                                      >
-                                        가운데로 초기화
-                                      </button>
-                                    </div>
-                                  )}
+                                  {/* 2026-10-02, 혜민님 요청: "가로위치 세로위치 크기 메뉴가
+                                      보이는데 삭제해주세요. 테마에따라 변경되게 하고
+                                      수정하고싶을때는 이미지툴처럼 적용해서 수정할수있게
+                                      할겁니다" — 숫자 입력 패널을 없앴어요. 로고 위치·크기를
+                                      테마별로 정하고, 나중에 이미지박스처럼 캔버스에서 직접
+                                      드래그로 조절하는 방식은 별도 작업으로 다시 요청해주세요
+                                      (지금은 이 패널 자체가 빠진 상태예요). */}
                                 </>
                               ) : (
                                 <>
@@ -8273,82 +8232,25 @@ function UploadPageContent() {
                                   </label>
                                 )
                               )}
-                              <div className=" border border-[var(--color-hairline)] bg-white p-1.5">
-                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                  뒤표지 꾸미기
-                                </label>
-                                {/* 2026-09, backCoverMode "키픽 로고"/"작은 사진" 배타적 토글을
-                                    없앴어요 — 이제 로고와 사진은 독립된 객체라 함께 있을 수 있어요.
-                                    사진은 여기서 바로 바꾸고, 로고는 "로고 추가"로 넣은 뒤 캔버스에서
-                                    클릭해 선택하면 위치·크기를 조절할 수 있어요. */}
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {backCoverImageBoxes.length > 0 ? (
-                                    <p className="text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                      레이아웃 탭에서 여러 장 배치로 관리 중이에요.
-                                    </p>
-                                  ) : (
-                                    <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                                      {backCoverPhoto ? "사진 바꾸기" : "사진 선택"}
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleBackCoverFileSelect}
-                                        className="hidden"
-                                      />
-                                    </label>
-                                  )}
-                                  {backCoverLogo ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setBackCoverLogo(null)}
-                                      className=" border border-[var(--color-hairline)] px-1.5 py-1 text-[11px] text-[var(--color-charcoal)]/60 transition hover:bg-white"
-                                    >
-                                      로고 빼기
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBackCoverLogo({ xPct: 50, yPct: 50, scalePct: 100 });
-                                        selectBackCoverLogo();
-                                      }}
-                                      className=" bg-[var(--color-brand-purple)] px-1.5 py-1 text-[11px] text-white"
-                                    >
-                                      + 로고 추가
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
+                              {/* 2026-10-02, 혜민님 요청: "뒤표지꾸미기 사진선택, 로고빼기도
+                                  다 삭제 사진탭은 사진올리기, 프레임, 모서리 두께, 둥글게
+                                  메뉴만 확인되게 해주세요" — "뒤표지 꾸미기"(사진선택/로고빼기)
+                                  블록 전체 삭제. 프레임·모서리 두께·둥글게는 사진박스를 선택했을
+                                  때 나오는 테두리 설정 패널(아래 imageBoxPhotoEditActive 근처가
+                                  아니라 내지와 같은 별도 패널)이 필요한데, 지금 코드에서 표지
+                                  사진박스엔 아직 그 패널이 연결돼 있지 않아요 — 범위가 더 커서
+                                  이번엔 손대지 않았고, 다음 라운드에서 내지의 테두리 패널을
+                                  표지에도 연결하는 작업으로 다시 요청해주세요. */}
                                 </>
                               )}
                             </div>
                           )}
                           {activeCoverEditTab === "sticker" && (
                             <div className="flex flex-col gap-1.5">
-                              <div>
-                                <p className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 대상</p>
-                                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                  {(
-                                    [
-                                      { id: "front" as const, label: "앞표지" },
-                                      { id: "back" as const, label: "뒤표지" },
-                                    ]
-                                  ).map((opt) => (
-                                    <button
-                                      key={opt.id}
-                                      type="button"
-                                      onClick={() => setCoverLayoutApplyTarget(opt.id)}
-                                      className={` border px-1.5 py-1 text-[11px] transition ${
-                                        coverLayoutApplyTarget === opt.id
-                                          ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                          : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                                      }`}
-                                    >
-                                      {opt.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
+                              {/* 2026-10-02, 혜민님 요청: "적용대상 앞표지, 뒤표지 삭제해주세요"
+                                  — 어느 쪽에 붙는지는 이제 캔버스에서 마지막으로 선택한 사진박스
+                                  쪽(coverLayoutApplyTarget, selectCoverImageBox에서 자동 갱신)을
+                                  그대로 따라가요. */}
                               <CategoryTabbedGrid
                                 categories={STICKER_CATEGORIES}
                                 items={STICKERS}
@@ -8377,33 +8279,12 @@ function UploadPageContent() {
                             return (
                               <div className="flex flex-col gap-1.5">
                                 <div>
-                                  <p className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 대상</p>
-                                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                    {(
-                                      [
-                                        { id: "front" as const, label: "앞표지" },
-                                        { id: "back" as const, label: "뒤표지" },
-                                      ]
-                                    ).map((opt) => (
-                                      <button
-                                        key={opt.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setCoverLayoutApplyTarget(opt.id);
-                                          setCoverLayoutApplyMessage(null);
-                                        }}
-                                        className={` border px-1.5 py-1 text-[11px] transition ${
- target === opt.id
-                                            ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                            : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                                        }`}
-                                      >
-                                        {opt.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50">
-                                    지금 사진이 {currentCount}장 있어요.
+                                  {/* 2026-10-02, 혜민님 요청: "앞표지 뒤표지 메뉴 삭제, 스프레드
+                                      기준으로" — 수동 토글을 없애고, 캔버스에서 마지막으로
+                                      선택한 사진박스 쪽(coverLayoutApplyTarget)을 그대로
+                                      따라가요(selectCoverImageBox에서 자동 갱신). */}
+                                  <p className="text-[11px] text-[var(--color-charcoal)]/50">
+                                    지금 {isFront ? "앞표지" : "뒤표지"}에 사진이 {currentCount}장 있어요.
                                   </p>
                                 </div>
                                 <div>
@@ -8709,6 +8590,7 @@ function UploadPageContent() {
                             );
                           })()}
                           </div>
+                          )}
                         </div>
                         )}
                         <CanvasStage
@@ -8967,7 +8849,7 @@ function UploadPageContent() {
                       </div>
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                         {editorMode === "edit" && (
-                        <div className="lg:w-72 lg:shrink-0">
+                        <div className="lg:w-56 lg:shrink-0">
                         <div className="mt-4 grid grid-cols-1 gap-1.5">
                           <label className="text-xs text-[var(--color-charcoal)]/70">
                             발행일
@@ -9046,8 +8928,17 @@ function UploadPageContent() {
                                   </button>
                                 ))}
                               </div>
+                              {/* 2026-10-02: 탭을 하나도 안 골랐으면(접힌 상태) 패널 폭을
+                                  0으로 접어요 — 안쪽 내용은 전부 activeEditTab==="..."
+                                  조건이라 null이면 어차피 안 보이지만, 빈 칸만 224px를
+                                  차지하고 있던 걸 없앰(closing 태그를 건드리지 않는 안전한
+                                  방식으로, 폭만 조건부로 바꿈). */}
                               <div
-                                className="flex min-h-0 flex-col overflow-y-auto lg:w-72 lg:shrink-0 lg:pr-1"
+                                className={
+                                  activeEditTab
+                                    ? "flex min-h-0 flex-col overflow-y-auto lg:w-56 lg:shrink-0 lg:pr-1"
+                                    : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
+                                }
                               >
                             {activeEditTab === "text" &&
                               multiTextSelection &&
@@ -9164,11 +9055,10 @@ function UploadPageContent() {
                                   ) : (
                                     <>
                                       <div>
+                                        {/* 2026-10-02, 혜민님 요청: "설명글 삭제" — 라벨(제목)만
+                                            남기고 부연 설명 문장은 제거. */}
                                         <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
                                           이 페이지에 사진 추가
-                                        </p>
-                                        <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                          레이아웃과 관계없이 자유롭게 놓을 사진을 추가해요.
                                         </p>
                                         <label className="mt-1.5 inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
                                           + 사진 추가
