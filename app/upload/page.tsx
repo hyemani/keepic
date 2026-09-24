@@ -50,10 +50,11 @@ import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
   LayoutSlot,
-  templatesForRange,
   slotToSpreadCoords,
   captionSlotFor,
   COVER_LAYOUT_TEMPLATES,
+  spreadBrowseTemplates,
+  SPREAD_AUTO_TO_HALF,
 } from "@/lib/photoLayoutTemplates";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
@@ -674,13 +675,23 @@ const PHOTO_GRID_PAGE_SIZE = 8;
 // 보여주는 게 0%든 100%든 고정된 숫자보다 훨씬 유용해서 이 근사치를 씀.
 const CSS_PX_PER_MM = 96 / 25.4;
 
+// 2026-09-27, 혜민님 요청: "배경패널에 색상이 전체적으로 너무 칙칙합니다 ... 좀더
+// 밝은색상으로 만들어주세요 ... 단색도 쨍하고 이쁜색상으로 여러개 넣어주세요." — 기존
+// 팔레트는 전부 파스텔에 가까운 옅은 회색조라 화면·인쇄 둘 다 칙칙해 보였어요. 흰색·
+// 아이보리 등 무난한 중성색 몇 개는 남기고, 채도를 확실히 올린 쨍한 색을 여러 개
+// 추가했어요.
 const SPREAD_BACKGROUND_PRESETS: { color: string; label: string }[] = [
   { color: "#ffffff", label: "흰색(기본)" },
-  { color: "#f7f3ec", label: "아이보리" },
-  { color: "#f0ece4", label: "베이지" },
-  { color: "#eef1f4", label: "라이트그레이" },
-  { color: "#e9eef2", label: "페일블루" },
-  { color: "#f4ece7", label: "페일핑크" },
+  { color: "#fff4e0", label: "아이보리" },
+  { color: "#ffe1a8", label: "선셋옐로우" },
+  { color: "#ffb4a2", label: "코랄핑크" },
+  { color: "#f76c6c", label: "체리레드" },
+  { color: "#ff8fab", label: "핫핑크" },
+  { color: "#c77dff", label: "라벤더퍼플" },
+  { color: "#7dd3fc", label: "스카이블루" },
+  { color: "#38bdf8", label: "비비드블루" },
+  { color: "#6ee7b7", label: "민트그린" },
+  { color: "#a3e635", label: "라임그린" },
   { color: "#232323", label: "차콜" },
 ];
 
@@ -1584,12 +1595,16 @@ function TextBoxOverlay({
     <div
       ref={boxRef}
       onMouseDown={handleMouseDown}
-      className={`absolute cursor-move border transition ${
+      // 2026-09-27, 혜민님 요청: "글상자 파란네모가 안으로 들어가보이는데 밖으로
+      // 빼주세요" — 일반 border는 박스 테두리 선 자체(레이아웃 안쪽)에 그려져서 안으로
+      // 들어가 보였는데, outline은 박스 바깥쪽에 겹치지 않고 그려지니까
+      // outline-offset을 줘서 선택 표시를 박스 밖으로 확실히 떼어냈어요.
+      className={`absolute cursor-move outline outline-2 outline-offset-2 transition ${
  isActive
-          ? "border-[var(--color-sky)]"
+          ? "outline-[var(--color-sky)]"
           : isMultiSelected
-          ? "border-[var(--color-brand-purple)]"
-          : "border-transparent hover:border-[var(--color-sky)]/40"
+          ? "outline-[var(--color-brand-purple)]"
+          : "outline-transparent hover:outline-[var(--color-sky)]/40"
       }`}
       style={{
         zIndex,
@@ -1653,6 +1668,15 @@ function TextBoxOverlay({
           // 적용돼요(2026-09-23 "문자" 패널 통합 전 텍스트박스와 완전히 같은 크기로 보여요).
           ...(box.lineHeight !== undefined ? { lineHeight: box.lineHeight } : {}),
           ...(box.letterSpacing !== undefined ? { letterSpacing: `${box.letterSpacing}em` } : {}),
+          // 글자 가로/세로 폭(일러스트레이터 문자 패널의 "가로 폭"/"세로 폭", 2026-09-27
+          // 추가) — 둘 다 100이면(기본) transform을 아예 안 넣어요. ⚠️ 화면 전용, 인쇄
+          // PDF엔 아직 반영 안 돼요.
+          ...((box.scaleXPct ?? 100) !== 100 || (box.scaleYPct ?? 100) !== 100
+            ? {
+                transform: `scaleX(${(box.scaleXPct ?? 100) / 100}) scaleY(${(box.scaleYPct ?? 100) / 100})`,
+                transformOrigin: box.align === "right" ? "top right" : box.align === "center" ? "top center" : "top left",
+              }
+            : {}),
         }}
         className={`w-full cursor-text resize-none border-none bg-transparent leading-snug outline-none ${
  box.heightPct !== undefined
@@ -1712,7 +1736,10 @@ type LayerIconName =
   | "alignRight"
   | "alignTop"
   | "alignVCenter"
-  | "alignBottom";
+  | "alignBottom"
+  | "textAlignLeft"
+  | "textAlignCenter"
+  | "textAlignRight";
 
 function LayerIcon({ name, className }: { name: LayerIconName; className?: string }) {
   const common = {
@@ -1860,6 +1887,33 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
           <rect x="5" y="5" width="4" height="12" rx="0.5" />
           <rect x="11" y="10" width="4" height="7" rx="0.5" />
           <rect x="17" y="7" width="4" height="10" rx="0.5" />
+        </svg>
+      );
+    // 2026-09-27, 혜민님 요청: 텍스트 가로 정렬 버튼은 (위 alignLeft 등, 박스 여러 개를
+    // 나란히 맞추는 아이콘과 헷갈리지 않도록) 글줄 아이콘으로 따로 만들었어요 — 일러스트
+    // 레이터 "단락" 패널의 왼쪽/가운데/오른쪽 정렬 아이콘과 같은 느낌.
+    case "textAlignLeft":
+      return (
+        <svg {...common}>
+          <path d="M4 6h16" />
+          <path d="M4 11h10" />
+          <path d="M4 16h13" />
+        </svg>
+      );
+    case "textAlignCenter":
+      return (
+        <svg {...common}>
+          <path d="M4 6h16" />
+          <path d="M7 11h10" />
+          <path d="M5.5 16h13" />
+        </svg>
+      );
+    case "textAlignRight":
+      return (
+        <svg {...common}>
+          <path d="M4 6h16" />
+          <path d="M10 11h10" />
+          <path d="M7 16h13" />
         </svg>
       );
   }
@@ -2123,23 +2177,6 @@ function TextBoxToolbar({
   // 칸에 맞는 값을 넘겨줘야 pt 숫자가 실제 인쇄 결과와 맞아요.
   pageWidthMm: number;
 }) {
-  function cycleAlign() {
-    if (!box) return;
-    const order: TextBoxDef["align"][] = ["left", "center", "right"];
-    const next = order[(order.indexOf(box.align) + 1) % order.length];
-    onChange({ align: next });
-  }
-
-  // 세로 정렬(위/가운데/아래) — 박스 높이(heightPct)를 손잡이로 조절해서 고정한 경우에만
-  // 실제로 차이가 보여요.
-  function cycleVerticalAlign() {
-    if (!box) return;
-    const order: NonNullable<TextBoxDef["verticalAlign"]>[] = ["top", "middle", "bottom"];
-    const current = box.verticalAlign ?? "top";
-    const next = order[(order.indexOf(current) + 1) % order.length];
-    onChange({ verticalAlign: next });
-  }
-
   if (!box) return null;
 
   return (
@@ -2213,11 +2250,15 @@ function TextBoxToolbar({
         >
           B
         </button>
+        {/* 2026-09-27, 혜민님 요청: "박스안에 박스가 있는 이런 부분을 좀 신경써주세요"
+            — 브라우저 기본 color input이 스와치 주위에 자체 여백을 둬서 "작은 박스 안에
+            더 작은 박스"처럼 보였어요. 네이티브 여백/테두리를 없애서 색이 버튼 전체를
+            꽉 채우도록 고쳤어요. */}
         <input
           type="color"
           value={box.color}
           onChange={(e) => onChange({ color: e.target.value })}
-          className="h-7 w-7 shrink-0 cursor-pointer border border-[var(--color-hairline)] bg-transparent p-0"
+          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
           title="글자 색"
         />
       </div>
@@ -2259,23 +2300,107 @@ function TextBoxToolbar({
           />
         </div>
       </div>
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          title="가로 정렬 바꾸기"
-          onClick={cycleAlign}
-          className="flex h-7 flex-1 items-center justify-center border border-[var(--color-hairline)] text-xs"
-        >
-          {box.align === "left" ? "왼쪽 정렬" : box.align === "center" ? "가운데 정렬" : "오른쪽 정렬"}
-        </button>
-        <button
-          type="button"
-          title="세로 정렬 바꾸기 (박스 높이를 조절했을 때만 보여요)"
-          onClick={cycleVerticalAlign}
-          className="flex h-7 flex-1 items-center justify-center border border-[var(--color-hairline)] text-xs"
-        >
-          {(box.verticalAlign ?? "top") === "top" ? "위 정렬" : box.verticalAlign === "middle" ? "가운데" : "아래 정렬"}
-        </button>
+      {/* 2026-09-27, 혜민님 요청: "가로폭, 세로폭 조절이 가능한 패널이여야해요"(일러스트
+          레이터 문자 패널 참고) — 글자를 가로/세로로 눌러 늘이는 비율(%)이에요. ⚠️ 화면
+          미리보기 전용, 인쇄 PDF엔 아직 반영 안 돼요(이미지박스 회전과 같은 상태). */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+            가로 폭(%)
+          </label>
+          <input
+            type="number"
+            min={50}
+            max={200}
+            step={1}
+            value={box.scaleXPct ?? 100}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (!Number.isFinite(v)) return;
+              onChange({ scaleXPct: Math.max(50, Math.min(200, v)) });
+            }}
+            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+            세로 폭(%)
+          </label>
+          <input
+            type="number"
+            min={50}
+            max={200}
+            step={1}
+            value={box.scaleYPct ?? 100}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (!Number.isFinite(v)) return;
+              onChange({ scaleYPct: Math.max(50, Math.min(200, v)) });
+            }}
+            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
+      </div>
+      {/* 2026-09-27, 혜민님 요청: "가운데정렬, 가운데 라고만 버튼이 되어있으니 어떤것을
+          의미하는지 확인이 어렵습니다. 텍스트 가운데 정렬이면 텍스트 관련된 아이콘으로
+          박스영역이면 박스영역 관련된 아이콘으로" — 텍스트 문단 정렬(가로)은 글줄
+          아이콘(textAlign*)으로, 박스 안 세로 위치(박스 영역 개념)는 기존 사각형
+          정렬 아이콘(align top/vCenter/bottom)으로 구분해서 각각 3개씩 명시적인
+          버튼으로 바꿨어요(순환식 토글 대신 지금 상태가 바로 눌린 채로 보임).
+          "박스안에 박스" 느낌을 줄이려고 바깥 테두리 없이 버튼끼리만 나란히 뒀어요. */}
+      <div>
+        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">문단 정렬</p>
+        <div className="flex gap-1">
+          {(
+            [
+              { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
+              { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
+              { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
+            ]
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              title={opt.title}
+              onClick={() => onChange({ align: opt.id })}
+              className={`flex h-7 flex-1 items-center justify-center border transition ${
+                box.align === opt.id
+                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+              }`}
+            >
+              <LayerIcon name={opt.icon} className="h-4 w-4" />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
+          박스 안 세로 위치 (박스 높이를 조절했을 때만 보여요)
+        </p>
+        <div className="flex gap-1">
+          {(
+            [
+              { id: "top" as const, icon: "alignTop" as const, title: "위" },
+              { id: "middle" as const, icon: "alignVCenter" as const, title: "가운데" },
+              { id: "bottom" as const, icon: "alignBottom" as const, title: "아래" },
+            ]
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              title={opt.title}
+              onClick={() => onChange({ verticalAlign: opt.id })}
+              className={`flex h-7 flex-1 items-center justify-center border transition ${
+                (box.verticalAlign ?? "top") === opt.id
+                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+              }`}
+            >
+              <LayerIcon name={opt.icon} className="h-4 w-4" />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -4237,9 +4362,11 @@ function UploadPageContent() {
   // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "레이아웃" 탭부터 보여줘요(2026-09-23,
   // 독립 "사진" 탭 제거하면서 기본 탭도 바꿨어요).
   const [activeEditTab, setActiveEditTab] = useState<EditTabId>("layout");
+  // "텍스트" 탭의 "+ 글상자 추가" 버튼이 왼쪽/오른쪽 페이지 중 어디에 넣을지 기억해두는
+  // 작은 토글이에요(2026-09-27, 버튼 두 개를 하나로 합치면서 추가).
+  const [textBoxAddSide, setTextBoxAddSide] = useState<"left" | "right">("right");
   // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
   // 개수가 안 맞아 적용을 막았을 때 보여줄 안내 문구예요.
-  const [layoutApplyRange, setLayoutApplyRange] = useState<LayoutApplyRange>("spread");
   const [layoutCountFilter, setLayoutCountFilter] = useState<LayoutCountFilter>("auto");
   const [layoutApplyMessage, setLayoutApplyMessage] = useState<string | null>(null);
   // 템플릿 칸보다 사진이 많을 때 "어떤 사진을 쓸지" 고르는 팝업의 상태예요(2026-09-23
@@ -4253,6 +4380,17 @@ function UploadPageContent() {
     candidates: ImageBoxDef[];
   } | null>(null);
   const [pendingLayoutApplySelectedIds, setPendingLayoutApplySelectedIds] = useState<string[]>([]);
+  // 2026-09-27, 혜민님 요청: "기본적으로 펼침면으로 레이아웃을 보여주세요 ... 적용할때는
+  // 왼쪽페이지에 적용할건지 양쪽페이지 적용할건지 오른쪽페이지만 적용할건지 ... 묻는형식으로
+  // 해주세요." — 레이아웃 패널은 이제 항상 스프레드(펼침면) 미리보기로 보여주고(원래
+  // half 전용이던 템플릿도 좌우로 자동 복제해서 스프레드 형태로 보여줌,
+  // spreadBrowseTemplates()), 썸네일을 클릭하면 이 팝업이 떠서 왼쪽/양쪽/오른쪽 중
+  // 어디에 적용할지 물어봐요.
+  const [layoutRangePicker, setLayoutRangePicker] = useState<{
+    spreadIndex: number;
+    template: PhotoLayoutTemplate;
+    allowLeft: boolean;
+  } | null>(null);
   // 표지 레이아웃 탭용 — 위 pendingLayoutApply/layoutApplyMessage와 같은 역할인데
   // 표지(앞표지/뒤표지)에 적용할 때만 써요(2026-09-24 추가). 적용 대상(앞표지/뒤표지)은
   // 내지의 "적용 범위"에 대응하는 값이에요.
@@ -4509,18 +4647,23 @@ function UploadPageContent() {
     );
   }
 
-  // 새 텍스트박스 하나를 기본값으로 만들어요(항상 페이지 가운데 근처, 기본 서체/검정 글자).
+  // 새 텍스트박스 하나를 기본값으로 만들어요. 2026-09-27, 혜민님 요청: "글상자
+  // 추가할때 기본 설정이 가로폭이 길고 텍스트가 상단에 위치되어있었는데 적당한
+  // 직사각형 크기에 글상자 왼쪽 상단에 텍스트 입력 창이 있었으면 합니다" — 가로로
+  // 넓게 퍼진 박스(폭 70%, 높이 자동) 대신 적당한 직사각형(폭 45%, 높이 28% 고정)으로,
+  // 정렬도 가운데가 아니라 왼쪽 위로 바꿨어요.
   function makeTextBox(): TextBoxDef {
     return {
       id: crypto.randomUUID(),
       text: "",
-      xPct: 15,
-      yPct: 42,
-      widthPct: 70,
+      xPct: 27,
+      yPct: 30,
+      widthPct: 46,
+      heightPct: 28,
       fontFamily: fontOptions[0].id,
       fontScale: 1,
       color: "#1a1a1a",
-      align: "center",
+      align: "left",
       verticalAlign: "top",
       bold: false,
     };
@@ -5303,7 +5446,12 @@ function UploadPageContent() {
   ) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
-    const allBoxes = spread.imageBoxes ?? [];
+    // 2026-09-27, 혜민님 요청: "스티커도 이미지로 인식되는거같습니다 ... 스티커는
+    // 레이아웃 배치할떄 들어가지 않도록요" — 레이아웃 템플릿은 사진(스티커가 아닌
+    // 이미지박스)만 대상으로 하고, 스티커는 지금 있는 자리 그대로 손 안 대요.
+    const allBoxesRaw = spread.imageBoxes ?? [];
+    const stickerBoxes = allBoxesRaw.filter((b) => isStickerImageBox(b));
+    const allBoxes = allBoxesRaw.filter((b) => !isStickerImageBox(b));
     const inRange = imageBoxesInRange(allBoxes, range);
     const outOfRange = allBoxes.filter((b) => !inRange.includes(b));
     const fullOrder = getSpreadImageBoxOrder(spread);
@@ -5368,7 +5516,12 @@ function UploadPageContent() {
     );
 
     const preservedOrder = [
-      ...fullOrder.filter((id) => outOfRange.some((b) => b.id === id) || extraBoxes.some((b) => b.id === id)),
+      ...fullOrder.filter(
+        (id) =>
+          stickerBoxes.some((b) => b.id === id) ||
+          outOfRange.some((b) => b.id === id) ||
+          extraBoxes.some((b) => b.id === id)
+      ),
       ...placed.map((b) => b.id),
     ];
 
@@ -5390,7 +5543,7 @@ function UploadPageContent() {
         if (i !== spreadIndex) return s;
         const next: SpreadDef = {
           ...s,
-          imageBoxes: [...outOfRange, ...extraBoxes, ...placed],
+          imageBoxes: [...stickerBoxes, ...outOfRange, ...extraBoxes, ...placed],
           imageBoxOrder: preservedOrder,
         };
         if (captionKey && captionSlot) {
@@ -5413,7 +5566,10 @@ function UploadPageContent() {
   // 크기를 다시 읽어야 해서 이 이어받는 부분만 비동기로 처리해요.
   function applyCoverLayoutTemplate(target: "front" | "back", template: PhotoLayoutTemplate, selectedIds?: string[]) {
     const isFront = target === "front";
-    const existingBoxes = isFront ? coverImageBoxes : backCoverImageBoxes;
+    // 2026-09-27, 혜민님 요청 — 내지와 같은 이유로 표지 스티커도 레이아웃 대상에서 빼요.
+    const existingBoxesRaw = isFront ? coverImageBoxes : backCoverImageBoxes;
+    const coverStickerBoxes = existingBoxesRaw.filter((b) => isStickerImageBox(b));
+    const existingBoxes = existingBoxesRaw.filter((b) => !isStickerImageBox(b));
     const legacyPhoto = isFront ? coverPhoto : backCoverPhoto;
     // "사진 아래 문구 공간" 템플릿이면(내지 applyLayoutTemplate과 같은 방식) 남는 세로
     // 공간에 캡션 텍스트박스를 자동으로 하나 만들어줘요. 표지는 "범위" 개념이 없어서
@@ -5476,13 +5632,13 @@ function UploadPageContent() {
           : null
       );
       if (isFront) {
-        setCoverImageBoxes([...extraBoxes, ...placed]);
+        setCoverImageBoxes([...coverStickerBoxes, ...extraBoxes, ...placed]);
         setCoverPhoto(null);
         if (captionSlot) {
           setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
         }
       } else {
-        setBackCoverImageBoxes([...extraBoxes, ...placed]);
+        setBackCoverImageBoxes([...coverStickerBoxes, ...extraBoxes, ...placed]);
         setBackCoverPhoto(null);
         if (captionSlot) {
           setBackCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
@@ -6506,6 +6662,80 @@ function UploadPageContent() {
             </div>
           </div>
         )}
+        {/* "왼쪽/양쪽/오른쪽 페이지 중 어디에 적용할지" 묻는 팝업이에요(2026-09-27
+            추가) — 레이아웃 패널을 항상 스프레드(펼침면)로 보여주면서, 실제 적용 범위는
+            썸네일을 고른 다음 여기서 물어봐요(스위트북 참고 화면과 같은 방식). */}
+        {layoutRangePicker && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-2"
+            onClick={() => setLayoutRangePicker(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex w-full max-w-md flex-col overflow-hidden border border-[var(--color-hairline)] bg-white"
+            >
+              <div className="flex items-center justify-between border-b border-[var(--color-hairline)] px-3 py-2">
+                <p className="text-sm font-semibold">변경하실 레이아웃을 선택해주세요</p>
+                <button
+                  type="button"
+                  onClick={() => setLayoutRangePicker(null)}
+                  className="text-[var(--color-charcoal)]/40 hover:text-[var(--color-charcoal)]"
+                  aria-label="닫기"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2 p-3">
+                {(
+                  [
+                    { id: "left" as const, label: "왼쪽 페이지", enabled: layoutRangePicker.allowLeft },
+                    { id: "spread" as const, label: "양쪽 페이지", enabled: true },
+                    { id: "right" as const, label: "오른쪽 페이지", enabled: true },
+                  ]
+                ).map((opt) => {
+                  const halfSource = SPREAD_AUTO_TO_HALF[layoutRangePicker.template.id];
+                  const isSpreadOnly = !halfSource;
+                  const disabled = !opt.enabled || (isSpreadOnly && opt.id !== "spread");
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        const spreadIndex = layoutRangePicker.spreadIndex;
+                        if (opt.id === "spread") {
+                          applyLayoutTemplate(spreadIndex, "spread", layoutRangePicker.template);
+                        } else if (halfSource) {
+                          applyLayoutTemplate(spreadIndex, opt.id, halfSource);
+                        }
+                        setLayoutRangePicker(null);
+                      }}
+                      className={`flex flex-col items-center gap-1.5 border p-2 text-center transition ${
+                        disabled
+                          ? "cursor-not-allowed border-[var(--color-hairline)] opacity-30"
+                          : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]"
+                      }`}
+                    >
+                      <div className="flex h-12 w-full overflow-hidden border border-[var(--color-hairline)] bg-[var(--color-ivory)]">
+                        <div
+                          className={`h-full flex-1 ${
+                            opt.id === "left" || opt.id === "spread" ? "bg-transparent" : "bg-[var(--color-charcoal)]/25"
+                          }`}
+                        />
+                        <div
+                          className={`h-full flex-1 border-l border-[var(--color-hairline)] ${
+                            opt.id === "right" || opt.id === "spread" ? "bg-transparent" : "bg-[var(--color-charcoal)]/25"
+                          }`}
+                        />
+                      </div>
+                      <span className="text-[11px] text-[var(--color-charcoal)]/70">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
         {/* 표지 레이아웃 탭용 선택 팝업이에요 — 위 pendingLayoutApply 팝업(내지용)과
             같은 구조·같은 동작이에요(2026-09-24 추가). 취소하면(바깥 클릭 포함) 아무것도
             안 바뀌고 그대로 닫혀요. */}
@@ -6641,7 +6871,11 @@ function UploadPageContent() {
                   <button
                     type="button"
                     onClick={() => setEditorMode("preview")}
-                    className="flex h-8 items-center border border-[var(--color-hairline)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                    // 2026-09-27, 혜민님 요청: "완료, 다음 버튼들 크기가 전부 제각각이라
+                    // 이상합니다" — 텍스트 길이에 따라 버튼 폭이 들쭉날쭉했던 걸, "완료"/
+                    // "다음" 버튼에 공통 최소 폭(min-w)과 가운데 정렬을 줘서 비슷한
+                    // 크기로 보이게 맞췄어요.
+                    className="flex h-8 min-w-[68px] items-center justify-center border border-[var(--color-hairline)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
                     ✓ 완료
                   </button>
@@ -6669,7 +6903,7 @@ function UploadPageContent() {
                     type="button"
                     onClick={() => setIsPrintPreview((v) => !v)}
                     title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
-                    className={`flex h-8 items-center border px-1.5 text-xs font-medium transition ${
+                    className={`flex h-8 min-w-[68px] items-center justify-center border px-1.5 text-xs font-medium transition ${
  isPrintPreview
                         ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
                         : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
@@ -6713,7 +6947,7 @@ function UploadPageContent() {
                     type="button"
                     onClick={() => handleProceed(nextUrl, photos)}
                     disabled={isSaving}
-                    className={`flex h-8 shrink-0 items-center px-2.5 text-xs font-medium text-white transition ${
+                    className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition ${
                       isSaving
                         ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
                         : "bg-[var(--color-charcoal)] hover:opacity-90"
@@ -6729,7 +6963,7 @@ function UploadPageContent() {
                   <button
                     type="button"
                     disabled
-                    className="flex h-8 shrink-0 cursor-not-allowed items-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70"
+                    className="flex h-8 min-w-[68px] shrink-0 cursor-not-allowed items-center justify-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70"
                   >
                     다음
                   </button>
@@ -8215,22 +8449,19 @@ function UploadPageContent() {
                                 </div>
                               )}
                               {activeEditTab === "layout" && (() => {
-                                // 스프레드 1(i===0)의 왼쪽 면은 표지 뒷면이라 인쇄 안 되는 빈
-                                // 면이에요 — 그래서 "왼쪽 페이지"·"펼침면 전체"는 고를 수 없고
-                                // "오른쪽 페이지"(=1p)만 적용 가능해요.
-                                const rangeOptions: { id: LayoutApplyRange; label: string }[] =
-                                  i === 0
-                                    ? [{ id: "right", label: "오른쪽 페이지(1p)" }]
-                                    : [
-                                        { id: "left", label: "왼쪽 페이지" },
-                                        { id: "right", label: "오른쪽 페이지" },
-                                        { id: "spread", label: "펼침면 전체" },
-                                      ];
-                                const effectiveRange: LayoutApplyRange =
-                                  i === 0 ? "right" : layoutApplyRange;
-                                const boxesInRange = imageBoxesInRange(spread.imageBoxes ?? [], effectiveRange);
-                                const rangePhotoCount = boxesInRange.length;
-                                const candidates = templatesForRange(effectiveRange);
+                                // 2026-09-27, 혜민님 요청: "기본적으로 펼침면으로 레이아웃을
+                                // 보여주세요 ... 낱장으로 되어있는건 전부 스프레드로
+                                // 만들어주세요." — 더 이상 "적용 범위"를 먼저 고르지 않고,
+                                // 항상 스프레드(펼침면) 형태 썸네일만 보여줘요(원래 half
+                                // 전용이던 템플릿도 좌우로 자동 복제됨, spreadBrowseTemplates()).
+                                // 실제 적용 범위(왼쪽/양쪽/오른쪽)는 썸네일을 클릭한 뒤 뜨는
+                                // 팝업(layoutRangePicker)에서 물어봐요. 스프레드 1(i===0)의
+                                // 왼쪽 면은 표지 뒷면이라 인쇄 안 되는 빈 면이라, 그 팝업에서
+                                // "왼쪽 페이지"만 비활성화해요.
+                                const allowLeft = i !== 0;
+                                const nonStickerBoxes = (spread.imageBoxes ?? []).filter((b) => !isStickerImageBox(b));
+                                const rangePhotoCount = nonStickerBoxes.length;
+                                const candidates = spreadBrowseTemplates();
                                 const visibleTemplates = candidates.filter((t) => {
                                   if (layoutCountFilter === "auto") return t.photoCount === rangePhotoCount;
                                   if (layoutCountFilter === "all") return true;
@@ -8239,31 +8470,6 @@ function UploadPageContent() {
                                 });
                                 return (
                                   <div className="flex flex-col gap-1.5">
-                                    <div>
-                                      <p className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 범위</p>
-                                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                        {rangeOptions.map((opt) => (
-                                          <button
-                                            key={opt.id}
-                                            type="button"
-                                            onClick={() => {
-                                              setLayoutApplyRange(opt.id);
-                                              setLayoutApplyMessage(null);
-                                            }}
-                                            className={`border px-1.5 py-1 text-[11px] transition ${
- effectiveRange === opt.id
-                                                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                                            }`}
-                                          >
-                                            {opt.label}
-                                          </button>
-                                        ))}
-                                      </div>
-                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50">
-                                        지금 이 범위엔 사진이 {rangePhotoCount}장 있어요.
-                                      </p>
-                                    </div>
                                     <div>
                                       <p className="text-xs font-medium text-[var(--color-charcoal)]/70">사진 개수</p>
                                       <div className="mt-1.5 flex flex-wrap gap-1">
@@ -8282,34 +8488,28 @@ function UploadPageContent() {
                                           </button>
                                         ))}
                                       </div>
+                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50">
+                                        지금 이 스프레드엔 사진이 {rangePhotoCount}장 있어요.
+                                      </p>
                                     </div>
                                     {layoutApplyMessage && (
                                       <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
                                         {layoutApplyMessage}
                                       </p>
                                     )}
-                                    {/* 2026-09-24 혜민님 요청 — "라운드 되어있는 버튼들 전부
-                                        라운드 없애주시고 공간활용해서 배치해주세요"(참고: 다른
-                                        에디터의 각진 촘촘한 그리드) — 템플릿 카드 테두리도 각지게,
-                                        칸 사이 간격도 좁혀서 더 많이 보이게 했어요. */}
+                                    {/* 2026-09-27, 혜민님 요청으로 썸네일 아래 설명글(이름·칸
+                                        수)을 없애고 이미지(슬롯 미리보기)만 남겼어요. */}
                                     <div className="grid grid-cols-2 gap-1.5">
                                       {visibleTemplates.map((t) => (
                                         <button
                                           key={t.id}
                                           type="button"
-                                          onClick={() => {
-                                            // 2026-09-24: "레이아웃 바로 적용되고..." 요청으로
-                                            // 사진 수가 안 맞아도 고르는 팝업 없이 즉시 적용해요
-                                            // (칸보다 적으면 빈 칸은 PHOTO 플레이스홀더로, 많으면
-                                            // 저장된 순서 앞에서부터 칸 수만큼만 채우고 나머지는
-                                            // 그대로 남겨둬요 — applyLayoutTemplate이 처리).
-                                            applyLayoutTemplate(i, effectiveRange, t);
-                                          }}
+                                          onClick={() => setLayoutRangePicker({ spreadIndex: i, template: t, allowLeft })}
                                           className="border border-[var(--color-hairline)] p-1 text-left transition hover:border-[var(--color-sky)]"
                                         >
                                           <div
                                             className="relative w-full overflow-hidden bg-[var(--color-ivory)]"
-                                            style={{ aspectRatio: t.scope === "spread" ? "2 / 1" : "1 / 1" }}
+                                            style={{ aspectRatio: "2 / 1" }}
                                           >
                                             {t.slots.map((slot, idx) => (
                                               <div
@@ -8324,14 +8524,6 @@ function UploadPageContent() {
                                               />
                                             ))}
                                           </div>
-                                          <p className="mt-1 truncate text-[10px] text-[var(--color-charcoal)]/70">
-                                            {t.name}
-                                            {t.hasCaptionSpace ? " · 문구 공간" : ""}
-                                          </p>
-                                          <p className="mt-0.5 text-[9px] text-[var(--color-charcoal)]/50">
-                                            사진 칸 {t.photoCount}개
-                                            {t.photoCount !== rangePhotoCount ? ` · 지금 ${rangePhotoCount}장` : ""}
-                                          </p>
                                         </button>
                                       ))}
                                       {visibleTemplates.length === 0 && (
@@ -8466,22 +8658,45 @@ function UploadPageContent() {
                                 />
                               )}
                               {activeEditTab === "text" && (
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-1.5">
+                                  {/* 2026-09-27, 혜민님 요청: "글상자 추가 버튼 하나만
+                                      만들어주세요. 굳이 두개를 넣을필요 없습니다." — 나란히
+                                      뜨던 두 개의 전체너비 버튼(왼쪽/오른쪽) 대신, 작은
+                                      위치 선택(표지 스티커 탭 "적용 대상"과 같은 패턴)
+                                      + 버튼 하나로 합쳤어요. 텍스트박스는 그 페이지 자체를
+                                      0~100%로 보는 좌표라 페이지 경계를 못 넘어가서
+                                      (사진박스와 달리 스프레드 전체를 자유롭게 드래그할 수
+                                      없음), 위치는 미리 골라야 해요. 스프레드 1(i===0)은
+                                      왼쪽 면이 표지 뒷면이라 오른쪽만 선택할 수 있어요. */}
                                   {i !== 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddTextBox(i, "left")}
-                                      className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
-                                    >
-                                      + 왼쪽 페이지에 글상자 추가
-                                    </button>
+                                    <div className="flex gap-1.5">
+                                      {(
+                                        [
+                                          { id: "left" as const, label: "왼쪽 페이지" },
+                                          { id: "right" as const, label: "오른쪽 페이지" },
+                                        ]
+                                      ).map((opt) => (
+                                        <button
+                                          key={opt.id}
+                                          type="button"
+                                          onClick={() => setTextBoxAddSide(opt.id)}
+                                          className={`flex-1 border px-1.5 py-1 text-[11px] transition ${
+                                            textBoxAddSide === opt.id
+                                              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                                          }`}
+                                        >
+                                          {opt.label}
+                                        </button>
+                                      ))}
+                                    </div>
                                   )}
                                   <button
                                     type="button"
-                                    onClick={() => handleAddTextBox(i, "right")}
+                                    onClick={() => handleAddTextBox(i, i === 0 ? "right" : textBoxAddSide)}
                                     className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
                                   >
-                                    + 오른쪽 페이지에 글상자 추가
+                                    + 글상자 추가
                                   </button>
                                 </div>
                               )}

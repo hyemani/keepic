@@ -462,6 +462,48 @@ export const SPREAD_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
 
 export const ALL_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [...HALF_LAYOUT_TEMPLATES, ...SPREAD_LAYOUT_TEMPLATES];
 
+// 2026-09-27, 혜민님 요청: "기본적으로 펼침면으로 레이아웃을 보여주세요. 냱장으로 되어있는건 전부
+// 스프레드로 만들어주세요." 한 족(half) 템플릿을 그대로 두 번 복사해서 왼쪽/오른쪽
+// 페이지에 각각 배치하면, 별도 새 디자인 없이도 기계적으로 "펼침면 미리보기"가
+// 나와요 — SPREAD_LEFT/SPREAD_RIGHT가 이미 스프레드 좌우 반을 정확히 가리키고 있어서, half
+// 템플릿의 0~100% 좌표를 그 반의 폭으로 비례 변환만 해주면 돼요.
+function remapSlotsToRect(slots: LayoutSlot[], rect: Rect): LayoutSlot[] {
+  return slots.map((s) => ({
+    xPct: rect.x + (s.xPct / 100) * rect.w,
+    yPct: s.yPct,
+    widthPct: (s.widthPct / 100) * rect.w,
+    heightPct: s.heightPct,
+  }));
+}
+
+// half 템플릿 하나를 "양쪽 페이지에 같은 배치가 각각 반복"되는 스프레드 템플릿으로
+// 변환해요 — 사진 칸 개수는 두 배가 돼요(양쪽 페이지에 각각 채워야 하니까).
+function mirrorHalfToSpread(t: PhotoLayoutTemplate): PhotoLayoutTemplate {
+  return {
+    id: `spread-auto-${t.id}`,
+    name: t.name,
+    photoCount: t.photoCount * 2,
+    scope: "spread",
+    slots: [...remapSlotsToRect(t.slots, SPREAD_LEFT), ...remapSlotsToRect(t.slots, SPREAD_RIGHT)],
+    hasCaptionSpace: t.hasCaptionSpace,
+  };
+}
+
+// half→자동변환 스프레드 템플릿 목록(편집 패널 기본 목록에서 사용)과, 각 항목을
+// "왼쪽만/오른쪽만" 적용할 때 다시 찾아야 하는 원본 half 템플릿을 id로 바로 찾는 맵이에요.
+export const HALF_AS_SPREAD_TEMPLATES: PhotoLayoutTemplate[] = HALF_LAYOUT_TEMPLATES.map(mirrorHalfToSpread);
+export const SPREAD_AUTO_TO_HALF: Record<string, PhotoLayoutTemplate> = Object.fromEntries(
+  HALF_LAYOUT_TEMPLATES.map((t) => [`spread-auto-${t.id}`, t])
+);
+
+// 편집 패널 "레이아웃" 탭이 기본적으로 보여주는 목록이에요 — 원래 half 전용이던 템플릿들도
+// 미러링된 스프레드 형태로 하나로 합쳐서 보여줘요(전부 펼치면 미리보기, "냱장으로 되어있는거
+// 전부 스프레드로" 요청).
+export function spreadBrowseTemplates(): PhotoLayoutTemplate[] {
+  return [...SPREAD_LAYOUT_TEMPLATES, ...HALF_AS_SPREAD_TEMPLATES];
+}
+
+
 export type LayoutApplyRange = "left" | "right" | "spread";
 
 export function templatesForRange(range: LayoutApplyRange): PhotoLayoutTemplate[] {
