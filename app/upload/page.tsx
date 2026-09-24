@@ -345,8 +345,13 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
-type CoverEditTabId = "layout" | "photo" | "text" | "background";
+type CoverEditTabId = "theme" | "layout" | "photo" | "text" | "background";
 const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
+  // 2026-09-26, 혜민님 요청: 앞표지·뒤표지·책등을 하나씩 따로 안 만지고, 미리 만들어둔
+  // "테마"를 골라 한 번에 어울리는 배경(+ 뒤표지 무늬)·제목 서체로 맞출 수 있는 탭이에요.
+  // 맨 앞에 둬서 제일 먼저 보이게 했어요 — 테마를 고른 뒤에도 사진·텍스트는 아래 탭에서
+  // 그대로 따로 편집할 수 있어요(테마가 사진·텍스트를 지우거나 건드리지 않음).
+  { id: "theme", label: "테마", icon: "✨" },
   // 2026-09-24, 혜민님 요청: 표지도 내지처럼 사진 여러 장을 미리 정해둔 배치로 한 번에
   // 넣을 수 있는 "레이아웃" 탭이에요. 앞표지/뒤표지 각각 따로 적용해요(책등은 사진 칸이
   // 없어서 대상에서 빼고, 표지 전체를 가로지르는 파노라마는 별도 기능이라 여기 포함 안 해요).
@@ -359,6 +364,19 @@ const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
   { id: "text", label: "텍스트", icon: "Tt" },
   { id: "background", label: "배경", icon: "🎨" },
 ];
+
+// 표지 "테마" 프리셋에 쓰는 타입이에요 — 실제 배열(COVER_THEMES)은 fontOptions
+// 선언 다음에 있어요(테마 기본 서체가 fontOptions를 참조해서, 선언 순서상 그 뒤에
+// 와야 해요).
+type CoverTheme = {
+  id: string;
+  label: string;
+  frontBackgroundColor: string;
+  spineBackgroundColor: string;
+  backBackgroundColor: string;
+  backPatternId?: string;
+  titleFontFamily?: string;
+};
 function measureSpineTitleFontSizeMm(
   title: string,
   spineMm: number,
@@ -483,6 +501,32 @@ const fontOptions = [
   { id: "'Nosifer', cursive", label: "Nosifer" },
   { id: "'DM Serif Display', serif", label: "DM Serif Display" },
   { id: "'Bodoni Moda', serif", label: "Bodoni Moda" },
+];
+
+// 표지 "테마" 프리셋 — 앞표지·책등·뒤표지 배경색(+ 뒤표지 무늬)과 제목 서체를 한 세트로
+// 묶어둔 거예요. 적용해도 기존에 넣은 사진·텍스트박스는 전혀 건드리지 않고, 배경·서체만
+// 바꿔요(레이아웃 템플릿 적용과 같은 "비파괴적" 원칙). 2026-09-26, 혜민님이 스위트북
+// 참고 화면을 보여주며 "표지를 테마 형식으로 바꿔달라"고 요청 — 이번 라운드엔 실제 테마
+// 2개를 우선 만들고, 더 필요하면 이 배열에 계속 추가하면 돼요.
+const COVER_THEMES: CoverTheme[] = [
+  {
+    id: "white-simple",
+    label: "화이트 심플",
+    frontBackgroundColor: "#ffffff",
+    spineBackgroundColor: "#ffffff",
+    backBackgroundColor: "#ffffff",
+    backPatternId: undefined,
+    titleFontFamily: fontOptions[0].id,
+  },
+  {
+    id: "warm-beige",
+    label: "웜 베이지",
+    frontBackgroundColor: "#f5efe6",
+    spineBackgroundColor: "#e8ddc9",
+    backBackgroundColor: "#f5efe6",
+    backPatternId: "grain-kraft",
+    titleFontFamily: fontOptions[1].id,
+  },
 ];
 
 const PRINT_DPI = 200;
@@ -5240,6 +5284,24 @@ function UploadPageContent() {
     if (titleFontLinked) setCoverTitleFontFamily(fontId);
   }
 
+  // 표지 "테마" 하나를 골라 앞표지·책등·뒤표지 배경(+ 뒤표지 무늬)·제목 서체를 한 번에
+  // 맞춰요. 사진·텍스트박스는 전혀 안 건드려요 — 배경·서체만 바꾸는 비파괴적 적용이라,
+  // 테마를 고른 뒤에도 사진·텍스트는 원래대로 남아있어요(레이아웃 탭에서처럼 따로
+  // 편집 가능). titleFontFamily가 있으면 표지·책등 제목 서체를 "연결" 여부와 상관없이
+  // 둘 다 같은 테마 서체로 맞춰요.
+  function applyCoverTheme(themeId: string) {
+    const theme = COVER_THEMES.find((t) => t.id === themeId);
+    if (!theme) return;
+    setCoverFrontBackgroundColor(theme.frontBackgroundColor);
+    setCoverSpineBackgroundColor(theme.spineBackgroundColor);
+    setBackCoverBackgroundColor(theme.backBackgroundColor);
+    setBackCoverPatternId(theme.backPatternId);
+    if (theme.titleFontFamily) {
+      setCoverTitleFontFamily(theme.titleFontFamily);
+      setSpineTitleFontFamily(theme.titleFontFamily);
+    }
+  }
+
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
     // "AI 맞춤 레이아웃"에서 박스 자체의 ✕ 버튼으로 지울 때도, 반대 방향으로
     // "전체 사진 목록"의 사진 목록이 계속 남아있지 않도록 짝이 되는 사진도 같이 지워요.
@@ -6601,6 +6663,44 @@ function UploadPageContent() {
                               scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                               pageWidthMm={coverPanelMm + coverBleedMm}
                             />
+                          )}
+                          {activeCoverEditTab === "theme" && (
+                            <div className="flex flex-col gap-2">
+                              <p className="text-xs text-[var(--color-charcoal)]/60 break-keep">
+                                테마를 고르면 앞표지·책등·뒤표지 배경과 제목 서체가 한 번에
+                                바뀌어요. 이미 넣은 사진·텍스트는 그대로 남아있고, 고른 뒤에도
+                                아래 “레이아웃”·“사진”·“텍스트” 탭에서 각각 따로 편집할 수
+                                있어요.
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {COVER_THEMES.map((theme) => (
+                                  <button
+                                    key={theme.id}
+                                    type="button"
+                                    onClick={() => applyCoverTheme(theme.id)}
+                                    className="flex w-24 flex-col items-center gap-1 border border-[var(--color-hairline)] bg-white p-1.5 text-center transition hover:border-[var(--color-charcoal)]"
+                                  >
+                                    <span className="flex h-10 w-full overflow-hidden">
+                                      <span
+                                        className="h-full flex-1"
+                                        style={{ backgroundColor: theme.frontBackgroundColor }}
+                                      />
+                                      <span
+                                        className="h-full w-1.5"
+                                        style={{ backgroundColor: theme.spineBackgroundColor }}
+                                      />
+                                      <span
+                                        className="h-full flex-1"
+                                        style={{ backgroundColor: theme.backBackgroundColor }}
+                                      />
+                                    </span>
+                                    <span className="text-[11px] text-[var(--color-charcoal)]/70">
+                                      {theme.label}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
                           {activeCoverEditTab === "photo" && (
                             <div className="flex flex-col gap-1.5">
