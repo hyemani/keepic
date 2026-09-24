@@ -4494,7 +4494,7 @@ function UploadPageContent() {
   const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
   // 뒤표지도 내지처럼 그래픽·패턴·텍스처 배경과 자유 배치 텍스트박스를 넣을 수 있어요.
-  const [backCoverPatternId, setBackCoverPatternId] = useState<string | undefined>(undefined);
+  const [coverPatternId, setCoverPatternId] = useState<string | undefined>(undefined);
   const [backCoverTextBoxes, setBackCoverTextBoxes] = useState<TextBoxDef[]>([]);
   // 책등·앞표지 배경색이에요. 뒤표지와 마찬가지로 지정 안 하면 기존 기본색(책등은 아이보리,
   // 앞표지는 흰색) 그대로예요. 세 곳 모두 따로 고를 수도, 아래 "배경색" 팔레트에서 한 번에
@@ -4639,10 +4639,6 @@ function UploadPageContent() {
   } | null>(null);
   const [pendingCoverLayoutApplySelectedIds, setPendingCoverLayoutApplySelectedIds] = useState<string[]>([]);
   const [activeCoverEditTab, setActiveCoverEditTab] = useState<CoverEditTabId>("layout");
-  // 표지 배경 탭에서 "지금 어느 범위(전체/앞표지/책등/뒤표지)에 색을 적용할지" 고르는
-  // 순수 UI 상태예요 — 데이터가 아니라 선택 상태라 히스토리 스냅샷에는 포함하지 않아요
-  // (사진·글상자 선택 상태(activeTextBox 등)와 같은 급).
-  const [coverBackgroundScope, setCoverBackgroundScope] = useState<"all" | "front" | "spine" | "back">("all");
   // 좁은 화면에서 왼쪽 속성 패널을 접어 캔버스를 더 넓게 볼 수 있게 하는 순수 레이아웃
   // 상태예요 — 줌/맞춤(canvasZoom·canvasFitToken)과는 완전히 무관해서, 이 토글을
   // 눌러도 지금 보고 있는 확대 비율·위치는 그대로 유지돼요.
@@ -6155,7 +6151,7 @@ function UploadPageContent() {
     setCoverFrontBackgroundColor(theme.frontBackgroundColor);
     setCoverSpineBackgroundColor(theme.spineBackgroundColor);
     setBackCoverBackgroundColor(theme.backBackgroundColor);
-    setBackCoverPatternId(theme.backPatternId);
+    setCoverPatternId(theme.backPatternId);
     if (theme.titleFontFamily) {
       setCoverTitleFontFamily(theme.titleFontFamily);
       setSpineTitleFontFamily(theme.titleFontFamily);
@@ -6350,7 +6346,7 @@ function UploadPageContent() {
       backCoverLogo,
       backCoverPhoto,
       backCoverBackgroundColor,
-      backCoverPatternId,
+      coverPatternId,
       backCoverTextBoxes,
       coverSpineBackgroundColor,
       coverFrontBackgroundColor,
@@ -6380,7 +6376,7 @@ function UploadPageContent() {
     setBackCoverLogo(s.backCoverLogo !== undefined ? s.backCoverLogo : { xPct: 50, yPct: 50, scalePct: 100 });
     setBackCoverPhoto(s.backCoverPhoto);
     setBackCoverBackgroundColor(s.backCoverBackgroundColor);
-    setBackCoverPatternId(s.backCoverPatternId);
+    setCoverPatternId(s.coverPatternId);
     setBackCoverTextBoxes(s.backCoverTextBoxes);
     setCoverSpineBackgroundColor(s.coverSpineBackgroundColor);
     setCoverFrontBackgroundColor(s.coverFrontBackgroundColor);
@@ -6441,7 +6437,7 @@ function UploadPageContent() {
     backCoverLogo,
     backCoverPhoto,
     backCoverBackgroundColor,
-    backCoverPatternId,
+    coverPatternId,
     backCoverTextBoxes,
     coverSpineBackgroundColor,
     coverFrontBackgroundColor,
@@ -6660,7 +6656,7 @@ function UploadPageContent() {
       backCoverLogo,
       backCoverPhoto,
       backCoverBackgroundColor,
-      backCoverPatternId,
+      coverPatternId,
       backCoverTextBoxes,
       coverSpineBackgroundColor,
       coverFrontBackgroundColor,
@@ -7575,15 +7571,30 @@ function UploadPageContent() {
                       >
                         <div
                           className="h-full"
-                          style={{ width: `${coverBackPct}%`, backgroundColor: backCoverBackgroundColor ?? "#ffffff" }}
+                          style={{
+                            width: `${coverBackPct}%`,
+                            background: coverPatternId
+                              ? resolveSpreadBackgroundCss({ backgroundColor: backCoverBackgroundColor, backgroundPattern: coverPatternId }, "right")
+                              : (backCoverBackgroundColor ?? "#ffffff"),
+                          }}
                         />
                         <div
                           className="h-full border-x border-[#1a1a1a]/60"
-                          style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#ffffff" }}
+                          style={{
+                            width: `${coverSpinePct}%`,
+                            background: coverPatternId
+                              ? resolveSpreadBackgroundCss({ backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId })
+                              : (coverSpineBackgroundColor ?? "#ffffff"),
+                          }}
                         />
                         <div
                           className="relative h-full overflow-hidden"
-                          style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
+                          style={{
+                            width: `${coverFrontPct}%`,
+                            background: coverPatternId
+                              ? resolveSpreadBackgroundCss({ backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId }, "left")
+                              : (coverFrontBackgroundColor ?? "#ffffff"),
+                          }}
                         >
                           {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
                             <img
@@ -8420,76 +8431,44 @@ function UploadPageContent() {
                             </div>
                           )}
                           {activeCoverEditTab === "background" && (() => {
-                            const scopeValue =
-                              coverBackgroundScope === "back"
-                                ? backCoverBackgroundColor ?? "#ffffff"
-                                : coverBackgroundScope === "spine"
-                                  ? coverSpineBackgroundColor ?? "#ffffff"
-                                  : coverBackgroundScope === "front"
-                                    ? coverFrontBackgroundColor ?? "#ffffff"
-                                    : backCoverBackgroundColor ?? "#ffffff";
-                            const applyScopeColor = (hex: string) => {
-                              if (coverBackgroundScope === "all") {
-                                setBackCoverBackgroundColor(hex);
-                                setCoverSpineBackgroundColor(hex);
-                                setCoverFrontBackgroundColor(hex);
-                              } else if (coverBackgroundScope === "back") {
-                                setBackCoverBackgroundColor(hex);
-                              } else if (coverBackgroundScope === "spine") {
-                                setCoverSpineBackgroundColor(hex);
-                              } else {
-                                setCoverFrontBackgroundColor(hex);
-                              }
+                            // 2026-09-30(2차), 혜민님 지적: "배경이 바뀌는데 왜 큰 구조변경이
+                            // 필요할까요? 이미지하나 넣는 개념인데요" — 맞는 말이었음. 배경
+                            // "색"은 사진·스티커처럼 좌표계를 공유할 필요가 없고, 그냥 앞표지·
+                            // 책등·뒤표지 세 색상값을 한 번에 같이 바꾸면 되는 문제라 "적용범위"
+                            // 선택 메뉴 자체를 없애고 항상 세 군데를 동시에 같은 색으로 맞춤.
+                            // (내지처럼 사진·텍스트박스까지 표지 전체가 하나의 좌표계를 공유하게
+                            // 만드는 건 여전히 구조 변경이 필요한 별개 작업 — 위 "기술 부채" 항목
+                            // 참고.)
+                            const applyCoverColor = (hex: string) => {
+                              setBackCoverBackgroundColor(hex);
+                              setCoverSpineBackgroundColor(hex);
+                              setCoverFrontBackgroundColor(hex);
                             };
-                            const scopeOptions: { id: "all" | "front" | "spine" | "back"; label: string }[] = [
-                              { id: "all", label: "전체 표지" },
-                              { id: "front", label: "앞표지" },
-                              { id: "spine", label: "책등" },
-                              { id: "back", label: "뒤표지" },
-                            ];
+                            const applyCoverPattern = (id: string | undefined) => {
+                              setCoverPatternId(id);
+                            };
+                            const coverColorValue = backCoverBackgroundColor ?? coverSpineBackgroundColor ?? coverFrontBackgroundColor ?? "#ffffff";
                             return (
                             <div className=" border border-[var(--color-hairline)] bg-white p-1.5">
-                              <span className="text-xs font-medium text-[var(--color-charcoal)]/70">적용 범위</span>
-                              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {scopeOptions.map((opt) => (
-                                  <button
-                                    key={opt.id}
-                                    type="button"
-                                    onClick={() => setCoverBackgroundScope(opt.id)}
-                                    className={` border px-1.5 py-1 text-xs transition ${
- coverBackgroundScope === opt.id
-                                        ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                                        : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70"
-                                    }`}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                ))}
-                              </div>
-                              {coverBackgroundScope === "all" && (
-                                <p className="mt-1.5 text-[11px] text-amber-700 break-keep">
-                                  ⚠ 앞표지·책등·뒤표지 색을 한 번에 같은 색으로 덮어써요.
-                                </p>
-                              )}
-                              <div className="mt-3 flex flex-col gap-1.5">
-                                <span className="text-xs text-[var(--color-charcoal)]/60">배경색</span>
+                              <div className="flex flex-col gap-1.5">
+                                <span className="text-xs text-[var(--color-charcoal)]/60">배경색(표지 전체)</span>
                                 <ColorChartPicker
-                                  activeColor={scopeValue}
-                                  onPick={(color) => applyScopeColor(color)}
-                                  customValue={scopeValue}
-                                  onCustomChange={(color) => applyScopeColor(color)}
+                                  activeColor={coverPatternId ? "" : coverColorValue}
+                                  onPick={(color) => applyCoverColor(color)}
+                                  customValue={coverColorValue}
+                                  onCustomChange={(color) => applyCoverColor(color)}
                                 />
                               </div>
                               <div className="mt-3">
                                 <span className="text-xs text-[var(--color-charcoal)]/60">
-                                  그래픽·패턴·텍스처(뒤표지만)
+                                  그래픽·패턴·텍스처(표지 전체)
                                 </span>
                                 <div className="mt-2 flex flex-wrap items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => setBackCoverPatternId(undefined)}
+                                    onClick={() => applyCoverPattern(undefined)}
                                     className={`h-6 border px-2 text-[11px] transition ${
-                                      !backCoverPatternId
+                                      !coverPatternId
                                         ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
                                         : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70"
                                     }`}
@@ -8497,13 +8476,13 @@ function UploadPageContent() {
                                     없음
                                   </button>
                                   {backgroundPatterns.map((preset) => {
-                                    const isActive = backCoverPatternId === preset.id;
+                                    const isActive = coverPatternId === preset.id;
                                     return (
                                       <button
                                         key={preset.id}
                                         type="button"
                                         title={preset.label}
-                                        onClick={() => setBackCoverPatternId(isActive ? undefined : preset.id)}
+                                        onClick={() => applyCoverPattern(isActive ? undefined : preset.id)}
                                         className={`h-6 w-6 border transition ${
                                           isActive
                                             ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
@@ -8541,11 +8520,11 @@ function UploadPageContent() {
                             className="group relative flex h-full items-center justify-center overflow-hidden"
                             style={{
                               width: `${coverBackPct}%`,
-                              background: backCoverPatternId
+                              background: coverPatternId
                                 ? resolveSpreadBackgroundCss({
                                     backgroundColor: backCoverBackgroundColor,
-                                    backgroundPattern: backCoverPatternId,
-                                  })
+                                    backgroundPattern: coverPatternId,
+                                  }, "right")
                                 : (backCoverBackgroundColor ?? "#ffffff"),
                             }}
                           >
@@ -8630,7 +8609,12 @@ function UploadPageContent() {
                             className={`relative h-full overflow-hidden px-1 ${
  isPrintPreview ? "" : "border-x border-[#1a1a1a]/70"
                             }`}
-                            style={{ width: `${coverSpinePct}%`, backgroundColor: coverSpineBackgroundColor ?? "#ffffff" }}
+                            style={{
+                              width: `${coverSpinePct}%`,
+                              background: coverPatternId
+                                ? resolveSpreadBackgroundCss({ backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId })
+                                : (coverSpineBackgroundColor ?? "#ffffff"),
+                            }}
                           >
                             {/* 책등엔 책등 제목과 키픽 로고만 보여줘요 — 제목 텍스트박스는 끌어서
                                 위치를, 아래쪽 손잡이로 높이를 바꿀 수 있어요(가로폭은 책등 폭에
@@ -8664,7 +8648,12 @@ function UploadPageContent() {
                           </div>
                           <div
                             className="group relative h-full overflow-hidden"
-                            style={{ width: `${coverFrontPct}%`, backgroundColor: coverFrontBackgroundColor ?? "#ffffff" }}
+                            style={{
+                              width: `${coverFrontPct}%`,
+                              background: coverPatternId
+                                ? resolveSpreadBackgroundCss({ backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId }, "left")
+                                : (coverFrontBackgroundColor ?? "#ffffff"),
+                            }}
                           >
                             {coverImageBoxes.length > 0 ? (
                               <ImageBoxLayer

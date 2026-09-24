@@ -1114,7 +1114,7 @@ export async function buildCoverPrintPdf({
   backCoverLogo = { xPct: 50, yPct: 50, scalePct: 100 },
   backCoverPhoto = null,
   backCoverBackgroundColor,
-  backCoverPatternId,
+  coverPatternId,
   backCoverTextBoxes,
   coverSpineBackgroundColor,
   coverFrontBackgroundColor,
@@ -1150,7 +1150,7 @@ export async function buildCoverPrintPdf({
   backCoverLogo?: { xPct: number; yPct: number; scalePct: number } | null;
   backCoverPhoto?: PrintPhoto | null;
   backCoverBackgroundColor?: string;
-  backCoverPatternId?: string; // 뒤표지 그래픽·패턴·텍스처예요. 지정하면 배경색보다 우선해요.
+  coverPatternId?: string; // 표지 전체(앞표지·책등·뒤표지) 그래픽·패턴·텍스처예요(2026-09-30, "적용범위" 메뉴 없애고 전체 표지에 하나로 통일). 지정하면 배경색보다 우선해요.
   backCoverTextBoxes?: TextBoxDef[]; // 뒤표지에 자유 배치한 텍스트박스예요.
   coverSpineBackgroundColor?: string; // 지정 안 하면 앞·뒤표지와 같은 흰색(#ffffff) 그대로예요(2026-09-25, 혜민님 요청 — 예전엔 아이보리 #f4f1ea가 기본값이라 흰 표지인데 책등만 베이지로 보이는 문제가 있었어요).
   coverFrontBackgroundColor?: string; // 지정 안 하면 흰색 그대로예요(사진 뒤로 비치는 여백 색).
@@ -1194,9 +1194,13 @@ export async function buildCoverPrintPdf({
   // 포함해서 채워요(책등 쪽만 접히는 자리라 도련이 필요 없어요).
   const backCellWpx = bleedPx + panelPx;
   const backCellHpx = panelPx + bleedPx * 2;
-  const backPattern = findBackgroundPattern(backCoverPatternId);
-  if (backPattern) {
-    drawBackgroundPatternOnCanvas(ctx, backPattern, 0, 0, backCellWpx, backCellHpx, mmToPx);
+  // 2026-09-30, "적용범위" 메뉴를 없애고 표지 전체(앞표지·책등·뒤표지)에 같은
+  // 패턴을 적용하게 되면서, 이 패턴 객체를 뒤표지뿐 아니라 아래 책등·앞표지 영역을
+  // 그릴 때도 그대로 재사용해요(화면 미리보기의 resolveSpreadBackgroundCss와 같은
+  // 레시피를 Canvas로 그리는 셈).
+  const coverPattern = findBackgroundPattern(coverPatternId);
+  if (coverPattern) {
+    drawBackgroundPatternOnCanvas(ctx, coverPattern, 0, 0, backCellWpx, backCellHpx, mmToPx);
   } else if (backCoverBackgroundColor) {
     ctx.fillStyle = backCoverBackgroundColor;
     ctx.fillRect(0, 0, backCellWpx, backCellHpx);
@@ -1306,8 +1310,12 @@ export async function buildCoverPrintPdf({
 
   // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
   const spineX = bleedPx + panelPx;
-  ctx.fillStyle = coverSpineBackgroundColor ?? "#ffffff";
-  ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
+  if (coverPattern) {
+    drawBackgroundPatternOnCanvas(ctx, coverPattern, spineX, bleedPx, spinePx, panelPx, mmToPx);
+  } else {
+    ctx.fillStyle = coverSpineBackgroundColor ?? "#ffffff";
+    ctx.fillRect(spineX, bleedPx, spinePx, panelPx);
+  }
 
   const spineLogoLayout = computeSpineLogoLayoutPx(spinePx);
   const spineTitleText = (spineTitle ?? coverTitle ?? "").replace(/\n/g, " ").trim();
@@ -1341,7 +1349,9 @@ export async function buildCoverPrintPdf({
   // 파일에도 그대로 나와요.
   const frontCellWpx = panelPx + bleedPx;
   const frontCellHpx = panelPx + bleedPx * 2;
-  if (coverFrontBackgroundColor) {
+  if (coverPattern) {
+    drawBackgroundPatternOnCanvas(ctx, coverPattern, frontX, 0, frontCellWpx, frontCellHpx, mmToPx);
+  } else if (coverFrontBackgroundColor) {
     ctx.fillStyle = coverFrontBackgroundColor;
     ctx.fillRect(frontX, 0, frontCellWpx, frontCellHpx);
   }
