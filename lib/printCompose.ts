@@ -578,7 +578,7 @@ function canvasToJpegDataUrl(canvas: HTMLCanvasElement) {
 // 재단선/안전선을 보여주는 "확인용 가이드" 파일에서만 쓰는 값이에요.
 // (레드프린팅에서 공식적으로 확인받은 수치가 아니라, 업계에서 흔히 쓰는 안전여백 기준이에요.
 //  실제 안전여백 기준을 제작처에서 알려주면 이 값을 그 값으로 바꿔주세요.)
-export const GUIDE_SAFETY_MARGIN_MM = 10; // 혜민님 확인 기준(2026-09 개정): 재단선 안쪽 안전여백 10mm
+export const GUIDE_SAFETY_MARGIN_MM = 15; // 혜민님 확인 기준(2026-09-26 개정): 재단선 안쪽 안전여백 10mm → 15mm(네 면 모두)
 const GUIDE_WORK_COLOR = "#22a559"; // 작업선(파일 바깥 여유분 경계) - 초록
 const GUIDE_TRIM_COLOR = "#ff2fb0"; // 재단선 - 마젠타
 const GUIDE_SAFETY_COLOR = "#2f7bff"; // 안전선 - 파랑

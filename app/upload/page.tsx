@@ -315,18 +315,89 @@ const HANDWRITING_ITEMS: StickerLikeItem[] = [
 // 펼쳐진 패널로만 있었는데, 이제 다른 사진책 편집기들처럼 아이콘을 눌러야 해당 메뉴가
 // 열리는 구조로 통일해요. "표지변경"(테마 골라서 한 번에 바꾸기)과 "손글씨스티커"는 아직
 // 실제 기능이 없어서 "준비 중" 안내만 보여줘요.
+type MenuTabIconName = "layout" | "background" | "theme" | "sticker" | "handwriting" | "text" | "photo";
+
+// 왼쪽 아이콘 메뉴(EDIT_TABS·COVER_EDIT_TABS) 전용 아이콘이에요 — LayerIcon과 같은
+// 24x24 획(stroke) 스타일로 그려서, 이모티콘 대신 하나의 통일된 아이콘 세트로
+// 보이게 해요(2026-09-27, "아이콘도 이모티콘 말고 아이콘으로 만들어서 수정해주세요").
+function MenuTabIcon({ name, className }: { name: MenuTabIconName; className?: string }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none" as const,
+    stroke: "currentColor",
+    strokeWidth: 1.6,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: className ?? "h-4 w-4",
+  };
+  switch (name) {
+    case "layout":
+      return (
+        <svg {...common}>
+          <rect x="3.5" y="3.5" width="8" height="8" rx="1" />
+          <rect x="12.5" y="3.5" width="8" height="8" rx="1" />
+          <rect x="3.5" y="12.5" width="8" height="8" rx="1" />
+          <rect x="12.5" y="12.5" width="8" height="8" rx="1" />
+        </svg>
+      );
+    case "background":
+      return (
+        <svg {...common}>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+          <circle cx="9" cy="10" r="1.6" />
+          <path d="M4 17l5-5 4 4 3-3 4 4" />
+        </svg>
+      );
+    case "theme":
+      return (
+        <svg {...common}>
+          <path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21M5.8 5.8l2.2 2.2M16 16l2.2 2.2M18.2 5.8L16 8M8 16l-2.2 2.2" />
+          <circle cx="12" cy="12" r="2.4" />
+        </svg>
+      );
+    case "sticker":
+      return (
+        <svg {...common}>
+          <path d="M12 3.5l2.5 5.2 5.7.7-4.1 4 1 5.7-5.1-2.8-5.1 2.8 1-5.7-4.1-4 5.7-.7L12 3.5z" />
+        </svg>
+      );
+    case "handwriting":
+      return (
+        <svg {...common}>
+          <path d="M4 20l1-4.2L14.6 6.2a1.5 1.5 0 0 1 2.1 0l1.1 1.1a1.5 1.5 0 0 1 0 2.1L8.2 19 4 20z" />
+          <path d="M13 7.8l3.2 3.2" />
+        </svg>
+      );
+    case "photo":
+      return (
+        <svg {...common}>
+          <path d="M4 8.2A1.7 1.7 0 0 1 5.7 6.5h1.9l.9-1.6h7l.9 1.6h1.9A1.7 1.7 0 0 1 20 8.2v9.1a1.7 1.7 0 0 1-1.7 1.7H5.7A1.7 1.7 0 0 1 4 17.3V8.2z" />
+          <circle cx="12" cy="12.5" r="3.2" />
+        </svg>
+      );
+    case "text":
+      return (
+        <svg {...common}>
+          <path d="M5 6.5h14M12 6.5V18" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 type EditTabId = "layout" | "background" | "theme" | "sticker" | "handwriting" | "text" | "photo";
-const EDIT_TABS: { id: EditTabId; label: string; icon: string }[] = [
-  { id: "layout", label: "레이아웃", icon: "▦" },
-  { id: "background", label: "배경", icon: "🎨" },
-  { id: "theme", label: "표지변경", icon: "✨" },
-  { id: "sticker", label: "스티커", icon: "⭐" },
-  { id: "handwriting", label: "손글씨스티커", icon: "✏️" },
-  { id: "text", label: "텍스트", icon: "Tt" },
+const EDIT_TABS: { id: EditTabId; label: string; icon: MenuTabIconName }[] = [
+  { id: "layout", label: "레이아웃", icon: "layout" },
+  { id: "background", label: "배경", icon: "background" },
+  { id: "theme", label: "표지변경", icon: "theme" },
+  { id: "sticker", label: "스티커", icon: "sticker" },
+  { id: "handwriting", label: "손글씨스티커", icon: "handwriting" },
+  { id: "text", label: "텍스트", icon: "text" },
   // 2026-09-23, 혜민님 요청: 독립된 "사진" 탭(과 별도 "사진 추가" 버튼)을 없애고, 레이아웃
   // 밖에서 사진을 자유롭게 추가·정리하는 기능(사진 보관함 업로드·전체 목록·이 페이지에
   // 사진 추가)을 여기 "꾸미기" 탭으로 합쳤어요 — 표지 편집의 "꾸미기" 탭과 같은 자리예요.
-  { id: "photo", label: "사진", icon: "📷" },
+  { id: "photo", label: "사진", icon: "photo" },
 ];
 // "레이아웃" 탭 안에서 셀 개수(사진 몇 장용 템플릿인지)로 골라볼 수 있는 필터예요.
 // "auto"는 지금 적용 범위(왼쪽/오른쪽/펼침면)에 있는 실제 사진 개수에 맞는 템플릿만
@@ -346,23 +417,23 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
 type CoverEditTabId = "theme" | "layout" | "photo" | "text" | "background";
-const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: string }[] = [
+const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconName }[] = [
   // 2026-09-26, 혜민님 요청: 앞표지·뒤표지·책등을 하나씩 따로 안 만지고, 미리 만들어둔
   // "테마"를 골라 한 번에 어울리는 배경(+ 뒤표지 무늬)·제목 서체로 맞출 수 있는 탭이에요.
   // 맨 앞에 둬서 제일 먼저 보이게 했어요 — 테마를 고른 뒤에도 사진·텍스트는 아래 탭에서
   // 그대로 따로 편집할 수 있어요(테마가 사진·텍스트를 지우거나 건드리지 않음).
-  { id: "theme", label: "테마", icon: "✨" },
+  { id: "theme", label: "테마", icon: "theme" },
   // 2026-09-24, 혜민님 요청: 표지도 내지처럼 사진 여러 장을 미리 정해둔 배치로 한 번에
   // 넣을 수 있는 "레이아웃" 탭이에요. 앞표지/뒤표지 각각 따로 적용해요(책등은 사진 칸이
   // 없어서 대상에서 빼고, 표지 전체를 가로지르는 파노라마는 별도 기능이라 여기 포함 안 해요).
-  { id: "layout", label: "레이아웃", icon: "▦" },
+  { id: "layout", label: "레이아웃", icon: "layout" },
   // 2026-09, "키픽 로고 vs 작은 사진" 뒤표지 모드 전환을 사진 탭에서 여기로 옮겼어요.
   // 2026-09-23, 독립 "사진" 탭을 없애면서 앞표지 "사진 바꾸기"도 이 탭으로 합쳤어요.
-  { id: "photo", label: "사진", icon: "📷" },
+  { id: "photo", label: "사진", icon: "photo" },
   // 2026-09, 표지의 "제목"·"텍스트박스" 탭을 내지처럼 "텍스트" 하나로 합쳤어요 —
   // 제목 필드(글자 크기·행간·자간·서체·책등 연결)와 텍스트박스 추가 버튼을 한 곳에서.
-  { id: "text", label: "텍스트", icon: "Tt" },
-  { id: "background", label: "배경", icon: "🎨" },
+  { id: "text", label: "텍스트", icon: "text" },
+  { id: "background", label: "배경", icon: "background" },
 ];
 
 // 표지 "테마" 프리셋에 쓰는 타입이에요 — 실제 배열(COVER_THEMES)은 fontOptions
@@ -919,7 +990,7 @@ function Ruler({
   // 혜민님이 "눈금자에 하얀배경 보이는 부분" 추가 지적 — 왼쪽 위 모서리 칸만 고쳤던 걸
   // 눈금자 몸통까지 확장).
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-[var(--color-hairline)]/30 text-[8px] text-[var(--color-charcoal)]/55`}>
+    <div className={`relative h-full w-full overflow-hidden bg-[var(--color-charcoal)]/[0.08] text-[8px] text-[var(--color-charcoal)]/55`}>
       {ticks.map(({ labelMm, rawMm, major }) =>
         orientation === "horizontal" ? (
           <div
@@ -1606,6 +1677,7 @@ function TextBoxOverlay({
               // 밖으로 잘려 안 보일 수 있어서, 그때만 위쪽에 띄워요(간단한 규칙 —
               // 실제 화면 좌표를 재는 대신 %로만 대충 판단해요, 2026-09-25).
               flip={box.yPct + (box.heightPct ?? 12) > 80}
+              fillsFrame={box.yPct <= 2 && box.yPct + (box.heightPct ?? 12) >= 98}
               onDelete={onDelete}
               onStackAction={onStackAction}
             />
@@ -1800,6 +1872,7 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
 // 붙어서, 실제 화면 좌표를 따로 재지 않아도 항상 그 박스 가까이에 보여요.
 function StackOrderToolbar({
   flip,
+  fillsFrame,
   mediaKind = "text",
   onDelete,
   onStackAction,
@@ -1817,6 +1890,9 @@ function StackOrderToolbar({
   onBorderChange,
 }: {
   flip: boolean;
+  // 박스가 대지를 위아래로 꽉 채운 경우(2026-09-27 추가) — 박스 바깥에 뗄 자리가
+  // 없어서 조상 overflow-hidden에 잘리니, 박스 안쪽 위 가장자리에 겹쳐서 띄워요.
+  fillsFrame?: boolean;
   mediaKind?: "text" | "photo" | "sticker";
   onDelete?: () => void;
   onStackAction?: (action: StackOrderAction) => void;
@@ -1861,7 +1937,7 @@ function StackOrderToolbar({
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       className="absolute left-1/2 z-50 flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap bg-[var(--color-charcoal)] px-1 py-1 text-white "
-      style={flip ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }}
+      style={fillsFrame ? { top: 6 } : flip ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }}
     >
       {buttons.map((b) => (
         <button
@@ -3132,11 +3208,18 @@ const ImageBoxOverlay = forwardRef<
           </button>
         </div>
       )}
-      {isActive && (onDelete || onStackAction) && (
+      {/* 더블클릭으로 "사진 위치 조정 중" 모드에 들어가면 바로 아래에 확대/축소·반전·
+          초기화·완료 전용 바가 따로 떠요(이 아래) — 이 레이어 툴바에도 같은 기능(맞춤·
+          확대·축소·반전)이 들어있어서, 둘 다 띄우면 서로 겹쳐 보였어요("사진 한번더
+          클릭하면 패널이 겹치는 현상", 2026-09-27). 사진 위치 조정 중엔 이 레이어
+          툴바를 잠깐 숨기고, 전용 바 하나만 보여줘요 — 삭제·앞뒤 순서 등은 "완료"로
+          조정 모드를 마친 뒤에 다시 쓸 수 있어요. */}
+      {isActive && !photoEditMode && (onDelete || onStackAction) && (
         <StackOrderToolbar
           // 텍스트박스와 같은 규칙 — 박스 아래쪽이 페이지 밑바닥에 가까우면 위쪽에
           // 띄워요.
           flip={box.yPct + box.heightPct > 80}
+          fillsFrame={box.yPct <= 2 && box.yPct + box.heightPct >= 98}
           mediaKind={isSticker ? "sticker" : "photo"}
           onDelete={onDelete}
           onStackAction={onStackAction}
@@ -3745,7 +3828,7 @@ function CanvasStage({
   // 캔버스 위에 절대 위치로 띄울 내용(좌우 페이지 이동 화살표 등, 2026-09-26 추가) —
   // 스크롤되는 viewportRef가 아니라 그 바깥의 measureRef(스크롤 없는 캔버스 전체 영역)
   // 기준으로 떠서, 왼쪽 속성 패널까지 넘어가지 않고 캔버스 영역 안에만 있어요.
-  overlay?: React.ReactNode;
+  overlay?: (displayW: number) => React.ReactNode;
 }) {
   // measureRef(스크롤 없는 바깥 래퍼)로 크기를 재요 — viewportRef(overflow-auto가 걸린
   // 안쪽 div) 자신을 관찰하면, 그 div에 세로/가로 스크롤바가 생기는 순간
@@ -3829,7 +3912,7 @@ function CanvasStage({
     <div ref={measureRef} className={`relative flex min-h-0 min-w-0 flex-1 ${className ?? ""}`}>
       <div
         ref={viewportRef}
-        className="flex h-full w-full items-start justify-start overflow-auto"
+        className="flex h-full w-full items-start justify-center overflow-auto"
       >
         <div
           className="shrink-0"
@@ -3838,7 +3921,7 @@ function CanvasStage({
           {children}
         </div>
       </div>
-      {overlay}
+      {overlay ? overlay(displayW) : null}
     </div>
   );
 }
@@ -4082,7 +4165,15 @@ function UploadPageContent() {
     setCoverImageBoxPhotoEditActive(false);
     setActiveCoverImageBox({ target, boxId });
     setBackCoverLogoSelected(false);
-    setActiveCoverEditTab("photo");
+    // 내지 selectImageBox와 같은 수정이에요(2026-09-24엔 내지만 고쳤었어요) — 스티커는
+    // "사진" 탭에 편집할 속성이 없어서, 표지 스티커를 선택해도 왼쪽 패널을 "사진" 탭으로
+    // 옮기지 않아요. "여전히 스티커를 만질 때 사진툴로 이동한다"는 재확인(2026-09-27)
+    // 이후 보니, 내지만 고치고 표지(앞/뒤표지) 쪽은 그대로 빠져 있었던 게 원인이었어요.
+    const boxes = target === "front" ? coverImageBoxes : backCoverImageBoxes;
+    const box = boxes.find((b) => b.id === boxId);
+    if (!box || !isStickerImageBox(box)) {
+      setActiveCoverEditTab("photo");
+    }
   }
   const [isGeneratingPrintFiles, setIsGeneratingPrintFiles] = useState(false);
   // "마지막 소개 페이지"(발행 정보)예요. 발행일은 최초 생성 시 한국 날짜로 한 번만
@@ -5381,7 +5472,12 @@ function UploadPageContent() {
   // overlay prop으로 넘겨서, 캔버스 자체(측정 래퍼) 기준으로 뜨게 해요 — 예전엔 아이콘
   // 메뉴+속성 패널까지 포함한 훨씬 넓은 바깥 영역 기준으로 떠 있어서, 화살표가 패널
   // 쪽까지 넘어와 보이는 문제가 있었어요(혜민님 확인, "화살표가 패널까지 보이는부분").
-  function renderPageNavArrows() {
+  function renderPageNavArrows(displayW: number) {
+    // 책이 캔버스 안에서 가로로 가운데 정렬돼 있어서(2026-09-27), 화살표는
+    // measureRef 가장자리가 아니라 "책 실제 폭의 절반 + 여백"만큼 중앙에서 떨어진
+    // 자리에 둬요 — 그래야 줌 배율이 달라져도 항상 책 바로 옆에 붙어요. displayW를
+    // 아직 모르면(0) 화면 가장자리 쪽으로 대체해요.
+    const halfGap = displayW > 0 ? displayW / 2 + 8 : undefined;
     return (
       <>
         <button
@@ -5393,7 +5489,10 @@ function UploadPageContent() {
           }}
           disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
           aria-label="이전 페이지"
-          className="pointer-events-auto absolute left-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:left-2"
+          style={halfGap !== undefined ? { left: `calc(50% - ${halfGap}px)`, transform: "translate(-100%, -50%)" } : undefined}
+          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
+            halfGap !== undefined ? "" : "left-1 -translate-y-1/2 sm:left-2"
+          }`}
         >
           ‹
         </button>
@@ -5409,7 +5508,10 @@ function UploadPageContent() {
             return idx < 0 || idx >= pageOrder.length - 1;
           })()}
           aria-label="다음 페이지"
-          className="pointer-events-auto absolute right-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:right-2"
+          style={halfGap !== undefined ? { left: `calc(50% + ${halfGap}px)`, transform: "translateY(-50%)" } : undefined}
+          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
+            halfGap !== undefined ? "" : "right-1 -translate-y-1/2 sm:right-2"
+          }`}
         >
           ›
         </button>
@@ -6006,7 +6108,7 @@ function UploadPageContent() {
     const guidePageWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
     const guideSpreadWorkMm = guidePageWorkMm * 2;
     const GUIDE_BLEED_MM = 5;
-    const GUIDE_SAFETY_MM = 10; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값
+    const GUIDE_SAFETY_MM = 15; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값(2026-09-26, 10→15mm)
     const trimXPct = (GUIDE_BLEED_MM / guideSpreadWorkMm) * 100;
     const trimYPct = (GUIDE_BLEED_MM / guidePageWorkMm) * 100;
     // "변형(mm)" 패널은 혜민님 요청으로 제거됐어요(2026-09-24, 캔버스 위 드래그·손잡이로도
@@ -6052,7 +6154,11 @@ function UploadPageContent() {
       safetyOuterXPct,
       100 - safetyOuterXPct,
     ];
-    const imageBoxGuidesY = [0, 100, trimYPct, 100 - trimYPct, safetyYPct, 100 - safetyYPct];
+    // 가로 안내선(imageBoxGuidesX)엔 펼침면 가운데(bindingCenterPct=50)가 들어있어서
+    // 가운데 정렬이 스냅됐는데, 세로 안내선엔 그 대응값(세로 50%, 페이지 가운데)이
+    // 빠져 있었어요 — "가로는 적용되고 세로는 적용이 안 된다"는 확인(2026-09-27) 이후
+    // 추가해요.
+    const imageBoxGuidesY = [0, 50, 100, trimYPct, 100 - trimYPct, safetyYPct, 100 - safetyYPct];
 
     // 표지(뒤표지-책등-앞표지) 실제 비율이에요. lib/printCompose.ts의 buildCoverPrintPdf와
     // 같은 계산식을 그대로 써서, 화면 미리보기가 실제 표지 인쇄 파일 비율과 일치하도록 해요.
@@ -6375,17 +6481,17 @@ function UploadPageContent() {
                   <button
                     type="button"
                     onClick={() => setEditorMode("preview")}
-                    className="border border-[var(--color-hairline)] bg-white px-2.5 py-1.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                    className="flex h-8 items-center border border-[var(--color-hairline)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
                     ✓ 완료
                   </button>
                 )}
-                <div className="flex items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs ">
+                <div className="flex h-8 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 text-xs">
                   <button
                     type="button"
                     onClick={handleUndo}
                     title="실행취소 (Ctrl+Z)"
-                    className=" px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
                     ↶
                   </button>
@@ -6393,7 +6499,7 @@ function UploadPageContent() {
                     type="button"
                     onClick={handleRedo}
                     title="다시실행 (Ctrl+Shift+Z)"
-                    className=" px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
                     ↷
                   </button>
@@ -6403,7 +6509,7 @@ function UploadPageContent() {
                     type="button"
                     onClick={() => setIsPrintPreview((v) => !v)}
                     title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
-                    className={` border px-1.5 py-1.5 text-xs font-medium transition ${
+                    className={`flex h-8 items-center border px-1.5 text-xs font-medium transition ${
  isPrintPreview
                         ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
                         : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
@@ -6412,12 +6518,12 @@ function UploadPageContent() {
                     🖨️ 인쇄 미리보기
                   </button>
                 )}
-                <div className="flex items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs ">
+                <div className="flex h-8 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 text-xs">
                   <button
                     type="button"
                     onClick={handleZoomOut}
                     title="축소 (Ctrl+-)"
-                    className=" px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
                     −
                   </button>
@@ -6425,7 +6531,7 @@ function UploadPageContent() {
                     type="button"
                     onClick={handleZoomReset}
                     title="화면에 맞추기 (Ctrl+0) — 지금 화면에 보이는 크기가 실제 크기 대비 몇 %인지예요"
-                    className="w-14 px-1 py-1 text-center text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                    className="flex h-full w-14 items-center justify-center px-1 text-center text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
                     {/* 2026-09-24, 혜민님 요청: 창을 좁혀 캔버스가 실제로 작아져도 이 숫자가
                         계속 "100%"로 고정돼 있던 문제 — 이제 CanvasStage가 보고하는 실제
@@ -6437,7 +6543,7 @@ function UploadPageContent() {
                     type="button"
                     onClick={handleZoomIn}
                     title="확대 (Ctrl+=)"
-                    className=" px-2 py-1 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
+                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
                   >
                     +
                   </button>
@@ -6447,7 +6553,7 @@ function UploadPageContent() {
                     type="button"
                     onClick={() => handleProceed(nextUrl, photos)}
                     disabled={isSaving}
-                    className={`shrink-0 px-2 py-1.5 text-xs font-medium text-white transition ${
+                    className={`flex h-8 shrink-0 items-center px-2.5 text-xs font-medium text-white transition ${
                       isSaving
                         ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
                         : "bg-[var(--color-charcoal)] hover:opacity-90"
@@ -6463,7 +6569,7 @@ function UploadPageContent() {
                   <button
                     type="button"
                     disabled
-                    className="shrink-0 cursor-not-allowed bg-[var(--color-hairline)] px-2 py-1.5 text-xs font-medium text-white/70"
+                    className="flex h-8 shrink-0 cursor-not-allowed items-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70"
                   >
                     다음
                   </button>
@@ -6619,7 +6725,7 @@ function UploadPageContent() {
                     <div className="flex h-full min-h-0 flex-col p-2.5">
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                         {editorMode === "edit" && (
-                        <div className="-ml-2.5 flex gap-2 border-[var(--color-hairline)] pl-2.5 lg:shrink-0 lg:border-r lg:pr-2">
+                        <div className="-ml-2.5 flex gap-2 border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-2">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
                               (2026-09-23, 이전엔 전부 한 화면에 세로로 나열돼 있었어요).
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
@@ -6631,15 +6737,13 @@ function UploadPageContent() {
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveCoverEditTab(tab.id)}
-                                className={`flex shrink-0 flex-col items-center gap-0.5 px-1.5 py-2 text-[10px] transition ${
+                                className={`flex shrink-0 flex-col items-center gap-0.5 px-1.5 py-1.5 text-[10px] transition ${
                                   activeCoverEditTab === tab.id
                                     ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                     : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                 }`}
                               >
-                                <span className="text-base leading-none" aria-hidden>
-                                  {tab.icon}
-                                </span>
+                                <MenuTabIcon name={tab.icon} />
                                 <span className="whitespace-nowrap">{tab.label}</span>
                               </button>
                             ))}
@@ -7360,7 +7464,7 @@ function UploadPageContent() {
                           fitToken={canvasFitToken}
                           widthMm={coverTotalWmm}
                           onActualSizePercentChange={setActualSizePercent}
-                          overlay={editorMode === "edit" ? renderPageNavArrows() : undefined}
+                          overlay={editorMode === "edit" ? renderPageNavArrows : undefined}
                         >
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
@@ -7649,7 +7753,7 @@ function UploadPageContent() {
                         <div className="flex h-full min-h-0 flex-col p-2">
                           <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                             {editorMode === "edit" && (
-                            <div className="-ml-2 flex gap-2 border-[var(--color-hairline)] pl-2 lg:shrink-0 lg:border-r lg:pr-2">
+                            <div className="-ml-2 flex gap-2 border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-2">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
                                   아이콘으로 골라요. 예전엔 배경만 항상 펼쳐져 있고 사진·스티커
                                   추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
@@ -7666,15 +7770,13 @@ function UploadPageContent() {
                                     key={tab.id}
                                     type="button"
                                     onClick={() => setActiveEditTab(tab.id)}
-                                    className={`flex shrink-0 flex-col items-center gap-0.5 px-1.5 py-2 text-[10px] transition ${
+                                    className={`flex shrink-0 flex-col items-center gap-0.5 px-1.5 py-1.5 text-[10px] transition ${
                                       activeEditTab === tab.id
                                         ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                         : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                     }`}
                                   >
-                                    <span className="text-base leading-none" aria-hidden>
-                                      {tab.icon}
-                                    </span>
+                                    <MenuTabIcon name={tab.icon} />
                                     <span className="whitespace-nowrap">{tab.label}</span>
                                   </button>
                                 ))}
@@ -8197,7 +8299,7 @@ function UploadPageContent() {
                               fitToken={canvasFitToken}
                               widthMm={guideSpreadWorkMm}
                               onActualSizePercentChange={setActualSizePercent}
-                              overlay={editorMode === "edit" ? renderPageNavArrows() : undefined}
+                              overlay={editorMode === "edit" ? renderPageNavArrows : undefined}
                             >
                             <div
                               className={
@@ -8224,7 +8326,7 @@ function UploadPageContent() {
                                   <>
                                     {/* 눈금자 왼쪽 위 빈 모서리 칸(일러스트레이터 편집대지와 같은 자리) */}
                                     <div
-                                      className="pointer-events-none absolute left-0 top-0 z-30 bg-[var(--color-hairline)]/30"
+                                      className="pointer-events-none absolute left-0 top-0 z-30 bg-[var(--color-charcoal)]/[0.08]"
                                       style={{ width: RULER_THICKNESS_PX.w, height: RULER_THICKNESS_PX.h }}
                                     />
                                     <div
