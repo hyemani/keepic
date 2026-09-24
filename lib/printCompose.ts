@@ -1149,6 +1149,7 @@ export async function buildCoverPrintPdf({
   coverTitleLineHeightEm = 1.2,
   coverTitleLetterSpacingEm = 0,
   coverTitleFontFamily = "Pretendard, sans-serif",
+  coverTitleAlign = "center",
   coverTitleXPct = 8,
   coverTitleYPct = 84,
   coverTitleWidthPct = 84,
@@ -1179,6 +1180,9 @@ export async function buildCoverPrintPdf({
   coverTitleLetterSpacingEm?: number; // 자간 배율(폰트 크기 기준). 0이면 기본 자간이에요.
   coverTitleFontFamily?: string; // 표지 제목 서체(CSS font-family 값). 캔버스로 그려서 jsPDF에
   // 넣기 때문에, 브라우저에 로드된 폰트라면(화면 편집기의 서체 선택지와 같은 값) 그대로 반영돼요.
+  coverTitleAlign?: "left" | "center" | "right"; // 2026-10-05, 혜민님 요청: 화면
+  // 편집기(CoverTitleOverlay)의 "문단 정렬"과 같은 값. 기본 "center"는 예전부터 항상
+  // 가운데 정렬이던 동작 그대로예요.
   // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트) — 화면에서 끌어서 옮긴 자리
   // 그대로예요. 기본값은 예전 고정 위치(하단 중앙)와 비슷해요.
   coverTitleXPct?: number;
@@ -1420,14 +1424,21 @@ export async function buildCoverPrintPdf({
     const titlePx = mmToPx((coverTitleFontSizePt * 25.4) / 72);
     ctxNN.font = `bold ${titlePx}px ${coverTitleFontFamily}`;
     ctxNN.fillStyle = "#ffffff";
-    ctxNN.textAlign = "center";
+    ctxNN.textAlign = coverTitleAlign;
     ctxNN.textBaseline = "top";
     ctxNN.shadowColor = "rgba(0,0,0,0.45)";
     ctxNN.shadowBlur = titlePx * 0.4;
     if ("letterSpacing" in ctxNN) {
       (ctxNN as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${titlePx * coverTitleLetterSpacingEm}px`;
     }
-    const titleXpx = frontX + (coverTitleXPct / 100) * frontCellWpx + (coverTitleWidthPct / 100) * frontCellWpx / 2;
+    const titleBoxLeftPx = frontX + (coverTitleXPct / 100) * frontCellWpx;
+    const titleBoxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
+    const titleXpx =
+      coverTitleAlign === "left"
+        ? titleBoxLeftPx
+        : coverTitleAlign === "right"
+          ? titleBoxLeftPx + titleBoxWidthPx
+          : titleBoxLeftPx + titleBoxWidthPx / 2;
     const titleYpx = (coverTitleYPct / 100) * frontCellHpx;
     const titleMaxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
     const titleLinePx = titlePx * coverTitleLineHeightEm;

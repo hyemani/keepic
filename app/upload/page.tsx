@@ -4091,6 +4091,7 @@ function CoverTitleOverlay({
   lineHeightEm,
   letterSpacingEm,
   fontFamily,
+  align,
   onMove,
 }: {
   title: string;
@@ -4101,6 +4102,8 @@ function CoverTitleOverlay({
   lineHeightEm: number;
   letterSpacingEm: number;
   fontFamily: string;
+  // 2026-10-05, 혜민님 요청: 내지 텍스트박스처럼 문단 정렬(좌/가운데/우)을 고를 수 있게.
+  align: "left" | "center" | "right";
   onMove: (changes: { xPct: number; yPct: number }) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -4203,12 +4206,13 @@ function CoverTitleOverlay({
         ⠿
       </button>
       <p
-        className="pointer-events-none whitespace-pre-wrap text-center font-semibold text-white drop-"
+        className="pointer-events-none whitespace-pre-wrap font-semibold text-white drop-"
         style={{
           fontSize: `${fontSizeCqh}cqh`,
           lineHeight: lineHeightEm,
           letterSpacing: `${letterSpacingEm}em`,
           fontFamily,
+          textAlign: align,
         }}
       >
         {title}
@@ -4888,6 +4892,7 @@ function UploadPageContent() {
   const [coverTitleFontSizePt, setCoverTitleFontSizePt] = useState(36);
   const [coverTitleLineHeightEm, setCoverTitleLineHeightEm] = useState(1.2);
   const [coverTitleLetterSpacingEm, setCoverTitleLetterSpacingEm] = useState(0);
+  const [coverTitleAlign, setCoverTitleAlign] = useState<"left" | "center" | "right">("center");
   // 2026-10-02, 혜민님 요청(항목9): "텍스트 내지에있던 옵션값과 동일하게 수정해주세요"
   // — 내지 TextBoxToolbar에 적용했던 것과 같은 "입력 중엔 임시 문자열(draft)만 바뀌고,
   // 유효한 값일 때만 실제 값에 반영" 패턴이에요. 매 렌더마다 실제 값을 그대로 value에
@@ -4910,6 +4915,7 @@ function UploadPageContent() {
   // 책등 제목 크기(pt)·서체 — 표지 제목과 별도로 고를 수 있어요. 비워두면(null) 책등
   // 폭에 맞춰 자동으로 크기를 정해요.
   const [spineTitleFontSizePt, setSpineTitleFontSizePt] = useState<number | null>(null);
+  const [spineTitleFontSizePtDraft, setSpineTitleFontSizePtDraft] = useState("");
   const [spineTitleFontFamily, setSpineTitleFontFamily] = useState(fontOptions[0].id);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
@@ -6896,6 +6902,7 @@ function UploadPageContent() {
       coverTitleXPct,
       coverTitleYPct,
       coverTitleFontFamily,
+      coverTitleAlign,
       spineTitleYPct,
       spineTitleHeightPct,
       spineTitleFontSizePt,
@@ -6931,9 +6938,11 @@ function UploadPageContent() {
     setCoverTitleXPct(s.coverTitleXPct);
     setCoverTitleYPct(s.coverTitleYPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
+    setCoverTitleAlign(s.coverTitleAlign ?? "center");
     setSpineTitleYPct(s.spineTitleYPct ?? null);
     setSpineTitleHeightPct(s.spineTitleHeightPct);
     setSpineTitleFontSizePt(s.spineTitleFontSizePt ?? null);
+    setSpineTitleFontSizePtDraft(s.spineTitleFontSizePt !== undefined && s.spineTitleFontSizePt !== null ? String(s.spineTitleFontSizePt) : "");
     setSpineTitleFontFamily(s.spineTitleFontFamily ?? fontOptions[0].id);
     setTitleFontLinked(s.titleFontLinked ?? true);
     setBackCoverLogo(s.backCoverLogo !== undefined ? s.backCoverLogo : { xPct: 50, yPct: 50, scalePct: 100 });
@@ -6992,6 +7001,7 @@ function UploadPageContent() {
     coverTitleXPct,
     coverTitleYPct,
     coverTitleFontFamily,
+    coverTitleAlign,
     spineTitleYPct,
     spineTitleHeightPct,
     spineTitleFontSizePt,
@@ -7207,6 +7217,7 @@ function UploadPageContent() {
       coverTitleLineHeightEm,
       coverTitleLetterSpacingEm,
       coverTitleFontFamily,
+      coverTitleAlign,
       coverTitleXPct,
       coverTitleYPct,
       coverTitleWidthPct,
@@ -8743,9 +8754,6 @@ function UploadPageContent() {
                                   className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                 />
                               </div>
-                              <p className="text-xs text-[var(--color-charcoal)]/50 break-keep">
-                                책등에도 같은 제목이 들어가요.
-                              </p>
                               <div className="mt-2 grid grid-cols-1 gap-1.5">
                                 <div>
                                   <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
@@ -8769,9 +8777,7 @@ function UploadPageContent() {
                                       onBlur={() => setCoverTitlePtDraft(String(coverTitleFontSizePt))}
                                       className="w-24 border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                     />
-                                    <span className="text-xs text-[var(--color-charcoal)]/40">
-                                      pt · 직접 입력하거나 목록에서 골라주세요
-                                    </span>
+                                    <span className="text-xs text-[var(--color-charcoal)]/40">pt</span>
                                     <datalist id="titlePtPresets">
                                       {COVER_TITLE_PT_PRESETS.map((pt) => (
                                         <option key={pt} value={pt} />
@@ -8831,7 +8837,7 @@ function UploadPageContent() {
                                 <select
                                   value={coverTitleFontFamily}
                                   onChange={(e) => handleCoverTitleFontFamilyChange(e.target.value)}
-                                  className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                  className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                   style={{ fontFamily: coverTitleFontFamily }}
                                 >
                                   {fontOptions.map((f) => (
@@ -8840,6 +8846,37 @@ function UploadPageContent() {
                                     </option>
                                   ))}
                                 </select>
+                              </div>
+                              {/* 2026-10-05, 혜민님 요청: "내지페이지에 적용한 텍스트 수정메뉴도
+                                  넣어줘(폰트정렬, 박스정렬 등)" — 내지 텍스트박스(TextBoxToolbar)의
+                                  "문단 정렬"과 같은 3버튼(좌/가운데/우)을 표지 제목에도 추가. */}
+                              <div className="mt-2">
+                                <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
+                                  문단 정렬
+                                </p>
+                                <div className="flex gap-1">
+                                  {(
+                                    [
+                                      { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
+                                      { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
+                                      { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
+                                    ]
+                                  ).map((opt) => (
+                                    <button
+                                      key={opt.id}
+                                      type="button"
+                                      title={opt.title}
+                                      onClick={() => setCoverTitleAlign(opt.id)}
+                                      className={`flex h-7 flex-1 items-center justify-center border transition ${
+                                        coverTitleAlign === opt.id
+                                          ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                          : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                                      }`}
+                                    >
+                                      <LayerIcon name={opt.icon} className="h-4 w-4" />
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                               <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
                                 <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
@@ -8865,17 +8902,33 @@ function UploadPageContent() {
                                         min={8}
                                         max={200}
                                         list="titlePtPresets"
-                                        value={spineTitleFontSizePt ?? ""}
+                                        value={spineTitleFontSizePtDraft}
                                         placeholder="자동"
                                         onChange={(e) => {
-                                          const v = e.target.value;
-                                          setSpineTitleFontSizePt(v === "" ? null : Math.max(8, Math.min(200, Number(v) || 8)));
+                                          const raw = e.target.value;
+                                          setSpineTitleFontSizePtDraft(raw);
+                                          if (raw === "") {
+                                            setSpineTitleFontSizePt(null);
+                                            return;
+                                          }
+                                          const pt = Number(raw);
+                                          if (Number.isFinite(pt) && pt > 0) {
+                                            setSpineTitleFontSizePt(Math.max(8, Math.min(200, pt)));
+                                          }
                                         }}
-                                        className="w-20 border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                        onBlur={() =>
+                                          setSpineTitleFontSizePtDraft(
+                                            spineTitleFontSizePt === null ? "" : String(spineTitleFontSizePt)
+                                          )
+                                        }
+                                        className="w-24 border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                       />
                                       <button
                                         type="button"
-                                        onClick={() => setSpineTitleFontSizePt(null)}
+                                        onClick={() => {
+                                          setSpineTitleFontSizePt(null);
+                                          setSpineTitleFontSizePtDraft("");
+                                        }}
                                         className={`shrink-0 border px-1.5 py-2.5 text-xs font-medium transition ${
                                           spineTitleFontSizePt === null
                                             ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -9186,6 +9239,7 @@ function UploadPageContent() {
                               lineHeightEm={coverTitleLineHeightEm}
                               letterSpacingEm={coverTitleLetterSpacingEm}
                               fontFamily={coverTitleFontFamily}
+                              align={coverTitleAlign}
                               onMove={({ xPct, yPct }) => {
                                 setCoverTitleXPct(xPct);
                                 setCoverTitleYPct(yPct);
