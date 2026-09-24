@@ -2630,21 +2630,14 @@ const ImageBoxOverlay = forwardRef<
               className={`absolute z-40 h-3.5 w-3.5 rounded-sm border border-white bg-[var(--color-sky)] shadow ${cursor} ${className}`}
             />
           ))}
-          {/* "스프레드 전체 채우기"·더블클릭 안내는 사진 전용 기능(꽉 채우기·사진 위치
-              조정)이라 스티커에는 안 보여줘요(2026-09-24). */}
+          {/* 더블클릭 안내는 사진 전용 기능(사진 위치 조정)이라 스티커에는 안 보여줘요
+              (2026-09-24). "스프레드 전체 채우기" 버튼은 혜민님 요청으로 제거함
+              (2026-09-24, "필요 없습니다. 삭제해주세요"). */}
           {!isSticker && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
               className="absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap"
             >
-              <button
-                type="button"
-                title="이 사진박스로 펼침면(양쪽 페이지) 전체를 꽉 채워요"
-                onClick={handleFillSpread}
-                className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white"
-              >
-                스프레드 전체 채우기
-              </button>
               <span className="rounded-full bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
                 더블클릭하면 안의 사진 위치를 옮길 수 있어요
               </span>
@@ -3286,11 +3279,19 @@ function CanvasStage({
   widthMm?: number;
   onActualSizePercentChange?: (percent: number | null) => void;
 }) {
+  // measureRef(스크롤 없는 바깥 래퍼)로 크기를 재요 — viewportRef(overflow-auto가 걸린
+  // 안쪽 div) 자신을 관찰하면, 그 div에 세로/가로 스크롤바가 생기는 순간
+  // clientWidth/clientHeight가 스크롤바 두께만큼 줄어들고, 그러면 baseFit이 다시 작게
+  // 계산되어 스크롤바가 사라지고, 다시 커지고 스크롤바가 또 생기는 식으로 무한
+  // 진동(ResizeObserver 피드백 루프)이 생겨요 — 혜민님이 "페이지창을 키웠더니 화면이
+  // 덜덜 떨리는 현상"으로 보고하신 원인(2026-09-24). 스크롤바가 생겨도 크기가 안
+  // 바뀌는 바깥 래퍼를 관찰 대상으로 삼아서 이 루프 자체를 없앴어요.
+  const measureRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
-    const el = viewportRef.current;
+    const el = measureRef.current;
     if (!el) return;
     const update = () => setBox({ w: el.clientWidth, h: el.clientHeight });
     update();
@@ -3357,15 +3358,17 @@ function CanvasStage({
   }, [displayW, widthMm, onActualSizePercentChange]);
 
   return (
-    <div
-      ref={viewportRef}
-      className={`relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-auto ${className ?? ""}`}
-    >
+    <div ref={measureRef} className={`relative flex min-h-0 min-w-0 flex-1 ${className ?? ""}`}>
       <div
-        className="shrink-0"
-        style={ready ? { width: `${displayW}px` } : { opacity: 0 }}
+        ref={viewportRef}
+        className="flex h-full w-full items-center justify-center overflow-auto"
       >
-        {children}
+        <div
+          className="shrink-0"
+          style={ready ? { width: `${displayW}px` } : { opacity: 0 }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -6081,22 +6084,10 @@ function UploadPageContent() {
                                       ‹ 뒤로가기
                                     </button>
                                   </div>
-                                  {!coverImageBoxPhotoEditActive && (
-                                    <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
-                                      <div className="flex flex-wrap items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            activeCoverImageBox &&
-                                            coverImageBoxHandlesRef.current.get(activeCoverImageBox.boxId)?.fillSpread()
-                                          }
-                                          className="rounded-full bg-[var(--color-brand-purple)] px-3 py-1 text-[11px] text-white"
-                                        >
-                                          꽉 채우기
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
+                                  {/* "꽉 채우기" 버튼 — 혜민님 요청으로 제거(2026-09-24,
+                                      "스프레드 전체 채우기 버튼이 확인됩니다. 필요
+                                      없습니다. 삭제해주세요" — 표지 쪽 같은 기능도 함께
+                                      제거). */}
                                   {coverImageBoxPhotoEditActive && (
                                     <div className="rounded-lg border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-3">
                                       <p className="text-xs font-medium text-[var(--color-brand-purple)]">
@@ -7116,21 +7107,8 @@ function UploadPageContent() {
                                           ‹ 뒤로가기
                                         </button>
                                       </div>
-                                      {!imageBoxPhotoEditActive && (
-                                        <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
-                                          <div className="flex flex-wrap items-center gap-1.5">
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.fillSpread()
-                                              }
-                                              className="rounded-full bg-[var(--color-brand-purple)] px-3 py-1 text-[11px] text-white"
-                                            >
-                                              스프레드 전체 채우기
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
+                                      {/* "스프레드 전체 채우기" 버튼 — 혜민님 요청으로 제거
+                                          (2026-09-24, "필요 없습니다. 삭제해주세요"). */}
                                       {activeBox && (
                                         <div className="rounded-lg border border-[var(--color-hairline)] bg-white p-3">
                                           <p className="text-xs font-medium text-[var(--color-charcoal)]">
@@ -7909,10 +7887,13 @@ function UploadPageContent() {
                   </div>
               </div>
 
-              {/* 하단 페이지 목록 — 2026-09 화면 배치 개편으로 예전에 미리보기 모드에서만
-                  왼쪽에 보이던 목록을 여기로 옮겨서, 편집 중에도 항상 보이고 캔버스 영역을
-                  가로로 넓게 쓸 수 있게 했어요. 페이지가 많아지면 이 줄 안에서만
-                  가로 스크롤돼요. */}
+              {/* 하단 페이지 목록 — "미리보기" 모드일 때만 보여요(2026-09-24, 혜민님 재요청으로
+                  되돌림). 한동안(2026-09) 편집 중에도 항상 보이도록 바꿨던 적이 있는데,
+                  "편집하기를 누르면 페이지 레이아웃이 없어지고 왼쪽 편집툴만 보이게 해달라"는
+                  요청으로 다시 미리보기 전용으로 되돌려요 — 편집 중엔 왼쪽 탭 도구에 집중하고,
+                  페이지를 옮겨 다니고 싶을 때만 "미리보기"를 눌러 이 줄이 뜨는 구조예요. 겹박스
+                  느낌을 없애려고 바깥 테두리·그림자·둥근 모서리도 함께 정리했어요(2026-09-24). */}
+              {editorMode === "preview" && (
               <div className="mt-3 flex shrink-0 items-center gap-2">
                 <button
                   type="button"
@@ -7927,17 +7908,17 @@ function UploadPageContent() {
                 >
                   ‹
                 </button>
-                <div className="flex flex-1 gap-2 overflow-x-auto rounded-xl border border-[var(--color-hairline)] bg-white p-2 shadow-sm">
+                <div className="flex flex-1 gap-2 overflow-x-auto border-t border-[var(--color-hairline)] bg-white p-2">
                   {isPhotobook && (
                     <button
                       type="button"
                       onClick={() => setSelectedPageKey("cover")}
-                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                      className={`shrink-0 border-2 p-1 transition ${
                         selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
                       }`}
                     >
                       <div
-                        className="pointer-events-none flex h-14 overflow-hidden rounded bg-white shadow-sm"
+                        className="pointer-events-none flex h-14 overflow-hidden bg-white"
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
                         <div
@@ -7973,11 +7954,11 @@ function UploadPageContent() {
                         key={i}
                         type="button"
                         onClick={() => setSelectedPageKey(i)}
-                        className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                        className={`shrink-0 border-2 p-1 transition ${
                           selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
                         }`}
                       >
-                        <div className="pointer-events-none relative h-14 overflow-hidden rounded bg-white shadow-sm" style={{ aspectRatio: "2 / 1" }}>
+                        <div className="pointer-events-none relative h-14 overflow-hidden bg-white" style={{ aspectRatio: "2 / 1" }}>
                           <div className="grid h-full grid-cols-2 overflow-hidden">
                             <div className="overflow-hidden">
                               {i === 0 ? (
@@ -8044,11 +8025,11 @@ function UploadPageContent() {
                     <button
                       type="button"
                       onClick={() => setSelectedPageKey("intro")}
-                      className={`shrink-0 rounded-lg border-2 p-1 transition ${
+                      className={`shrink-0 border-2 p-1 transition ${
                         selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
                       }`}
                     >
-                      <div className="pointer-events-none flex h-14 items-end overflow-hidden rounded bg-white p-1 shadow-sm" style={{ aspectRatio: "2 / 1" }}>
+                      <div className="pointer-events-none flex h-14 items-end overflow-hidden bg-white p-1" style={{ aspectRatio: "2 / 1" }}>
                         {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
                           <img
                             src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
@@ -8083,6 +8064,7 @@ function UploadPageContent() {
                   {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
                 </span>
               </div>
+              )}
             </div>
           )}
         </div>
