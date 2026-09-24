@@ -8339,7 +8339,15 @@ function UploadPageContent() {
                 >
                   ‹
                 </button>
-                <div className="flex flex-1 gap-2 overflow-x-auto border-t border-[var(--color-hairline)] bg-white p-2">
+                <div
+                  className="flex flex-1 gap-2 overflow-x-auto bg-white p-2"
+                  // 이 줄 바로 위(표지·내지 캔버스 테두리)를 없앴더니, 여기 남아있던
+                  // border-t가 허공에 떠 있는 선처럼 보이고, 기본 스크롤바까지 겹쳐서
+                  // "박스 안에 또 박스"처럼 보인다는 피드백(2026-09-26)에 따라 border-t를
+                  // 빼고 스크롤바도 다른 가로 스크롤 영역(카테고리 바 등)과 같이 얇게
+                  // 바꿨어요.
+                  style={{ scrollbarWidth: "thin" }}
+                >
                   {isPhotobook && (
                     <button
                       type="button"
