@@ -213,7 +213,9 @@ function drawTextBoxOnCanvas(
   const y = offsetY + (box.yPct / 100) * pageH;
   const w = (box.widthPct / 100) * pageW;
   const fontPx = Math.max(8, Math.round(pageW * TEXT_BOX_FONT_SCALE_BASE_RATIO * box.fontScale));
-  ctx.font = `${box.bold ? "bold " : ""}${fontPx}px ${box.fontFamily}`;
+  // 기울임(이탤릭)도 화면(app/upload/page.tsx의 CSS fontStyle)과 똑같이 폰트 문자열
+  // 맨 앞에 붙여요(2026-10-02, "문자" 패널 밑줄/기울임/배경 기능을 인쇄 PDF에도 반영).
+  ctx.font = `${box.italic ? "italic " : ""}${box.bold ? "bold " : ""}${fontPx}px ${box.fontFamily}`;
   ctx.fillStyle = box.color;
   ctx.textAlign = box.align;
   ctx.textBaseline = "top";
@@ -230,6 +232,47 @@ function drawTextBoxOnCanvas(
   const lineHeight = fontPx * (box.lineHeight ?? 1.35);
   const lines = wrapTextForCanvas(ctx, text, w);
   const textX = box.align === "left" ? x : box.align === "right" ? x + w : x + w / 2;
+
+  // 밑줄·배경을 그릴 때 필요한, 그 줄의 실제 가로폭과 시작 x예요 — 정렬(align)에 따라
+  // textX가 왼쪽/가운데/오른쪽 중 어느 기준점인지 다르고, 줄마다 글자 수가 달라 폭도
+  // 다르니 줄마다 다시 재요(화면의 boxDecorationBreak: clone과 같은 "줄마다 따로"
+  // 느낌을 인쇄 PDF에서도 내려고요).
+  const measureLineBox = (line: string) => {
+    const lineWidth = ctx.measureText(line).width;
+    const lineStartX =
+      box.align === "left" ? textX : box.align === "right" ? textX - lineWidth : textX - lineWidth / 2;
+    return { lineStartX, lineWidth };
+  };
+
+  // 글자 배경(하이라이트)을 지정했으면 글자를 그리기 전에 먼저 그려요(글자가 배경 위에
+  // 올라오도록) — 화면(TextBoxOverlay)의 backgroundColor + em 단위 패딩과 같은 비율로
+  // 맞췄어요(기본값 가로 40%·세로 25%, box.backgroundPaddingXPct/YPct로 조절).
+  const drawLineBackground = (line: string, lineY: number) => {
+    if (!box.backgroundColor) return;
+    const { lineStartX, lineWidth } = measureLineBox(line);
+    const padX = (fontPx * (box.backgroundPaddingXPct ?? 40)) / 100;
+    const padY = (fontPx * (box.backgroundPaddingYPct ?? 25)) / 100;
+    ctx.save();
+    ctx.fillStyle = box.backgroundColor;
+    ctx.fillRect(lineStartX - padX / 2, lineY - padY / 2, lineWidth + padX, fontPx + padY);
+    ctx.restore();
+  };
+
+  // 밑줄은 글자를 그린 "다음"에 그려요(글자 위에 선이 깔끔히 보이도록) — 베이스라인
+  // 근처(글자 높이의 약 92% 지점)에 글자 색과 같은 색, 글자 크기에 비례한 두께로 그어요.
+  const drawLineUnderline = (line: string, lineY: number) => {
+    if (!box.underline) return;
+    const { lineStartX, lineWidth } = measureLineBox(line);
+    const underlineY = lineY + fontPx * 0.92;
+    ctx.save();
+    ctx.strokeStyle = box.color;
+    ctx.lineWidth = Math.max(1, fontPx * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(lineStartX, underlineY);
+    ctx.lineTo(lineStartX + lineWidth, underlineY);
+    ctx.stroke();
+    ctx.restore();
+  };
 
   // 높이(heightPct)가 정해져 있으면 화면과 똑같이 그 안쪽만 그리고 넘치는 줄은 잘라요
   // (일러스트레이터 텍스트박스처럼 높이를 고정한 경우예요). 세로 정렬(verticalAlign)에
@@ -248,7 +291,9 @@ function drawTextBoxOnCanvas(
     lines.forEach((line, i) => {
       const lineY = y + startYOffset + i * lineHeight;
       if (lineY - y > h) return;
+      drawLineBackground(line, lineY);
       ctx.fillText(line, textX, lineY, w);
+      drawLineUnderline(line, lineY);
     });
     ctx.restore();
     if ("letterSpacing" in ctx) {
@@ -258,7 +303,10 @@ function drawTextBoxOnCanvas(
   }
 
   lines.forEach((line, i) => {
-    ctx.fillText(line, textX, y + i * lineHeight, w);
+    const lineY = y + i * lineHeight;
+    drawLineBackground(line, lineY);
+    ctx.fillText(line, textX, lineY, w);
+    drawLineUnderline(line, lineY);
   });
   // 다음에 이 ctx로 그릴 다른 글자(다른 텍스트박스·캡션 등)에 이 박스의 자간이
   // 그대로 남아 번지지 않도록 매번 원상복구해요(표지 제목과 같은 패턴).

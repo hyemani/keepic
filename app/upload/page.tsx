@@ -1767,7 +1767,25 @@ function TextBoxOverlay({
           fontSize: `${0.85 * box.fontScale}rem`,
           textAlign: box.align,
           fontWeight: box.bold ? 700 : 400,
+          // 밑줄·기울임(2026-10-02 추가, "문자" 패널 요청).
+          textDecoration: box.underline ? "underline" : undefined,
+          fontStyle: box.italic ? "italic" : undefined,
           flexShrink: 0,
+          // 글자 배경(하이라이트) — 지정 안 하면(undefined) 기존처럼 완전 투명. 가로/세로
+          // 여백(backgroundPaddingXPct/YPct)만큼 글자 크기(em) 기준으로 배경이 글자보다
+          // 넉넉하게 퍼져요. boxDecorationBreak:clone으로 줄바꿈된 줄마다 각자 배경이
+          // 붙어요(형광펜처럼).
+          ...(box.backgroundColor
+            ? {
+                backgroundColor: box.backgroundColor,
+                paddingLeft: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                paddingRight: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                boxDecorationBreak: "clone",
+                WebkitBoxDecorationBreak: "clone",
+              }
+            : {}),
           // lineHeight/letterSpacing이 지정 안 됐으면(undefined) 인라인 스타일을 아예 안
           // 넣어서, 기존처럼 className의 "leading-snug"(1.375)·브라우저 기본 자간이 그대로
           // 적용돼요(2026-09-23 "문자" 패널 통합 전 텍스트박스와 완전히 같은 크기로 보여요).
@@ -1850,7 +1868,10 @@ type LayerIconName =
   | "boxAlignTop"
   | "boxAlignMiddle"
   | "boxAlignBottom"
-  | "check";
+  | "check"
+  | "underline"
+  | "italic"
+  | "highlight";
 
 function LayerIcon({ name, className }: { name: LayerIconName; className?: string }) {
   const common = {
@@ -2060,6 +2081,29 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
           <path d="M4 6h16" />
           <path d="M10 11h10" />
           <path d="M7 16h13" />
+        </svg>
+      );
+    // 2026-10-02, 혜민님 요청: 텍스트 밑줄·기울임·배경 아이콘.
+    case "underline":
+      return (
+        <svg {...common}>
+          <path d="M6 4v7a6 6 0 0 0 12 0V4" />
+          <path d="M5 20h14" />
+        </svg>
+      );
+    case "italic":
+      return (
+        <svg {...common}>
+          <path d="M11 4h6" />
+          <path d="M7 20h6" />
+          <path d="M14 4l-4 16" />
+        </svg>
+      );
+    case "highlight":
+      return (
+        <svg {...common}>
+          <rect x="4" y="9" width="16" height="7" rx="1" fill="currentColor" fillOpacity="0.2" />
+          <path d="M6 6h12" />
         </svg>
       );
   }
@@ -2347,6 +2391,37 @@ function TextBoxToolbar({
   // 칸에 맞는 값을 넘겨줘야 pt 숫자가 실제 인쇄 결과와 맞아요.
   pageWidthMm: number;
 }) {
+  // 2026-10-02, 혜민님 요청("텍스트 크기 조절 안되는 버그", "글자크기·행간·자간·
+  // 가로폭·세로폭 박스선택하면 직접 선택해서 숫자 수정할수있게") — 원인: 이 다섯
+  // 입력이 매 렌더마다 box의 실제 값(특히 pt는 fontScale로 왕복 변환 + 범위 클램프
+  // 까지 거친 값)을 그대로 controlled value로 보여주고 있어서, 타이핑 중간에
+  // 클램프/반올림된 값이 즉시 입력칸에 되돌아와 찍히는 바람에 숫자를 이어 칠 수가
+  // 없었어요(예: "60"을 치려고 "6"만 입력해도 그 순간 클램프된 값으로 덮어써짐).
+  // 그래서 이 다섯 입력은 "지금 입력 중인 글자"를 로컬 상태로 따로 들고 있다가,
+  // 다른 텍스트박스로 전환될 때(box.id가 바뀔 때)만 box의 실제 값으로 다시
+  // 맞추고, 입력을 마치고 포커스를 벗어날 때(onBlur)도 한 번 정리해요 — 타이핑
+  // 도중에는 절대 강제로 덮어쓰지 않아요.
+  const [ptDraft, setPtDraft] = useState("");
+  const [lineHeightDraft, setLineHeightDraft] = useState("");
+  const [letterSpacingDraft, setLetterSpacingDraft] = useState("");
+  const [scaleXDraft, setScaleXDraft] = useState("");
+  const [scaleYDraft, setScaleYDraft] = useState("");
+  const lastSyncedBoxIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!box) {
+      lastSyncedBoxIdRef.current = undefined;
+      return;
+    }
+    if (lastSyncedBoxIdRef.current === box.id) return;
+    lastSyncedBoxIdRef.current = box.id;
+    setPtDraft(String(textBoxFontScaleToPt(box.fontScale, pageWidthMm)));
+    setLineHeightDraft(String(box.lineHeight ?? 1.375));
+    setLetterSpacingDraft(String(box.letterSpacing ?? 0));
+    setScaleXDraft(String(box.scaleXPct ?? 100));
+    setScaleYDraft(String(box.scaleYPct ?? 100));
+  }, [box, pageWidthMm]);
+
   if (!box) return null;
 
   return (
@@ -2371,67 +2446,173 @@ function TextBoxToolbar({
           삭제
         </button>
       </div>
-      <select
-        value={box.fontFamily}
-        onChange={(e) => onChange({ fontFamily: e.target.value })}
-        className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm"
-        style={{ fontFamily: box.fontFamily }}
-      >
-        {fontOptions.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.label}
-          </option>
-        ))}
-      </select>
+      {/* 2026-10-02, 혜민님 요청: "글자서체 오른쪽에 화살표를 조금 안쪽으로 넣기" —
+          브라우저 기본 select 화살표를 없애고(appearance-none) 직접 그린 화살표를
+          테두리에서 살짝 떨어진 안쪽(right-2.5)에 둠. */}
+      <div className="relative">
+        <select
+          value={box.fontFamily}
+          onChange={(e) => onChange({ fontFamily: e.target.value })}
+          className="w-full appearance-none border border-[var(--color-hairline)] bg-white py-1.5 pl-2 pr-7 text-sm"
+          style={{ fontFamily: box.fontFamily }}
+        >
+          {fontOptions.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        <svg
+          viewBox="0 0 24 24"
+          className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-charcoal)]/50"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </div>
       <div>
         <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
           글자 크기(pt)
         </label>
-        <div className="flex items-center gap-2">
+        {/* 2026-10-02, 혜민님 요청: "pt 안내문구 삭제하고 B 색상표 글자크기 오른쪽에
+            배치" — 안내문구를 빼고 굵게(B)·글자색을 이 입력 오른쪽에 나란히 둠. */}
+        <div className="flex items-center gap-1.5">
           <input
             type="number"
             min={1}
             max={400}
             step={0.5}
-            list="titlePtPresets"
-            value={textBoxFontScaleToPt(box.fontScale, pageWidthMm)}
+            value={ptDraft}
             onChange={(e) => {
-              const pt = Number(e.target.value);
+              const raw = e.target.value;
+              setPtDraft(raw);
+              const pt = Number(raw);
               if (!Number.isFinite(pt) || pt <= 0) return;
               onChange({ fontScale: textBoxPtToFontScale(pt, pageWidthMm) });
             }}
-            className="w-24 border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            onBlur={() => setPtDraft(String(textBoxFontScaleToPt(box.fontScale, pageWidthMm)))}
+            className="w-0 flex-1 border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
           />
-          <span className="text-[11px] text-[var(--color-charcoal)]/40">
-            pt · 표지 제목과 같은 목록에서 골라도 돼요
-          </span>
+          <button
+            type="button"
+            title="굵게"
+            onClick={() => onChange({ bold: !box.bold })}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center border text-xs font-bold ${
+              box.bold
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            B
+          </button>
+          {/* 2026-09-27, 혜민님 요청: "박스안에 박스가 있는 이런 부분을 좀 신경써주세요"
+              — 브라우저 기본 color input이 스와치 주위에 자체 여백을 둬서 "작은 박스 안에
+              더 작은 박스"처럼 보였어요. 네이티브 여백/테두리를 없애서 색이 버튼 전체를
+              꽉 채우도록 고쳤어요. */}
+          <input
+            type="color"
+            value={box.color}
+            onChange={(e) => onChange({ color: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="글자 색"
+          />
         </div>
       </div>
+      {/* 2026-10-02, 혜민님 요청: "텍스트에 밑줄, 기울기, 배경 넣는기능 추가" — 왼쪽
+          패널에 아이콘 버튼 3개로 추가. 배경을 켜면 색상표와 가로/세로 여백(%) 조절이
+          바로 아래에 나타남(가로/세로 크기를 조절할 수 있어야 한다는 요청). ⚠️ 화면
+          미리보기 전용은 아니고 인쇄 PDF(lib/printCompose.ts)에도 같이 반영돼요. */}
       <div className="flex items-center gap-1.5">
         <button
           type="button"
-          title="굵게"
-          onClick={() => onChange({ bold: !box.bold })}
-          className={`flex h-7 w-7 items-center justify-center border text-xs font-bold ${
-            box.bold
+          title="밑줄"
+          onClick={() => onChange({ underline: !box.underline })}
+          className={`flex h-7 w-7 items-center justify-center border ${
+            box.underline
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-              : "border-[var(--color-hairline)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
           }`}
         >
-          B
+          <LayerIcon name="underline" className="h-4 w-4" />
         </button>
-        {/* 2026-09-27, 혜민님 요청: "박스안에 박스가 있는 이런 부분을 좀 신경써주세요"
-            — 브라우저 기본 color input이 스와치 주위에 자체 여백을 둬서 "작은 박스 안에
-            더 작은 박스"처럼 보였어요. 네이티브 여백/테두리를 없애서 색이 버튼 전체를
-            꽉 채우도록 고쳤어요. */}
-        <input
-          type="color"
-          value={box.color}
-          onChange={(e) => onChange({ color: e.target.value })}
-          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-          title="글자 색"
-        />
+        <button
+          type="button"
+          title="기울임"
+          onClick={() => onChange({ italic: !box.italic })}
+          className={`flex h-7 w-7 items-center justify-center border ${
+            box.italic
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="italic" className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          title="배경"
+          onClick={() => onChange({ backgroundColor: box.backgroundColor ? undefined : "#fff59d" })}
+          className={`flex h-7 w-7 items-center justify-center border ${
+            box.backgroundColor
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="highlight" className="h-4 w-4" />
+        </button>
+        {box.backgroundColor && (
+          <input
+            type="color"
+            value={box.backgroundColor}
+            onChange={(e) => onChange({ backgroundColor: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="배경 색"
+          />
+        )}
       </div>
+      {box.backgroundColor && (
+        <div className="grid grid-cols-2 gap-1.5">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+              배경 가로 여백(%)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={150}
+              step={5}
+              value={box.backgroundPaddingXPct ?? 40}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                onChange({ backgroundPaddingXPct: Math.max(0, Math.min(150, v)) });
+              }}
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+              배경 세로 여백(%)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={150}
+              step={5}
+              value={box.backgroundPaddingYPct ?? 25}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                onChange({ backgroundPaddingYPct: Math.max(0, Math.min(150, v)) });
+              }}
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            />
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-1.5">
         <div>
           <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
@@ -2442,12 +2623,15 @@ function TextBoxToolbar({
             min={0.8}
             max={2.5}
             step={0.05}
-            value={box.lineHeight ?? 1.375}
+            value={lineHeightDraft}
             onChange={(e) => {
-              const v = Number(e.target.value);
+              const raw = e.target.value;
+              setLineHeightDraft(raw);
+              const v = Number(raw);
               if (!Number.isFinite(v)) return;
               onChange({ lineHeight: Math.max(0.8, Math.min(2.5, v)) });
             }}
+            onBlur={() => setLineHeightDraft(String(box.lineHeight ?? 1.375))}
             className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
           />
         </div>
@@ -2460,12 +2644,15 @@ function TextBoxToolbar({
             min={-0.1}
             max={0.5}
             step={0.01}
-            value={box.letterSpacing ?? 0}
+            value={letterSpacingDraft}
             onChange={(e) => {
-              const v = Number(e.target.value);
+              const raw = e.target.value;
+              setLetterSpacingDraft(raw);
+              const v = Number(raw);
               if (!Number.isFinite(v)) return;
               onChange({ letterSpacing: Math.max(-0.1, Math.min(0.5, v)) });
             }}
+            onBlur={() => setLetterSpacingDraft(String(box.letterSpacing ?? 0))}
             className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
           />
         </div>
@@ -2483,12 +2670,15 @@ function TextBoxToolbar({
             min={50}
             max={200}
             step={1}
-            value={box.scaleXPct ?? 100}
+            value={scaleXDraft}
             onChange={(e) => {
-              const v = Number(e.target.value);
+              const raw = e.target.value;
+              setScaleXDraft(raw);
+              const v = Number(raw);
               if (!Number.isFinite(v)) return;
               onChange({ scaleXPct: Math.max(50, Math.min(200, v)) });
             }}
+            onBlur={() => setScaleXDraft(String(box.scaleXPct ?? 100))}
             className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
           />
         </div>
@@ -2501,12 +2691,15 @@ function TextBoxToolbar({
             min={50}
             max={200}
             step={1}
-            value={box.scaleYPct ?? 100}
+            value={scaleYDraft}
             onChange={(e) => {
-              const v = Number(e.target.value);
+              const raw = e.target.value;
+              setScaleYDraft(raw);
+              const v = Number(raw);
               if (!Number.isFinite(v)) return;
               onChange({ scaleYPct: Math.max(50, Math.min(200, v)) });
             }}
+            onBlur={() => setScaleYDraft(String(box.scaleYPct ?? 100))}
             className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
           />
         </div>
@@ -5776,10 +5969,20 @@ function UploadPageContent() {
     const touchesRight = xPct + widthPct >= 100 - EDGE_EPS;
     const touchesTop = yPct <= EDGE_EPS;
     const touchesBottom = yPct + heightPct >= 100 - EDGE_EPS;
-    const left = touchesLeft ? Math.max(xPct, safety.xPct) : xPct;
-    const right = touchesRight ? Math.min(xPct + widthPct, 100 - safety.xPct) : xPct + widthPct;
+    let left = touchesLeft ? Math.max(xPct, safety.xPct) : xPct;
+    let right = touchesRight ? Math.min(xPct + widthPct, 100 - safety.xPct) : xPct + widthPct;
     const top = touchesTop ? Math.max(yPct, safety.yPct) : yPct;
     const bottom = touchesBottom ? Math.min(yPct + heightPct, 100 - safety.yPct) : yPct + heightPct;
+    // 2026-10-02, 혜민님 요청: "안전영역이 가운데 기준으로 잡혀있지않음 접히는부분값도
+    // 동일하게 15mm로 맞춰주어야함" — 접힘부(스프레드 정중앙, 50%)에 닿아 있던 변도
+    // 바깥쪽 가장자리와 똑같이 안전영역만큼 당겨요(예전엔 SPREAD_GUTTER_PCT=0이라
+    // 접힘부는 전혀 안 당겼었음). 왼쪽 낱장의 오른쪽(접힘부 쪽) 변, 오른쪽 낱장의
+    // 왼쪽(접힘부 쪽) 변만 대상 — 이미 자기 게터가 있어서 50%에 안 닿아 있는 템플릿은
+    // (기존 로직처럼) 그대로 둬요.
+    const touchesFoldFromLeftPage = right >= 50 - EDGE_EPS && right <= 50 + EDGE_EPS;
+    const touchesFoldFromRightPage = left >= 50 - EDGE_EPS && left <= 50 + EDGE_EPS;
+    if (touchesFoldFromLeftPage) right = Math.min(right, 50 - safety.xPct);
+    if (touchesFoldFromRightPage) left = Math.max(left, 50 + safety.xPct);
     return {
       xPct: left,
       yPct: top,
@@ -8204,7 +8407,6 @@ function UploadPageContent() {
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-medium text-[var(--color-charcoal)]/70">사진 개수</p>
                                   <div className="mt-1.5 flex flex-wrap gap-1">
                                     {LAYOUT_COUNT_FILTERS.filter((f) => f.id === "auto" || f.id === "all" || (typeof f.id === "number" && f.id <= 3)).map((f) => (
                                       <button
@@ -9104,7 +9306,6 @@ function UploadPageContent() {
                                 return (
                                   <div className="flex flex-col gap-1.5">
                                     <div>
-                                      <p className="text-xs font-medium text-[var(--color-charcoal)]/70">사진 개수</p>
                                       <div className="mt-1.5 flex flex-wrap gap-1">
                                         {LAYOUT_COUNT_FILTERS.map((f) => (
                                           <button
