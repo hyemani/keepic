@@ -394,7 +394,8 @@ const EDIT_TABS: { id: EditTabId; label: string; icon: MenuTabIconName }[] = [
   { id: "background", label: "배경", icon: "background" },
   { id: "theme", label: "표지변경", icon: "theme" },
   { id: "sticker", label: "스티커", icon: "sticker" },
-  { id: "handwriting", label: "손글씨스티커", icon: "handwriting" },
+  // 2026-10-01, 혜민님 요청: "손글씨스티커 패널제목을 손글씨로 수정해주세요"
+  { id: "handwriting", label: "손글씨", icon: "handwriting" },
   { id: "text", label: "텍스트", icon: "text" },
   // 2026-09-23, 혜민님 요청: 독립된 "사진" 탭(과 별도 "사진 추가" 버튼)을 없애고, 레이아웃
   // 밖에서 사진을 자유롭게 추가·정리하는 기능(사진 보관함 업로드·전체 목록·이 페이지에
@@ -749,31 +750,14 @@ function ColorChartPicker({
 }) {
   const activeLower = activeColor.toLowerCase();
   return (
-    <div className="flex flex-col gap-2.5">
-      {SPREAD_BACKGROUND_CHART.map((group) => (
-        <div key={group.category} className="flex flex-col gap-1">
-          <span className="text-[11px] text-[var(--color-charcoal)]/50">{group.category}</span>
-          <div className="flex flex-wrap gap-1.5">
-            {group.colors.map((preset) => (
-              <button
-                key={preset.color}
-                type="button"
-                title={preset.label}
-                onClick={() => onPick(preset.color)}
-                className={`h-8 w-8 border transition ${
-                  activeLower === preset.color.toLowerCase()
-                    ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                    : "border-[var(--color-hairline)]"
-                }`}
-                style={{ backgroundColor: preset.color }}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
+    // 2026-10-01, 혜민님 요청:
+    // 1) "색 직접 선택 메뉴는 제일 상단에 가로폭에 맞춰서 배치해주세요" — 맨 위로 옮기고 w-full로.
+    // 2) "색상조합을 컬러칩으로 만들어주세요. 낱개의 박스배치말고 가로여백을 없애주세요"
+    //    — 카테고리별로 색상들을 gap 없이 붙여서 하나의 이어진 컬러칩 띠로 그림(참고 이미지처럼).
+    <div className="flex w-full flex-col gap-2.5">
       <label
         title="색 직접 선택"
-        className="relative flex h-8 w-fit cursor-pointer items-center gap-1.5 overflow-hidden border border-dashed border-[var(--color-charcoal)]/40 px-2 text-[11px] text-[var(--color-charcoal)]/60"
+        className="relative flex h-9 w-full cursor-pointer items-center gap-1.5 overflow-hidden border border-dashed border-[var(--color-charcoal)]/40 px-2 text-[11px] text-[var(--color-charcoal)]/60"
       >
         <span
           className="h-4 w-4 shrink-0 border border-[var(--color-hairline)]"
@@ -787,6 +771,27 @@ function ColorChartPicker({
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
       </label>
+      {SPREAD_BACKGROUND_CHART.map((group) => (
+        <div key={group.category} className="flex flex-col gap-1">
+          <span className="text-[11px] text-[var(--color-charcoal)]/50">{group.category}</span>
+          <div className="flex w-full overflow-hidden border border-[var(--color-hairline)]">
+            {group.colors.map((preset) => (
+              <button
+                key={preset.color}
+                type="button"
+                title={preset.label}
+                onClick={() => onPick(preset.color)}
+                className={`h-8 flex-1 transition ${
+                  activeLower === preset.color.toLowerCase()
+                    ? "z-10 outline outline-2 -outline-offset-2 outline-[var(--color-sky)]"
+                    : ""
+                }`}
+                style={{ backgroundColor: preset.color }}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1697,12 +1702,14 @@ function TextBoxOverlay({
       // outline-offset을 줘서 선택 표시를 박스 밖으로 확실히 떼어냈어요.
       // 2026-09-28, 혜민님 요청(스위트북 비교): 실선 대신 점선(marching ants 느낌)으로
       // 바꿔서 "선택 표시"라는 게 더 잘 드러나게 했어요.
-      className={`absolute cursor-move outline outline-2 outline-offset-[6px] transition ${
+      // 2026-10-01, 혜민님 요청: "점선말고 얇은 실선으로 처리해주세요" — 점선(marching
+      // ants)을 없애고 얇은 실선(outline-1)으로 통일. 사진박스(ImageBoxOverlay)도 같이 바꿈.
+      className={`absolute cursor-move outline outline-1 outline-offset-[6px] transition ${
  isActive
-          ? "outline-dashed outline-[var(--color-sky)]"
+          ? "outline-[var(--color-sky)]"
           : isMultiSelected
-          ? "outline-dashed outline-[var(--color-brand-purple)]"
-          : "outline-transparent hover:outline-dashed hover:outline-[var(--color-sky)]/40"
+          ? "outline-[var(--color-brand-purple)]"
+          : "outline-transparent hover:outline-[var(--color-sky)]/40"
       }`}
       style={{
         zIndex,
@@ -3310,16 +3317,17 @@ const ImageBoxOverlay = forwardRef<
       // 같은 문제를 해결해둔 방식을 사진박스에도 그대로 적용해요 — outline은 박스
       // 모델(레이아웃 크기)에 전혀 영향을 안 줘서 사진이 박스를 항상 끝까지 꽉
       // 채우고, 점선은 그 위에 딱 겹쳐서(offset 0) 그려져요.
-      className={`absolute outline outline-2 outline-offset-0 transition ${
+      // 2026-10-01, 혜민님 요청: "점선말고 얇은 실선으로 처리해주세요"
+      className={`absolute outline outline-1 outline-offset-0 transition ${
         isActive && photoEditMode ? "cursor-grab" : "cursor-move"
       } ${
         isActive && photoEditMode
           ? "outline-[var(--color-brand-purple)]"
           : isActive
-            ? "outline-dashed outline-[var(--color-sky)]"
+            ? "outline-[var(--color-sky)]"
             : isMultiSelected
-              ? "outline-dashed outline-[var(--color-brand-purple)]"
-              : "outline-transparent hover:outline-dashed hover:outline-[var(--color-sky)]/40"
+              ? "outline-[var(--color-brand-purple)]"
+              : "outline-transparent hover:outline-[var(--color-sky)]/40"
       }`}
       style={{
         zIndex,
@@ -3449,18 +3457,10 @@ const ImageBoxOverlay = forwardRef<
       />
       {isActive && !photoEditMode && (
         <>
-          <button
-            type="button"
-            title="프레임 삭제"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="absolute -right-1.5 -top-1.5 z-40 flex h-5 w-5 items-center justify-center border border-white bg-red-500 text-[10px] text-white "
-          >
-            ✕
-          </button>
+          {/* 2026-10-01, 혜민님 요청: "이미지나 스티커박스 오른쪽 상단에 빨간 네모
+              없애주세요" — 이 자리에 있던 빨간 삭제(✕) 버튼을 제거함. 삭제 기능은
+              아래 StackOrderToolbar(레이어 툴바)에 이미 같은 기능의 삭제 버튼이 있어서
+              중복이었음. */}
           {/* 스티커는 모서리(대각선) 손잡이만 보여줘요 — 위/아래/좌/우 변 손잡이는
               한쪽 축만 늘려서 비율이 깨지는 조작이라, 애초에 크기조절을 "비율유지"로만
               허용하는 스티커에는 의미가 없어서 렌더링 자체를 제외해요(2026-09-24). */}
@@ -7517,7 +7517,10 @@ function UploadPageContent() {
             // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
             <div
-              className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
+              // 2026-10-01, 혜민님 요청: "편집툴의 가로폭을 3분의2의 크기로 줄여주세요" —
+              // 넓은 모니터에서 lg:max-w-none으로 꽉 채우던 걸, 좌우에 적당히 여백을 두는
+              // 2/3 폭으로 되돌림(가운데 정렬은 mx-auto로 유지).
+              className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:w-2/3 lg:flex-row"
               style={{ minHeight: 420 }}
             >
               {/* 왼쪽(데스크톱)/하단(모바일) 페이지 목록 — "미리보기" 모드일 때만 보여요.
@@ -7543,7 +7546,10 @@ function UploadPageContent() {
                     if (idx > 0) setSelectedPageKey(order[idx - 1]);
                   }}
                   disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
+                  // 2026-10-01, 혜민님 요청: "페이지 상단과 하단에있는 화살표에 박스와
+                  // 선은 없애고 아이콘만 남겨주세요" — 테두리·배경을 빼고 화살표 글자만
+                  // 남김.
+                  className="flex h-8 w-8 shrink-0 items-center justify-center text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
                   aria-label="이전 페이지"
                 >
                   ‹
@@ -7718,7 +7724,10 @@ function UploadPageContent() {
                     const idx = pageOrder.findIndex((k) => k === selectedPageKey);
                     return idx < 0 || idx >= pageOrder.length - 1;
                   })()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
+                  // 2026-10-01, 혜민님 요청: "페이지 상단과 하단에있는 화살표에 박스와
+                  // 선은 없애고 아이콘만 남겨주세요" — 테두리·배경을 빼고 화살표 글자만
+                  // 남김.
+                  className="flex h-8 w-8 shrink-0 items-center justify-center text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
                   aria-label="다음 페이지"
                 >
                   ›
