@@ -683,6 +683,12 @@ const CSS_PX_PER_MM = 96 / 25.4;
 // 분류로 묶고 스와치도 더 크게 키운 "컬러차트" 레이아웃으로 바꿨어요. 예전 목록은 이제
 // 이 파일 안에서 참조하는 곳이 없어서(두 배경 패널 모두 아래 컬러차트로 갈아탐)
 // 통째로 지웠어요.
+// 2026-10-04, 혜민님 요청(항목7): "단색 컬러차트보면 4가지 색상의 컬러칩으로 구성...
+// 저는 5가지의 컬러칩으로 여러색상 넣고싶습니다... 색상도 너무 없습니다" — 카테고리마다
+// 색상 수가 4/8/8/6로 제각각이라(위 ColorChartPicker가 flex-1로 한 줄에 꽉 채우다 보니)
+// 줄마다 칩 폭이 들쑥날쑥했어요. 다섯 카테고리 모두 정확히 5개씩으로 맞춰 칩 폭을
+// 통일하고, 그동안 없던 "딥 색상"(네이비·버건디·포레스트그린 등 더 진하고 차분한
+// 톤) 카테고리를 새로 더해서 전체 색상 종류도 늘렸어요.
 const SPREAD_BACKGROUND_CHART: { category: string; colors: { color: string; label: string }[] }[] = [
   {
     category: "무채색",
@@ -690,33 +696,28 @@ const SPREAD_BACKGROUND_CHART: { category: string; colors: { color: string; labe
       { color: "#ffffff", label: "화이트" },
       { color: "#f5f0e8", label: "아이보리" },
       { color: "#d9d9d9", label: "라이트그레이" },
+      { color: "#8c8c8c", label: "그레이" },
       { color: "#232323", label: "차콜" },
     ],
   },
   {
-    category: "부드러운 색상",
+    category: "파스텔 색상",
     colors: [
       { color: "#fff4e0", label: "크림" },
       { color: "#ffe1a8", label: "파스텔옐로우" },
       { color: "#ffd6e0", label: "파스텔핑크" },
-      { color: "#ffe0c7", label: "파스텔피치" },
       { color: "#e3d9f7", label: "파스텔라벤더" },
       { color: "#cfe8ff", label: "파스텔블루" },
-      { color: "#c8f4de", label: "파스텔민트" },
-      { color: "#d9f2d0", label: "파스텔그린" },
     ],
   },
   {
-    category: "발랄한 색상",
+    category: "비비드 색상",
     colors: [
       { color: "#f76c6c", label: "체리레드" },
       { color: "#ff8fab", label: "핫핑크" },
       { color: "#fb8500", label: "오렌지" },
-      { color: "#ffb703", label: "선셋옐로우" },
       { color: "#a3e635", label: "라임그린" },
-      { color: "#2ec4b6", label: "터콰이즈" },
       { color: "#38bdf8", label: "비비드블루" },
-      { color: "#c77dff", label: "라벤더퍼플" },
     ],
   },
   {
@@ -727,7 +728,16 @@ const SPREAD_BACKGROUND_CHART: { category: string; colors: { color: string; labe
       { color: "#b08ea3", label: "모브" },
       { color: "#b5a582", label: "카키" },
       { color: "#c17a5f", label: "테라코타" },
-      { color: "#a99d8f", label: "그레이지" },
+    ],
+  },
+  {
+    category: "딥 색상",
+    colors: [
+      { color: "#1f2a44", label: "네이비" },
+      { color: "#6e2439", label: "버건디" },
+      { color: "#1f3d2b", label: "포레스트그린" },
+      { color: "#7a5a21", label: "머스타드브라운" },
+      { color: "#4a3350", label: "플럼" },
     ],
   },
 ];
@@ -1018,6 +1028,12 @@ function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number
 // 눈금자 두께(px) — 위쪽(가로 눈금자) 높이와 왼쪽(세로 눈금자) 폭. 왼쪽 위 빈 모서리
 // 칸도 이 두 값으로 크기를 맞춰요.
 const RULER_THICKNESS_PX = { h: 20, w: 28 };
+// 2026-10-04, 혜민님 요청(항목8): "눈금자때문에 책자를 크게볼수없는거라면 과감하게
+// 눈금자는 삭제하도록 하겠습니다. 다만, 추후에 다시 쓸수도 있으니 백업해주세요" —
+// 실제로 지우는 대신 이 스위치로 꺼요(코드는 그대로 남아있어서, 나중에 true로만
+// 되돌리면 바로 다시 켜져요). 꺼져 있으면 아래에서 눈금자용 여백(padding)도 0이 돼서
+// 그만큼 책이 더 크게 보여요.
+const SHOW_RULER = false;
 // 스프레드 박스 자체에 이미 있는 위쪽 여백(className의 "mt-3" = 12px)이에요. 눈금자
 // 위쪽 공간(paddingTop)을 잡을 때 이 여백만큼 미리 빼줘야, 눈금자가 실제 캔버스 위쪽
 // 가장자리에 딱 붙어요 — 안 그러면 눈금자와 캔버스 사이에 이 여백만큼 빈틈이 생겨서
@@ -2376,7 +2392,6 @@ function TextBoxToolbar({
   box,
   onChange,
   onDelete,
-  scopeLabel,
   pageWidthMm,
 }: {
   box: TextBoxDef | null;
@@ -2434,14 +2449,18 @@ function TextBoxToolbar({
       className="mb-4 flex flex-col gap-2 border-b border-[var(--color-hairline)] pb-4"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-[var(--color-charcoal)]/70">
-          {scopeLabel ?? "텍스트박스"}
-        </span>
+      {/* 2026-10-04, 혜민님 요청(항목11): "내지 왼쪽 페이지 텍스트박스 제목 삭제하고
+          서체로 문구 바꿔주세요" — "내지 왼쪽 페이지 텍스트박스" 같은 위치 설명 제목을
+          없애고, 그 자리엔(표지 제목 입력칸의 "타이틀" 라벨과 같은 패턴으로) 바로 아래
+          서체 선택 박스를 가리키는 "서체" 라벨만 남겨요. 삭제 버튼은 오른쪽 위에 그대로
+          둬요. scopeLabel prop 자체는 지우지 않았어요(호출하는 쪽 3곳— 표지/뒤표지/내지
+          — 이 다르게 넘겨주고 있는데, 당장은 화면에 안 쓰지만 나중에 다시 필요할 수
+          있어서 prop만 남겨둠). */}
+      <div className="flex items-center justify-end">
         <button
           type="button"
           onClick={onDelete}
-          className="text-xs text-red-500 underline underline-offset-2 hover:text-red-600"
+          className="text-sm text-red-500 underline underline-offset-2 hover:text-red-600"
         >
           삭제
         </button>
@@ -2449,11 +2468,15 @@ function TextBoxToolbar({
       {/* 2026-10-02, 혜민님 요청: "글자서체 오른쪽에 화살표를 조금 안쪽으로 넣기" —
           브라우저 기본 select 화살표를 없애고(appearance-none) 직접 그린 화살표를
           테두리에서 살짝 떨어진 안쪽(right-2.5)에 둠. */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
+          서체
+        </label>
       <div className="relative">
         <select
           value={box.fontFamily}
           onChange={(e) => onChange({ fontFamily: e.target.value })}
-          className="w-full appearance-none border border-[var(--color-hairline)] bg-white py-1.5 pl-2 pr-7 text-sm"
+          className="w-full appearance-none border border-[var(--color-hairline)] bg-white py-1.5 pl-2 pr-7 text-base"
           style={{ fontFamily: box.fontFamily }}
         >
           {fontOptions.map((f) => (
@@ -2474,8 +2497,9 @@ function TextBoxToolbar({
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
+      </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+        <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
           글자 크기(pt)
         </label>
         {/* 2026-10-02, 혜민님 요청: "pt 안내문구 삭제하고 B 색상표 글자크기 오른쪽에
@@ -2495,13 +2519,13 @@ function TextBoxToolbar({
               onChange({ fontScale: textBoxPtToFontScale(pt, pageWidthMm) });
             }}
             onBlur={() => setPtDraft(String(textBoxFontScaleToPt(box.fontScale, pageWidthMm)))}
-            className="w-0 flex-1 border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            className="w-0 flex-1 border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
           />
           <button
             type="button"
             title="굵게"
             onClick={() => onChange({ bold: !box.bold })}
-            className={`flex h-7 w-7 shrink-0 items-center justify-center border text-xs font-bold ${
+            className={`flex h-7 w-7 shrink-0 items-center justify-center border text-sm font-bold ${
               box.bold
                 ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
                 : "border-[var(--color-hairline)]"
@@ -2576,7 +2600,7 @@ function TextBoxToolbar({
       {box.backgroundColor && (
         <div className="grid grid-cols-2 gap-1.5">
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+            <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
               배경 가로 여백(%)
             </label>
             <input
@@ -2590,11 +2614,11 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ backgroundPaddingXPct: Math.max(0, Math.min(150, v)) });
               }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+            <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
               배경 세로 여백(%)
             </label>
             <input
@@ -2608,14 +2632,14 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ backgroundPaddingYPct: Math.max(0, Math.min(150, v)) });
               }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
             />
           </div>
         </div>
       )}
       <div className="grid grid-cols-2 gap-1.5">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
             행간(줄 간격)
           </label>
           <input
@@ -2632,11 +2656,11 @@ function TextBoxToolbar({
               onChange({ lineHeight: Math.max(0.8, Math.min(2.5, v)) });
             }}
             onBlur={() => setLineHeightDraft(String(box.lineHeight ?? 1.375))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
             자간
           </label>
           <input
@@ -2653,7 +2677,7 @@ function TextBoxToolbar({
               onChange({ letterSpacing: Math.max(-0.1, Math.min(0.5, v)) });
             }}
             onBlur={() => setLetterSpacingDraft(String(box.letterSpacing ?? 0))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
           />
         </div>
       </div>
@@ -2662,7 +2686,7 @@ function TextBoxToolbar({
           미리보기 전용, 인쇄 PDF엔 아직 반영 안 돼요(이미지박스 회전과 같은 상태). */}
       <div className="grid grid-cols-2 gap-1.5">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
             가로 폭(%)
           </label>
           <input
@@ -2679,11 +2703,11 @@ function TextBoxToolbar({
               onChange({ scaleXPct: Math.max(50, Math.min(200, v)) });
             }}
             onBlur={() => setScaleXDraft(String(box.scaleXPct ?? 100))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
             세로 폭(%)
           </label>
           <input
@@ -2700,7 +2724,7 @@ function TextBoxToolbar({
               onChange({ scaleYPct: Math.max(50, Math.min(200, v)) });
             }}
             onBlur={() => setScaleYDraft(String(box.scaleYPct ?? 100))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+            className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
           />
         </div>
       </div>
@@ -4372,8 +4396,12 @@ function CanvasStage({
   onActualSizePercentChange?: (percent: number | null) => void;
   // 캔버스 위에 절대 위치로 띄울 내용(좌우 페이지 이동 화살표 등, 2026-09-26 추가) —
   // 스크롤되는 viewportRef가 아니라 그 바깥의 measureRef(스크롤 없는 캔버스 전체 영역)
-  // 기준으로 떠서, 왼쪽 속성 패널까지 넘어가지 않고 캔버스 영역 안에만 있어요.
-  overlay?: (displayW: number) => React.ReactNode;
+  // 기준으로 떠서, 왼쪽 속성 패널까지 넘어가지 않고 캔버스 영역 안에만 있어요. 두 번째
+  // 인자(containerW)는 measureRef 자체의 실제 폭이에요 — 책이 컨테이너를 거의 꽉 채울
+  // 때 화살표가 책 바로 바깥이 아니라 컨테이너(=편집기) 경계 안쪽에 멈추도록, 화살표
+  // 쪽에서 이 값으로 위치를 한 번 더 잘라내는 데 써요(2026-10-04, "화살표가 편집기
+  // 밖으로 나갔다" 수정).
+  overlay?: (displayW: number, containerW: number) => React.ReactNode;
 }) {
   // measureRef(스크롤 없는 바깥 래퍼)로 크기를 재요 — viewportRef(overflow-auto가 걸린
   // 안쪽 div) 자신을 관찰하면, 그 div에 세로/가로 스크롤바가 생기는 순간
@@ -4479,7 +4507,7 @@ function CanvasStage({
           {children}
         </div>
       </div>
-      {overlay ? overlay(displayW) : null}
+      {overlay ? overlay(displayW, box.w) : null}
     </div>
   );
 }
@@ -4868,6 +4896,52 @@ function UploadPageContent() {
   // 계산해요 — 도련선/재단선은 펼침면 전체 기준, 안전영역은 뒤표지·책등·앞표지 각각 기준,
   // 책등 경계는 접힘 위치 전용 안내선이에요). 네 가지를 따로 켜고 끌 수 있어요.
 
+  // 2026-10-04, 혜민님 요청: "표지메뉴는 내지와 다르게 이미지 선택후 이미지박스와
+  // 패널창이 안뜨고 예전에 하단에 기재된 바만 생김. 내지와 동일하게 수정해주세요" —
+  // 예전엔 표지 첫 사진을 coverPhoto/backCoverPhoto(절대좌표 드래그 전용 Photo 타입,
+  // PhotoCell로 그려짐)로만 저장해서 내지 자유배치 이미지박스(ImageBoxOverlay)의
+  // 가운데 스냅·테두리/모서리 패널이 전혀 적용되지 않았어요. 이제 표지 사진을 고르는
+  // 순간 coverImageBoxes/backCoverImageBoxes에도 패널을 꽉 채우는 박스로 함께
+  // 만들어서, 캔버스에서는 항상 내지와 똑같은 ImageBoxLayer/ImageBoxOverlay로
+  // 그려지게 해요(스냅·리사이즈·테두리·둥근모서리 전부 동일). coverPhoto/backCoverPhoto
+  // 값 자체는 지우지 않고 그대로 함께 갱신해요 — "마지막 소개 페이지" 미리보기·인쇄
+  // (IntroPhotoMirror 화면, lib/printCompose.ts의 drawIntroPage)가 아직 이 Photo
+  // 타입(x/y/scale 절대좌표)을 그대로 쓰고 있어서예요.
+  function applyCoverPhotoAsImageBox(
+    target: "front" | "back",
+    url: string,
+    naturalWidth: number,
+    naturalHeight: number
+  ) {
+    const setBoxes = target === "front" ? setCoverImageBoxes : setBackCoverImageBoxes;
+    setBoxes((prev) => {
+      if (prev.length === 0) {
+        return [
+          {
+            id: crypto.randomUUID(),
+            url,
+            naturalWidth,
+            naturalHeight,
+            xPct: 0,
+            yPct: 0,
+            widthPct: 100,
+            heightPct: 100,
+            innerOffsetXPct: 0,
+            innerOffsetYPct: 0,
+            innerScale: 1,
+          },
+        ];
+      }
+      // 이미 박스가 있으면(레이아웃 탭에서 이미 만들어졌거나, "표지 사진 바꾸기"로 다시
+      // 고르는 경우) 맨 앞 칸의 사진만 바꾸고 위치·크기는 그대로 둬요.
+      return prev.map((b, i) =>
+        i === 0
+          ? { ...b, url, naturalWidth, naturalHeight, innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 }
+          : b
+      );
+    });
+  }
+
   async function handleCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -4893,6 +4967,7 @@ function UploadPageContent() {
         rotation: 0,
         flipX: false,
       });
+      applyCoverPhotoAsImageBox("front", url, img.naturalWidth, img.naturalHeight);
     };
     img.src = url;
   }
@@ -4923,6 +4998,7 @@ function UploadPageContent() {
         rotation: 0,
         flipX: false,
       });
+      applyCoverPhotoAsImageBox("back", url, img.naturalWidth, img.naturalHeight);
     };
     img.src = url;
   }
@@ -4971,12 +5047,15 @@ function UploadPageContent() {
 
     // 표지 사진을 아직 안 골랐으면, 처음 올린 사진을 표지 앞면에 자동으로 배치해요.
     // (직접 고른 표지 사진이 있으면 건드리지 않고, "표지 사진 바꾸기"로 언제든 바꿀 수 있어요.)
-    setCoverPhoto((prev) => {
-      if (prev) return prev;
+    // 2026-10-04: 자동 배치도 applyCoverPhotoAsImageBox로 같이 이어받아서, 처음부터
+    // 내지와 똑같은 이미지박스(스냅·테두리 패널)로 시작해요.
+    if (!coverPhoto && coverImageBoxes.length === 0) {
       const first = newPhotos[0];
-      if (!first) return prev;
-      return { ...first, caption: "", size: "base", align: "center", position: "below" };
-    });
+      if (first) {
+        setCoverPhoto({ ...first, caption: "", size: "base", align: "center", position: "below" });
+        applyCoverPhotoAsImageBox("front", first.url, first.width, first.height);
+      }
+    }
 
     // "AI 맞춤 레이아웃"이면 방금 올린 사진들을 곧바로 자유 배치 이미지박스로 넣어요
     // (분할 메뉴 없이, 편집메뉴에서 바로 위치·크기를 조절할 수 있게). 이미 놓인 다른
@@ -5965,9 +6044,17 @@ function UploadPageContent() {
     const coverBleedMmLocal = coverIsHardLocal ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
     const panelWidthMm = coverPanelMmLocal + coverBleedMmLocal;
     const panelHeightMm = coverPanelMmLocal + coverBleedMmLocal * 2;
+    // 2026-10-04, 혜민님 요청(항목13): "안전여백 기준이 20mm로 되어있다면 선도 안전여백과
+    // 동일하게 맞춰주세요. 이미지는 20mm로 되어있고 선은 15mm로 되어있으니 일치하지
+    // 않습니다" — 화면에 그려지는 파란 점선 안전선(coverSafetyXPct/YPct, 아래
+    // renderPage 근처)은 "도련(bleed) + 15mm"(=재단선에서 안쪽으로 15mm)로 계산되는데,
+    // 정작 사진 슬롯을 안쪽으로 당기는 이 함수는 도련을 더하지 않고 15mm만 썼어요 —
+    // panelWidthMm/panelHeightMm는 도련을 포함한 판 전체 폭이 0%~100%라서, 도련을 안
+    // 더하면 재단선 기준으로는 (15mm - 도련)만큼만 당겨져서 화면 안전선보다 사진이
+    // 재단선에 더 가깝게 놓일 수 있었어요. 안전선과 똑같이 "도련 + 15mm"로 맞춰요.
     return {
-      xPct: panelWidthMm > 0 ? (GUIDE_SAFETY_MARGIN_MM / panelWidthMm) * 100 : 0,
-      yPct: panelHeightMm > 0 ? (GUIDE_SAFETY_MARGIN_MM / panelHeightMm) * 100 : 0,
+      xPct: panelWidthMm > 0 ? ((coverBleedMmLocal + GUIDE_SAFETY_MARGIN_MM) / panelWidthMm) * 100 : 0,
+      yPct: panelHeightMm > 0 ? ((coverBleedMmLocal + GUIDE_SAFETY_MARGIN_MM) / panelHeightMm) * 100 : 0,
     };
   }
 
@@ -6452,12 +6539,37 @@ function UploadPageContent() {
   // overlay prop으로 넘겨서, 캔버스 자체(측정 래퍼) 기준으로 뜨게 해요 — 예전엔 아이콘
   // 메뉴+속성 패널까지 포함한 훨씬 넓은 바깥 영역 기준으로 떠 있어서, 화살표가 패널
   // 쪽까지 넘어와 보이는 문제가 있었어요(혜민님 확인, "화살표가 패널까지 보이는부분").
-  function renderPageNavArrows(displayW: number) {
+  function renderPageNavArrows(displayW: number, containerW: number = 0) {
     // 책이 캔버스 안에서 가로로 가운데 정렬돼 있어서(2026-09-27), 화살표는
     // measureRef 가장자리가 아니라 "책 실제 폭의 절반 + 여백"만큼 중앙에서 떨어진
     // 자리에 둬요 — 그래야 줌 배율이 달라져도 항상 책 바로 옆에 붙어요. displayW를
     // 아직 모르면(0) 화면 가장자리 쪽으로 대체해요.
-    const halfGap = displayW > 0 ? displayW / 2 + 8 : undefined;
+    // 2026-10-04, 혜민님 요청(항목6): "화살표가 또 편집기 밖으로 나갔습니다. 책자가
+    // 배치된 선상 안에서 고정되도록 해주세요" — 책이 편집기(컨테이너) 폭을 거의 꽉
+    // 채우면 "책 절반 폭 + 8px"이 컨테이너 절반 폭보다 커져서, 화살표가 편집기 경계
+    // 바깥으로 밀려났어요. 화살표 버튼 자체 반지름(18px)만큼 여유를 두고 컨테이너
+    // 절반 폭을 넘지 않도록 잘라내요 — 여유가 있으면 예전처럼 책 바로 옆에, 여유가
+    // 없으면 편집기 안쪽 가장자리에 붙어요.
+    const rawHalfGap = displayW > 0 ? displayW / 2 + 8 : undefined;
+    const maxHalfGap = containerW > 0 ? Math.max(0, containerW / 2 - 22) : undefined;
+    const halfGap =
+      rawHalfGap !== undefined && maxHalfGap !== undefined
+        ? Math.min(rawHalfGap, maxHalfGap)
+        : rawHalfGap;
+    // 2026-10-04, 혜민님 요청(항목12): "편집하기 메뉴에서 오른쪽으로 화살표를 넘기면
+    // 미리보기 창으로 이동하는 오류... 편집메뉴에서의 화살표는 편집메뉴 자체에서 이전,
+    // 다음페이지이동할수있는 버튼입니다" — editorMode는 "선택된 페이지가 편집모드를 켠
+    // 그 페이지와 같을 때만 edit"으로 계산돼요(위 editorModeState 주석 참고, 왼쪽
+    // 사이드바에서 다른 페이지를 고르면 항상 미리보기부터 보여주려는 의도). 그런데 이
+    // 캔버스 위 화살표도 selectedPageKey만 바꾸다 보니 같은 규칙에 걸려 편집 중에
+    // 화살표만 눌러도 미리보기로 튕겨나갔어요. 화살표로 넘어갈 땐 편집 중이었다는
+    // 사실을 그대로 유지해야 하므로, 새 페이지 키로 editorModeState도 함께 "edit"으로
+    // 옮겨요(왼쪽 사이드바 클릭은 이 함수를 거치지 않으니 기존 "새 페이지=미리보기부터"
+    // 동작은 그대로예요).
+    function goToPage(key: typeof selectedPageKey) {
+      setSelectedPageKey(key);
+      setEditorModeState({ forPageKey: key, mode: "edit" });
+    }
     return (
       <>
         <button
@@ -6465,7 +6577,7 @@ function UploadPageContent() {
           onClick={() => {
             const order = pageOrder;
             const idx = order.findIndex((k) => k === selectedPageKey);
-            if (idx > 0) setSelectedPageKey(order[idx - 1]);
+            if (idx > 0) goToPage(order[idx - 1]);
           }}
           disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
           aria-label="이전 페이지"
@@ -6481,7 +6593,7 @@ function UploadPageContent() {
           onClick={() => {
             const order = pageOrder;
             const idx = order.findIndex((k) => k === selectedPageKey);
-            if (idx >= 0 && idx < order.length - 1) setSelectedPageKey(order[idx + 1]);
+            if (idx >= 0 && idx < order.length - 1) goToPage(order[idx + 1]);
           }}
           disabled={(() => {
             const idx = pageOrder.findIndex((k) => k === selectedPageKey);
@@ -7535,9 +7647,14 @@ function UploadPageContent() {
             <a href="/" className="shrink-0">
               <img src="/logo.svg" alt="Keepic" className="h-6 w-auto" />
             </a>
-            <span className="min-w-0 max-w-[40vw] truncate text-sm font-medium text-[var(--color-charcoal)]/80 sm:max-w-xs">
-              {coverTitle.trim() || "제목 없는 포토북"}
-            </span>
+            {/* 2026-10-04, 혜민님 요청(항목4): "Keepic 제목 없는 포토북 <- 제목없는포토북
+                문구 삭제" — 표지 제목을 아직 안 정했을 때 뜨던 "제목 없는 포토북" 자리표시
+                문구를 없앴어요. 제목을 이미 정했다면(coverTitle) 로고 옆에 그대로 보여줘요. */}
+            {coverTitle.trim() && (
+              <span className="min-w-0 max-w-[40vw] truncate text-sm font-medium text-[var(--color-charcoal)]/80 sm:max-w-xs">
+                {coverTitle.trim()}
+              </span>
+            )}
             {photos.length > 0 && (
               <>
                 {/* 미리보기/편집하기 전환 버튼은 없앴어요(2026-09-26 요청) — 포토북 위에
@@ -8077,13 +8194,11 @@ function UploadPageContent() {
                             />
                           )}
                           {activeCoverEditTab === "theme" && (
+                            // 2026-10-04, 혜민님 요청: "표지테마 상단에 문구삭제" — 위
+                            // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
+                            // 표지 디자인 예시로만 보여줄 예정이라, 화면 안내문은 필요 없다고
+                            // 확인해주셨어요).
                             <div className="flex flex-col gap-2">
-                              <p className="text-xs text-[var(--color-charcoal)]/60 break-keep">
-                                테마를 고르면 앞표지·책등·뒤표지 배경과 제목 서체가 한 번에
-                                바뀌어요. 이미 넣은 사진·텍스트는 그대로 남아있고, 고른 뒤에도
-                                아래 “레이아웃”·“사진”·“텍스트” 탭에서 각각 따로 편집할 수
-                                있어요.
-                              </p>
                               <div className="flex flex-wrap gap-2">
                                 {COVER_THEMES.map((theme) => (
                                   <button
@@ -8238,21 +8353,28 @@ function UploadPageContent() {
                                 </>
                               ) : (
                                 <>
-                              {/* 2026-09-23, 독립 "사진" 탭 제거하면서 앞표지 "사진 바꾸기"를
-                                  여기로 합쳤어요 — 레이아웃으로 여러 장 배치 중이면 그쪽에서
-                                  관리하도록 안내만 하고, 아니면 기존 사진 1장 바꾸기 링크를 그대로 둬요. */}
-                              {coverImageBoxes.length > 0 ? (
+                              {/* 2026-10-04, 혜민님 요청(항목1): "내지와 동일하게 수정해주세요"
+                                  — 내지 사진 탭의 "+ 사진 추가" 패턴과 똑같이 맞췄어요. 박스가
+                                  아직 없으면(맨 처음) "+ 사진 추가" 버튼으로 이미지박스를 새로
+                                  만들고, 박스가 1개면 그 사진만 바꾸는 링크, 2개 이상(레이아웃
+                                  탭에서 여러 장 배치)이면 레이아웃 탭 안내만 보여줘요. */}
+                              {coverImageBoxes.length > 1 ? (
                                 <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
                                   “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 되돌리려면 레이아웃
                                   탭에서 “꽉 채우기”를 골라주세요.
                                 </p>
+                              ) : coverImageBoxes.length === 1 ? (
+                                <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                                  표지 사진 바꾸기
+                                  <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                                </label>
                               ) : (
-                                coverPhoto && (
-                                  <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                                    표지 사진 바꾸기
+                                <div>
+                                  <label className="inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
+                                    + 사진 추가
                                     <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
                                   </label>
-                                )
+                                </div>
                               )}
                               {/* 2026-10-02, 혜민님 요청: "뒤표지꾸미기 사진선택, 로고빼기도
                                   다 삭제 사진탭은 사진올리기, 프레임, 모서리 두께, 둥글게
@@ -9454,7 +9576,7 @@ function UploadPageContent() {
                               <div
                                 className="relative overflow-hidden"
                                 style={
-                                  !isPrintPreview
+                                  !isPrintPreview && SHOW_RULER
                                     ? {
                                         paddingLeft: RULER_THICKNESS_PX.w,
                                         paddingTop: Math.max(0, RULER_THICKNESS_PX.h - SPREAD_BOX_MARGIN_TOP_PX),
@@ -9462,7 +9584,7 @@ function UploadPageContent() {
                                     : undefined
                                 }
                               >
-                                {!isPrintPreview && (
+                                {!isPrintPreview && SHOW_RULER && (
                                   <>
                                     {/* 눈금자 왼쪽 위 빈 모서리 칸(일러스트레이터 편집대지와 같은 자리) —
                                         2026-09-27, 혜민님 요청으로 회색 배경을 없앴어요(빈 칸 자체는
