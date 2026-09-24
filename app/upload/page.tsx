@@ -459,18 +459,23 @@ function MenuTabIcon({ name, className }: { name: MenuTabIconName; className?: s
 }
 
 type EditTabId = "layout" | "background" | "theme" | "sticker" | "handwriting" | "text" | "photo";
+// 2026-09-25 브리프(KEEPIC_EDITOR_SWEETBOOK_GAP) 1단계 요청: 표지·내지 메뉴 순서를
+// 테마/레이아웃/사진/스티커/손글씨/텍스트/배경으로 통일. "theme" 탭의 라벨이
+// "표지변경"으로 돼 있던 건 내지 탭인데 표지를 가리키는 이름이라 실제 내용(테마 준비중
+// 안내)과 맞지 않는 오기였음 — "테마"로 수정. 탭 내용(준비 중 안내 문구)은 그대로 둠:
+// 아직 구현되지 않은 기능을 구현된 것처럼 보이게 만들지 않기 위함.
 const EDIT_TABS: { id: EditTabId; label: string; icon: MenuTabIconName }[] = [
+  { id: "theme", label: "테마", icon: "theme" },
   { id: "layout", label: "레이아웃", icon: "layout" },
-  { id: "background", label: "배경", icon: "background" },
-  { id: "theme", label: "표지변경", icon: "theme" },
-  { id: "sticker", label: "스티커", icon: "sticker" },
-  // 2026-10-01, 혜민님 요청: "손글씨스티커 패널제목을 손글씨로 수정해주세요"
-  { id: "handwriting", label: "손글씨", icon: "handwriting" },
-  { id: "text", label: "텍스트", icon: "text" },
   // 2026-09-23, 혜민님 요청: 독립된 "사진" 탭(과 별도 "사진 추가" 버튼)을 없애고, 레이아웃
   // 밖에서 사진을 자유롭게 추가·정리하는 기능(사진 보관함 업로드·전체 목록·이 페이지에
   // 사진 추가)을 여기 "꾸미기" 탭으로 합쳤어요 — 표지 편집의 "꾸미기" 탭과 같은 자리예요.
   { id: "photo", label: "사진", icon: "photo" },
+  { id: "sticker", label: "스티커", icon: "sticker" },
+  // 2026-10-01, 혜민님 요청: "손글씨스티커 패널제목을 손글씨로 수정해주세요"
+  { id: "handwriting", label: "손글씨", icon: "handwriting" },
+  { id: "text", label: "텍스트", icon: "text" },
+  { id: "background", label: "배경", icon: "background" },
 ];
 // "레이아웃" 탭 안에서 셀 개수(사진 몇 장용 템플릿인지)로 골라볼 수 있는 필터예요.
 // "auto"는 지금 적용 범위(왼쪽/오른쪽/펼침면)에 있는 실제 사진 개수에 맞는 템플릿만
@@ -489,7 +494,7 @@ const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
-type CoverEditTabId = "theme" | "layout" | "photo" | "sticker" | "text" | "background";
+type CoverEditTabId = "theme" | "layout" | "photo" | "sticker" | "handwriting" | "text" | "background";
 const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconName }[] = [
   // 2026-09-26, 혜민님 요청: 앞표지·뒤표지·책등을 하나씩 따로 안 만지고, 미리 만들어둔
   // "테마"를 골라 한 번에 어울리는 배경(+ 뒤표지 무늬)·제목 서체로 맞출 수 있는 탭이에요.
@@ -506,6 +511,9 @@ const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconNam
   // 2026-09-27, 혜민님 재확인: "표지에 스티커패널이 없어졌어요" — 원래도 표지엔 스티커
   // 탭이 없었는데(내지에만 있었음), 표지도 내지처럼 스티커를 붙일 수 있게 새로 추가해요.
   { id: "sticker", label: "스티커", icon: "sticker" },
+  // 2026-09-25 브리프 1단계 요청: 내지엔 손글씨 탭이 있는데 표지엔 없었던 걸 맞춤 —
+  // 아래 handleAddCoverHandwriting이 실제로 손글씨를 이미지박스로 추가함(가짜 버튼 아님).
+  { id: "handwriting", label: "손글씨", icon: "handwriting" },
   // 2026-09, 표지의 "제목"·"텍스트박스" 탭을 내지처럼 "텍스트" 하나로 합쳤어요 —
   // 제목 필드(글자 크기·행간·자간·서체·책등 연결)와 텍스트박스 추가 버튼을 한 곳에서.
   { id: "text", label: "텍스트", icon: "text" },
@@ -6154,6 +6162,13 @@ function UploadPageContent() {
     handleAddCoverImageBoxFromUrl(target, stickerUrl, 14, "sticker");
   }
 
+  // 2026-09-25 브리프 1단계 요청: 표지에도 손글씨 탭을 추가 — 내지 handleAddHandwriting과
+  // 동일하게 handleAddCoverImageBoxFromUrl을 kind: "sticker"로 그대로 재사용해요(실제로
+  // 캔버스에 이미지박스가 추가되는 진짜 기능이에요 — 눌러도 아무 일 없는 가짜 버튼이 아님).
+  function handleAddCoverHandwriting(target: "front" | "back", handwritingUrl: string) {
+    handleAddCoverImageBoxFromUrl(target, handwritingUrl, 14, "sticker");
+  }
+
   // 손글씨 스티커도 스티커와 똑같이 이미지박스로 추가해요(kind: "sticker"도 동일하게
   // 붙여서 — 이동+비율유지 크기조절만 되는 스티커 전용 편집 방식이 그대로 적용돼요,
   // 2026-09-24).
@@ -8639,6 +8654,21 @@ function UploadPageContent() {
                                 onSelectCategory={setStickerCategoryTab}
                                 onItemClick={(item) => handleAddCoverSticker(coverLayoutApplyTarget, item.url)}
                                 emptyMessage="아직 스티커가 없어요."
+                              />
+                            </div>
+                          )}
+                          {activeCoverEditTab === "handwriting" && (
+                            <div className="flex flex-col gap-1.5">
+                              {/* 2026-09-25 브리프 1단계 요청: 표지에도 손글씨 탭 추가 —
+                                  내지 손글씨 탭과 같은 CategoryTabbedGrid, 적용 대상은 스티커
+                                  탭과 마찬가지로 coverLayoutApplyTarget을 따라가요. */}
+                              <CategoryTabbedGrid
+                                categories={HANDWRITING_CATEGORIES}
+                                items={HANDWRITING_ITEMS}
+                                activeCategoryId={handwritingCategoryTab}
+                                onSelectCategory={setHandwritingCategoryTab}
+                                onItemClick={(item) => handleAddCoverHandwriting(coverLayoutApplyTarget, item.url)}
+                                emptyMessage="아직 손글씨가 없어요."
                               />
                             </div>
                           )}
