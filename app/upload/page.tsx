@@ -676,25 +676,120 @@ const PHOTO_GRID_PAGE_SIZE = 8;
 // 보여주는 게 0%든 100%든 고정된 숫자보다 훨씬 유용해서 이 근사치를 씀.
 const CSS_PX_PER_MM = 96 / 25.4;
 
-// 2026-09-27, 혜민님 요청: "배경패널에 색상이 전체적으로 너무 칙칙합니다 ... 좀더
-// 밝은색상으로 만들어주세요 ... 단색도 쨍하고 이쁜색상으로 여러개 넣어주세요." — 기존
-// 팔레트는 전부 파스텔에 가까운 옅은 회색조라 화면·인쇄 둘 다 칙칙해 보였어요. 흰색·
-// 아이보리 등 무난한 중성색 몇 개는 남기고, 채도를 확실히 올린 쨍한 색을 여러 개
-// 추가했어요.
-const SPREAD_BACKGROUND_PRESETS: { color: string; label: string }[] = [
-  { color: "#ffffff", label: "흰색(기본)" },
-  { color: "#fff4e0", label: "아이보리" },
-  { color: "#ffe1a8", label: "선셋옐로우" },
-  { color: "#ffb4a2", label: "코랄핑크" },
-  { color: "#f76c6c", label: "체리레드" },
-  { color: "#ff8fab", label: "핫핑크" },
-  { color: "#c77dff", label: "라벤더퍼플" },
-  { color: "#7dd3fc", label: "스카이블루" },
-  { color: "#38bdf8", label: "비비드블루" },
-  { color: "#6ee7b7", label: "민트그린" },
-  { color: "#a3e635", label: "라임그린" },
-  { color: "#232323", label: "차콜" },
+// 2026-09-30, 혜민님 요청: "단색 배경 색상부분 컬러차트로 만들어주세요. 예시이미지
+// 참고" — 스위트북처럼 한 줄로 죽 나열하던 예전 SPREAD_BACKGROUND_PRESETS(2026-09-27
+// 도입, 쨍한 색 위주 12개) 대신, "무채색/부드러운 색상/발랄한 색상/차분한 색상" 4개
+// 분류로 묶고 스와치도 더 크게 키운 "컬러차트" 레이아웃으로 바꿨어요. 예전 목록은 이제
+// 이 파일 안에서 참조하는 곳이 없어서(두 배경 패널 모두 아래 컬러차트로 갈아탐)
+// 통째로 지웠어요.
+const SPREAD_BACKGROUND_CHART: { category: string; colors: { color: string; label: string }[] }[] = [
+  {
+    category: "무채색",
+    colors: [
+      { color: "#ffffff", label: "화이트" },
+      { color: "#f5f0e8", label: "아이보리" },
+      { color: "#d9d9d9", label: "라이트그레이" },
+      { color: "#232323", label: "차콜" },
+    ],
+  },
+  {
+    category: "부드러운 색상",
+    colors: [
+      { color: "#fff4e0", label: "크림" },
+      { color: "#ffe1a8", label: "파스텔옐로우" },
+      { color: "#ffd6e0", label: "파스텔핑크" },
+      { color: "#ffe0c7", label: "파스텔피치" },
+      { color: "#e3d9f7", label: "파스텔라벤더" },
+      { color: "#cfe8ff", label: "파스텔블루" },
+      { color: "#c8f4de", label: "파스텔민트" },
+      { color: "#d9f2d0", label: "파스텔그린" },
+    ],
+  },
+  {
+    category: "발랄한 색상",
+    colors: [
+      { color: "#f76c6c", label: "체리레드" },
+      { color: "#ff8fab", label: "핫핑크" },
+      { color: "#fb8500", label: "오렌지" },
+      { color: "#ffb703", label: "선셋옐로우" },
+      { color: "#a3e635", label: "라임그린" },
+      { color: "#2ec4b6", label: "터콰이즈" },
+      { color: "#38bdf8", label: "비비드블루" },
+      { color: "#c77dff", label: "라벤더퍼플" },
+    ],
+  },
+  {
+    category: "차분한 색상",
+    colors: [
+      { color: "#a8b89a", label: "세이지그린" },
+      { color: "#8fa8bf", label: "더스티블루" },
+      { color: "#b08ea3", label: "모브" },
+      { color: "#b5a582", label: "카키" },
+      { color: "#c17a5f", label: "테라코타" },
+      { color: "#a99d8f", label: "그레이지" },
+    ],
+  },
 ];
+
+// 위 컬러차트를 배경색 패널 두 곳(내지 스프레드·표지)에서 똑같이 그려요 — 카테고리별
+// 줄바꿈 + 라벨, 마지막에 커스텀 색 피커("+"). 스와치를 기존(h-6 w-6)보다 키워서
+// (h-8 w-8) 실제 컬러차트처럼 보이게 했어요.
+function ColorChartPicker({
+  activeColor,
+  onPick,
+  customValue,
+  onCustomChange,
+}: {
+  // 지금 골라져 있는 색(hex, 소문자 비교) — 일치하는 스와치에 테두리 강조를 줘요.
+  activeColor: string;
+  onPick: (color: string) => void;
+  // 커스텀 색 피커(input type=color)의 현재 값과 변경 핸들러예요.
+  customValue: string;
+  onCustomChange: (color: string) => void;
+}) {
+  const activeLower = activeColor.toLowerCase();
+  return (
+    <div className="flex flex-col gap-2.5">
+      {SPREAD_BACKGROUND_CHART.map((group) => (
+        <div key={group.category} className="flex flex-col gap-1">
+          <span className="text-[11px] text-[var(--color-charcoal)]/50">{group.category}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {group.colors.map((preset) => (
+              <button
+                key={preset.color}
+                type="button"
+                title={preset.label}
+                onClick={() => onPick(preset.color)}
+                className={`h-8 w-8 border transition ${
+                  activeLower === preset.color.toLowerCase()
+                    ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
+                    : "border-[var(--color-hairline)]"
+                }`}
+                style={{ backgroundColor: preset.color }}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+      <label
+        title="색 직접 선택"
+        className="relative flex h-8 w-fit cursor-pointer items-center gap-1.5 overflow-hidden border border-dashed border-[var(--color-charcoal)]/40 px-2 text-[11px] text-[var(--color-charcoal)]/60"
+      >
+        <span
+          className="h-4 w-4 shrink-0 border border-[var(--color-hairline)]"
+          style={{ backgroundColor: customValue }}
+        />
+        색 직접 선택 +
+        <input
+          type="color"
+          value={customValue}
+          onChange={(e) => onCustomChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </label>
+    </div>
+  );
+}
 
 function CaptionSettingsPopover({
   photo,
@@ -2775,7 +2870,7 @@ const ImageBoxOverlay = forwardRef<
     rect: null,
   });
   const boxRef = useRef<HTMLDivElement>(null);
-  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
+  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1, axisLockX: false });
   const resizeStart = useRef({
     mouseX: 0,
     mouseY: 0,
@@ -2880,6 +2975,10 @@ const ImageBoxOverlay = forwardRef<
       yPct: box.yPct,
       cellW: cellRect?.width || 1,
       cellH: cellRect?.height || 1,
+      // Ctrl+Alt+Shift+드래그(2026-09-30, 혜민님 요청 "복사후 좌우대칭으로만 이동")는
+      // 복사(Alt만 있어도 복사되니 위 onAltDragDuplicate가 이미 처리)와 별개로, 드래그가
+      // 세로로는 움직이지 않고 가로로만 움직이게 잠가요.
+      axisLockX: e.ctrlKey && e.altKey && e.shiftKey,
     };
     setMouseDownActive(true);
   }
@@ -2913,18 +3012,18 @@ const ImageBoxOverlay = forwardRef<
         setIsDragging(true);
       }
       const dxPct = (dxPxRaw / dragStart.current.cellW) * 100;
-      const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
+      const dyPct = dragStart.current.axisLockX ? 0 : (dyPxRaw / dragStart.current.cellH) * 100;
       let nextX = Math.min(100 - 4, Math.max(0, dragStart.current.xPct + dxPct));
       let nextY = Math.min(100 - 4, Math.max(0, dragStart.current.yPct + dyPct));
 
       // 가운데 정렬 스냅: 박스의 가로 중심이 스프레드 정중앙(책등, 50%)에, 세로 중심이
       // 페이지 세로 정중앙(50%)에 가까워지면 자동으로 딱 맞춰요(텍스트박스와 같은 방식,
-      // 2026-09-23 요청).
+      // 2026-09-23 요청). 가로로만 이동하는 잠금(axisLockX) 중에는 세로 스냅은 하지 않아요.
       const cellRect = boxRef.current?.parentElement?.getBoundingClientRect() ?? null;
       const centerXTarget = 50 - box.widthPct / 2;
       const centerYTarget = 50 - box.heightPct / 2;
       const snapV = Math.abs(nextX - centerXTarget) < CENTER_SNAP_THRESHOLD_PCT;
-      const snapH = Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
+      const snapH = !dragStart.current.axisLockX && Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
       if (snapV) nextX = centerXTarget;
       if (snapH) nextY = centerYTarget;
       setSnapGuide({ v: snapV, h: snapH, rect: cellRect });
@@ -3203,16 +3302,24 @@ const ImageBoxOverlay = forwardRef<
       // 자기 테두리가 원래 안 보여서 밖으로 떼어내는 게 의미가 있었지만, 사진은
       // 사진 자체가 뚜렷한 가장자리라 그대로 붙여야 함 — outline 대신 다시 박스
       // 자신의 border로 되돌리되 점선(border-dashed)으로.
-      className={`absolute border-2 transition ${
+      // 2026-09-30, 혜민님 재지적: "도련선에 점선과 이미지 사이에 하얀 공백이 보입니다"
+      // — 원인을 찾아보니 위에서 쓰던 border(2px)가 box-sizing: border-box라 실제 사진을
+      // 채우는 안쪽 div(absolute inset-0)를 그만큼 안으로 밀어넣어서, 투명한
+      // border-transparent 영역이 사진과 점선 사이에 흰 배경이 비치는 좁은 틈으로
+      // 보였던 거예요. 글상자(TextBoxOverlay)에서 이미 border 대신 outline으로 바꿔서
+      // 같은 문제를 해결해둔 방식을 사진박스에도 그대로 적용해요 — outline은 박스
+      // 모델(레이아웃 크기)에 전혀 영향을 안 줘서 사진이 박스를 항상 끝까지 꽉
+      // 채우고, 점선은 그 위에 딱 겹쳐서(offset 0) 그려져요.
+      className={`absolute outline outline-2 outline-offset-0 transition ${
         isActive && photoEditMode ? "cursor-grab" : "cursor-move"
       } ${
         isActive && photoEditMode
-          ? "border-solid border-[var(--color-brand-purple)]"
+          ? "outline-[var(--color-brand-purple)]"
           : isActive
-            ? "border-dashed border-[var(--color-sky)]"
+            ? "outline-dashed outline-[var(--color-sky)]"
             : isMultiSelected
-              ? "border-dashed border-[var(--color-brand-purple)]"
-              : "border-solid border-transparent hover:border-dashed hover:border-[var(--color-sky)]/40"
+              ? "outline-dashed outline-[var(--color-brand-purple)]"
+              : "outline-transparent hover:outline-dashed hover:outline-[var(--color-sky)]/40"
       }`}
       style={{
         zIndex,
@@ -3342,25 +3449,6 @@ const ImageBoxOverlay = forwardRef<
       />
       {isActive && !photoEditMode && (
         <>
-          {/* 사진만 빼기(프레임은 남기고 빈 프레임으로) — 프레임 자체를 지우는 아래 ✕
-              버튼과 구분돼요(2026-09-23, "사진 제거 vs 프레임 삭제 구분" 요청). 빈
-              프레임엔 뺄 사진이 없어서 이 버튼을 안 보여줘요. 스티커는 "빼고 빈 프레임만
-              남기기"라는 개념 자체가 없어서(스티커는 항상 사진이 있음) 안 보여줘요 —
-              지울 땐 아래 ✕(삭제)만 써요(2026-09-24).*/}
-          {box.url && !isSticker && (
-            <button
-              type="button"
-              title="이 칸의 사진만 빼요 (프레임은 남아요)"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onChange({ url: "", innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 });
-              }}
-              className="absolute -right-1.5 -top-8 z-40 flex h-5 items-center justify-center whitespace-nowrap border border-white bg-[var(--color-charcoal)]/80 px-1.5 text-[9px] text-white "
-            >
-              사진만 빼기
-            </button>
-          )}
           <button
             type="button"
             title="프레임 삭제"
@@ -3395,6 +3483,23 @@ const ImageBoxOverlay = forwardRef<
               <span className=" bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
                 더블클릭하면 안의 사진 위치를 옮길 수 있어요
               </span>
+              {box.url && (
+                <button
+                  type="button"
+                  title="이미지 교체하기"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect();
+                    emptyFrameFileInputRef.current?.click();
+                  }}
+                  className="flex h-5 w-5 items-center justify-center border border-white bg-[var(--color-charcoal)]/80 text-white"
+                >
+                  <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 8a6 6 0 0 1 10.2-4.3M14 8a6 6 0 0 1-10.2 4.3" />
+                    <path d="M12 1v3h-3M4 15v-3h3" />
+                  </svg>
+                </button>
+              )}
             </div>
           )}
         </>
@@ -4100,7 +4205,11 @@ function CanvasStage({
 
   // 눈금자·여백 등 캔버스 바깥 자잘한 요소들을 위한 여유 공간이에요. 정확히 딱 맞추기보다,
   // 약간 여유를 둬서 어떤 경우에도 스크롤 없이 전체가 보이도록 해요.
-  const SAFETY_PX = 28;
+  // 2026-09-30, 혜민님 요청("페이지창을 키워도 책자에 맞춰서 조정될수있도록 해주세요.
+  // 여백을 최대한 없앨겁니다") — 28px는 눈금자·화살표 여유치고 과했어서, 책이 창을
+  // 최대한 꽉 채우도록 줄였어요. 화살표(overlay)는 measureRef 기준으로 따로 떠서
+  // 이 값과 무관하게 안 잘리니, 더 줄여도 안전해요.
+  const SAFETY_PX = 10;
 
   // "화면에 맞추기" 기준 크기(zoom=1일 때의 크기)예요.
   //
@@ -6141,7 +6250,7 @@ function UploadPageContent() {
           disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
           aria-label="이전 페이지"
           style={halfGap !== undefined ? { left: `calc(50% - ${halfGap}px)`, transform: "translate(-100%, -50%)" } : undefined}
-          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
+          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "left-1 -translate-y-1/2 sm:left-2"
           }`}
         >
@@ -6160,7 +6269,7 @@ function UploadPageContent() {
           })()}
           aria-label="다음 페이지"
           style={halfGap !== undefined ? { left: `calc(50% + ${halfGap}px)`, transform: "translateY(-50%)" } : undefined}
-          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
+          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "right-1 -translate-y-1/2 sm:right-2"
           }`}
         >
@@ -6446,25 +6555,13 @@ function UploadPageContent() {
         return;
       }
 
-      // 2026-09-28(2차), 혜민님 요청: "Ctrl+Alt = 복사 / Ctrl+Shift+Alt = 복사 후
-      // 좌우대칭으로만 이동" — 글자 키 없이 조합키만으로 누르는 방식이라 위 "meta"
-      // 판정(Ctrl/Cmd + 글자) 흐름과 별개로 처리해요. Alt·Control 두 키 중 나중에
-      // 눌리는 쪽의 keydown에서 두 modifier가 동시에 눌려있는 순간을 잡고,
-      // e.repeat(키를 누르고 있을 때 반복 발생하는 keydown)은 걸러서 눌렀다 뗄 때마다
-      // 딱 한 번만 복사돼요. 알트-드래그(캔버스에서 Alt를 누른 채 드래그)는 그대로
-      // 남겨두고, 이건 드래그 없이 제자리에 바로 복사하는 키보드 전용 방법이에요.
-      if (
-        (key === "alt" || key === "control") &&
-        e.ctrlKey &&
-        e.altKey &&
-        !e.repeat &&
-        !isTypingTarget(e.target) &&
-        activeImageBox
-      ) {
-        e.preventDefault();
-        handleDuplicateActiveImageBox(e.shiftKey);
-        return;
-      }
+      // 2026-09-30, 혜민님 확인: "Ctrl+Alt = 드래그해서 복사(제자리복사 아님)" — 이전
+      // 라운드엔 조합키를 누르는 순간 제자리에서 바로 복사되는 키보드 전용 단축키가
+      // 있었는데, 그게 "드래그로 복사"가 아니라 잘못된 동작이라 지적받아서 통째로
+      // 없앴어요. Alt-드래그(ImageBoxOverlay의 onAltDragDuplicate, altKey만 보므로
+      // Ctrl이 같이 눌려 있어도 그대로 동작)가 이미 "Ctrl+Alt+드래그 = 복사"를
+      // 충족하고, Ctrl+Alt+Shift+드래그의 가로 고정은 dragStart.current.axisLockX로
+      // 처리해요(위 handleMouseDown/handleMouseMove).
       if (!meta) return;
       if (isTypingTarget(e.target)) {
         // 텍스트박스 안에서도 "붙여넣기"는 박스 자체를 복제하는 우리 기능과 헷갈릴 수
@@ -7405,7 +7502,7 @@ function UploadPageContent() {
           </section>
         )}
 
-        <div className="flex w-full min-h-0 flex-1 flex-col bg-[var(--color-hairline)]/15 px-2 pb-4 pt-4 sm:px-1.5 lg:px-2">
+        <div className="flex w-full min-h-0 flex-1 flex-col bg-[var(--color-hairline)]/15 pl-0 pr-2 pb-4 pt-0 sm:pr-1.5 lg:pr-2">
           {photos.length === 0 && (
             <div className="mx-auto flex max-w-md flex-col items-center gap-1.5 py-16 text-center">
               <p className="text-[var(--color-charcoal)]/70 break-keep">
@@ -7424,7 +7521,7 @@ function UploadPageContent() {
             // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
             <div
-              className="mx-auto mt-2 flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
+              className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
               style={{ minHeight: 420 }}
             >
               {/* 왼쪽(데스크톱)/하단(모바일) 페이지 목록 — "미리보기" 모드일 때만 보여요.
@@ -7666,7 +7763,7 @@ function UploadPageContent() {
                       </button>
                     )}
                   {selectedPageKey === "cover" ? (
-                    <div className="flex h-full min-h-0 flex-col p-2.5">
+                    <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5">
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                         {editorMode === "edit" && (
                         <div className="-ml-2.5 flex gap-2 border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-2">
@@ -8374,27 +8471,13 @@ function UploadPageContent() {
                                   ⚠ 앞표지·책등·뒤표지 색을 한 번에 같은 색으로 덮어써요.
                                 </p>
                               )}
-                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <div className="mt-3 flex flex-col gap-1.5">
                                 <span className="text-xs text-[var(--color-charcoal)]/60">배경색</span>
-                                {SPREAD_BACKGROUND_PRESETS.map((preset) => (
-                                  <button
-                                    key={preset.color}
-                                    type="button"
-                                    title={preset.label}
-                                    onClick={() => applyScopeColor(preset.color === "#ffffff" ? "#ffffff" : preset.color)}
-                                    className={`h-6 w-6 border transition ${
-                                      scopeValue.toLowerCase() === preset.color.toLowerCase()
-                                        ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                        : "border-[var(--color-hairline)]"
-                                    }`}
-                                    style={{ backgroundColor: preset.color }}
-                                  />
-                                ))}
-                                <input
-                                  type="color"
-                                  value={scopeValue}
-                                  onChange={(e) => applyScopeColor(e.target.value)}
-                                  className="h-6 w-6 cursor-pointer border-0 bg-transparent p-0"
+                                <ColorChartPicker
+                                  activeColor={scopeValue}
+                                  onPick={(color) => applyScopeColor(color)}
+                                  customValue={scopeValue}
+                                  onCustomChange={(color) => applyScopeColor(color)}
                                 />
                               </div>
                               <div className="mt-3">
@@ -8732,7 +8815,7 @@ function UploadPageContent() {
                       const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
                       const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
                       return (
-                        <div className="flex h-full min-h-0 flex-col p-2">
+                        <div className="flex h-full min-h-0 flex-col px-2 pb-2">
                           <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                             {editorMode === "edit" && (
                             <div className="-ml-2 flex gap-2 border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-2">
@@ -9120,43 +9203,12 @@ function UploadPageContent() {
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 {backgroundTab === "solid" ? (
                                   <>
-                                    {SPREAD_BACKGROUND_PRESETS.map((preset) => {
-                                      const isActive =
-                                        !spread.backgroundPattern &&
-                                        (spread.backgroundColor ?? "#ffffff").toLowerCase() ===
-                                          preset.color.toLowerCase();
-                                      return (
-                                        <button
-                                          key={preset.color}
-                                          type="button"
-                                          title={preset.label}
-                                          onClick={() =>
-                                            handleChangeBackground(
-                                              i,
-                                              preset.color === "#ffffff" ? undefined : preset.color
-                                            )
-                                          }
-                                          className={`h-6 w-6 border transition ${
-                                            isActive
-                                              ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                              : "border-[var(--color-hairline)]"
-                                          }`}
-                                          style={{ backgroundColor: preset.color }}
-                                        />
-                                      );
-                                    })}
-                                    <label
-                                      title="색 직접 고르기"
-                                      className="relative flex h-6 w-6 cursor-pointer items-center justify-center overflow-hidden border border-dashed border-[var(--color-charcoal)]/40 text-[10px] text-[var(--color-charcoal)]/60"
-                                    >
-                                      +
-                                      <input
-                                        type="color"
-                                        value={spread.backgroundColor ?? "#ffffff"}
-                                        onChange={(e) => handleChangeBackground(i, e.target.value)}
-                                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                      />
-                                    </label>
+                                    <ColorChartPicker
+                                      activeColor={!spread.backgroundPattern ? (spread.backgroundColor ?? "#ffffff") : ""}
+                                      onPick={(color) => handleChangeBackground(i, color === "#ffffff" ? undefined : color)}
+                                      customValue={spread.backgroundColor ?? "#ffffff"}
+                                      onCustomChange={(color) => handleChangeBackground(i, color)}
+                                    />
                                   </>
                                 ) : (
                                   backgroundPatterns
@@ -9301,55 +9353,6 @@ function UploadPageContent() {
                                   구분해요. "접힘·제본 경계" 안내선을 켜면 그 옆으로 옅은 배경(BindingGuide)이
                                   더해질 뿐, 선은 늘지 않아요. */}
                               <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
-                              {/* 자유 배치 이미지박스 — 왼쪽·오른쪽 낱장이 아니라 스프레드 전체
-                                  위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
-                              <ImageBoxLayer
-                                boxes={spread.imageBoxes ?? []}
-                                onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
-                                onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
-                                onAltDuplicate={(box) => handleAltDuplicateImageBox(i, box)}
-                                onStackAction={(boxId, action) => applySpreadStackAction(i, "image", boxId, action)}
-                                activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
-                                onSelect={(boxId) => selectImageBox(i, boxId)}
-                                onShiftSelect={(boxId) => toggleImageBoxMultiSelect(i, boxId)}
-                                multiSelectedBoxIds={
-                                  multiImageSelection?.spreadIndex === i ? multiImageSelection.boxIds : undefined
-                                }
-                                onPhotoEditModeChange={setImageBoxPhotoEditActive}
-                                registerBoxRef={(boxId, handle) => {
-                                  if (handle) imageBoxHandlesRef.current.set(boxId, handle);
-                                  else imageBoxHandlesRef.current.delete(boxId);
-                                }}
-                                guidesX={imageBoxGuidesX}
-                                guidesY={imageBoxGuidesY}
-                              />
-                              {/* 사진박스 2개 이상 Shift+다중 선택했을 때 뜨는 캔버스 위 정렬
-                                  아이콘 툴바예요(2026-09-26 추가, 혜민님 요청 — 참고 이미지의
-                                  일러스트레이터 정렬 패널처럼). 선택된 박스들의 바운딩 박스
-                                  오른쪽 위에 붙어요. */}
-                              {(() => {
-                                const kind = spreadMultiSelectionKind(i);
-                                if (kind === "mixed") {
-                                  const bounds = combinedMultiSelectionBounds(i);
-                                  const hasAutoHeightText = multiTextSelectedBoxes().some(
-                                    (b) => b.heightPct === undefined
-                                  );
-                                  return bounds ? (
-                                    <MultiAlignFloatingToolbar
-                                      bounds={bounds}
-                                      onAlign={(mode) => alignCombinedSelection(i, mode)}
-                                      disabledModes={hasAutoHeightText ? ["vmiddle", "bottom"] : undefined}
-                                    />
-                                  ) : null;
-                                }
-                                if (kind === "image") {
-                                  const bounds = multiImageSelectionBounds();
-                                  return bounds ? (
-                                    <MultiAlignFloatingToolbar bounds={bounds} onAlign={alignMultiImageBoxes} />
-                                  ) : null;
-                                }
-                                return null;
-                              })()}
                               <div className="group relative w-1/2">
                                 {i === 0 ? (
                                   <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-2" />
@@ -9466,6 +9469,62 @@ function UploadPageContent() {
                                   }
                                 />
                               </div>
+                              {/* 2026-09-30, 혜민님 확인: "맨뒤로 보내기를 누르면 이미지가
+                                  사라지거나 생기는 현상" — 원인은 위 두 w-1/2(왼쪽/오른쪽 낱장, 배경색을
+                                  담음) div가 이 자유배치 레이어보다 DOM상 나중에 오면서, z-index가 같은
+                                  값(0)일 땐 나중에 오는 요소가 위에 그려지는 CSS 규칙 때문에 사진이 배경
+                                  뒤로 숨어버렸던 거예요. 자유배치 사진·텍스트 레이어는 항상 두 낱장 배경
+                                  위에 있어야 하므로(zOrder 0은 "배경보다는 위, 그 외엔 맨 뒤"라는 뜻),
+                                  아예 DOM에서도 두 낱장 배경 div보다 뒤에(=항상 위에) 오도록 옮겼어요. */}
+                              {/* 자유 배치 이미지박스 — 왼쪽·오른쪽 낱장이 아니라 스프레드 전체
+                                  위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
+                              <ImageBoxLayer
+                                boxes={spread.imageBoxes ?? []}
+                                onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
+                                onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
+                                onAltDuplicate={(box) => handleAltDuplicateImageBox(i, box)}
+                                onStackAction={(boxId, action) => applySpreadStackAction(i, "image", boxId, action)}
+                                activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
+                                onSelect={(boxId) => selectImageBox(i, boxId)}
+                                onShiftSelect={(boxId) => toggleImageBoxMultiSelect(i, boxId)}
+                                multiSelectedBoxIds={
+                                  multiImageSelection?.spreadIndex === i ? multiImageSelection.boxIds : undefined
+                                }
+                                onPhotoEditModeChange={setImageBoxPhotoEditActive}
+                                registerBoxRef={(boxId, handle) => {
+                                  if (handle) imageBoxHandlesRef.current.set(boxId, handle);
+                                  else imageBoxHandlesRef.current.delete(boxId);
+                                }}
+                                guidesX={imageBoxGuidesX}
+                                guidesY={imageBoxGuidesY}
+                              />
+                              {/* 사진박스 2개 이상 Shift+다중 선택했을 때 뜨는 캔버스 위 정렬
+                                  아이콘 툴바예요(2026-09-26 추가, 혜민님 요청 — 참고 이미지의
+                                  일러스트레이터 정렬 패널처럼). 선택된 박스들의 바운딩 박스
+                                  오른쪽 위에 붙어요. */}
+                              {(() => {
+                                const kind = spreadMultiSelectionKind(i);
+                                if (kind === "mixed") {
+                                  const bounds = combinedMultiSelectionBounds(i);
+                                  const hasAutoHeightText = multiTextSelectedBoxes().some(
+                                    (b) => b.heightPct === undefined
+                                  );
+                                  return bounds ? (
+                                    <MultiAlignFloatingToolbar
+                                      bounds={bounds}
+                                      onAlign={(mode) => alignCombinedSelection(i, mode)}
+                                      disabledModes={hasAutoHeightText ? ["vmiddle", "bottom"] : undefined}
+                                    />
+                                  ) : null;
+                                }
+                                if (kind === "image") {
+                                  const bounds = multiImageSelectionBounds();
+                                  return bounds ? (
+                                    <MultiAlignFloatingToolbar bounds={bounds} onAlign={alignMultiImageBoxes} />
+                                  ) : null;
+                                }
+                                return null;
+                              })()}
                               {!isPrintPreview && showGuidelines && (
                                 <GuideLines trimXPct={trimXPct} trimYPct={trimYPct} />
                               )}
