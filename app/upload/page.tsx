@@ -8362,17 +8362,15 @@ function UploadPageContent() {
                   </div>
               </div>
 
-              {/* 하단/왼쪽 페이지 목록 — 스위트북 참고 화면처럼 데스크톱(lg 이상)에서는
-                  편집 중에도 항상 왼쪽 세로 사이드바로 보이게 했어요(2026-09-24, "전체 화면
-                  구조를 다 바꿔달라"는 요청). 다만 모바일 화면은 폭이 좁아서, 예전 규칙("편집
-                  중엔 왼쪽 탭 도구에 집중하고 미리보기를 눌러야 페이지 목록이 뜨는" 2026-09-24
-                  요청)을 그대로 유지했어요 — 그래서 아래 className이 편집 모드일 때
-                  "hidden lg:flex"(모바일에선 숨김, 데스크톱에선 항상 보임)가 돼요. */}
+              {/* 왼쪽(데스크톱)/하단(모바일) 페이지 목록 — "미리보기" 모드일 때만 보여요.
+                  2026-09-26에 잠깐 데스크톱에서는 편집 중에도 항상 보이게 바꿨었는데,
+                  "박스가 너무 많아 조잡해 보인다"는 피드백과 함께 "편집하기 누르면 페이지
+                  목록이 사라지고 왼쪽엔 편집 메뉴만 보이게" 다시 요청하셔서 원래 규칙(2026-
+                  09-24)으로 되돌렸어요 — 다만 위치는 이번 라운드 결정대로 왼쪽 세로 사이드바
+                  모양은 그대로 유지(예전엔 하단 가로 바였음). */}
+              {editorMode === "preview" && (
               <div
-                className={
-                  (editorMode === "preview" ? "flex " : "hidden lg:flex ") +
-                  "mt-3 shrink-0 items-center gap-2 lg:mt-0 lg:h-full lg:w-28 lg:flex-none lg:flex-col lg:items-stretch"
-                }
+                className="mt-3 flex shrink-0 items-center gap-2 lg:mt-0 lg:h-full lg:w-28 lg:flex-none lg:flex-col lg:items-stretch"
               >
                 <button
                   type="button"
@@ -8551,6 +8549,7 @@ function UploadPageContent() {
                   {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
                 </span>
               </div>
+              )}
             </div>
           )}
         </div>
