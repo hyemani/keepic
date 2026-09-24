@@ -4642,6 +4642,15 @@ function UploadPageContent() {
   const [coverTitleFontSizePt, setCoverTitleFontSizePt] = useState(36);
   const [coverTitleLineHeightEm, setCoverTitleLineHeightEm] = useState(1.2);
   const [coverTitleLetterSpacingEm, setCoverTitleLetterSpacingEm] = useState(0);
+  // 2026-10-02, 혜민님 요청(항목9): "텍스트 내지에있던 옵션값과 동일하게 수정해주세요"
+  // — 내지 TextBoxToolbar에 적용했던 것과 같은 "입력 중엔 임시 문자열(draft)만 바뀌고,
+  // 유효한 값일 때만 실제 값에 반영" 패턴이에요. 매 렌더마다 실제 값을 그대로 value에
+  // 꽂으면 타이핑 중간에 값이 계속 강제로 되돌아가 여러 자리 숫자를 못 치는 버그가
+  // 생겨요(내지에서 이미 겪었던 문제와 동일). 문서를 불러올 때(loadPhotobookState
+  // 근처)도 같이 동기화해요.
+  const [coverTitlePtDraft, setCoverTitlePtDraft] = useState("36");
+  const [coverTitleLineHeightDraft, setCoverTitleLineHeightDraft] = useState("1.2");
+  const [coverTitleLetterSpacingDraft, setCoverTitleLetterSpacingDraft] = useState("0");
   // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트). 기존엔 하단에 고정이었는데,
   // 이제 텍스트박스처럼 끌어서 옮길 수 있어요 — 기본값은 예전 고정 위치(하단 중앙)와
   // 비슷한 자리예요.
@@ -6580,6 +6589,11 @@ function UploadPageContent() {
     setCoverTitleFontSizePt(s.coverTitleFontSizePt ?? 36);
     setCoverTitleLineHeightEm(s.coverTitleLineHeightEm ?? 1.2);
     setCoverTitleLetterSpacingEm(s.coverTitleLetterSpacingEm ?? 0);
+    // draft 입력창도 불러온 값으로 같이 맞춰요(안 하면 문서를 불러온 직후에도 입력칸엔
+    // 이전 draft 문자열이 남아있게 됨).
+    setCoverTitlePtDraft(String(s.coverTitleFontSizePt ?? 36));
+    setCoverTitleLineHeightDraft(String(s.coverTitleLineHeightEm ?? 1.2));
+    setCoverTitleLetterSpacingDraft(String(s.coverTitleLetterSpacingEm ?? 0));
     setCoverTitleXPct(s.coverTitleXPct);
     setCoverTitleYPct(s.coverTitleYPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
@@ -8364,13 +8378,23 @@ function UploadPageContent() {
                           })()}
                           {activeCoverEditTab === "text" && (
                             <div className="flex flex-col gap-2">
-                              <textarea
-                                value={coverTitle}
-                                onChange={(e) => handleCoverTitleChange(e.target.value)}
-                                placeholder="표지에 넣을 제목 (예: 우리 가족의 여름)"
-                                rows={2}
-                                className="flex-1 resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                              />
+                              {/* 2026-10-02, 혜민님 요청(항목8): "표지에 넣을 제목을 타이틀로,
+                                  글자크기, 행간, 자간처럼 텍스트로 넣어주고 밑에 박스에는
+                                  (예:우리 가족의 여름) 내용만 넣습니다" — 아래 다른 필드들
+                                  (글자 크기·행간·자간)처럼 라벨을 먼저 붙이고, placeholder는
+                                  예시 문구만 남겨요. */}
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                  타이틀
+                                </label>
+                                <textarea
+                                  value={coverTitle}
+                                  onChange={(e) => handleCoverTitleChange(e.target.value)}
+                                  placeholder="예: 우리 가족의 여름"
+                                  rows={2}
+                                  className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                />
+                              </div>
                               <p className="text-xs text-[var(--color-charcoal)]/50 break-keep">
                                 책등에도 같은 제목이 들어가요.
                               </p>
@@ -8385,8 +8409,16 @@ function UploadPageContent() {
                                       min={8}
                                       max={200}
                                       list="titlePtPresets"
-                                      value={coverTitleFontSizePt}
-                                      onChange={(e) => setCoverTitleFontSizePt(Math.max(8, Math.min(200, Number(e.target.value) || 8)))}
+                                      value={coverTitlePtDraft}
+                                      onChange={(e) => {
+                                        const raw = e.target.value;
+                                        setCoverTitlePtDraft(raw);
+                                        const pt = Number(raw);
+                                        if (Number.isFinite(pt) && pt > 0) {
+                                          setCoverTitleFontSizePt(Math.max(8, Math.min(200, pt)));
+                                        }
+                                      }}
+                                      onBlur={() => setCoverTitlePtDraft(String(coverTitleFontSizePt))}
                                       className="w-24 border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                     />
                                     <span className="text-xs text-[var(--color-charcoal)]/40">
@@ -8408,8 +8440,16 @@ function UploadPageContent() {
                                     min={0.8}
                                     max={2.5}
                                     step={0.05}
-                                    value={coverTitleLineHeightEm}
-                                    onChange={(e) => setCoverTitleLineHeightEm(Math.max(0.8, Math.min(2.5, Number(e.target.value) || 1.2)))}
+                                    value={coverTitleLineHeightDraft}
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      setCoverTitleLineHeightDraft(raw);
+                                      const v = Number(raw);
+                                      if (Number.isFinite(v)) {
+                                        setCoverTitleLineHeightEm(Math.max(0.8, Math.min(2.5, v)));
+                                      }
+                                    }}
+                                    onBlur={() => setCoverTitleLineHeightDraft(String(coverTitleLineHeightEm))}
                                     className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                   />
                                 </div>
@@ -8422,8 +8462,16 @@ function UploadPageContent() {
                                     min={-0.1}
                                     max={0.5}
                                     step={0.01}
-                                    value={coverTitleLetterSpacingEm}
-                                    onChange={(e) => setCoverTitleLetterSpacingEm(Math.max(-0.1, Math.min(0.5, Number(e.target.value) || 0)))}
+                                    value={coverTitleLetterSpacingDraft}
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      setCoverTitleLetterSpacingDraft(raw);
+                                      const v = Number(raw);
+                                      if (Number.isFinite(v)) {
+                                        setCoverTitleLetterSpacingEm(Math.max(-0.1, Math.min(0.5, v)));
+                                      }
+                                    }}
+                                    onBlur={() => setCoverTitleLetterSpacingDraft(String(coverTitleLetterSpacingEm))}
                                     className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
                                   />
                                 </div>
