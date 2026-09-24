@@ -6457,7 +6457,7 @@ function UploadPageContent() {
             // max-w-6xl로 가운데 고정폭이었는데, 넓은 모니터에서 편집 캔버스 양옆이
             // 허전해 보인다는 피드백을 반영했어요 — 스위트북 편집기처럼 꽉 차게).
             <div
-              className="mx-auto mt-2 flex w-full max-w-6xl flex-1 flex-col lg:max-w-none"
+              className="mx-auto mt-2 flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
               style={{ minHeight: 420 }}
             >
               {/* 인쇄 미리보기 버튼은 상단바 "미리보기" 옆 보조 버튼으로 옮겼어요(2026-09).
@@ -8318,14 +8318,18 @@ function UploadPageContent() {
                   </div>
               </div>
 
-              {/* 하단 페이지 목록 — "미리보기" 모드일 때만 보여요(2026-09-24, 혜민님 재요청으로
-                  되돌림). 한동안(2026-09) 편집 중에도 항상 보이도록 바꿨던 적이 있는데,
-                  "편집하기를 누르면 페이지 레이아웃이 없어지고 왼쪽 편집툴만 보이게 해달라"는
-                  요청으로 다시 미리보기 전용으로 되돌려요 — 편집 중엔 왼쪽 탭 도구에 집중하고,
-                  페이지를 옮겨 다니고 싶을 때만 "미리보기"를 눌러 이 줄이 뜨는 구조예요. 겹박스
-                  느낌을 없애려고 바깥 테두리·그림자·둥근 모서리도 함께 정리했어요(2026-09-24). */}
-              {editorMode === "preview" && (
-              <div className="mt-3 flex shrink-0 items-center gap-2">
+              {/* 하단/왼쪽 페이지 목록 — 스위트북 참고 화면처럼 데스크톱(lg 이상)에서는
+                  편집 중에도 항상 왼쪽 세로 사이드바로 보이게 했어요(2026-09-24, "전체 화면
+                  구조를 다 바꿔달라"는 요청). 다만 모바일 화면은 폭이 좁아서, 예전 규칙("편집
+                  중엔 왼쪽 탭 도구에 집중하고 미리보기를 눌러야 페이지 목록이 뜨는" 2026-09-24
+                  요청)을 그대로 유지했어요 — 그래서 아래 className이 편집 모드일 때
+                  "hidden lg:flex"(모바일에선 숨김, 데스크톱에선 항상 보임)가 돼요. */}
+              <div
+                className={
+                  (editorMode === "preview" ? "flex " : "hidden lg:flex ") +
+                  "mt-3 shrink-0 items-center gap-2 lg:mt-0 lg:h-full lg:w-28 lg:flex-none lg:flex-col lg:items-stretch"
+                }
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -8334,13 +8338,13 @@ function UploadPageContent() {
                     if (idx > 0) setSelectedPageKey(order[idx - 1]);
                   }}
                   disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
                   aria-label="이전 페이지"
                 >
                   ‹
                 </button>
                 <div
-                  className="flex flex-1 gap-2 overflow-x-auto bg-white p-2"
+                  className="flex flex-1 gap-2 overflow-x-auto bg-white p-2 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto"
                   // 이 줄 바로 위(표지·내지 캔버스 테두리)를 없앴더니, 여기 남아있던
                   // border-t가 허공에 떠 있는 선처럼 보이고, 기본 스크롤바까지 겹쳐서
                   // "박스 안에 또 박스"처럼 보인다는 피드백(2026-09-26)에 따라 border-t를
@@ -8352,12 +8356,12 @@ function UploadPageContent() {
                     <button
                       type="button"
                       onClick={() => setSelectedPageKey("cover")}
-                      className={`shrink-0 border-2 p-1 transition ${
+                      className={`shrink-0 border-2 p-1 transition lg:w-full ${
  selectedPageKey === "cover" ? "border-[var(--color-sky)]" : "border-transparent"
                       }`}
                     >
                       <div
-                        className="pointer-events-none flex h-14 overflow-hidden bg-white"
+                        className="pointer-events-none flex h-14 overflow-hidden bg-white lg:h-auto lg:w-full"
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
                         <div
@@ -8393,11 +8397,11 @@ function UploadPageContent() {
                         key={i}
                         type="button"
                         onClick={() => setSelectedPageKey(i)}
-                        className={`shrink-0 border-2 p-1 transition ${
+                        className={`shrink-0 border-2 p-1 transition lg:w-full ${
  selectedPageKey === i ? "border-[var(--color-sky)]" : "border-transparent"
                         }`}
                       >
-                        <div className="pointer-events-none relative h-14 overflow-hidden bg-white" style={{ aspectRatio: "2 / 1" }}>
+                        <div className="pointer-events-none relative h-14 overflow-hidden bg-white lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
                           <div className="grid h-full grid-cols-2 overflow-hidden">
                             <div className="overflow-hidden">
                               {i === 0 ? (
@@ -8464,11 +8468,11 @@ function UploadPageContent() {
                     <button
                       type="button"
                       onClick={() => setSelectedPageKey("intro")}
-                      className={`shrink-0 border-2 p-1 transition ${
+                      className={`shrink-0 border-2 p-1 transition lg:w-full ${
  selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
                       }`}
                     >
-                      <div className="pointer-events-none flex h-14 items-end overflow-hidden bg-white p-1" style={{ aspectRatio: "2 / 1" }}>
+                      <div className="pointer-events-none flex h-14 items-end overflow-hidden bg-white p-1 lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
                         {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
                           <img
                             src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
@@ -8494,16 +8498,15 @@ function UploadPageContent() {
                     const idx = pageOrder.findIndex((k) => k === selectedPageKey);
                     return idx < 0 || idx >= pageOrder.length - 1;
                   })()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white text-sm transition disabled:opacity-30 lg:w-full"
                   aria-label="다음 페이지"
                 >
                   ›
                 </button>
-                <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50">
+                <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50 lg:text-center">
                   {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
                 </span>
               </div>
-              )}
             </div>
           )}
         </div>
