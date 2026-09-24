@@ -4545,14 +4545,31 @@ function CanvasStage({
 
   // 실제 크기(mm) 대비 화면에 지금 몇 %로 보이는지 상위로 알려줘요 — 창을 좁혀서
   // baseFit이 작아지면(줌은 그대로 1이어도) 이 퍼센트는 같이 줄어들어요(2026-09-24).
+  // 2026-10-05, 혜민님 요청: "98%가 되면 책자가 흔들리듯이 움직이는 오류" — displayW가
+  // 소수점 아래에서 아주 미세하게(0.0001px 단위) 바뀔 때마다 이 값을 그대로
+  // onActualSizePercentChange(부모의 actualSizePercent state)로 올려보내고 있었어요.
+  // 화면에는 Math.round()로 반올림해서 보여주니 숫자 자체는 "98%"로 안 바뀐 것처럼
+  // 보이지만, 부모 state는 미세하게 계속 바뀌어 매 프레임 리렌더가 일어났고, 그
+  // 리렌더가 다시 레이아웃을 흔들어 ResizeObserver를 다시 건드리는 식으로 아주 작은
+  // 되먹임 루프가 생길 수 있었어요(특정 줌 배율에서만 이 루프가 눈에 보이는 진동으로
+  // 커진 것으로 보여요). 화면에 보이는 반올림 값이 실제로 달라질 때만 state를
+  // 갱신하도록 소수 첫째자리로 반올림 후 비교해서 불필요한 갱신을 걸러냈어요.
+  const lastReportedPercentRef = useRef<number | null | undefined>(undefined);
   useEffect(() => {
     if (!onActualSizePercentChange) return;
     if (!widthMm || widthMm <= 0 || !displayW) {
-      onActualSizePercentChange(null);
+      if (lastReportedPercentRef.current !== null) {
+        lastReportedPercentRef.current = null;
+        onActualSizePercentChange(null);
+      }
       return;
     }
     const actualPx = widthMm * CSS_PX_PER_MM;
-    onActualSizePercentChange((displayW / actualPx) * 100);
+    const rounded = Math.round(((displayW / actualPx) * 100) * 10) / 10;
+    if (lastReportedPercentRef.current !== rounded) {
+      lastReportedPercentRef.current = rounded;
+      onActualSizePercentChange(rounded);
+    }
   }, [displayW, widthMm, onActualSizePercentChange]);
 
   return (
@@ -8207,7 +8224,7 @@ function UploadPageContent() {
                     )}
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5">
-                      <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
+                      <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
                         {editorMode === "edit" && (
                         <div className="-ml-2.5 flex gap-2 border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-2">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
@@ -8215,7 +8232,7 @@ function UploadPageContent() {
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(44px,9cqw,56px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
@@ -8238,7 +8255,7 @@ function UploadPageContent() {
                               칸만 224px 차지하고 있던 걸 없앰). */}
                           {activeCoverEditTab && (
                           <div
-                            className="flex min-h-0 flex-col overflow-y-auto lg:w-56 lg:shrink-0 lg:pr-1"
+                            className="flex min-h-0 flex-col overflow-y-auto lg:w-[clamp(160px,22cqw,224px)] lg:shrink-0 lg:pr-1"
                           >
                           {activeCoverEditTab === "text" &&
                             multiTextSelection &&
@@ -9146,7 +9163,7 @@ function UploadPageContent() {
                       const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
                       return (
                         <div className="flex h-full min-h-0 flex-col px-2 pb-2">
-                          <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
+                          <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
                             {editorMode === "edit" && (
                             <div className="-ml-2 flex gap-2 border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-2">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
@@ -9156,7 +9173,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-14 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(44px,9cqw,56px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
@@ -9184,7 +9201,7 @@ function UploadPageContent() {
                               <div
                                 className={
                                   activeEditTab
-                                    ? "flex min-h-0 flex-col overflow-y-auto lg:w-56 lg:shrink-0 lg:pr-1"
+                                    ? "flex min-h-0 flex-col overflow-y-auto lg:w-[clamp(160px,22cqw,224px)] lg:shrink-0 lg:pr-1"
                                     : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
                                 }
                               >
