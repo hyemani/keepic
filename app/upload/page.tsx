@@ -1026,7 +1026,7 @@ function Ruler({
             // 옆에 보기 좋게 배치해요. justify-end + 숫자를 눈금선보다 앞에 둬서,
             // 숫자는 왼쪽에 눈금선은 항상 캔버스 쪽(오른쪽) 가장자리에 붙도록 했어요
             // (2026-09 수정 — "숫자가 왼쪽, 눈금이 오른쪽" 요청).
-            className="absolute left-0 flex w-full items-start justify-end gap-0.5"
+            className="absolute left-0 flex w-full items-start justify-end gap-0.5 pr-[3px]"
             style={{ top: `${(rawMm / totalMm) * 100}%` }}
           >
             {major && <span className="-translate-y-1/2 leading-none">{labelMm}</span>}
@@ -1739,7 +1739,11 @@ type LayerIconName =
   | "alignBottom"
   | "textAlignLeft"
   | "textAlignCenter"
-  | "textAlignRight";
+  | "textAlignRight"
+  | "boxAlignTop"
+  | "boxAlignMiddle"
+  | "boxAlignBottom"
+  | "check";
 
 function LayerIcon({ name, className }: { name: LayerIconName; className?: string }) {
   const common = {
@@ -1803,8 +1807,8 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
     case "rotate":
       return (
         <svg {...common}>
-          <path d="M4 12a8 8 0 1 1 2.4 5.7" />
-          <path d="M4 17v-4h4" />
+          <path d="M20 12a8 8 0 1 1-2.7-6" />
+          <path d="M20 3.5v5.5h-5.5" />
         </svg>
       );
     case "flip":
@@ -1892,6 +1896,33 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
     // 2026-09-27, 혜민님 요청: 텍스트 가로 정렬 버튼은 (위 alignLeft 등, 박스 여러 개를
     // 나란히 맞추는 아이콘과 헷갈리지 않도록) 글줄 아이콘으로 따로 만들었어요 — 일러스트
     // 레이터 "단락" 패널의 왼쪽/가운데/오른쪽 정렬 아이콘과 같은 느낌.
+    case "check":
+      return (
+        <svg {...common}>
+          <path d="M4.5 12.5l5 5 10-11" />
+        </svg>
+      );
+    case "boxAlignTop":
+      return (
+        <svg {...common}>
+          <rect x="5" y="4" width="14" height="16" rx="1.2" />
+          <path d="M7.5 8.5h9" />
+        </svg>
+      );
+    case "boxAlignMiddle":
+      return (
+        <svg {...common}>
+          <rect x="5" y="4" width="14" height="16" rx="1.2" />
+          <path d="M7.5 12h9" />
+        </svg>
+      );
+    case "boxAlignBottom":
+      return (
+        <svg {...common}>
+          <rect x="5" y="4" width="14" height="16" rx="1.2" />
+          <path d="M7.5 15.5h9" />
+        </svg>
+      );
     case "textAlignLeft":
       return (
         <svg {...common}>
@@ -1944,6 +1975,7 @@ function StackOrderToolbar({
   onOpacityChange,
   borderWidthPx,
   borderColor,
+  borderRadiusPx,
   onBorderChange,
 }: {
   flip: boolean;
@@ -1964,7 +1996,8 @@ function StackOrderToolbar({
   onOpacityChange?: (v: number) => void;
   borderWidthPx?: number;
   borderColor?: string;
-  onBorderChange?: (widthPx: number, color: string) => void;
+  borderRadiusPx?: number;
+  onBorderChange?: (widthPx: number, color: string, radiusPx: number) => void;
 }) {
   // "투명도"·"테두리" 아이콘을 누르면 그 아래 작은 조절판이 열려요 — 다시 누르면
   // 닫혀요(2026-09-26 신규 기능이라 바깥 클릭 감지 같은 복잡한 처리는 넣지 않고, 아이콘
@@ -2065,16 +2098,26 @@ function StackOrderToolbar({
                   max={12}
                   step={1}
                   value={borderWidthPx ?? 0}
-                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff")}
+                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff", borderRadiusPx ?? 0)}
                   className="flex-1"
                 />
                 <input
                   type="color"
                   value={borderColor ?? "#ffffff"}
-                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value)}
+                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value, borderRadiusPx ?? 0)}
                   className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
                 />
               </div>
+              <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">모서리 둥글게 {borderRadiusPx ?? 0}px</p>
+              <input
+                type="range"
+                min={0}
+                max={40}
+                step={1}
+                value={borderRadiusPx ?? 0}
+                onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value))}
+                className="w-full"
+              />
             </div>
           )}
         </div>
@@ -2375,15 +2418,13 @@ function TextBoxToolbar({
         </div>
       </div>
       <div>
-        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
-          박스 안 세로 위치 (박스 높이를 조절했을 때만 보여요)
-        </p>
+        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">박스영역 정렬</p>
         <div className="flex gap-1">
           {(
             [
-              { id: "top" as const, icon: "alignTop" as const, title: "위" },
-              { id: "middle" as const, icon: "alignVCenter" as const, title: "가운데" },
-              { id: "bottom" as const, icon: "alignBottom" as const, title: "아래" },
+              { id: "top" as const, icon: "boxAlignTop" as const, title: "위" },
+              { id: "middle" as const, icon: "boxAlignMiddle" as const, title: "가운데" },
+              { id: "bottom" as const, icon: "boxAlignBottom" as const, title: "아래" },
             ]
           ).map((opt) => (
             <button
@@ -3129,9 +3170,7 @@ const ImageBoxOverlay = forwardRef<
         // border 대신 안쪽 box-shadow로 그려요.
         transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
         opacity: box.opacity ?? 1,
-        boxShadow: box.borderWidthPx
-          ? `inset 0 0 0 ${box.borderWidthPx}px ${box.borderColor ?? "#ffffff"}`
-          : undefined,
+        borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined,
       }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
@@ -3165,7 +3204,10 @@ const ImageBoxOverlay = forwardRef<
           // object-fit: contain으로 그리면 어떤 경우에도(옛 데이터로 비율이 살짝
           // 어긋나 있어도) 스티커가 잘리지 않고 항상 통째로 보여요(2026-09-24,
           // "잘리는 부분이 생기지 않도록 이미지박스 적용은 안 하는 게 좋겠다" 요청).
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            style={{ borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined }}
+          >
             <img
               src={box.url}
               alt=""
@@ -3175,7 +3217,10 @@ const ImageBoxOverlay = forwardRef<
             />
           </div>
         ) : (
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            style={{ borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined }}
+          >
             <img
               src={box.url}
               alt=""
@@ -3196,7 +3241,17 @@ const ImageBoxOverlay = forwardRef<
             />
           </div>
         )
-      ) : (
+      ) : null}
+      {box.url && box.borderWidthPx ? (
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            borderRadius: box.borderRadiusPx ? `${box.borderRadiusPx}px` : undefined,
+            boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${box.borderColor ?? "#ffffff"}`,
+          }}
+        />
+      ) : null}
+      {!box.url && (
         // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면(또는
         // 더블클릭하면) 파일을 골라 채울 수 있어요. 미리보기·PDF에는 안 그려져요.
         <button
@@ -3298,41 +3353,41 @@ const ImageBoxOverlay = forwardRef<
             type="button"
             title="축소"
             onClick={() => handleZoom(-0.1)}
-            className="flex h-5 w-5 items-center justify-center bg-[var(--color-ivory)] text-xs text-[var(--color-charcoal)]/70"
+            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
           >
-            −
+            <LayerIcon name="zoomOut" className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             title="확대"
             onClick={() => handleZoom(0.1)}
-            className="flex h-5 w-5 items-center justify-center bg-[var(--color-ivory)] text-xs text-[var(--color-charcoal)]/70"
+            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
           >
-            +
+            <LayerIcon name="zoomIn" className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             title="좌우 반전"
             onClick={() => onChange({ flipX: !box.flipX })}
-            className="flex h-5 w-5 items-center justify-center bg-[var(--color-ivory)] text-xs text-[var(--color-charcoal)]/70"
+            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
           >
-            ⇌
+            <LayerIcon name="flip" className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             title="사진 위치 초기화"
             onClick={handleResetPhotoPosition}
-            className=" bg-[var(--color-ivory)] px-2 py-0.5 text-[10px] text-[var(--color-charcoal)]/70"
+            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
           >
-            초기화
+            <LayerIcon name="fit" className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
-            title="박스 조절 모드로 돌아가기"
+            title="박스 조절 모드로 돌아가기(완료)"
             onClick={() => setPhotoEditMode(false)}
-            className=" bg-[var(--color-charcoal)] px-2 py-0.5 text-[10px] text-white"
+            className="ml-0.5 flex h-6 w-6 items-center justify-center bg-[var(--color-charcoal)] text-white"
           >
-            완료
+            <LayerIcon name="check" className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
@@ -3365,7 +3420,10 @@ const ImageBoxOverlay = forwardRef<
           onOpacityChange={(v) => onChange({ opacity: v })}
           borderWidthPx={box.borderWidthPx ?? 0}
           borderColor={box.borderColor ?? "#ffffff"}
-          onBorderChange={(widthPx, color) => onChange({ borderWidthPx: widthPx, borderColor: color })}
+          borderRadiusPx={box.borderRadiusPx ?? 0}
+          onBorderChange={(widthPx, color, radiusPx) =>
+            onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPx: radiusPx })
+          }
         />
       )}
     </div>
@@ -4364,7 +4422,6 @@ function UploadPageContent() {
   const [activeEditTab, setActiveEditTab] = useState<EditTabId>("layout");
   // "텍스트" 탭의 "+ 글상자 추가" 버튼이 왼쪽/오른쪽 페이지 중 어디에 넣을지 기억해두는
   // 작은 토글이에요(2026-09-27, 버튼 두 개를 하나로 합치면서 추가).
-  const [textBoxAddSide, setTextBoxAddSide] = useState<"left" | "right">("right");
   // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
   // 개수가 안 맞아 적용을 막았을 때 보여줄 안내 문구예요.
   const [layoutCountFilter, setLayoutCountFilter] = useState<LayoutCountFilter>("auto");
@@ -5397,10 +5454,20 @@ function UploadPageContent() {
     heightPct: number,
     safety: { xPct: number; yPct: number }
   ) {
-    const left = Math.max(xPct, safety.xPct);
-    const right = Math.min(xPct + widthPct, 100 - safety.xPct);
-    const top = Math.max(yPct, safety.yPct);
-    const bottom = Math.min(yPct + heightPct, 100 - safety.yPct);
+    // 트림(재단) 가장자리에 실제로 닿아 있던 변만 골라서 안전영역 안쪽으로 당겨요.
+    // 문턱값 비교(예: xPct < safety.xPct면 무조건 당기기)로 하면, 이미 자기 여백을
+    // 가진 템플릿(gridWithGutter 등)의 여백이 안전영역보다 살짝 좁을 때도 함께
+    // 당겨져서 "여백 있는 페이지까지 기준선에 딱 맞춰진다"는 문제가 생겨요 — 그런
+    // 템플릿은 자기 여백을 그대로 두는 게 맞아요(혜민님 2026-09-27 재확인).
+    const EDGE_EPS = 0.5; // %
+    const touchesLeft = xPct <= EDGE_EPS;
+    const touchesRight = xPct + widthPct >= 100 - EDGE_EPS;
+    const touchesTop = yPct <= EDGE_EPS;
+    const touchesBottom = yPct + heightPct >= 100 - EDGE_EPS;
+    const left = touchesLeft ? Math.max(xPct, safety.xPct) : xPct;
+    const right = touchesRight ? Math.min(xPct + widthPct, 100 - safety.xPct) : xPct + widthPct;
+    const top = touchesTop ? Math.max(yPct, safety.yPct) : yPct;
+    const bottom = touchesBottom ? Math.min(yPct + heightPct, 100 - safety.yPct) : yPct + heightPct;
     return {
       xPct: left,
       yPct: top,
@@ -5421,15 +5488,20 @@ function UploadPageContent() {
     safety: { xPct: number; yPct: number },
     side: "front" | "back"
   ) {
+    // 내지 clampSlotToSpreadSafety와 같은 이유로, 실제로 트림 가장자리에 닿아 있던
+    // 변만 당겨요(2026-09-27 재확인) — 이미 여백이 있는 템플릿은 그대로 둬요.
+    const EDGE_EPS = 0.5; // %
     let left = xPct;
     let right = xPct + widthPct;
     if (side === "front") {
-      right = Math.min(right, 100 - safety.xPct);
+      if (right >= 100 - EDGE_EPS) right = Math.min(right, 100 - safety.xPct);
     } else {
-      left = Math.max(left, safety.xPct);
+      if (left <= EDGE_EPS) left = Math.max(left, safety.xPct);
     }
-    const top = Math.max(yPct, safety.yPct);
-    const bottom = Math.min(yPct + heightPct, 100 - safety.yPct);
+    const touchesTop = yPct <= EDGE_EPS;
+    const touchesBottom = yPct + heightPct >= 100 - EDGE_EPS;
+    const top = touchesTop ? Math.max(yPct, safety.yPct) : yPct;
+    const bottom = touchesBottom ? Math.min(yPct + heightPct, 100 - safety.yPct) : yPct + heightPct;
     return {
       xPct: left,
       yPct: top,
@@ -5446,15 +5518,59 @@ function UploadPageContent() {
   ) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
+    // 2026-09-27 재확인: "레이아웃을 바꿀때마다 겹치는 오류 확인됩니다. 레이아웃을
+    // 바꾸면 선택한 레이아웃 자체가 바뀌어야합니다. 추가되는게 아니고요." — 이 면이
+    // 아직 옛날 방식 그리드(spread.left/right, 사진이 여러 장인 템플릿)로 사진을
+    // 보여주고 있을 때 "레이아웃" 탭(자유배치 imageBoxes)을 처음 적용하면, 옛 그리드
+    // 사진은 화면에 그대로 남아 있고 그 위에 새 imageBoxes(빈 칸)가 "추가"로 겹쳐
+    // 보였던 게 원인이에요(1장짜리 "사진 전체" 템플릿만 변환 버튼이 있었고, 여러 장
+    // 짜리 그리드는 변환 경로가 아예 없었어요). 적용 범위에 해당하는 면이 아직
+    // freeform이 아니면, 그 면의 옛 그리드 사진들을 먼저 imageBoxes로 옮기고 그 면을
+    // freeform으로 바꿔서 옛 그리드를 없애요 — handleConvertPhotoToImageBox(1장 전용)와
+    // 같은 방식을 여러 장에 맞게 넓힌 거예요.
+    const sidesToConvert: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
+    const legacyBoxes: ImageBoxDef[] = [];
+    const legacyRemovedPhotoIndexes = new Set<number>();
+    const freeformSides: ("left" | "right")[] = [];
+    for (const side of sidesToConvert) {
+      if (side === "left" && spreadIndex === 0) continue; // 표지 뒷면(빈 면)은 대상 아님
+      const templateId = spread[side];
+      if (templateId === "freeform" || templateId === "blank") continue;
+      const group = computeSpreadPhotoGroups(customSpreads)[spreadIndex];
+      const idxs = side === "left" ? group.leftIndexes : group.rightIndexes;
+      const sidePhotos = idxs.map((idx) => ({ idx, photo: photos[idx] })).filter((e): e is { idx: number; photo: Photo } => !!e.photo);
+      if (sidePhotos.length > 0) {
+        sidePhotos.forEach(({ idx, photo }) => {
+          legacyBoxes.push({
+            id: crypto.randomUUID(),
+            url: photo.url,
+            naturalWidth: photo.width || 1,
+            naturalHeight: photo.height || 1,
+            xPct: side === "left" ? 0 : 50,
+            yPct: 0,
+            widthPct: 50,
+            heightPct: 100,
+            innerOffsetXPct: 0,
+            innerOffsetYPct: 0,
+            innerScale: 1,
+          });
+          legacyRemovedPhotoIndexes.add(idx);
+        });
+      }
+      freeformSides.push(side);
+    }
+    const spreadForOrder: SpreadDef = legacyBoxes.length
+      ? { ...spread, imageBoxes: [...(spread.imageBoxes ?? []), ...legacyBoxes] }
+      : spread;
     // 2026-09-27, 혜민님 요청: "스티커도 이미지로 인식되는거같습니다 ... 스티커는
     // 레이아웃 배치할떄 들어가지 않도록요" — 레이아웃 템플릿은 사진(스티커가 아닌
     // 이미지박스)만 대상으로 하고, 스티커는 지금 있는 자리 그대로 손 안 대요.
-    const allBoxesRaw = spread.imageBoxes ?? [];
+    const allBoxesRaw = spreadForOrder.imageBoxes ?? [];
     const stickerBoxes = allBoxesRaw.filter((b) => isStickerImageBox(b));
     const allBoxes = allBoxesRaw.filter((b) => !isStickerImageBox(b));
     const inRange = imageBoxesInRange(allBoxes, range);
     const outOfRange = allBoxes.filter((b) => !inRange.includes(b));
-    const fullOrder = getSpreadImageBoxOrder(spread);
+    const fullOrder = getSpreadImageBoxOrder(spreadForOrder);
     const inRangeById = new Map(inRange.map((b) => [b.id, b] as const));
     const orderedExisting = fullOrder.filter((id) => inRangeById.has(id)).map((id) => inRangeById.get(id)!);
 
@@ -5546,6 +5662,8 @@ function UploadPageContent() {
           imageBoxes: [...stickerBoxes, ...outOfRange, ...extraBoxes, ...placed],
           imageBoxOrder: preservedOrder,
         };
+        if (freeformSides.includes("left")) next.left = "freeform";
+        if (freeformSides.includes("right")) next.right = "freeform";
         if (captionKey && captionSlot) {
           const existingTextBoxes = s[captionKey] ?? [];
           if (!hasAutoCaptionBox(existingTextBoxes)) {
@@ -5555,6 +5673,9 @@ function UploadPageContent() {
         return next;
       })
     );
+    if (legacyRemovedPhotoIndexes.size > 0) {
+      setPhotos((prev) => prev.filter((_, i) => !legacyRemovedPhotoIndexes.has(i)));
+    }
   }
 
   // 표지(앞표지·뒤표지)에 레이아웃 템플릿을 적용해요 — 위 applyLayoutTemplate(내지용)과
@@ -8659,41 +8780,15 @@ function UploadPageContent() {
                               )}
                               {activeEditTab === "text" && (
                                 <div className="flex flex-col gap-1.5">
-                                  {/* 2026-09-27, 혜민님 요청: "글상자 추가 버튼 하나만
-                                      만들어주세요. 굳이 두개를 넣을필요 없습니다." — 나란히
-                                      뜨던 두 개의 전체너비 버튼(왼쪽/오른쪽) 대신, 작은
-                                      위치 선택(표지 스티커 탭 "적용 대상"과 같은 패턴)
-                                      + 버튼 하나로 합쳤어요. 텍스트박스는 그 페이지 자체를
-                                      0~100%로 보는 좌표라 페이지 경계를 못 넘어가서
-                                      (사진박스와 달리 스프레드 전체를 자유롭게 드래그할 수
-                                      없음), 위치는 미리 골라야 해요. 스프레드 1(i===0)은
-                                      왼쪽 면이 표지 뒷면이라 오른쪽만 선택할 수 있어요. */}
-                                  {i !== 0 && (
-                                    <div className="flex gap-1.5">
-                                      {(
-                                        [
-                                          { id: "left" as const, label: "왼쪽 페이지" },
-                                          { id: "right" as const, label: "오른쪽 페이지" },
-                                        ]
-                                      ).map((opt) => (
-                                        <button
-                                          key={opt.id}
-                                          type="button"
-                                          onClick={() => setTextBoxAddSide(opt.id)}
-                                          className={`flex-1 border px-1.5 py-1 text-[11px] transition ${
-                                            textBoxAddSide === opt.id
-                                              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                                          }`}
-                                        >
-                                          {opt.label}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
+                                  {/* 2026-09-27 재확인: "글상자는 왼쪽페이지 오른쪽페이지
+                                      메뉴가 따로 필요없습니다" — 위치를 미리 고르는 토글을
+                                      없애고 버튼 하나만 남겼어요. 스프레드 1(i===0)의 왼쪽
+                                      면은 표지 뒷면이라 오른쪽에, 나머지는 왼쪽 페이지에
+                                      기본으로 추가돼요(필요하면 캔버스에서 새로 만든
+                                      텍스트박스를 바로 옮기거나 지우고 다시 만들 수 있어요). */}
                                   <button
                                     type="button"
-                                    onClick={() => handleAddTextBox(i, i === 0 ? "right" : textBoxAddSide)}
+                                    onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
                                     className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
                                   >
                                     + 글상자 추가

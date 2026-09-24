@@ -128,6 +128,9 @@ export type ImageBoxDef = {
   // 안 그려요. 화면·인쇄 파일 둘 다 반영돼요.
   borderWidthPx?: number;
   borderColor?: string;
+  // 모서리 둥글게(px, 화면 기준) — 2026-09-27 요청으로 추가. rotation과 같은 이유로
+  // 화면 미리보기 전용이에요(인쇄 파일 쪽 클리핑은 아직 반영 안 함).
+  borderRadiusPx?: number;
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),
