@@ -427,7 +427,12 @@ export type StackedItem = { kind: StackKind; id: string; z: number };
 // 스프레드/표지 패널은 예전과 똑같이 "사진은 전부 아래, 텍스트는 전부 위"로 보여요
 // (한 패널에 사진이 1000장 넘게 있는 것처럼 극단적인 경우만 예외예요).
 export function effectiveZOrder(kind: StackKind, zOrder: number | undefined, arrayIndex: number): number {
-  if (zOrder !== undefined && Number.isFinite(zOrder)) return zOrder;
+  // 음수 zOrder는 절대 CSS zIndex로 그대로 내보내지 않아요 — "맨 뒤로"를 반복해서 누르면
+  // (예전 코드로) 저장돼버린 음수 값이 있을 수 있는데, 음수 zIndex는 배경(스프레드
+  // 배경색/무늬) 요소 뒤로 완전히 숨어버리는 문제가 있었어요(2026-09-26 확인). 이미
+  // 저장된 음수 값도 0으로 바닥을 깔아서 항상 화면에 보이게 해요 — computeZOrderUpdates의
+  // "back" 액션도 이제 음수를 만들지 않도록 같이 고쳤어요.
+  if (zOrder !== undefined && Number.isFinite(zOrder)) return Math.max(0, zOrder);
   return kind === "image" ? arrayIndex : 1000 + arrayIndex;
 }
 
@@ -466,7 +471,19 @@ export function computeZOrderUpdates(
   }
   if (action === "back") {
     if (idx === 0) return [];
-    return [{ kind, id, z: order[0].z - 1 }];
+    // 예전엔 order[0].z - 1로 "맨 뒤로"를 구현했는데, 이러면 반복해서 누를 때마다 음수
+    // zIndex가 나올 수 있었어요(예: 0 -> -1 -> -2...). 이 음수 zIndex 값이 그대로
+    // React의 style={{ zIndex }}로 들어가면서, 배경(스프레드 배경색/무늬) 요소가 명시적
+    // z-index 없이(auto) 그려지는 위치와 스태킹 순서가 꼬여 사진·스티커가 배경 뒤로
+    // 완전히 숨어버리는 문제가 있었어요(2026-09-26, 혜민님이 "맨 뒤로 누르니 사라진다"로
+    // 재현해주심). 그래서 음수를 아예 안 쓰도록 바꿨어요 — 나머지 박스를 전부 한 칸씩
+    // 뒤로 밀고(z + 1), 이 박스만 0으로 보내는 방식이에요. 순서는 똑같이 맨 뒤가 되지만
+    // zIndex는 항상 0 이상만 나와요.
+    const updates = order
+      .filter((it) => !(it.kind === kind && it.id === id))
+      .map((it) => ({ kind: it.kind, id: it.id, z: it.z + 1 }));
+    updates.push({ kind, id, z: 0 });
+    return updates;
   }
   if (action === "forward") {
     if (idx >= order.length - 1) return [];

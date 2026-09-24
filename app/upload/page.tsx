@@ -915,8 +915,11 @@ function Ruler({
     if (existing) existing.major = true;
   }
   ticks.sort((a, b) => a.rawMm - b.rawMm);
+  // 눈금자 트랙 배경도 도련 안쪽 종이(흰색)와 구분되게 --color-hairline 톤으로(2026-09-26,
+  // 혜민님이 "눈금자에 하얀배경 보이는 부분" 추가 지적 — 왼쪽 위 모서리 칸만 고쳤던 걸
+  // 눈금자 몸통까지 확장).
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-[var(--color-ivory)] text-[8px] text-[var(--color-charcoal)]/55`}>
+    <div className={`relative h-full w-full overflow-hidden bg-[var(--color-hairline)]/30 text-[8px] text-[var(--color-charcoal)]/55`}>
       {ticks.map(({ labelMm, rawMm, major }) =>
         orientation === "horizontal" ? (
           <div
@@ -3726,6 +3729,7 @@ function CanvasStage({
   children,
   widthMm,
   onActualSizePercentChange,
+  overlay,
 }: {
   aspect: number;
   zoom: number;
@@ -3738,6 +3742,10 @@ function CanvasStage({
   // 씀(2026-09-24 신규). 생략하면 실제 크기 계산 없이 화면맞춤 배율만 보고돼요.
   widthMm?: number;
   onActualSizePercentChange?: (percent: number | null) => void;
+  // 캔버스 위에 절대 위치로 띄울 내용(좌우 페이지 이동 화살표 등, 2026-09-26 추가) —
+  // 스크롤되는 viewportRef가 아니라 그 바깥의 measureRef(스크롤 없는 캔버스 전체 영역)
+  // 기준으로 떠서, 왼쪽 속성 패널까지 넘어가지 않고 캔버스 영역 안에만 있어요.
+  overlay?: React.ReactNode;
 }) {
   // measureRef(스크롤 없는 바깥 래퍼)로 크기를 재요 — viewportRef(overflow-auto가 걸린
   // 안쪽 div) 자신을 관찰하면, 그 div에 세로/가로 스크롤바가 생기는 순간
@@ -3830,6 +3838,7 @@ function CanvasStage({
           {children}
         </div>
       </div>
+      {overlay}
     </div>
   );
 }
@@ -5367,6 +5376,47 @@ function UploadPageContent() {
     }
   }
 
+  // 편집 중 캔버스 위에서 바로 페이지를 넘길 수 있는 좌우 화살표예요(2026-09-26). 왼쪽
+  // 사이드바의 ‹/› 버튼과 하는 일은 같아요(같은 pageOrder 이동 로직). CanvasStage의
+  // overlay prop으로 넘겨서, 캔버스 자체(측정 래퍼) 기준으로 뜨게 해요 — 예전엔 아이콘
+  // 메뉴+속성 패널까지 포함한 훨씬 넓은 바깥 영역 기준으로 떠 있어서, 화살표가 패널
+  // 쪽까지 넘어와 보이는 문제가 있었어요(혜민님 확인, "화살표가 패널까지 보이는부분").
+  function renderPageNavArrows() {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => {
+            const order = pageOrder;
+            const idx = order.findIndex((k) => k === selectedPageKey);
+            if (idx > 0) setSelectedPageKey(order[idx - 1]);
+          }}
+          disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
+          aria-label="이전 페이지"
+          className="pointer-events-auto absolute left-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:left-2"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const order = pageOrder;
+            const idx = order.findIndex((k) => k === selectedPageKey);
+            if (idx >= 0 && idx < order.length - 1) setSelectedPageKey(order[idx + 1]);
+          }}
+          disabled={(() => {
+            const idx = pageOrder.findIndex((k) => k === selectedPageKey);
+            return idx < 0 || idx >= pageOrder.length - 1;
+          })()}
+          aria-label="다음 페이지"
+          className="pointer-events-auto absolute right-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:right-2"
+        >
+          ›
+        </button>
+      </>
+    );
+  }
+
   // ---- 편집기 단축키: 실행취소/다시실행, 복사/붙여넣기, 확대·축소 ----
   // 실행취소는 "지금까지 편집한 내용(사진 배치, 텍스트, 배경 등)" 전체를 하나의 스냅샷으로
   // 찍어뒀다가 되돌리는 방식이에요(필드 하나하나를 따로 추적하지 않아요). 스냅샷에는
@@ -6565,51 +6615,16 @@ function UploadPageContent() {
                         </span>
                       </button>
                     )}
-                    {/* 편집 중에도 캔버스 위에서 바로 페이지를 넘길 수 있게 좌우에 떠있는
-                        화살표 버튼을 추가했어요(2026-09-26, 참고 화면처럼). 왼쪽 사이드바의
-                        ‹/› 버튼과 하는 일은 같아요(같은 pageOrder 이동 로직) — 데스크톱에서
-                        사이드바가 이미 보이고 있어도, 캔버스 바로 옆이라 더 빠르게 넘길 수
-                        있어서 같이 둬요. */}
-                    {editorMode === "edit" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const order = pageOrder;
-                            const idx = order.findIndex((k) => k === selectedPageKey);
-                            if (idx > 0) setSelectedPageKey(order[idx - 1]);
-                          }}
-                          disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
-                          aria-label="이전 페이지"
-                          className="pointer-events-auto absolute left-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:left-2"
-                        >
-                          ‹
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const order = pageOrder;
-                            const idx = order.findIndex((k) => k === selectedPageKey);
-                            if (idx >= 0 && idx < order.length - 1) setSelectedPageKey(order[idx + 1]);
-                          }}
-                          disabled={(() => {
-                            const idx = pageOrder.findIndex((k) => k === selectedPageKey);
-                            return idx < 0 || idx >= pageOrder.length - 1;
-                          })()}
-                          aria-label="다음 페이지"
-                          className="pointer-events-auto absolute right-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 sm:right-2"
-                        >
-                          ›
-                        </button>
-                      </>
-                    )}
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col p-2.5">
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                         {editorMode === "edit" && (
-                        <div className="flex gap-2 lg:shrink-0">
+                        <div className="-ml-2.5 flex gap-2 border-[var(--color-hairline)] pl-2.5 lg:shrink-0 lg:border-r lg:pr-2">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
-                              (2026-09-23, 이전엔 전부 한 화면에 세로로 나열돼 있었어요). */}
+                              (2026-09-23, 이전엔 전부 한 화면에 세로로 나열돼 있었어요).
+                              2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
+                              화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
+                              구분선(lg:border-r)을 그음. */}
                           <div className="flex flex-row gap-1 overflow-x-auto lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
@@ -7345,6 +7360,7 @@ function UploadPageContent() {
                           fitToken={canvasFitToken}
                           widthMm={coverTotalWmm}
                           onActualSizePercentChange={setActualSizePercent}
+                          overlay={editorMode === "edit" ? renderPageNavArrows() : undefined}
                         >
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
@@ -7633,11 +7649,14 @@ function UploadPageContent() {
                         <div className="flex h-full min-h-0 flex-col p-2">
                           <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                             {editorMode === "edit" && (
-                            <div className="flex gap-2 lg:shrink-0">
+                            <div className="-ml-2 flex gap-2 border-[var(--color-hairline)] pl-2 lg:shrink-0 lg:border-r lg:pr-2">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
                                   아이콘으로 골라요. 예전엔 배경만 항상 펼쳐져 있고 사진·스티커
                                   추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
-                                  이제 다른 편집기들처럼 아이콘을 눌러야 해당 메뉴가 열려요. */}
+                                  이제 다른 편집기들처럼 아이콘을 눌러야 해당 메뉴가 열려요.
+                                  2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
+                                  화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
+                                  구분선(lg:border-r)을 그음. */}
                               <div className="flex flex-row gap-1 overflow-x-auto lg:w-16 lg:shrink-0 lg:flex-col lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
@@ -8178,6 +8197,7 @@ function UploadPageContent() {
                               fitToken={canvasFitToken}
                               widthMm={guideSpreadWorkMm}
                               onActualSizePercentChange={setActualSizePercent}
+                              overlay={editorMode === "edit" ? renderPageNavArrows() : undefined}
                             >
                             <div
                               className={
