@@ -5562,6 +5562,13 @@ function UploadPageContent() {
   // 2026-09-25, 혜민님 요청(항목5): 표지 "테마" 탭도 가족/여행/커플/아기/생일 5개
   // 카테고리로 나눠서 골라 볼 수 있게 했어요.
   const [themeCategoryTab, setThemeCategoryTab] = useState<CoverThemeCategory>("family");
+  // 2026-09-25, 혜민님 요청: "사진 프레임 변경 버튼을 만들어주세요(말 그대로 사진
+  // 프레임 변경하는거예요)" — 캔버스에서 사진박스를 선택했을 때 뜨는
+  // StackOrderToolbar의 테두리 두께·색·모서리 둥글게 조절판과 똑같은 기능을,
+  // 왼쪽 "사진" 탭 안에서도 바로 열어볼 수 있게 했어요(값을 바꾸면
+  // handleCoverImageBoxChange로 같은 상태를 그대로 갱신해요 — 새로 만든 별도
+  // 기능이 아니라 기존 기능을 패널에서도 쓸 수 있게 한 것).
+  const [coverPhotoFramePanelOpen, setCoverPhotoFramePanelOpen] = useState(false);
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -9293,23 +9300,97 @@ function UploadPageContent() {
                                 </>
                               ) : (
                                 <>
-                              {/* 2026-10-04, 혜민님 요청(항목1): "내지와 동일하게 수정해주세요"
-                                  — 내지 사진 탭의 "+ 사진 추가" 패턴과 똑같이 맞췄어요. 박스가
-                                  아직 없으면(맨 처음) "+ 사진 추가" 버튼으로 이미지박스를 새로
-                                  만들고, 박스가 1개면 그 사진만 바꾸는 링크, 2개 이상(레이아웃
-                                  탭에서 여러 장 배치)이면 레이아웃 탭 안내만 보여줘요. */}
-                              {coverImageBoxes.length > 1 ? (
-                                <div className="flex flex-col gap-1.5">
-                                  <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
-                                    “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 되돌리려면 레이아웃
-                                    탭에서 “꽉 채우기”를 골라주세요.
-                                  </p>
-                                  {/* 2026-09-25, 혜민님 요청(항목1): 여러 장 배치 중에도 계속
-                                      사진을 더 추가할 수 있어야 해서, 안내문 아래에 + 사진 추가
-                                      버튼을 다시 살렸어요. */}
-                                  <div>
-                                    <label className="inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
-                                      + 사진 추가
+                              {/* 2026-09-25, 혜민님 요청: "편집기 메뉴 가로폭에 맞춰서
+                                  배치해주세요 / 사진 메뉴는 사진 추가·사진 프레임 변경
+                                  버튼을 상단에, 하단 버튼은 글상자 추가 버튼처럼 사진
+                                  불러오기 버튼을 만들어주세요 / 레이아웃 탭 안내문 삭제"
+                                  — 박스 개수(0/1/2+)에 따라 갈라지던 예전 3단계 화면을
+                                  없애고, 항상 같은 3버튼 구성으로 통일했어요. 상단 2개는
+                                  패널 폭을 절반씩 나눠 쓰고(grid-cols-2), 하단 1개는
+                                  글상자 추가 버튼과 같은 그라데이션으로 패널 폭 전체를
+                                  채워요. */}
+                              {(() => {
+                                const frameTargetBox =
+                                  (activeCoverImageBox?.target === "front"
+                                    ? coverImageBoxes.find((b) => b.id === activeCoverImageBox.boxId)
+                                    : undefined) ?? coverImageBoxes[coverImageBoxes.length - 1];
+                                return (
+                                  <div className="flex flex-col gap-1.5">
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                      <label className="flex cursor-pointer items-center justify-center border border-[var(--color-sky)] px-2 py-2 text-center text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
+                                        + 사진 추가
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
+                                          className="hidden"
+                                        />
+                                      </label>
+                                      <button
+                                        type="button"
+                                        disabled={!frameTargetBox}
+                                        onClick={() => setCoverPhotoFramePanelOpen((v) => !v)}
+                                        className={`border px-2 py-2 text-xs font-medium transition ${
+                                          coverPhotoFramePanelOpen
+                                            ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                                            : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:border-[var(--color-charcoal)]/40"
+                                        } disabled:cursor-not-allowed disabled:opacity-30`}
+                                      >
+                                        사진 프레임 변경
+                                      </button>
+                                    </div>
+                                    {coverPhotoFramePanelOpen && frameTargetBox && (
+                                      // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의
+                                      // "테두리" 조절판(테두리 두께·색·모서리 둥글게)과 똑같은
+                                      // 기능이에요 — handleCoverImageBoxChange로 같은 상태를 갱신.
+                                      <div className="border border-[var(--color-hairline)] bg-white p-2">
+                                        <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
+                                          테두리 두께 {frameTargetBox.borderWidthPx ?? 0}px
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="range"
+                                            min={0}
+                                            max={12}
+                                            step={1}
+                                            value={frameTargetBox.borderWidthPx ?? 0}
+                                            onChange={(e) =>
+                                              handleCoverImageBoxChange(frameTargetBox.id, {
+                                                borderWidthPx: Number(e.target.value),
+                                              })
+                                            }
+                                            className="flex-1"
+                                          />
+                                          <input
+                                            type="color"
+                                            value={frameTargetBox.borderColor ?? "#ffffff"}
+                                            onChange={(e) =>
+                                              handleCoverImageBoxChange(frameTargetBox.id, { borderColor: e.target.value })
+                                            }
+                                            className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
+                                          />
+                                        </div>
+                                        <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
+                                          모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
+                                          {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
+                                        </p>
+                                        <input
+                                          type="range"
+                                          min={0}
+                                          max={50}
+                                          step={1}
+                                          value={frameTargetBox.borderRadiusPct ?? 0}
+                                          onChange={(e) =>
+                                            handleCoverImageBoxChange(frameTargetBox.id, {
+                                              borderRadiusPct: Number(e.target.value),
+                                            })
+                                          }
+                                          className="w-full"
+                                        />
+                                      </div>
+                                    )}
+                                    <label className="block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
+                                      사진 불러오기
                                       <input
                                         type="file"
                                         accept="image/*"
@@ -9318,33 +9399,8 @@ function UploadPageContent() {
                                       />
                                     </label>
                                   </div>
-                                </div>
-                              ) : coverImageBoxes.length === 1 ? (
-                                <div className="flex flex-col gap-1.5">
-                                  <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                                    표지 사진 바꾸기
-                                    <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
-                                  </label>
-                                  <div>
-                                    <label className="inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
-                                      + 사진 추가
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
-                                        className="hidden"
-                                      />
-                                    </label>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <label className="inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
-                                    + 사진 추가
-                                    <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
-                                  </label>
-                                </div>
-                              )}
+                                );
+                              })()}
                               {/* 2026-10-02, 혜민님 요청: "뒤표지꾸미기 사진선택, 로고빼기도
                                   다 삭제 사진탭은 사진올리기, 프레임, 모서리 두께, 둥글게
                                   메뉴만 확인되게 해주세요" — "뒤표지 꾸미기"(사진선택/로고빼기)
@@ -9352,8 +9408,9 @@ function UploadPageContent() {
                                   ImageBoxLayer/ImageBoxOverlay를 표지에도 그대로 쓰고 있어서
                                   (위 <ImageBoxLayer boxes={coverImageBoxes} .../> 참고), 사진
                                   박스를 캔버스에서 선택하면 뜨는 StackOrderToolbar(레이어
-                                  툴바)에 테두리 두께·색·모서리 둥글게가 이미 있어요 — 별도로
-                                  연결할 게 없어서 추가 작업 없이 충족됨. */}
+                                  툴바)에도 테두리 두께·색·모서리 둥글게가 있어요 — 위 "사진
+                                  프레임 변경" 패널은 그 기능을 이 사진 탭 안에서도 바로 쓸 수
+                                  있게 한 거예요(2026-09-25). */}
                                 </>
                               )}
                             </div>
