@@ -165,6 +165,27 @@ export function isStickerImageBox(box: { kind?: "photo" | "sticker"; url: string
   return box.url.startsWith("/stickers/");
 }
 
+// 자유 배치 표(테이블) 박스 하나예요(2026-09-25 "표 만들기" 기능 추가, 기본형 —
+// 셀 병합·셀별 스타일은 지원하지 않아요). 이미지박스와 같은 "스프레드 전체 폭"
+// 기준(0~100%) 좌표를 써요(내지 스프레드는 페이지 경계를 넘나들 수 있게, 표지는 그
+// 칸 자체를 스프레드처럼 취급해요) — 화면에서는 한 덩어리로 보이고, 인쇄 파일에서는
+// drawImageBoxOnCanvas와 같은 방식으로 각 낱장 폭만큼 잘라서 그려요.
+export type TableBoxDef = {
+  id: string;
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
+  rows: number;
+  cols: number;
+  // 셀 내용이에요. row-major 순서(1행 전체 → 2행 전체 …)의 문자열 배열로 저장해요 —
+  // rows*cols 길이예요. 배열이라 JSON 저장/불러오기·실행취소가 다른 배열형 상태와
+  // 같은 방식으로 자연스럽게 동작해요.
+  cells: string[];
+  fontScale?: number; // 기본 1 — TextBoxDef.fontScale과 같은 배율.
+  borderColor?: string; // 기본 "#94A3B8"(연한 회색) 격자선 색.
+};
+
 export type SpreadDef = {
   left: PageTemplateId;
   right: PageTemplateId;
@@ -188,6 +209,8 @@ export type SpreadDef = {
   // imageBoxes 배열에 없는 id는 무시하고, 배열에 있지만 이 목록에 없는 id는 읽는 순서로
   // 보정해서 취급해요(사진 추가/삭제 시 항상 최신 상태로 유지돼요).
   imageBoxOrder?: string[];
+  // 자유 배치 표(테이블) 박스예요 — imageBoxes와 같은 스프레드 전체 폭 기준 좌표계를 써요.
+  tableBoxes?: TableBoxDef[];
 };
 
 export type AlbumTemplate = {

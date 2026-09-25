@@ -11,7 +11,7 @@
 // 다시 생성해주세요.
 
 import { jsPDF } from "jspdf";
-import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, pageTemplates, sortStackedBoxes } from "@/lib/albumTemplates";
+import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, pageTemplates, sortStackedBoxes } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
 import {
@@ -328,7 +328,8 @@ async function drawPage(
   // 잘라 그려요 — pageOffsetPx/spreadWidthPx가 그 계산에 필요해요.
   imageBoxes?: ImageBoxDef[],
   pageOffsetPx?: number,
-  spreadWidthPx?: number
+  spreadWidthPx?: number,
+  tableBoxes?: TableBoxDef[]
 ) {
   await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId, pageOffsetPx, spreadWidthPx);
   // 2026-09-25, "종류 상관없이 전부" 레이어 순서 기능: 사진박스·텍스트박스를 예전처럼
@@ -353,6 +354,12 @@ async function drawPage(
       const box = textById.get(item.id);
       if (!box) continue;
       drawTextBoxOnCanvas(ctx, box, pageW, pageH);
+    }
+  }
+  // 표(테이블) 박스는 기본형(2026-09-25)이라 별도 쌓임 순서 없이 항상 맨 위에 그려요.
+  if (tableBoxes && tableBoxes.length && pageOffsetPx !== undefined && spreadWidthPx !== undefined) {
+    for (const box of tableBoxes) {
+      drawTableBoxOnCanvas(ctx, box, pageW, pageH, pageOffsetPx, spreadWidthPx);
     }
   }
 }
@@ -492,6 +499,122 @@ async function drawImageBoxesInPanel(
         boxHeightPx - printBorderPx
       );
     }
+    ctx.restore();
+  }
+}
+
+// 표(테이블) 박스 하나를 이미 정해진 캔버스 좌표(originXpx/originYpx 기준, 픽셀 단위)
+// 사각형 안에 그려요 — 격자선 + 각 셀의 텍스트(가운데 정렬, 한 줄로 안 들어가면
+// wrapTextForCanvas로 줄바꿈). drawTableBoxOnCanvas(스프레드, 페이지 경계 클립)와
+// drawTableBoxesInPanel(표지 칸) 둘 다 좌표를 픽셀로 다 계산한 뒤 이 함수를 같이 써요.
+function drawTableGridAndCells(
+  ctx: CanvasRenderingContext2D,
+  box: TableBoxDef,
+  leftPx: number,
+  topPx: number,
+  widthPx: number,
+  heightPx: number,
+  refWidthPx: number
+) {
+  const rows = Math.max(1, box.rows);
+  const cols = Math.max(1, box.cols);
+  const cellW = widthPx / cols;
+  const cellH = heightPx / rows;
+  const fontPx = Math.max(8, Math.round(refWidthPx * TEXT_BOX_FONT_SCALE_BASE_RATIO * (box.fontScale ?? 1)));
+
+  // 셀 텍스트 — 격자선보다 먼저 그려서, 격자선이 셀 배경 위에 살짝 겹쳐도 항상 또렷하게 보여요.
+  ctx.font = `${fontPx}px Pretendard, sans-serif`;
+  ctx.fillStyle = "#1F2937";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const cellPad = cellW * 0.08;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const text = box.cells[r * cols + c] ?? "";
+      if (!text.trim()) continue;
+      const cx = leftPx + cellW * (c + 0.5);
+      const cy = topPx + cellH * (r + 0.5);
+      const maxTextWidth = Math.max(4, cellW - cellPad * 2);
+      const lines = wrapTextForCanvas(ctx, text, maxTextWidth);
+      const lineHeight = fontPx * 1.25;
+      const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(leftPx + cellW * c, topPx + cellH * r, cellW, cellH);
+      ctx.clip();
+      lines.forEach((line, i) => {
+        ctx.fillText(line, cx, startY + i * lineHeight, maxTextWidth);
+      });
+      ctx.restore();
+    }
+  }
+
+  // 격자선.
+  ctx.save();
+  ctx.strokeStyle = box.borderColor ?? "#94A3B8";
+  ctx.lineWidth = Math.max(1, Math.round(1 * (PRINT_DPI / 96)));
+  ctx.beginPath();
+  for (let r = 0; r <= rows; r++) {
+    const y = topPx + cellH * r;
+    ctx.moveTo(leftPx, y);
+    ctx.lineTo(leftPx + widthPx, y);
+  }
+  for (let c = 0; c <= cols; c++) {
+    const x = leftPx + cellW * c;
+    ctx.moveTo(x, topPx);
+    ctx.lineTo(x, topPx + heightPx);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// 자유 배치 표박스를 이 낱장(페이지)에 그려요 — drawImageBoxOnCanvas와 완전히 같은
+// 방식으로 "스프레드 전체 폭" 좌표를 pageOffsetPx만큼 빼서 이 낱장 기준으로 바꾸고,
+// 페이지 경계로 클립해서 표가 페이지를 넘어가면 자연스럽게 이어져 보이게 해요.
+function drawTableBoxOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  box: TableBoxDef,
+  pageW: number,
+  pageH: number,
+  pageOffsetPx: number,
+  spreadWidthPx: number
+) {
+  const boxLeftSpreadPx = (box.xPct / 100) * spreadWidthPx;
+  const boxTopPx = (box.yPct / 100) * pageH;
+  const boxWidthSpreadPx = (box.widthPct / 100) * spreadWidthPx;
+  const boxHeightPx = (box.heightPct / 100) * pageH;
+  const boxLeftPagePx = boxLeftSpreadPx - pageOffsetPx;
+
+  if (boxLeftPagePx + boxWidthSpreadPx <= 0 || boxLeftPagePx >= pageW) return;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, pageW, pageH);
+  ctx.clip();
+  drawTableGridAndCells(ctx, box, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, spreadWidthPx);
+  ctx.restore();
+}
+
+// 표지 칸(앞표지/뒤표지) 안에 표박스들을 그려요 — drawImageBoxesInPanel과 같은 방식으로,
+// 페이지 경계를 넘나들 일이 없는 패널 하나를 100%로 보는 좌표예요.
+function drawTableBoxesInPanel(
+  ctx: CanvasRenderingContext2D,
+  boxes: TableBoxDef[],
+  originXpx: number,
+  originYpx: number,
+  panelWpx: number,
+  panelHpx: number
+) {
+  for (const box of boxes) {
+    const boxLeftPx = originXpx + (box.xPct / 100) * panelWpx;
+    const boxTopPx = originYpx + (box.yPct / 100) * panelHpx;
+    const boxWidthPx = (box.widthPct / 100) * panelWpx;
+    const boxHeightPx = (box.heightPct / 100) * panelHpx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(originXpx, originYpx, panelWpx, panelHpx);
+    ctx.clip();
+    drawTableGridAndCells(ctx, box, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, panelWpx);
     ctx.restore();
   }
 }
@@ -949,7 +1072,8 @@ export async function buildInnerPrintPdf({
         side.textBoxes,
         spreadImageBoxes,
         side.pageOffsetPx,
-        spreadWidthPx
+        spreadWidthPx,
+        spread.tableBoxes
       );
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
       drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideEdge);
@@ -1178,6 +1302,8 @@ export async function buildCoverPrintPdf({
   coverTextBoxes,
   coverImageBoxes,
   backCoverImageBoxes,
+  coverTableBoxes,
+  backCoverTableBoxes,
 }: {
   cover: PhotobookCoverId;
   sizeInnerTrimMm: number; // 내지 재단 사이즈(정사각형 한 변, mm) — 예: L=300
@@ -1220,6 +1346,9 @@ export async function buildCoverPrintPdf({
   // coverPhoto/backCoverPhoto 사진 1장 방식 그대로 그려요.
   coverImageBoxes?: ImageBoxDef[];
   backCoverImageBoxes?: ImageBoxDef[];
+  // 표지 앞면/뒤면에 자유 배치한 표(테이블) 박스예요(기본형, 2026-09-25).
+  coverTableBoxes?: TableBoxDef[];
+  backCoverTableBoxes?: TableBoxDef[];
 }): Promise<PrintPdfResult> {
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
@@ -1337,6 +1466,9 @@ export async function buildCoverPrintPdf({
       }
     }
     if (!backLogoDrawn) await drawBackCoverLogo();
+    if (backCoverTableBoxes && backCoverTableBoxes.length) {
+      drawTableBoxesInPanel(ctx, backCoverTableBoxes, 0, 0, backCellWpx, backCellHpx);
+    }
   } else {
     if (backCoverPhoto?.url) {
       const backImg = await loadImage(backCoverPhoto.url);
@@ -1370,6 +1502,9 @@ export async function buildCoverPrintPdf({
         drawTextBoxOnCanvas(ctx, box, backCellWpx, backCellHpx, 0, 0);
       }
       ctx.restore();
+    }
+    if (backCoverTableBoxes && backCoverTableBoxes.length) {
+      drawTableBoxesInPanel(ctx, backCoverTableBoxes, 0, 0, backCellWpx, backCellHpx);
     }
   }
 
@@ -1526,6 +1661,9 @@ export async function buildCoverPrintPdf({
       }
       ctx.restore();
     }
+  }
+  if (coverTableBoxes && coverTableBoxes.length) {
+    drawTableBoxesInPanel(ctx, coverTableBoxes, frontX, 0, frontCellWpx, frontCellHpx);
   }
 
   const cleanDataUrl = canvasToJpegDataUrl(canvas);

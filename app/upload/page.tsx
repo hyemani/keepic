@@ -12,6 +12,7 @@ import {
   SpreadDef,
   TextBoxDef,
   ImageBoxDef,
+  TableBoxDef,
   AI_AUTO_LAYOUT_TEMPLATE_ID,
   generateEmptyFreeformSpreads,
   findAutoPhotoSlotPosition,
@@ -1692,6 +1693,18 @@ function CaptionField({
 // 드래그 중 박스 중심이 페이지 가운데(가로 50%/세로 50%)에 가까워지면 딱 맞춰 붙여주고,
 // 일러스트레이터의 "스마트 가이드"처럼 그 순간 가운데 십자선을 보여줘요.
 const CENTER_SNAP_THRESHOLD_PCT = 1.6;
+// 이모티콘 탭에서 고를 수 있는 기본 이모지 세트예요(자주 쓰는 것 위주로 고른 큐레이션
+// — 전체 유니코드 이모지 피커는 이번 기본형 범위 밖이에요, 2026-09-25).
+const EMOJI_PICKER_SET = [
+  "❤️", "💕", "💛", "💙", "💜", "🧡", "🤍", "🖤",
+  "😀", "😁", "😂", "🥰", "😍", "😊", "😉", "😘",
+  "🥳", "😎", "🤗", "😢", "😭", "😴", "🤔", "😇",
+  "👍", "👏", "🙌", "🙏", "✌️", "🤞", "👋", "💪",
+  "⭐", "✨", "🎉", "🎊", "🎈", "🎁", "🌸", "🌷",
+  "🌼", "🌻", "🌈", "☀️", "🌙", "⛄", "❄️", "🔥",
+  "☕", "🍰", "🍭", "🍓", "🍀", "🐶", "🐱", "🐻",
+];
+
 
 // 텍스트박스 하나예요. 예전엔 박스마다 뜨는 작은 툴바(⠿ 손잡이·폰트·크기·정렬·색·삭제)로
 // 옮기고 꾸몄는데, 그 툴바가 박스 위를 가리다 보니 안쪽을 클릭해서 글자를 넣기가 어렵다는
@@ -2658,6 +2671,85 @@ const TEXT_BOX_RESIZE_HANDLES: { dir: TextBoxResizeDir; className: string; curso
   { dir: "sw", className: "-left-1.5 -bottom-1.5", cursor: "cursor-nesw-resize", title: "끌어서 크기 조절" },
   { dir: "se", className: "-right-1.5 -bottom-1.5", cursor: "cursor-nwse-resize", title: "끌어서 크기 조절" },
 ];
+
+// "표만들기" 서브탭 내용이에요(기본형, 2026-09-25) — 행·열 수를 스테퍼로 고른 뒤
+// "표 추가"를 누르면 그 크기의 빈 표가 캔버스 가운데 즈음에 생겨요. 셀 병합이나
+// 셀별 스타일은 없고(기본형 범위), 칸을 클릭해서 바로 타이핑으로 채워요.
+// TablePanelControls의 행·열 스테퍼예요 — 렌더 중에 컴포넌트를 새로 선언하면 매번
+// state가 초기화되는 문제(react-hooks/static-components)가 있어서 모듈 스코프로 뺐어요.
+function TablePanelStepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-[var(--color-charcoal)]/70">{label}</span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(1, value - 1))}
+          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-sm text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+        >
+          −
+        </button>
+        <span className="w-6 text-center text-sm tabular-nums">{value}</span>
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(20, value + 1))}
+          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-sm text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+        >
+          ＋
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => void }) {
+  const [rows, setRows] = useState(3);
+  const [cols, setCols] = useState(3);
+  return (
+    <div className="flex flex-col gap-2 border-b border-[var(--color-hairline)] pb-2">
+      <TablePanelStepper label="행(가로줄)" value={rows} onChange={setRows} />
+      <TablePanelStepper label="열(세로줄)" value={cols} onChange={setCols} />
+      <button
+        type="button"
+        onClick={() => onAdd(rows, cols)}
+        className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
+      >
+        + 표 추가
+      </button>
+      <p className="text-[11px] leading-relaxed text-[var(--color-charcoal)]/50 break-keep">
+        칸을 클릭하고 바로 입력하면 돼요. 표 전체는 테두리를 끌어서 옮기거나 모서리로
+        크기를 조절할 수 있어요(셀 병합·셀별 색은 아직 지원하지 않아요).
+      </p>
+    </div>
+  );
+}
+
+// "이모티콘" 서브탭 내용이에요(기본형, 2026-09-25 — 혜민님이 고른 "이모지 문자로
+// 삽입" 방식) — 눌러서 바로 캔버스에 추가해요. 인쇄 PDF에서 보이는 모양은
+// 서버(인쇄 파일을 만드는 브라우저)에 설치된 폰트에 따라 화면과 살짝 다를 수 있어요.
+function EmojiPanelGrid({ onPick }: { onPick: (emoji: string) => void }) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-[var(--color-hairline)] pb-2">
+      <div className="grid grid-cols-8 gap-1">
+        {EMOJI_PICKER_SET.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => onPick(emoji)}
+            title="캔버스에 추가"
+            className="flex h-7 w-7 items-center justify-center text-lg transition hover:bg-[var(--color-ivory)]"
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] leading-relaxed text-[var(--color-charcoal)]/50 break-keep">
+        누르면 캔버스 가운데 즈음에 큼직하게 추가돼요 — 이후엔 텍스트박스와 똑같이
+        끌어서 옮기거나 크기를 조절할 수 있어요.
+      </p>
+    </div>
+  );
+}
 
 // 지금 선택된 텍스트박스 하나를 고치는 툴바예요. 박스마다 따로 뜨던 작은 팝업 툴바
 // 대신 하나만 두고 폰트·크기·정렬·굵게·색·삭제를 여기서 한 번에 다뤄요. 예전엔 페이지
@@ -4157,6 +4249,250 @@ function ImageBoxLayer({
   );
 }
 
+// 표(테이블) 박스 하나를 그려요 — TextBoxOverlay·ImageBoxOverlay와 같은 드래그/크기조절
+// 패턴이에요(스프레드 전체를 100%로 보는 좌표, 이미지박스와 같은 좌표계). "기본형"
+// 범위라 셀 병합·셀별 스타일은 없고, 행×열 격자 + 셀 클릭 후 바로 타이핑해서 채우는
+// 것만 지원해요. 드래그는 격자선(칸과 칸 사이 여백)이나 박스 테두리 근처를 잡아서
+// 옮기고, 칸 안(textarea)을 클릭하면 커서가 그 자리에 놓여요 — TextBoxOverlay와 똑같이
+// "먼저 stopPropagation만 하고 preventDefault는 안 해서" 클릭은 그대로 포커스로
+// 이어지고, 실제로 마우스를 끌 때만(문턱값 초과) 박스가 움직이게 나눴어요.
+function TableBoxOverlay({
+  box,
+  onChange,
+  onDelete,
+  isActive,
+  onSelect,
+  zIndex,
+}: {
+  box: TableBoxDef;
+  onChange: (changes: Partial<TableBoxDef>) => void;
+  onDelete: () => void;
+  isActive: boolean;
+  onSelect: () => void;
+  zIndex: number;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [mouseDownActive, setMouseDownActive] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
+  const resizeStart = useRef({
+    mouseX: 0,
+    mouseY: 0,
+    xPct: 0,
+    yPct: 0,
+    widthPct: 0,
+    heightPct: 0,
+    cellW: 1,
+    cellH: 1,
+    dir: "se" as TextBoxResizeDir,
+  });
+
+  function handleMouseDown(e: React.MouseEvent) {
+    e.stopPropagation();
+    onSelect();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    dragStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      xPct: box.xPct,
+      yPct: box.yPct,
+      cellW: cellRect?.width || 1,
+      cellH: cellRect?.height || 1,
+    };
+    setMouseDownActive(true);
+  }
+
+  function handleResizeStart(dir: TextBoxResizeDir, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    resizeStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      xPct: box.xPct,
+      yPct: box.yPct,
+      widthPct: box.widthPct,
+      heightPct: box.heightPct,
+      cellW: cellRect?.width || 1,
+      cellH: cellRect?.height || 1,
+      dir,
+    };
+    setIsResizing(true);
+  }
+
+  useEffect(() => {
+    if (!mouseDownActive) return;
+    function handleMouseMove(e: MouseEvent) {
+      const dxPxRaw = e.clientX - dragStart.current.mouseX;
+      const dyPxRaw = e.clientY - dragStart.current.mouseY;
+      if (!isDragging) {
+        if (Math.hypot(dxPxRaw, dyPxRaw) < TEXT_BOX_DRAG_THRESHOLD_PX) return;
+        setIsDragging(true);
+        (document.activeElement as HTMLElement | null)?.blur?.();
+      }
+      e.preventDefault();
+      const dxPct = (dxPxRaw / dragStart.current.cellW) * 100;
+      const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
+      const nextX = clampPct(0, 100 - box.widthPct, dragStart.current.xPct + dxPct);
+      const nextY = clampPct(0, 100 - box.heightPct, dragStart.current.yPct + dyPct);
+      onChange({ xPct: nextX, yPct: nextY });
+    }
+    function handleMouseUp() {
+      setMouseDownActive(false);
+      setIsDragging(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [mouseDownActive, isDragging, box.widthPct, box.heightPct]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    function handleMouseMove(e: MouseEvent) {
+      const s = resizeStart.current;
+      const dxPct = ((e.clientX - s.mouseX) / s.cellW) * 100;
+      const dyPct = ((e.clientY - s.mouseY) / s.cellH) * 100;
+      const hasE = s.dir.includes("e");
+      const hasW = s.dir.includes("w");
+      const hasS = s.dir.includes("s");
+      const hasN = s.dir.includes("n");
+      let widthPct = s.widthPct;
+      let heightPct = s.heightPct;
+      let xPct = s.xPct;
+      let yPct = s.yPct;
+      if (hasE) {
+        widthPct = clampPct(10, Math.max(10, 100 - s.xPct), s.widthPct + dxPct);
+      } else if (hasW) {
+        const rightEdge = s.xPct + s.widthPct;
+        widthPct = clampPct(10, Math.max(10, rightEdge), s.widthPct - dxPct);
+        xPct = rightEdge - widthPct;
+      }
+      if (hasS) {
+        heightPct = clampPct(8, Math.max(8, 100 - s.yPct), s.heightPct + dyPct);
+      } else if (hasN) {
+        const bottomEdge = s.yPct + s.heightPct;
+        heightPct = clampPct(8, Math.max(8, bottomEdge), s.heightPct - dyPct);
+        yPct = bottomEdge - heightPct;
+      }
+      onChange({ widthPct, heightPct, xPct, yPct });
+    }
+    function handleMouseUp() {
+      setIsResizing(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
+
+  function handleCellChange(row: number, col: number, value: string) {
+    const next = box.cells.slice();
+    next[row * box.cols + col] = value;
+    onChange({ cells: next });
+  }
+
+  return (
+    <div
+      ref={boxRef}
+      onMouseDown={handleMouseDown}
+      className={`absolute cursor-move outline outline-1 outline-offset-[6px] transition ${
+        isActive ? "outline-[var(--color-sky)]" : "outline-transparent hover:outline-[var(--color-sky)]/40"
+      }`}
+      style={{
+        zIndex,
+        left: `${box.xPct}%`,
+        top: `${box.yPct}%`,
+        width: `${box.widthPct}%`,
+        height: `${box.heightPct}%`,
+        display: "grid",
+        gridTemplateColumns: `repeat(${box.cols}, 1fr)`,
+        gridTemplateRows: `repeat(${box.rows}, 1fr)`,
+        backgroundColor: "#ffffff",
+      }}
+    >
+      {Array.from({ length: box.rows * box.cols }).map((_, idx) => {
+        const row = Math.floor(idx / box.cols);
+        const col = idx % box.cols;
+        return (
+          <textarea
+            key={idx}
+            value={box.cells[idx] ?? ""}
+            onChange={(e) => handleCellChange(row, col, e.target.value)}
+            placeholder=""
+            style={{
+              fontSize: `${0.78 * (box.fontScale ?? 1)}rem`,
+              borderColor: box.borderColor ?? "#94A3B8",
+            }}
+            className="relative h-full w-full resize-none border bg-transparent p-1 text-center leading-snug text-[#1F2937] outline-none"
+          />
+        );
+      })}
+      {isActive && (
+        <>
+          {TEXT_BOX_RESIZE_HANDLES.filter((h) => h.dir.length === 2).map(({ dir, className, cursor, title }) => (
+            <div
+              key={dir}
+              onMouseDown={(e) => handleResizeStart(dir, e)}
+              title={title}
+              className={`absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
+            />
+          ))}
+          {onDelete && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={onDelete}
+              title="표 삭제"
+              className="absolute -right-2 -top-2 z-40 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-charcoal)] text-xs text-white shadow"
+            >
+              ✕
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// 한 스프레드(펼침면) 전체의 표박스들을 함께 그려요 — ImageBoxLayer와 같은 방식으로
+// 스프레드 전체 컨테이너 위에 얹어서, 박스가 페이지 경계를 자유롭게 넘나들 수 있어요.
+function TableBoxLayer({
+  boxes,
+  onChange,
+  onDelete,
+  activeBoxId,
+  onSelect,
+}: {
+  boxes: TableBoxDef[];
+  onChange: (boxId: string, changes: Partial<TableBoxDef>) => void;
+  onDelete: (boxId: string) => void;
+  activeBoxId: string | null;
+  onSelect: (boxId: string) => void;
+}) {
+  return (
+    <>
+      {boxes.map((box, index) => (
+        <TableBoxOverlay
+          key={box.id}
+          box={box}
+          onChange={(c) => onChange(box.id, c)}
+          onDelete={() => onDelete(box.id)}
+          isActive={box.id === activeBoxId}
+          onSelect={() => onSelect(box.id)}
+          zIndex={9000 + index}
+        />
+      ))}
+    </>
+  );
+}
+
 // 표지 제목이에요. 예전엔 하단에 고정된 텍스트였는데, 이제 텍스트박스처럼 끌어서 원하는
 // 자리로 옮길 수 있어요(가운데로 가져가면 딱 붙는 안내선도 함께 떠요).
 function CoverTitleOverlay({
@@ -5044,6 +5380,12 @@ function UploadPageContent() {
   // 써요 — 레이아웃을 처음 적용하는 순간 그 사진이 새 배열의 첫 칸으로 이어받아져요.
   const [coverImageBoxes, setCoverImageBoxes] = useState<ImageBoxDef[]>([]);
   const [backCoverImageBoxes, setBackCoverImageBoxes] = useState<ImageBoxDef[]>([]);
+  // 표지 앞면/뒤면에 자유 배치한 표(테이블) 박스예요(기본형, 2026-09-25 "표 만들기" 요청).
+  const [coverTableBoxes, setCoverTableBoxes] = useState<TableBoxDef[]>([]);
+  const [backCoverTableBoxes, setBackCoverTableBoxes] = useState<TableBoxDef[]>([]);
+  const [activeTableBox, setActiveTableBox] = useState<{ scope: "cover" | "backCover" | "spread"; spreadIndex?: number; boxId: string } | null>(null);
+  // "텍스트" 패널 상단 서브탭(글쓰기/표만들기/이모티콘, 2026-09-25 추가) — 내지·표지 모두 공유해요(패널이 한 번에 하나만 보여서 공유해도 안 섞여요).
+  const [textPanelSubTab, setTextPanelSubTab] = useState<"write" | "table" | "emoji">("write");
   // 표지 레이아웃 탭에서 지금 선택된 사진박스예요(캔버스에서 클릭해 고른 박스의 편집
   // 버튼들을 보여주는 데 씀 — 내지의 activeImageBox와 같은 역할).
   const [activeCoverImageBox, setActiveCoverImageBox] = useState<{
@@ -5589,6 +5931,128 @@ function UploadPageContent() {
   function handleDeleteBackCoverTextBox(boxId: string) {
     setBackCoverTextBoxes((prev) => prev.filter((b) => b.id !== boxId));
   }
+
+  // 새 표(테이블) 박스를 기본값으로 만들어요(기본형, 2026-09-25 "표 만들기" 요청) —
+  // rows×cols 격자에 빈 셀 문자열을 채워서 시작해요.
+  function makeTableBox(rows: number, cols: number): TableBoxDef {
+    const safeRows = Math.max(1, Math.min(20, rows));
+    const safeCols = Math.max(1, Math.min(20, cols));
+    return {
+      id: crypto.randomUUID(),
+      xPct: 20,
+      yPct: 30,
+      widthPct: 60,
+      heightPct: 30,
+      rows: safeRows,
+      cols: safeCols,
+      cells: Array(safeRows * safeCols).fill(""),
+      fontScale: 1,
+      borderColor: "#94A3B8",
+    };
+  }
+
+  // 내지 페이지(스프레드)에 표를 추가·수정·삭제해요. imageBoxes와 같이 스프레드 전체가
+  // 공유하는 배열(spread.tableBoxes)이에요 — 페이지 경계를 자유롭게 넘나들 수 있어요.
+  function handleAddTableBox(spreadIndex: number, rows: number, cols: number) {
+    const box = makeTableBox(rows, cols);
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, tableBoxes: [...(s.tableBoxes ?? []), box] } : s))
+    );
+    setActiveTableBox({ scope: "spread", spreadIndex, boxId: box.id });
+  }
+
+  function handleTableBoxChange(spreadIndex: number, boxId: string, changes: Partial<TableBoxDef>) {
+    setCustomSpreads((prev) =>
+      prev.map((s, i) =>
+        i === spreadIndex
+          ? { ...s, tableBoxes: (s.tableBoxes ?? []).map((b) => (b.id === boxId ? { ...b, ...changes } : b)) }
+          : s
+      )
+    );
+  }
+
+  function handleDeleteTableBox(spreadIndex: number, boxId: string) {
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, tableBoxes: (s.tableBoxes ?? []).filter((b) => b.id !== boxId) } : s))
+    );
+    setActiveTableBox((prev) => (prev?.boxId === boxId ? null : prev));
+  }
+
+  // 표지 앞면 표(테이블) 박스예요. coverTextBoxes와 같은 방식으로 별도 state로 관리해요.
+  function handleAddCoverTableBox(rows: number, cols: number) {
+    const box = makeTableBox(rows, cols);
+    setCoverTableBoxes((prev) => [...prev, box]);
+    setActiveTableBox({ scope: "cover", boxId: box.id });
+  }
+
+  function handleCoverTableBoxChange(boxId: string, changes: Partial<TableBoxDef>) {
+    setCoverTableBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+  }
+
+  function handleDeleteCoverTableBox(boxId: string) {
+    setCoverTableBoxes((prev) => prev.filter((b) => b.id !== boxId));
+    setActiveTableBox((prev) => (prev?.boxId === boxId ? null : prev));
+  }
+
+  // 뒤표지 표(테이블) 박스예요.
+  function handleAddBackCoverTableBox(rows: number, cols: number) {
+    const box = makeTableBox(rows, cols);
+    setBackCoverTableBoxes((prev) => [...prev, box]);
+    setActiveTableBox({ scope: "backCover", boxId: box.id });
+  }
+
+  function handleBackCoverTableBoxChange(boxId: string, changes: Partial<TableBoxDef>) {
+    setBackCoverTableBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+  }
+
+  function handleDeleteBackCoverTableBox(boxId: string) {
+    setBackCoverTableBoxes((prev) => prev.filter((b) => b.id !== boxId));
+    setActiveTableBox((prev) => (prev?.boxId === boxId ? null : prev));
+  }
+
+  // 이모티콘은 별도 데이터 구조 없이, 기존 텍스트박스 구조(TextBoxDef)를 그대로
+  // 재사용해요(혜민님이 고른 "이모지 문자로 삽입" 방식) — text 자리에 이모지 한
+  // 글자를 크게(fontScale 3) 넣고 가운데 정렬해서 만들어요. 화면·실행취소·저장/불러오기·
+  // 인쇄까지 기존 텍스트박스 기능을 100% 그대로 타요. ⚠️ 인쇄 PDF에서 이모지가 보이는
+  // 모양은 서버(인쇄 파일을 만드는 브라우저)에 설치된 폰트가 그 이모지를 지원하는지에
+  // 따라 화면과 살짝 다르게 나올 수 있어요.
+  function makeEmojiTextBox(emoji: string): TextBoxDef {
+    return {
+      id: crypto.randomUUID(),
+      text: emoji,
+      xPct: 40,
+      yPct: 40,
+      widthPct: 20,
+      heightPct: 20,
+      fontFamily: fontOptions[0].id,
+      fontScale: 3,
+      color: "#1a1a1a",
+      align: "center",
+      verticalAlign: "middle",
+      bold: false,
+    };
+  }
+
+  function handleAddEmojiTextBox(spreadIndex: number, side: "left" | "right", emoji: string) {
+    const box = makeEmojiTextBox(emoji);
+    const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
+    setCustomSpreads((prev) =>
+      prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
+    );
+    selectTextBox({ scope: "spread", spreadIndex, side }, box.id);
+  }
+
+  function handleAddCoverEmojiTextBox(target: "front" | "back", emoji: string) {
+    const box = makeEmojiTextBox(emoji);
+    if (target === "front") {
+      setCoverTextBoxes((prev) => [...prev, box]);
+      selectTextBox({ scope: "cover" }, box.id);
+    } else {
+      setBackCoverTextBoxes((prev) => [...prev, box]);
+      selectTextBox({ scope: "backCover" }, box.id);
+    }
+  }
+
 
   // 지금 선택된 텍스트박스가 어디(표지 앞면·뒤표지인지, 어느 스프레드의 왼쪽/오른쪽
   // 낱장인지) 있는지 가리켜요. 상단 툴바(TextBoxToolbar)가 이 값 하나만 보고 어떤
@@ -7002,6 +7466,8 @@ function UploadPageContent() {
       coverTextBoxes,
       coverImageBoxes,
       backCoverImageBoxes,
+      coverTableBoxes,
+      backCoverTableBoxes,
     });
   }
 
@@ -7039,6 +7505,9 @@ function UploadPageContent() {
     setCoverTextBoxes(s.coverTextBoxes);
     setCoverImageBoxes(s.coverImageBoxes ?? []);
     setBackCoverImageBoxes(s.backCoverImageBoxes ?? []);
+    setCoverTableBoxes(s.coverTableBoxes ?? []);
+    setBackCoverTableBoxes(s.backCoverTableBoxes ?? []);
+    setActiveTableBox(null);
     setActiveTextBox(null);
     setActiveCoverImageBox(null);
     setBackCoverLogoSelected(false);
@@ -7101,6 +7570,8 @@ function UploadPageContent() {
     coverTextBoxes,
     coverImageBoxes,
     backCoverImageBoxes,
+    coverTableBoxes,
+    backCoverTableBoxes,
   ]);
 
   function handleUndo() {
@@ -7321,6 +7792,8 @@ function UploadPageContent() {
       coverTextBoxes,
       coverImageBoxes,
       backCoverImageBoxes,
+      coverTableBoxes,
+      backCoverTableBoxes,
     });
 
     const uuid = () => crypto.randomUUID();
@@ -8848,6 +9321,47 @@ function UploadPageContent() {
                           })()}
                           {activeCoverEditTab === "text" && (
                             <div className="flex flex-col gap-2">
+                              {/* 2026-09-25, 혜민님 요청: "텍스트 메뉴 상단에는 글쓰기 / 표만들기
+                                  / 이모티콘 메뉴를 만들고 싶습니다" — 글상자/타이틀 편집(기존
+                                  화면)과 표·이모티콘 추가를 서브탭으로 나눠요. */}
+                              <div className="grid grid-cols-3 gap-1 border-b border-[var(--color-hairline)] pb-2">
+                                {(
+                                  [
+                                    { id: "write" as const, label: "글쓰기" },
+                                    { id: "table" as const, label: "표만들기" },
+                                    { id: "emoji" as const, label: "이모티콘" },
+                                  ]
+                                ).map((t) => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setTextPanelSubTab(t.id)}
+                                    className={`py-1.5 text-xs font-medium transition ${
+                                      textPanelSubTab === t.id
+                                        ? "bg-[var(--color-charcoal)] text-white"
+                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
+                                    }`}
+                                  >
+                                    {t.label}
+                                  </button>
+                                ))}
+                              </div>
+                              {textPanelSubTab === "table" && (
+                                <TablePanelControls
+                                  onAdd={(rows, cols) =>
+                                    coverLayoutApplyTarget === "back"
+                                      ? handleAddBackCoverTableBox(rows, cols)
+                                      : handleAddCoverTableBox(rows, cols)
+                                  }
+                                />
+                              )}
+                              {textPanelSubTab === "emoji" && (
+                                <EmojiPanelGrid
+                                  onPick={(emoji) => handleAddCoverEmojiTextBox(coverLayoutApplyTarget === "back" ? "back" : "front", emoji)}
+                                />
+                              )}
+                              {textPanelSubTab === "write" && (
+                              <>
                               {/* 2026-10-06, 혜민님 요청: "글상자추가 버튼을 상단으로
                                   올려주세요" — 원래 탭 맨 아래(타이틀·책등 필드들 뒤)에
                                   있던 버튼을 탭 맨 위로 옮겼어요(선택 여부와 무관하게 항상
@@ -9086,6 +9600,8 @@ function UploadPageContent() {
                                   </div>
                                 </div>
                               </div>
+                              </>
+                              )}
                             </div>
                           )}
                           {activeCoverEditTab === "background" && (() => {
@@ -9264,6 +9780,13 @@ function UploadPageContent() {
                                 multiTextSelection?.ref.scope === "backCover" ? multiTextSelection.boxIds : undefined
                               }
                             />
+                            <TableBoxLayer
+                              boxes={backCoverTableBoxes}
+                              onChange={handleBackCoverTableBoxChange}
+                              onDelete={handleDeleteBackCoverTableBox}
+                              activeBoxId={activeTableBox?.scope === "backCover" ? activeTableBox.boxId : null}
+                              onSelect={(boxId) => setActiveTableBox({ scope: "backCover", boxId })}
+                            />
                           </div>
                           <div
                             className={`relative h-full overflow-hidden px-1 ${
@@ -9381,6 +9904,13 @@ function UploadPageContent() {
                               multiSelectedBoxIds={
                                 multiTextSelection?.ref.scope === "cover" ? multiTextSelection.boxIds : undefined
                               }
+                            />
+                            <TableBoxLayer
+                              boxes={coverTableBoxes}
+                              onChange={handleCoverTableBoxChange}
+                              onDelete={handleDeleteCoverTableBox}
+                              activeBoxId={activeTableBox?.scope === "cover" ? activeTableBox.boxId : null}
+                              onSelect={(boxId) => setActiveTableBox({ scope: "cover", boxId })}
                             />
                           </div>
 
@@ -9517,6 +10047,36 @@ function UploadPageContent() {
                                 }
                               >
                             {activeEditTab === "text" && (
+                              <div className="mb-1.5 grid grid-cols-3 gap-1 border-b border-[var(--color-hairline)] pb-2">
+                                {(
+                                  [
+                                    { id: "write" as const, label: "글쓰기" },
+                                    { id: "table" as const, label: "표만들기" },
+                                    { id: "emoji" as const, label: "이모티콘" },
+                                  ]
+                                ).map((t) => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setTextPanelSubTab(t.id)}
+                                    className={`py-1.5 text-xs font-medium transition ${
+                                      textPanelSubTab === t.id
+                                        ? "bg-[var(--color-charcoal)] text-white"
+                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
+                                    }`}
+                                  >
+                                    {t.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {activeEditTab === "text" && textPanelSubTab === "table" && (
+                              <TablePanelControls onAdd={(rows, cols) => handleAddTableBox(i, rows, cols)} />
+                            )}
+                            {activeEditTab === "text" && textPanelSubTab === "emoji" && (
+                              <EmojiPanelGrid onPick={(emoji) => handleAddEmojiTextBox(i, i === 0 ? "right" : "left", emoji)} />
+                            )}
+                            {activeEditTab === "text" && textPanelSubTab === "write" && (
                               <div className="mb-1.5 flex flex-col gap-1.5">
                                 {/* 2026-10-06, 혜민님 요청: "글상자추가 버튼을 상단으로
                                     올려주세요" — 텍스트박스를 선택하면 바로 아래
@@ -9532,6 +10092,7 @@ function UploadPageContent() {
                               </div>
                             )}
                             {activeEditTab === "text" &&
+                              textPanelSubTab === "write" &&
                               multiTextSelection &&
                               multiTextSelection.ref.scope === "spread" &&
                               multiTextSelection.boxIds.length >= 2 && (
@@ -9543,7 +10104,7 @@ function UploadPageContent() {
                                 onClear={() => setMultiTextSelection(null)}
                               />
                             )}
-                            {activeEditTab === "text" && activeTextBox && activeTextBox.ref.scope === "spread" && (
+                            {activeEditTab === "text" && textPanelSubTab === "write" && activeTextBox && activeTextBox.ref.scope === "spread" && (
                               <TextBoxToolbar
                                 box={activeTextBoxDef}
                                 onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
@@ -10166,6 +10727,19 @@ function UploadPageContent() {
                                 }}
                                 guidesX={imageBoxGuidesX}
                                 guidesY={imageBoxGuidesY}
+                              />
+                              {/* 자유 배치 표(테이블) 박스도 이미지박스와 같은 스프레드 전체
+                                  좌표계를 써요(기본형, 2026-09-25 "표 만들기" 요청). */}
+                              <TableBoxLayer
+                                boxes={spread.tableBoxes ?? []}
+                                onChange={(boxId, c) => handleTableBoxChange(i, boxId, c)}
+                                onDelete={(boxId) => handleDeleteTableBox(i, boxId)}
+                                activeBoxId={
+                                  activeTableBox?.scope === "spread" && activeTableBox.spreadIndex === i
+                                    ? activeTableBox.boxId
+                                    : null
+                                }
+                                onSelect={(boxId) => setActiveTableBox({ scope: "spread", spreadIndex: i, boxId })}
                               />
                               {/* 사진박스 2개 이상 Shift+다중 선택했을 때 뜨는 캔버스 위 정렬
                                   아이콘 툴바예요(2026-09-26 추가, 혜민님 요청 — 참고 이미지의
