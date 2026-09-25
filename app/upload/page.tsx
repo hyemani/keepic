@@ -95,7 +95,6 @@ type StickerCategoryId =
   | "badge"
   | "goods";
 const STICKER_CATEGORIES: { id: StickerCategoryId; label: string }[] = [
-  { id: "all", label: "전체" },
   { id: "props", label: "소품" },
   { id: "plant", label: "꽃·식물" },
   { id: "animal", label: "동물·캐릭터" },
@@ -126,7 +125,6 @@ type HandwritingCategoryId =
   | "thanks"
   | "season";
 const HANDWRITING_CATEGORIES: { id: HandwritingCategoryId; label: string }[] = [
-  { id: "all", label: "전체" },
   { id: "daily", label: "일상" },
   { id: "family", label: "가족" },
   { id: "travel", label: "여행" },
@@ -484,7 +482,6 @@ const EDIT_TABS: { id: EditTabId; label: string; icon: MenuTabIconName }[] = [
 // 싶을 때만 직접 골라요.
 type LayoutCountFilter = "auto" | "all" | 1 | 2 | 3 | 4 | 5 | "6+";
 const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
-  { id: "auto", label: "현재 개수" },
   { id: "all", label: "전체" },
   { id: 1, label: "1장" },
   { id: 2, label: "2장" },
@@ -524,15 +521,27 @@ const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconNam
 // 표지 "테마" 프리셋에 쓰는 타입이에요 — 실제 배열(COVER_THEMES)은 fontOptions
 // 선언 다음에 있어요(테마 기본 서체가 fontOptions를 참조해서, 선언 순서상 그 뒤에
 // 와야 해요).
+// 2026-09-25, 혜민님 요청(항목5): "테마는 가족 여행 커플 아기 생일 이렇게 5개 메뉴로
+// 나눠주세요" — 테마 카테고리 id는 손글씨 카테고리(HANDWRITING_CATEGORIES)와 같은
+// 이름을 재사용해서(family/travel/love/baby/birthday) 코드 전체에서 일관되게 맞췄어요.
+type CoverThemeCategory = "family" | "travel" | "love" | "baby" | "birthday";
 type CoverTheme = {
   id: string;
   label: string;
+  category: CoverThemeCategory;
   frontBackgroundColor: string;
   spineBackgroundColor: string;
   backBackgroundColor: string;
   backPatternId?: string;
   titleFontFamily?: string;
 };
+const THEME_CATEGORIES: { id: CoverThemeCategory; label: string }[] = [
+  { id: "family", label: "가족" },
+  { id: "travel", label: "여행" },
+  { id: "love", label: "커플" },
+  { id: "baby", label: "아기" },
+  { id: "birthday", label: "생일" },
+];
 function measureSpineTitleFontSizeMm(
   title: string,
   spineMm: number,
@@ -664,10 +673,17 @@ const fontOptions = [
 // 바꿔요(레이아웃 템플릿 적용과 같은 "비파괴적" 원칙). 2026-09-26, 혜민님이 스위트북
 // 참고 화면을 보여주며 "표지를 테마 형식으로 바꿔달라"고 요청 — 이번 라운드엔 실제 테마
 // 2개를 우선 만들고, 더 필요하면 이 배열에 계속 추가하면 돼요.
+// 2026-09-25, 혜민님 요청(항목5) — "카테고리 구조부터" 확인해주셔서, 이번 라운드는
+// 5개 카테고리 탭 구조를 먼저 만들고 각 칸에 2개씩 테마를 채웠어요(총 10개). 새로
+// 그린 무늬 없이 이미 검증된 lib/backgroundPatterns.ts 무늬 id와 fontOptions 서체
+// id만 재사용했어요(이 환경에서는 실제 브라우저로 미리보기를 확인할 수 없어서, 이미
+// 다른 곳에 쓰이고 있는 값만 고르는 게 더 안전해요). 색감·무늬는 1차 구조이고,
+// 더 구별되는 디자인은 다음 라운드에 이 배열에 계속 추가하면 돼요.
 const COVER_THEMES: CoverTheme[] = [
   {
     id: "white-simple",
     label: "화이트 심플",
+    category: "family",
     frontBackgroundColor: "#ffffff",
     spineBackgroundColor: "#ffffff",
     backBackgroundColor: "#ffffff",
@@ -676,12 +692,93 @@ const COVER_THEMES: CoverTheme[] = [
   },
   {
     id: "warm-beige",
-    label: "웜 베이지",
+    label: "포근한 가족",
+    category: "family",
     frontBackgroundColor: "#f5efe6",
     spineBackgroundColor: "#e8ddc9",
     backBackgroundColor: "#f5efe6",
     backPatternId: "grain-kraft",
     titleFontFamily: fontOptions[1].id,
+  },
+  {
+    id: "blue-sky",
+    label: "블루 스카이",
+    category: "travel",
+    frontBackgroundColor: "#eaf4fb",
+    spineBackgroundColor: "#cfe3f2",
+    backBackgroundColor: "#eaf4fb",
+    backPatternId: "dots-sky",
+    titleFontFamily: fontOptions[0].id,
+  },
+  {
+    id: "navy-sunset",
+    label: "네이비 선셋",
+    category: "travel",
+    frontBackgroundColor: "#e4ecf5",
+    spineBackgroundColor: "#c7d6ea",
+    backBackgroundColor: "#e4ecf5",
+    backPatternId: "gradient-navy-sky",
+    titleFontFamily: fontOptions[3].id,
+  },
+  {
+    id: "blush-romance",
+    label: "블러쉬 로맨스",
+    category: "love",
+    frontBackgroundColor: "#fbeae6",
+    spineBackgroundColor: "#f6d4ce",
+    backBackgroundColor: "#fbeae6",
+    backPatternId: "gradient-blush-peach",
+    titleFontFamily: fontOptions[2].id,
+  },
+  {
+    id: "rose-mauve",
+    label: "로즈 모브",
+    category: "love",
+    frontBackgroundColor: "#f6e9ee",
+    spineBackgroundColor: "#ecd2dc",
+    backBackgroundColor: "#f6e9ee",
+    backPatternId: "gradient-rose-mauve",
+    titleFontFamily: fontOptions[7].id,
+  },
+  {
+    id: "pastel-baby",
+    label: "파스텔 베이비",
+    category: "baby",
+    frontBackgroundColor: "#f7f0f7",
+    spineBackgroundColor: "#ecdcec",
+    backBackgroundColor: "#f7f0f7",
+    backPatternId: "gradient-pastel-multi",
+    titleFontFamily: fontOptions[6].id,
+  },
+  {
+    id: "mint-stripe",
+    label: "민트 스트라이프",
+    category: "baby",
+    frontBackgroundColor: "#eef8f4",
+    spineBackgroundColor: "#d7eee4",
+    backBackgroundColor: "#eef8f4",
+    backPatternId: "stripes-mint",
+    titleFontFamily: fontOptions[8].id,
+  },
+  {
+    id: "sunset-party",
+    label: "선셋 파티",
+    category: "birthday",
+    frontBackgroundColor: "#fdf0e3",
+    spineBackgroundColor: "#fbdcb8",
+    backBackgroundColor: "#fdf0e3",
+    backPatternId: "gradient-sunset",
+    titleFontFamily: fontOptions[12].id,
+  },
+  {
+    id: "blush-stripe",
+    label: "블러쉬 스트라이프",
+    category: "birthday",
+    frontBackgroundColor: "#fdeeee",
+    spineBackgroundColor: "#f8d6d6",
+    backBackgroundColor: "#fdeeee",
+    backPatternId: "stripes-blush",
+    titleFontFamily: fontOptions[13].id,
   },
 ];
 
@@ -5168,25 +5265,26 @@ function CategoryTabbedGrid({
   onItemClick: (item: { id: string; url: string; label: string; category?: string }) => void;
   emptyMessage: string;
 }) {
-  const allCategoryId = categories[0]?.id ?? "all";
-  const visibleItems =
-    activeCategoryId === allCategoryId ? items : items.filter((item) => item.category === activeCategoryId);
+  // 2026-09-25, 혜민님 요청: "전체 메뉴는 없애주세요, 메뉴를 텍스트 메뉴처럼
+  // 통일해주세요" — "전체" 항목을 없앴으니 하나의 실제 카테고리만 필터링하면 돼요
+  // (예전 "전체 탭 = categories[0]" 특수 취급 로직도 함께 정리).
+  const visibleItems = items.filter((item) => item.category === activeCategoryId);
 
   return (
     <div className="flex flex-col gap-2">
-      {/* 2026-10-02, 혜민님 요청: "하단의 전체, 소품 꽃 식물 등등 메뉴는 가로여백없이
-          붙여주세요" — 버튼 사이 gap을 없애고(여백 없이 이어붙임), 대신 선택 표시가
-          안 겹치도록 버튼 자체 테두리(구분선)를 둠. */}
+      {/* 2026-09-25, 혜민님 요청: "보라색·파란색 상단 메뉴는 통일감도없고 크기도
+          제각각이라 텍스트메뉴처럼 맞춰주세요" — 색상을 텍스트 서브탭(글쓰기/표만들기/
+          이모티콘)과 같은 톤(선택: 차콜+흰 글자, 비선택: 아이보리)으로 통일. */}
       <div className="flex overflow-x-auto pb-1 text-[11px]" style={{ scrollbarWidth: "thin" }}>
         {categories.map((cat) => (
           <button
             key={cat.id}
             type="button"
             onClick={() => onSelectCategory(cat.id)}
-            className={`shrink-0 border-r border-white/40 px-1.5 py-1 transition last:border-r-0 ${
+            className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
               activeCategoryId === cat.id
-                ? "bg-[var(--color-sky)] text-white"
-                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
+                ? "bg-[var(--color-charcoal)] text-white"
+                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
             }`}
           >
             {cat.label}
@@ -5459,8 +5557,11 @@ function UploadPageContent() {
   // 내지 배경 꾸미기 탭(단색/그래픽/패턴/텍스처) — 모든 스프레드가 같은 탭을 공유해요.
   const [backgroundTab, setBackgroundTab] = useState<"solid" | BackgroundPatternCategory>("solid");
   // 스티커·손글씨 탭에서 지금 선택된 카테고리예요(각 탭 독립, 기본값 "전체").
-  const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("all");
-  const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("all");
+  const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("props");
+  const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("daily");
+  // 2026-09-25, 혜민님 요청(항목5): 표지 "테마" 탭도 가족/여행/커플/아기/생일 5개
+  // 카테고리로 나눠서 골라 볼 수 있게 했어요.
+  const [themeCategoryTab, setThemeCategoryTab] = useState<CoverThemeCategory>("family");
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -5488,7 +5589,7 @@ function UploadPageContent() {
   // 작은 토글이에요(2026-09-27, 버튼 두 개를 하나로 합치면서 추가).
   // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
   // 개수가 안 맞아 적용을 막았을 때 보여줄 안내 문구예요.
-  const [layoutCountFilter, setLayoutCountFilter] = useState<LayoutCountFilter>("auto");
+  const [layoutCountFilter, setLayoutCountFilter] = useState<LayoutCountFilter>("all");
   const [layoutApplyMessage, setLayoutApplyMessage] = useState<string | null>(null);
   // 템플릿 칸보다 사진이 많을 때 "어떤 사진을 쓸지" 고르는 팝업의 상태예요(2026-09-23
   // 추가). candidates는 팝업에 보여줄 사진들(저장된 순서 그대로), selectedIds는 지금
@@ -6700,6 +6801,19 @@ function UploadPageContent() {
   // 캔버스에 이미지박스가 추가되는 진짜 기능이에요 — 눌러도 아무 일 없는 가짜 버튼이 아님).
   function handleAddCoverHandwriting(target: "front" | "back", handwritingUrl: string) {
     handleAddCoverImageBoxFromUrl(target, handwritingUrl, 14, "sticker");
+  }
+
+  // 2026-09-25, 혜민님 요청(항목1): "사진 올리기 버튼이 사라졌어요" — 레이아웃 탭에서
+  // 사진을 2장 이상 배치한 뒤에는(coverImageBoxes.length > 1) "사진" 탭의 + 사진 추가
+  // 버튼이 통째로 사라져서 더 이상 추가할 방법이 없었어요. handleAddCoverImageBoxFromUrl을
+  // 그대로 재사용해서(스티커·손글씨와 같은 방식), 이미 여러 장 배치된 상태에서도 새 사진
+  // 박스를 계속 더할 수 있게 했어요.
+  function handleAddCoverPhotoBoxFromFile(target: "front" | "back", event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    handleAddCoverImageBoxFromUrl(target, url, 36, "photo");
+    event.target.value = "";
   }
 
   // 손글씨 스티커도 스티커와 똑같이 이미지박스로 추가해요(kind: "sticker"도 동일하게
@@ -9005,8 +9119,28 @@ function UploadPageContent() {
                             // 표지 디자인 예시로만 보여줄 예정이라, 화면 안내문은 필요 없다고
                             // 확인해주셨어요).
                             <div className="flex flex-col gap-2">
+                              {/* 2026-09-25, 혜민님 요청(항목5): "테마는 가족 여행 커플
+                                  아기 생일 이렇게 5개 메뉴로 나눠주세요" — 위의 글쓰기/
+                                  표만들기/이모티콘 탭과 같은 스타일(진한 차콜=선택,
+                                  아이보리=선택안됨)로 카테고리 탭을 만들었어요. */}
+                              <div className="flex overflow-x-auto text-[11px]" style={{ scrollbarWidth: "thin" }}>
+                                {THEME_CATEGORIES.map((cat) => (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    onClick={() => setThemeCategoryTab(cat.id)}
+                                    className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
+                                      themeCategoryTab === cat.id
+                                        ? "bg-[var(--color-charcoal)] text-white"
+                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+                                    }`}
+                                  >
+                                    {cat.label}
+                                  </button>
+                                ))}
+                              </div>
                               <div className="flex flex-wrap gap-2">
-                                {COVER_THEMES.map((theme) => (
+                                {COVER_THEMES.filter((theme) => theme.category === themeCategoryTab).map((theme) => (
                                   <button
                                     key={theme.id}
                                     type="button"
@@ -9165,15 +9299,44 @@ function UploadPageContent() {
                                   만들고, 박스가 1개면 그 사진만 바꾸는 링크, 2개 이상(레이아웃
                                   탭에서 여러 장 배치)이면 레이아웃 탭 안내만 보여줘요. */}
                               {coverImageBoxes.length > 1 ? (
-                                <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
-                                  “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 되돌리려면 레이아웃
-                                  탭에서 “꽉 채우기”를 골라주세요.
-                                </p>
+                                <div className="flex flex-col gap-1.5">
+                                  <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
+                                    “레이아웃” 탭에서 여러 장 배치로 관리 중이에요. 되돌리려면 레이아웃
+                                    탭에서 “꽉 채우기”를 골라주세요.
+                                  </p>
+                                  {/* 2026-09-25, 혜민님 요청(항목1): 여러 장 배치 중에도 계속
+                                      사진을 더 추가할 수 있어야 해서, 안내문 아래에 + 사진 추가
+                                      버튼을 다시 살렸어요. */}
+                                  <div>
+                                    <label className="inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
+                                      + 사진 추가
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  </div>
+                                </div>
                               ) : coverImageBoxes.length === 1 ? (
-                                <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
-                                  표지 사진 바꾸기
-                                  <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
-                                </label>
+                                <div className="flex flex-col gap-1.5">
+                                  <label className="inline-block cursor-pointer text-xs text-[var(--color-sky)] underline underline-offset-4">
+                                    표지 사진 바꾸기
+                                    <input type="file" accept="image/*" onChange={handleCoverFileSelect} className="hidden" />
+                                  </label>
+                                  <div>
+                                    <label className="inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
+                                      + 사진 추가
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  </div>
+                                </div>
                               ) : (
                                 <div>
                                   <label className="inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
@@ -9243,32 +9406,23 @@ function UploadPageContent() {
                             });
                             return (
                               <div className="flex flex-col gap-1.5">
-                                <div>
-                                  {/* 2026-10-02, 혜민님 요청: "앞표지 뒤표지 메뉴 삭제, 스프레드
-                                      기준으로" — 수동 토글을 없애고, 캔버스에서 마지막으로
-                                      선택한 사진박스 쪽(coverLayoutApplyTarget)을 그대로
-                                      따라가요(selectCoverImageBox에서 자동 갱신). */}
-                                  <p className="text-[11px] text-[var(--color-charcoal)]/50">
-                                    지금 {isFront ? "앞표지" : "뒤표지"}에 사진이 {currentCount}장 있어요.
-                                  </p>
-                                </div>
-                                <div>
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
-                                    {LAYOUT_COUNT_FILTERS.filter((f) => f.id === "auto" || f.id === "all" || (typeof f.id === "number" && f.id <= 3)).map((f) => (
-                                      <button
-                                        key={String(f.id)}
-                                        type="button"
-                                        onClick={() => setLayoutCountFilter(f.id)}
-                                        className={` px-2.5 py-1 text-[10px] transition ${
- layoutCountFilter === f.id
-                                            ? "bg-[var(--color-brand-purple)] text-white"
-                                            : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                        }`}
-                                      >
-                                        {f.label}
-                                      </button>
-                                    ))}
-                                  </div>
+                                {/* 2026-09-25, 혜민님 요청: "설명글 삭제(레이아웃패널)" —
+                                    "지금 OO에 사진이 N장 있어요" 안내문을 없앴어요. */}
+                                <div className="flex overflow-x-auto text-[11px]" style={{ scrollbarWidth: "thin" }}>
+                                  {LAYOUT_COUNT_FILTERS.filter((f) => f.id === "all" || (typeof f.id === "number" && f.id <= 3)).map((f) => (
+                                    <button
+                                      key={String(f.id)}
+                                      type="button"
+                                      onClick={() => setLayoutCountFilter(f.id)}
+                                      className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
+                                        layoutCountFilter === f.id
+                                          ? "bg-[var(--color-charcoal)] text-white"
+                                          : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+                                      }`}
+                                    >
+                                      {f.label}
+                                    </button>
+                                  ))}
                                 </div>
                                 {coverLayoutApplyMessage && (
                                   <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
@@ -10353,26 +10507,22 @@ function UploadPageContent() {
                                 });
                                 return (
                                   <div className="flex flex-col gap-1.5">
-                                    <div>
-                                      <div className="mt-1.5 flex flex-wrap gap-1">
-                                        {LAYOUT_COUNT_FILTERS.map((f) => (
-                                          <button
-                                            key={String(f.id)}
-                                            type="button"
-                                            onClick={() => setLayoutCountFilter(f.id)}
-                                            className={`px-2.5 py-1 text-[10px] transition ${
- layoutCountFilter === f.id
-                                                ? "bg-[var(--color-brand-purple)] text-white"
-                                                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                            }`}
-                                          >
-                                            {f.label}
-                                          </button>
-                                        ))}
-                                      </div>
-                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50">
-                                        지금 이 스프레드엔 사진이 {rangePhotoCount}장 있어요.
-                                      </p>
+                                    {/* 2026-09-25, 혜민님 요청: "설명글 삭제(레이아웃패널)" — 안내문을 없앴어요. */}
+                                    <div className="flex overflow-x-auto text-[11px]" style={{ scrollbarWidth: "thin" }}>
+                                      {LAYOUT_COUNT_FILTERS.map((f) => (
+                                        <button
+                                          key={String(f.id)}
+                                          type="button"
+                                          onClick={() => setLayoutCountFilter(f.id)}
+                                          className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
+                                            layoutCountFilter === f.id
+                                              ? "bg-[var(--color-charcoal)] text-white"
+                                              : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+                                          }`}
+                                        >
+                                          {f.label}
+                                        </button>
+                                      ))}
                                     </div>
                                     {layoutApplyMessage && (
                                       <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
