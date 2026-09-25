@@ -1934,7 +1934,13 @@ function TextBoxOverlay({
         top: `${box.yPct}%`,
         width: `${box.widthPct}%`,
         height: box.heightPct !== undefined ? `${box.heightPct}%` : undefined,
-        overflow: box.heightPct !== undefined ? "hidden" : undefined,
+        // 2026-09-25, 혜민님 리포트: "텍스트박스 모서리는 박스가 깨져보입니다. 안으로
+        // 말려들어간 현상" — 여기 있던 overflow:hidden이 텍스트 줄바꿈 넘침용이었는데,
+        // 아래 textarea 자신의 className에도 이미 overflow-hidden이 있어서(텍스트
+        // 클리핑은 그걸로 충분) 정작 이 div의 overflow:hidden은 선택 테두리(outline)와
+        // 크기 조절 손잡이(둘 다 박스 밖으로 몇 px 튀어나오게 그려짐)까지 박스 경계에서
+        // 잘라내고 있었어요. 제거해서 텍스트 클리핑은 그대로 두고 테두리·손잡이만 안
+        // 잘리게 함.
         // 박스 높이가 고정돼 있을 때만 세로 정렬(위/가운데/아래)이 실제로 보여요 — 높이가
         // 글자 양에 맞춰 자동으로 늘어나는 박스는 남는 공간이 없어서 항상 위와 같아요.
         display: box.heightPct !== undefined ? "flex" : undefined,
@@ -2026,7 +2032,7 @@ function TextBoxOverlay({
               }
             : {}),
         }}
-        className={`w-full cursor-text resize-none border-none bg-transparent leading-snug outline-none ${
+        className={`relative w-full cursor-text resize-none border-none bg-transparent leading-snug outline-none ${
  box.heightPct !== undefined
             ? box.verticalAlign && box.verticalAlign !== "top"
               ? "max-h-full overflow-hidden"
@@ -8854,7 +8860,7 @@ function UploadPageContent() {
                                       ? handleAddBackCoverTextBox()
                                       : handleAddCoverTextBox()
                                   }
-                                  className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
                                   + 글상자 추가
                                 </button>
@@ -9519,7 +9525,7 @@ function UploadPageContent() {
                                 <button
                                   type="button"
                                   onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
-                                  className=" border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10"
+                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
                                   + 글상자 추가
                                 </button>
