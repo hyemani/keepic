@@ -10233,18 +10233,24 @@ function UploadPageContent() {
           )}
         </div>
 
-        <section className="mx-auto w-full max-w-5xl shrink-0 px-1.5 pb-24 pt-6 sm:px-10">
-          {photos.length > 0 && !isPhotoCountValid && (
-            <p className="mt-6 text-sm text-red-500">
+        {/* 2026-09-25, 혜민님 요청(1B단계 화면 비율): 여기 있던 <section>은 원래
+            "다음" 진행 버튼을 담았는데, 그 버튼이 2026-09에 상단바로 옮겨간 뒤에도
+            빈 껍데기(px-1.5 pb-24 pt-6 = 세로 padding만 120px)가 그대로 남아있었어요.
+            사진 수가 안 맞을 때 뜨는 경고 문구만 빼고는 평소엔 완전히 비어있는데도
+            shrink-0라서 항상 고정 높이를 차지했고, 이게 바로 편집 캔버스(위 회색 영역)
+            아래에 정체불명의 흰 여백으로 남던 원인이었어요 — 캔버스는 flex-1이라 이
+            빈 껍데기가 차지한 만큼 높이를 못 받았던 거예요. 이제 경고 문구가 실제로
+            보일 때만 이 섹션 자체를 렌더링해서, 평소엔 캔버스가 남은 세로 공간을 전부
+            쓰게 했어요. */}
+        {photos.length > 0 && !isPhotoCountValid && (
+          <section className="mx-auto w-full max-w-5xl shrink-0 px-1.5 pb-3 pt-1.5 sm:px-10">
+            <p className="text-sm text-red-500">
               {photos.length < requiredCount
                 ? `사진이 ${requiredCount - photos.length}장 더 필요해요.`
                 : `사진이 ${photos.length - requiredCount}장 더 많아요. ${photos.length - requiredCount}장을 빼주세요.`}
             </p>
-          )}
-
-          {/* "다음" 진행 버튼은 상단바로 옮겼어요(2026-09) — 저장/진행 로직은
-              handleProceed 그대로, 버튼만 위로 이동. */}
-        </section>
+          </section>
+        )}
         </div>
       </main>
     );
