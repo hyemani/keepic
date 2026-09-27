@@ -94,22 +94,15 @@ type StickerCategoryId =
   | "party"
   | "badge"
   | "goods";
-const STICKER_CATEGORIES: { id: StickerCategoryId; label: string }[] = [
-  { id: "props", label: "소품" },
-  { id: "plant", label: "꽃·식물" },
-  { id: "animal", label: "동물·캐릭터" },
-  { id: "ribbon", label: "리본" },
-  { id: "tape", label: "테이프·메모" },
-  { id: "frame", label: "라벨·프레임" },
-  { id: "icon", label: "아이콘" },
-  { id: "phrase", label: "문구" },
-  { id: "lettering", label: "스티커 글자" },
-  { id: "certificate", label: "졸업증·상장" },
-  { id: "season", label: "기념일·시즌" },
-  { id: "wedding", label: "웨딩소품" },
-  { id: "party", label: "파티·폭죽" },
-  { id: "badge", label: "왕관·메달" },
-  { id: "goods", label: "일상소품" },
+// 2026-09-27, 혜민님 요청: "스티커의 메뉴를 5개로 줄여서 폭을 맞춰주세요" — 기존
+// 15개 category(개별 스티커에 이미 붙어있는 값, 아래 STICKERS 배열은 그대로 둠)를
+// 5개 탭으로 묶었어요. 각 탭의 memberIds가 예전 category들을 모아서 가리켜요.
+const STICKER_CATEGORIES: { id: string; label: string; memberIds: StickerCategoryId[] }[] = [
+  { id: "decor", label: "소품·데코", memberIds: ["props", "ribbon", "tape", "frame", "badge", "goods"] },
+  { id: "nature", label: "자연·동물", memberIds: ["plant", "animal"] },
+  { id: "text", label: "문구·글자", memberIds: ["phrase", "lettering", "certificate"] },
+  { id: "occasion", label: "기념일·이벤트", memberIds: ["season", "wedding", "party"] },
+  { id: "icon", label: "아이콘", memberIds: ["icon"] },
 ];
 
 type HandwritingCategoryId =
@@ -4241,35 +4234,50 @@ const ImageBoxOverlay = forwardRef<
           툴바를 잠깐 숨기고, 전용 바 하나만 보여줘요 — 삭제·앞뒤 순서 등은 "완료"로
           조정 모드를 마친 뒤에 다시 쓸 수 있어요. */}
       {isActive && !photoEditMode && (onDelete || onStackAction) && (
-        <StackOrderToolbar
-          // 텍스트박스와 같은 규칙 — 박스 아래쪽이 페이지 밑바닥에 가까우면 위쪽에
-          // 띄워요.
-          flip={box.yPct + box.heightPct > 80}
-          fillsFrame={box.yPct <= 2 && box.yPct + box.heightPct >= 98}
-          mediaKind={isSticker ? "sticker" : "photo"}
-          onDelete={onDelete}
-          onStackAction={onStackAction}
-          // "맞춤"(사진 위치 초기화)·"편집"(사진 위치 조정 모드 토글)은 크롭 개념이 없는
-          // 스티커에는 안 보여요(mediaKind==="sticker"면 StackOrderToolbar가 알아서
-          // 뺌) — 그래서 스티커일 땐 undefined를 넘겨도 안전해요.
-          onFit={isSticker ? undefined : handleResetPhotoPosition}
-          onZoomIn={() => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
-          onZoomOut={() => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
-          onRotate={handleRotate}
-          rotation={box.rotation ?? 0}
-          onRotationChange={(deg) => onChange({ rotation: deg })}
-          onFlip={() => onChange({ flipX: !box.flipX })}
-          editActive={photoEditMode}
-          onToggleEdit={isSticker ? undefined : () => setPhotoEditMode((v) => !v)}
-          opacity={box.opacity ?? 1}
-          onOpacityChange={(v) => onChange({ opacity: v })}
-          borderWidthPx={box.borderWidthPx ?? 0}
-          borderColor={box.borderColor ?? "#ffffff"}
-          borderRadiusPct={box.borderRadiusPct ?? 0}
-          onBorderChange={(widthPx, color, radiusPct) =>
-            onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPct: radiusPct })
-          }
-        />
+        // 2026-09-27, 혜민님 요청: "회전버튼이 2개인데 버튼을 누르면 툴도 같이
+        // 돌아가네요 개체만 회전할수있도록 해주세요" — 이 레이어 툴바가 박스와 같은
+        // <div>(위에서 transform: rotate(box.rotation)이 걸려있어요) 안에 있어서,
+        // 박스를 돌리면 툴바·정밀 회전 슬라이더까지 같이 돌아 읽기/조작이 어려웠어요.
+        // 박스와 정확히 같은 자리·크기(inset-0)에 반대 방향으로 되돌리는 래퍼를
+        // 하나 더 씌워서(회전 상쇄), 툴바는 항상 똑바로 서 있게 했어요. 래퍼 자체는
+        // 빈 영역을 클릭 통과시키도록 pointer-events: none이고, 실제 버튼이 있는
+        // 안쪽만 다시 auto로 되돌려서 클릭이 정상 동작해요.
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ transform: box.rotation ? `rotate(${-box.rotation}deg)` : undefined }}
+        >
+          <div className="pointer-events-auto">
+            <StackOrderToolbar
+              // 텍스트박스와 같은 규칙 — 박스 아래쪽이 페이지 밑바닥에 가까우면 위쪽에
+              // 띄워요.
+              flip={box.yPct + box.heightPct > 80}
+              fillsFrame={box.yPct <= 2 && box.yPct + box.heightPct >= 98}
+              mediaKind={isSticker ? "sticker" : "photo"}
+              onDelete={onDelete}
+              onStackAction={onStackAction}
+              // "맞춤"(사진 위치 초기화)·"편집"(사진 위치 조정 모드 토글)은 크롭 개념이 없는
+              // 스티커에는 안 보여요(mediaKind==="sticker"면 StackOrderToolbar가 알아서
+              // 뺌) — 그래서 스티커일 땐 undefined를 넘겨도 안전해요.
+              onFit={isSticker ? undefined : handleResetPhotoPosition}
+              onZoomIn={() => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
+              onZoomOut={() => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
+              onRotate={handleRotate}
+              rotation={box.rotation ?? 0}
+              onRotationChange={(deg) => onChange({ rotation: deg })}
+              onFlip={() => onChange({ flipX: !box.flipX })}
+              editActive={photoEditMode}
+              onToggleEdit={isSticker ? undefined : () => setPhotoEditMode((v) => !v)}
+              opacity={box.opacity ?? 1}
+              onOpacityChange={(v) => onChange({ opacity: v })}
+              borderWidthPx={box.borderWidthPx ?? 0}
+              borderColor={box.borderColor ?? "#ffffff"}
+              borderRadiusPct={box.borderRadiusPct ?? 0}
+              onBorderChange={(widthPx, color, radiusPct) =>
+                onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPct: radiusPct })
+              }
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -5258,17 +5266,22 @@ function CategoryTabbedGrid({
   onItemClick,
   emptyMessage,
 }: {
-  categories: { id: string; label: string }[];
+  // 2026-09-27, 혜민님 요청: "스티커의 메뉴를 5개로 줄여서 폭을 맞춰주세요" —
+  // 개별 스티커 아이템의 category 값(15종)은 그대로 두고, 탭 하나가 여러 기존
+  // category를 한꺼번에 묶어 보여줄 수 있도록 memberIds를 추가했어요(있으면 그
+  // 묶음으로, 없으면 예전처럼 정확히 같은 category로 필터링 — 손글씨 탭은
+  // memberIds 없이 그대로 동작해요).
+  categories: { id: string; label: string; memberIds?: string[] }[];
   items: { id: string; url: string; label: string; category?: string }[];
   activeCategoryId: string;
   onSelectCategory: (id: string) => void;
   onItemClick: (item: { id: string; url: string; label: string; category?: string }) => void;
   emptyMessage: string;
 }) {
-  // 2026-09-25, 혜민님 요청: "전체 메뉴는 없애주세요, 메뉴를 텍스트 메뉴처럼
-  // 통일해주세요" — "전체" 항목을 없앴으니 하나의 실제 카테고리만 필터링하면 돼요
-  // (예전 "전체 탭 = categories[0]" 특수 취급 로직도 함께 정리).
-  const visibleItems = items.filter((item) => item.category === activeCategoryId);
+  const activeCategory = categories.find((cat) => cat.id === activeCategoryId);
+  const visibleItems = activeCategory?.memberIds
+    ? items.filter((item) => item.category && activeCategory.memberIds!.includes(item.category))
+    : items.filter((item) => item.category === activeCategoryId);
 
   return (
     <div className="flex flex-col gap-2">
@@ -5557,7 +5570,7 @@ function UploadPageContent() {
   // 내지 배경 꾸미기 탭(단색/그래픽/패턴/텍스처) — 모든 스프레드가 같은 탭을 공유해요.
   const [backgroundTab, setBackgroundTab] = useState<"solid" | BackgroundPatternCategory>("solid");
   // 스티커·손글씨 탭에서 지금 선택된 카테고리예요(각 탭 독립, 기본값 "전체").
-  const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("props");
+  const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("decor");
   const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("daily");
   // 2026-09-25, 혜민님 요청(항목5): 표지 "테마" 탭도 가족/여행/커플/아기/생일 5개
   // 카테고리로 나눠서 골라 볼 수 있게 했어요.
@@ -5568,7 +5581,11 @@ function UploadPageContent() {
   // 왼쪽 "사진" 탭 안에서도 바로 열어볼 수 있게 했어요(값을 바꾸면
   // handleCoverImageBoxChange로 같은 상태를 그대로 갱신해요 — 새로 만든 별도
   // 기능이 아니라 기존 기능을 패널에서도 쓸 수 있게 한 것).
-  const [coverPhotoFramePanelOpen, setCoverPhotoFramePanelOpen] = useState(false);
+  // 2026-09-27, 혜민님 요청: "사진 추가/사진 프레임 변경 메뉴는 선택하는
+  // 상단메뉴에요" — 토글 버튼 하나 대신, 상단 2개를 서로 배타적으로 선택하는
+  // 탭으로 바꾸고, 어느 탭이 선택됐는지에 따라 하단 바의 내용(파일 선택 vs
+  // 프레임 슬라이더)이 바뀌게 했어요.
+  const [coverPhotoTopTab, setCoverPhotoTopTab] = useState<"add" | "frame">("add");
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -9300,46 +9317,51 @@ function UploadPageContent() {
                                 </>
                               ) : (
                                 <>
-                              {/* 2026-09-25, 혜민님 요청: "편집기 메뉴 가로폭에 맞춰서
-                                  배치해주세요 / 사진 메뉴는 사진 추가·사진 프레임 변경
-                                  버튼을 상단에, 하단 버튼은 글상자 추가 버튼처럼 사진
-                                  불러오기 버튼을 만들어주세요 / 레이아웃 탭 안내문 삭제"
-                                  — 박스 개수(0/1/2+)에 따라 갈라지던 예전 3단계 화면을
-                                  없애고, 항상 같은 3버튼 구성으로 통일했어요. 상단 2개는
-                                  패널 폭을 절반씩 나눠 쓰고(grid-cols-2), 하단 1개는
-                                  글상자 추가 버튼과 같은 그라데이션으로 패널 폭 전체를
-                                  채워요. */}
+                              {/* 2026-09-27, 혜민님 요청: "사진 추가/사진 프레임 변경
+                                  메뉴는 선택하는 상단메뉴에요, 선택하면 하단에 사진
+                                  불러오기 바를 만질 수 있게 / 버튼은 전부 글상자 추가
+                                  버튼으로 디자인 통일해주세요" — 상단 2개를 파일을 바로
+                                  여는 버튼이 아니라 서로 배타적으로 고르는 탭으로
+                                  바꿨어요. "사진 추가" 탭을 고르면 하단 바가 파일
+                                  선택기가 되고, "사진 프레임 변경" 탭을 고르면 하단 바가
+                                  테두리 두께·색·모서리 둥글게를 직접 만질 수 있는
+                                  슬라이더로 바뀌어요. 선택된 탭·하단 액션 버튼은 모두
+                                  "+ 글상자 추가" 버튼과 똑같은 rounded-md 그라데이션
+                                  스타일로 맞췄어요(전에는 하단 버튼에 rounded-md가
+                                  빠져 있었어요). */}
                               {(() => {
                                 const frameTargetBox =
                                   (activeCoverImageBox?.target === "front"
                                     ? coverImageBoxes.find((b) => b.id === activeCoverImageBox.boxId)
                                     : undefined) ?? coverImageBoxes[coverImageBoxes.length - 1];
+                                const canFrame = !!frameTargetBox;
+                                const effectiveTab = coverPhotoTopTab === "frame" && !canFrame ? "add" : coverPhotoTopTab;
+                                const tabButtonClass = (active: boolean) =>
+                                  `rounded-md px-2 py-2 text-xs font-medium transition ${
+                                    active
+                                      ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-white shadow-sm shadow-[var(--color-brand-purple)]/20"
+                                      : "border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:border-[var(--color-charcoal)]/30"
+                                  } disabled:cursor-not-allowed disabled:opacity-30`;
                                 return (
                                   <div className="flex flex-col gap-1.5">
                                     <div className="grid grid-cols-2 gap-1.5">
-                                      <label className="flex cursor-pointer items-center justify-center border border-[var(--color-sky)] px-2 py-2 text-center text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
-                                        + 사진 추가
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
-                                          className="hidden"
-                                        />
-                                      </label>
                                       <button
                                         type="button"
-                                        disabled={!frameTargetBox}
-                                        onClick={() => setCoverPhotoFramePanelOpen((v) => !v)}
-                                        className={`border px-2 py-2 text-xs font-medium transition ${
-                                          coverPhotoFramePanelOpen
-                                            ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                                            : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:border-[var(--color-charcoal)]/40"
-                                        } disabled:cursor-not-allowed disabled:opacity-30`}
+                                        onClick={() => setCoverPhotoTopTab("add")}
+                                        className={tabButtonClass(effectiveTab === "add")}
+                                      >
+                                        사진 추가
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={!canFrame}
+                                        onClick={() => setCoverPhotoTopTab("frame")}
+                                        className={tabButtonClass(effectiveTab === "frame")}
                                       >
                                         사진 프레임 변경
                                       </button>
                                     </div>
-                                    {coverPhotoFramePanelOpen && frameTargetBox && (
+                                    {effectiveTab === "frame" && frameTargetBox ? (
                                       // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의
                                       // "테두리" 조절판(테두리 두께·색·모서리 둥글게)과 똑같은
                                       // 기능이에요 — handleCoverImageBoxChange로 같은 상태를 갱신.
@@ -9388,16 +9410,17 @@ function UploadPageContent() {
                                           className="w-full"
                                         />
                                       </div>
+                                    ) : (
+                                      <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
+                                        사진 불러오기
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
+                                          className="hidden"
+                                        />
+                                      </label>
                                     )}
-                                    <label className="block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
-                                      사진 불러오기
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
-                                        className="hidden"
-                                      />
-                                    </label>
                                   </div>
                                 );
                               })()}
