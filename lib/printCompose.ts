@@ -553,6 +553,20 @@ function drawTableGridAndCells(
   function mergeAtPrint(row: number, col: number) {
     return merges.find((m) => row >= m.row && row < m.row + m.rowSpan && col >= m.col && col < m.col + m.colSpan);
   }
+  // 병합된 칸이면 anchor(왼쪽 위 칸) 위치를 돌려줘요 — 칸별 개별 설정(cellStyles)은
+  // 항상 anchor 위치가 키예요(2026-09-28 혜민님 요청 "표 전체 설정과 선택한 셀의
+  // 설정을 구분" — 화면(app/upload/page.tsx TableBoxOverlay)과 완전히 같은 계산이에요).
+  function resolveAnchorPrint(row: number, col: number) {
+    const m = mergeAtPrint(row, col);
+    return m ? { row: m.row, col: m.col } : { row, col };
+  }
+  function cellStyleAtPrint(row: number, col: number) {
+    const a = resolveAnchorPrint(row, col);
+    return box.cellStyles?.[`${a.row}-${a.col}`];
+  }
+  function sideHiddenAtPrint(row: number, col: number, side: "top" | "right" | "bottom" | "left") {
+    return !!cellStyleAtPrint(row, col)?.hiddenSides?.[side];
+  }
 
   // 표 면(배경) — 2026-09-28 혜민님 요청. 라운드(borderRadius)가 있으면 둥근 모서리로
   // 잘라서 채워요(화면 미리보기의 overflow:hidden과 같은 느낌). 투명도도 반영해요.
@@ -574,11 +588,31 @@ function drawTableGridAndCells(
   ctx.fill();
   ctx.clip();
 
+  // 칸별 배경색(2026-09-28 혜민님 요청 "셀 배경색" — 표 전체 배경 위에 겹쳐서, 개별
+  // 설정이 있는 칸만 덧칠해요).
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const m = mergeAtPrint(r, c);
+      if (m && !(m.row === r && m.col === c)) continue;
+      const style = cellStyleAtPrint(r, c);
+      if (!style?.fillColor) continue;
+      const rowSpan = m ? m.rowSpan : 1;
+      const colSpan = m ? m.colSpan : 1;
+      const cellLeftPx = leftPx + colLefts[c];
+      const cellRightPx = leftPx + colLefts[c + colSpan];
+      const cellTopPx = topPx + rowTops[r];
+      const cellBottomPx = topPx + rowTops[r + rowSpan];
+      ctx.fillStyle = hexToRgbaPrint(style.fillColor, style.fillOpacity ?? 1);
+      ctx.fillRect(cellLeftPx, cellTopPx, cellRightPx - cellLeftPx, cellBottomPx - cellTopPx);
+    }
+  }
+
   // 셀 텍스트 — 격자선보다 먼저 그려서, 격자선이 셀 배경 위에 살짝 겹쳐도 항상 또렷하게
   // 보여요. 글꼴·굵게·기울임·글자색·줄간격은 텍스트박스와 같은 방식으로 반영해요.
+  // 가로/세로 정렬·안쪽 여백(2026-09-28 혜민님 요청 "글자 위치와 정렬 탭")은 칸별로
+  // 다를 수 있어서 칸마다 다시 계산해요(표 전체 기본값을 cellStyles가 덮어써요).
   ctx.font = `${fontStyle}${fontWeight}${fontPx}px ${fontFamily}`;
   ctx.fillStyle = box.color ?? "#1F2937";
-  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   // 병합(2026-09-28 혜민님 요청 "셀 병합")된 칸은 덮인 나머지 칸을 건너뛰고, 병합 anchor
   // 칸만 합쳐진 넓이(cellLeft~cellRight, cellTop~cellBottom) 기준으로 그려요.
@@ -590,36 +624,51 @@ function drawTableGridAndCells(
       const colSpan = m ? m.colSpan : 1;
       const text = box.cells[r * cols + c] ?? "";
       if (!text.trim()) continue;
+      const style = cellStyleAtPrint(r, c);
+      const effAlign = style?.align ?? box.align ?? "center";
+      const effValign = style?.valign ?? box.valign ?? "middle";
+      const effPad = (style?.padding ?? box.cellPadding ?? 6) * (PRINT_DPI / 96);
       const cellLeftPx = leftPx + colLefts[c];
       const cellRightPx = leftPx + colLefts[c + colSpan];
       const cellW = cellRightPx - cellLeftPx;
       const cellTopPx = topPx + rowTops[r];
       const cellBottomPx = topPx + rowTops[r + rowSpan];
       const cellHeight = cellBottomPx - cellTopPx;
-      const cellPad = cellW * 0.08;
       const cx = cellLeftPx + cellW / 2;
       const cy = cellTopPx + cellHeight / 2;
-      const maxTextWidth = Math.max(4, cellW - cellPad * 2);
+      const maxTextWidth = Math.max(4, cellW - effPad * 2);
       const lines = wrapTextForCanvas(ctx, text, maxTextWidth);
       const lineHeight = fontPx * (box.lineHeight ?? 1.25);
-      const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+      // 가로 정렬: 왼쪽/오른쪽/가운데에 따라 기준 x와 canvas textAlign을 바꿔요.
+      ctx.textAlign = effAlign;
+      const lineX = effAlign === "left" ? cellLeftPx + effPad : effAlign === "right" ? cellRightPx - effPad : cx;
+      // 세로 정렬: 위/가운데/아래에 따라 글자 블록 전체의 시작 y(첫 줄 중심)를 바꿔요.
+      const blockHeight = (lines.length - 1) * lineHeight;
+      const startY =
+        effValign === "top"
+          ? cellTopPx + effPad + lineHeight / 2
+          : effValign === "bottom"
+            ? cellBottomPx - effPad - lineHeight / 2 - blockHeight
+            : cy - blockHeight / 2;
       ctx.save();
       ctx.beginPath();
       ctx.rect(cellLeftPx, cellTopPx, cellW, cellHeight);
       ctx.clip();
       lines.forEach((line, i) => {
         const lineY = startY + i * lineHeight;
-        ctx.fillText(line, cx, lineY, maxTextWidth);
+        ctx.fillText(line, lineX, lineY, maxTextWidth);
         if (box.underline) {
           const textWidth = Math.min(maxTextWidth, ctx.measureText(line).width);
           const underlineY = lineY + fontPx * 0.38;
+          const underlineStartX =
+            effAlign === "left" ? lineX : effAlign === "right" ? lineX - textWidth : lineX - textWidth / 2;
           ctx.save();
           ctx.strokeStyle = box.color ?? "#1F2937";
           ctx.lineWidth = Math.max(1, fontPx * 0.06);
           ctx.setLineDash([]);
           ctx.beginPath();
-          ctx.moveTo(cx - textWidth / 2, underlineY);
-          ctx.lineTo(cx + textWidth / 2, underlineY);
+          ctx.moveTo(underlineStartX, underlineY);
+          ctx.lineTo(underlineStartX + textWidth, underlineY);
           ctx.stroke();
           ctx.restore();
         }
@@ -631,7 +680,9 @@ function drawTableGridAndCells(
   ctx.restore(); // 표 면 채우기용 클립 해제
 
   // 격자선 — 선 굵기·선 종류(실선/파선/점선)·점선 길이/간격·투명도를 반영하고
-  // (2026-09-28), 병합된 칸 안쪽을 지나는 격자선 구간은 건너뛰어요.
+  // (2026-09-28), 병합된 칸 안쪽을 지나는 격자선 구간은 건너뛰어요. borderScope(전체/
+  // 바깥쪽/안쪽)와 칸별 hiddenSides(개별 변)도 화면(TableBoxOverlay)과 완전히 같은
+  // 규칙으로 반영해요.
   ctx.save();
   ctx.strokeStyle = hexToRgbaPrint(box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
   const lineWidthPx = Math.max(0.1, box.borderWidth ?? 1) * (PRINT_DPI / 96);
@@ -647,21 +698,34 @@ function drawTableGridAndCells(
   } else {
     ctx.setLineDash([]);
   }
+  const borderScope = box.borderScope ?? "all";
   ctx.beginPath();
   for (let c = 0; c <= cols; c++) {
     const x = leftPx + colLefts[c];
+    const isOuter = c === 0 || c === cols;
+    if (borderScope === "outer" && !isOuter) continue;
+    if (borderScope === "inner" && isOuter) continue;
     for (let r = 0; r < rows; r++) {
       const covered = merges.some((m) => c > m.col && c < m.col + m.colSpan && r >= m.row && r < m.row + m.rowSpan);
       if (covered) continue;
+      const hiddenLeft = c > 0 && sideHiddenAtPrint(r, c - 1, "right");
+      const hiddenRight = c < cols && sideHiddenAtPrint(r, c, "left");
+      if (hiddenLeft || hiddenRight) continue;
       ctx.moveTo(x, topPx + rowTops[r]);
       ctx.lineTo(x, topPx + rowTops[r + 1]);
     }
   }
   for (let r = 0; r <= rows; r++) {
     const y = topPx + rowTops[r];
+    const isOuter = r === 0 || r === rows;
+    if (borderScope === "outer" && !isOuter) continue;
+    if (borderScope === "inner" && isOuter) continue;
     for (let c = 0; c < cols; c++) {
       const covered = merges.some((m) => r > m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan);
       if (covered) continue;
+      const hiddenTop = r > 0 && sideHiddenAtPrint(r - 1, c, "bottom");
+      const hiddenBottom = r < rows && sideHiddenAtPrint(r, c, "top");
+      if (hiddenTop || hiddenBottom) continue;
       ctx.moveTo(leftPx + colLefts[c], y);
       ctx.lineTo(leftPx + colLefts[c + 1], y);
     }
@@ -669,7 +733,6 @@ function drawTableGridAndCells(
   ctx.stroke();
   ctx.restore();
 }
-
 // 자유 배치 표박스를 이 낱장(페이지)에 그려요 — drawImageBoxOnCanvas와 완전히 같은
 // 방식으로 "스프레드 전체 폭" 좌표를 pageOffsetPx만큼 빼서 이 낱장 기준으로 바꾸고,
 // 페이지 경계로 클립해서 표가 페이지를 넘어가면 자연스럽게 이어져 보이게 해요.

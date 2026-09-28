@@ -13,6 +13,7 @@ import {
   TextBoxDef,
   ImageBoxDef,
   TableBoxDef,
+  TableCellStyle,
   AI_AUTO_LAYOUT_TEMPLATE_ID,
   generateEmptyFreeformSpreads,
   findAutoPhotoSlotPosition,
@@ -2924,9 +2925,17 @@ function TableBoxToolbar({
             type="button"
             disabled={!sel?.activeCell || box.rows <= 1}
             onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.deleteActiveRow()}
-            className="col-span-2 border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
           >
-            삭제(선택한 칸의 행)
+            행 삭제
+          </button>
+          <button
+            type="button"
+            disabled={!sel?.activeCell || box.cols <= 1}
+            onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.deleteActiveCol()}
+            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            열 삭제
           </button>
         </div>
         {sel?.activeCell && (
@@ -2964,6 +2973,173 @@ function TableBoxToolbar({
           </div>
         )}
       </div>
+      {/* "선택한 칸" — 표 전체 기본값과 다르게, 지금 고른 칸(드래그로 여러 칸이면
+          전부 같이)만 배경색·안쪽 여백·정렬·테두리 변을 따로 줘요(2026-09-28 혜민님
+          요청: "표 전체 설정과 선택한 셀의 설정을 구분"). 칸을 하나도 안 골랐으면(sel만
+          있고 activeCell이 없음) 안 보여요. */}
+      {sel?.activeCell && (
+        <div className="border border-[var(--color-sky)]/40 bg-[var(--color-sky)]/5 p-1.5">
+          <p className="mb-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70">
+            선택한 칸{sel.cellCount > 1 ? ` ${sel.cellCount}개` : ""}
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div>
+              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경색</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="color"
+                  value={sel.selStyle?.fillColor ?? box.fillColor ?? "#ffffff"}
+                  onChange={(e) =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      fillColor: e.target.value,
+                    })
+                  }
+                  className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+                  title="선택한 칸 배경색"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
+                      "fillColor",
+                      "fillOpacity",
+                    ])
+                  }
+                  className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+                >
+                  기본값
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">안쪽 여백(px)</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={40}
+                  value={sel.selStyle?.padding ?? box.cellPadding ?? 6}
+                  onChange={(e) =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      padding: Math.max(0, Math.min(40, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
+                      "padding",
+                    ])
+                  }
+                  className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+                >
+                  기본값
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <div>
+              <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">가로 정렬</p>
+              <div className="flex gap-1">
+                {(
+                  [
+                    { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
+                    { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
+                    { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
+                  ]
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    title={opt.title}
+                    onClick={() =>
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                        align: opt.id,
+                      })
+                    }
+                    className={`flex h-7 flex-1 items-center justify-center border transition ${
+                      (sel.selStyle?.align ?? box.align ?? "center") === opt.id
+                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                    }`}
+                  >
+                    <LayerIcon name={opt.icon} className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">세로 정렬</p>
+              <div className="flex gap-1">
+                {(
+                  [
+                    { id: "top" as const, icon: "boxAlignTop" as const, title: "위" },
+                    { id: "middle" as const, icon: "boxAlignMiddle" as const, title: "가운데" },
+                    { id: "bottom" as const, icon: "boxAlignBottom" as const, title: "아래" },
+                  ]
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    title={opt.title}
+                    onClick={() =>
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                        valign: opt.id,
+                      })
+                    }
+                    className={`flex h-7 flex-1 items-center justify-center border transition ${
+                      (sel.selStyle?.valign ?? box.valign ?? "middle") === opt.id
+                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                    }`}
+                  >
+                    <LayerIcon name={opt.icon} className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="mt-1.5">
+            <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
+              테두리 변(눌러서 숨기기/표시 — 기본은 전부 표시)
+            </p>
+            <div className="grid grid-cols-4 gap-1">
+              {(
+                [
+                  { id: "top" as const, label: "위" },
+                  { id: "right" as const, label: "오른쪽" },
+                  { id: "bottom" as const, label: "아래" },
+                  { id: "left" as const, label: "왼쪽" },
+                ]
+              ).map((opt) => {
+                const hidden = !!sel.selStyle?.hiddenSides?.[opt.id];
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() =>
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.toggleCellHiddenSide(
+                        opt.id
+                      )
+                    }
+                    title={hidden ? `${opt.label} 변 숨김 — 눌러서 표시` : `${opt.label} 변 표시 중 — 눌러서 숨기기`}
+                    className={`border px-1 py-1.5 text-[10px] transition ${
+                      hidden
+                        ? "border-[var(--color-hairline)] text-[var(--color-charcoal)]/30 line-through"
+                        : "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-1.5">
         <div>
           <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">표 면(배경)</label>
@@ -3067,6 +3243,21 @@ function TableBoxToolbar({
           />
         </div>
       </div>
+      {/* 2026-09-28, 혜민님 요청: "테두리의 …적용 위치(전체/바깥쪽/안쪽/개별 변)" —
+          표 전체 격자선 중 어디를 그릴지 골라요. 칸 하나만 더 세밀하게(개별 변) 숨기고
+          싶으면 아래 "선택한 칸" 섹션에서 해요. */}
+      <div>
+        <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">테두리 적용범위</label>
+        <select
+          value={box.borderScope ?? "all"}
+          onChange={(e) => onChange({ borderScope: e.target.value as "all" | "outer" | "inner" })}
+          className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+        >
+          <option value="all">전체</option>
+          <option value="outer">바깥쪽만</option>
+          <option value="inner">안쪽만</option>
+        </select>
+      </div>
       {/* 2026-09-28, 혜민님 요청: "점선, 점의 길이와 크기도 조절할수 있어야합니다" —
           선 종류가 실선이 아닐 때만 나와요. 점선/파선 한 칸(선분)의 길이와 칸 사이
           간격을 직접 px로 조절해요(점선의 "점 크기"는 이 선분 길이로 조절돼요). */}
@@ -3100,6 +3291,76 @@ function TableBoxToolbar({
           </div>
         </div>
       )}
+      {/* 2026-09-28, 혜민님 요청: "글자 위치와 정렬 탭"·"셀 안쪽 여백을 바꿨을 때
+          글자 위치에 반영" — 표 전체 기본 가로/세로 정렬과 칸 안쪽 여백이에요. 특정
+          칸만 다르게 하고 싶으면 아래 "선택한 칸" 섹션에서 따로 지정해요. 텍스트박스
+          툴바(MultiTextAlignPanel 위쪽)와 같은 아이콘·구성을 써요.
+      */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <div>
+          <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">가로 정렬</p>
+          <div className="flex gap-1">
+            {(
+              [
+                { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
+                { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
+                { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
+              ]
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                title={opt.title}
+                onClick={() => onChange({ align: opt.id })}
+                className={`flex h-7 flex-1 items-center justify-center border transition ${
+                  (box.align ?? "center") === opt.id
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                }`}
+              >
+                <LayerIcon name={opt.icon} className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">세로 정렬</p>
+          <div className="flex gap-1">
+            {(
+              [
+                { id: "top" as const, icon: "boxAlignTop" as const, title: "위" },
+                { id: "middle" as const, icon: "boxAlignMiddle" as const, title: "가운데" },
+                { id: "bottom" as const, icon: "boxAlignBottom" as const, title: "아래" },
+              ]
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                title={opt.title}
+                onClick={() => onChange({ valign: opt.id })}
+                className={`flex h-7 flex-1 items-center justify-center border transition ${
+                  (box.valign ?? "middle") === opt.id
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                }`}
+              >
+                <LayerIcon name={opt.icon} className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">셀 안쪽 여백(px)</label>
+        <input
+          type="number"
+          min={0}
+          max={40}
+          value={box.cellPadding ?? 6}
+          onChange={(e) => onChange({ cellPadding: Math.max(0, Math.min(40, Number(e.target.value) || 0)) })}
+          className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+        />
+      </div>
       {/* 2026-09-28, 혜민님 요청: "글자는 폰트 크기로 조절할수 있도록 하고 텍스트
           글상자 내용을 표에서도 적용할수있게" — "표 크기(칸 글자 배율)" 슬라이더 대신
           텍스트박스(TextBoxToolbar)와 똑같이 pt로 글자 크기를 정하고, 글꼴·굵게·기울임·
@@ -4762,18 +5023,31 @@ type TableBoxOverlayHandle = {
   splitCol: () => void;
   fitWidth: () => void;
   deleteActiveRow: () => void;
+  deleteActiveCol: () => void;
   setActiveColWidth: (weight: number) => void;
   setActiveRowHeight: (weight: number) => void;
+  // 지금 고른 칸(들)에 개별 설정을 적용/해제해요(2026-09-28 혜민님 요청: "표 전체
+  // 설정과 선택한 셀의 설정을 구분", "셀 배경색, 안쪽 여백", "가로 정렬", "세로 정렬").
+  // 여러 칸을 드래그로 골랐으면 전부 같은 값으로 덮어써요.
+  setCellStyle: (patch: Partial<TableCellStyle>) => void;
+  resetCellStyleFields: (fields: (keyof TableCellStyle)[]) => void;
+  toggleCellHiddenSide: (side: "top" | "right" | "bottom" | "left") => void;
 };
 
-// 지금 선택 상태(활성 칸·병합 가능 여부·칸 폭/세로폭)를 왼쪽 패널에 반응형으로 보여주기
-// 위한 정보예요. ref 메서드는 "지금 상태"를 읽을 수 없어서(호출만 가능) 따로 콜백으로
-// 올려줘요.
+// 지금 선택 상태(활성 칸·병합 가능 여부·칸 폭/세로폭·선택 범위)를 왼쪽 패널에 반응형으로
+// 보여주기 위한 정보예요. ref 메서드는 "지금 상태"를 읽을 수 없어서(호출만 가능) 따로
+// 콜백으로 올려줘요.
 type TableSelectionInfo = {
   activeCell: { row: number; col: number } | null;
   canMerge: boolean;
   colWidth: number;
   rowHeight: number;
+  // 지금 고른 칸 범위(단일 칸이면 r0===r1, c0===c1)와 그 안에 실제로 몇 개의(병합 포함)
+  // 칸이 있는지, 그리고 맨 앞(r0,c0) 칸의 지금 개별 설정(있으면)이에요 — 패널이 "선택한
+  // 칸" 섹션을 보여줄지, 슬라이더/버튼의 지금 값을 뭘로 보여줄지 여기서 읽어요.
+  selRange: { r0: number; c0: number; r1: number; c1: number } | null;
+  cellCount: number;
+  selStyle: TableCellStyle | null;
 };
 
 const TableBoxOverlay = forwardRef<
@@ -4943,6 +5217,30 @@ const TableBoxOverlay = forwardRef<
     );
   }
 
+  // 병합된 칸이면 그 병합의 anchor(왼쪽 위 칸) 위치를, 아니면 그 칸 자신을 돌려줘요 —
+  // 칸별 개별 설정(cellStyles)은 항상 anchor 위치를 키로 써요(2026-09-28 혜민님 요청
+  // "표 전체 설정과 선택한 셀의 설정을 구분").
+  function resolveAnchor(row: number, col: number) {
+    const m = mergeAt(row, col);
+    return m ? { row: m.row, col: m.col } : { row, col };
+  }
+
+  // 행/열을 넣거나 뺄 때 칸별 개별 설정(cellStyles)이 계속 같은 칸에 붙어있도록 키를
+  // 다시 매겨요(box.merges를 remap하는 것과 같은 방식) — mapFn이 null을 돌려주면(그
+  // 칸이 없어짐) 그 설정은 버려요.
+  function remapCellStyles(
+    mapFn: (row: number, col: number) => { row: number; col: number } | null
+  ): Record<string, TableCellStyle> | undefined {
+    if (!box.cellStyles) return undefined;
+    const next: Record<string, TableCellStyle> = {};
+    for (const [key, style] of Object.entries(box.cellStyles)) {
+      const [rStr, cStr] = key.split("-");
+      const mapped = mapFn(Number(rStr), Number(cStr));
+      if (mapped) next[`${mapped.row}-${mapped.col}`] = style;
+    }
+    return Object.keys(next).length ? next : undefined;
+  }
+
   const selRange = dragSel
     ? {
         r0: Math.min(dragSel.anchorRow, dragSel.row),
@@ -4952,6 +5250,25 @@ const TableBoxOverlay = forwardRef<
       }
     : null;
   const canMerge = !!selRange && (selRange.r1 > selRange.r0 || selRange.c1 > selRange.c0);
+
+  // 지금 고른 범위 안에 실제로(병합 포함) 몇 개의 서로 다른 칸이 있는지 anchor 기준으로
+  // 중복 없이 모아요 — "선택한 칸" 패널 섹션이 이 목록 전체에 같은 값을 적용해요.
+  function selectedAnchors(): { row: number; col: number }[] {
+    if (!selRange) return [];
+    const seen = new Set<string>();
+    const out: { row: number; col: number }[] = [];
+    for (let r = selRange.r0; r <= selRange.r1; r++) {
+      for (let c = selRange.c0; c <= selRange.c1; c++) {
+        const a = resolveAnchor(r, c);
+        const k = `${a.row}-${a.col}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          out.push(a);
+        }
+      }
+    }
+    return out;
+  }
 
   // "셀 병합" — 드래그로 고른 사각형 범위를 칸 하나로 합쳐요. 범위 안의 글자는 순서대로
   // 이어붙이고(빈 칸은 건너뜀), 그 범위와 겹치던 예전 병합은 새 병합이 대신해요.
@@ -4963,17 +5280,27 @@ const TableBoxOverlay = forwardRef<
       return !overlap;
     });
     const nextCells = box.cells.slice();
+    // 합쳐지면서 덮이는 칸들의 개별 설정(cellStyles)은 더 이상 어느 칸에도 안 붙어있게
+    // 되니 정리해요 — anchor(r0,c0)의 설정만 남겨요.
+    const nextCellStyles = box.cellStyles ? { ...box.cellStyles } : undefined;
     const parts: string[] = [];
     for (let r = r0; r <= r1; r++) {
       for (let c = c0; c <= c1; c++) {
         const idx = r * box.cols + c;
         const v = (box.cells[idx] ?? "").trim();
         if (v) parts.push(v);
-        if (!(r === r0 && c === c0)) nextCells[idx] = "";
+        if (!(r === r0 && c === c0)) {
+          nextCells[idx] = "";
+          if (nextCellStyles) delete nextCellStyles[`${r}-${c}`];
+        }
       }
     }
     nextCells[r0 * box.cols + c0] = parts.join(" ");
-    onChange({ merges: [...keptMerges, { row: r0, col: c0, rowSpan: r1 - r0 + 1, colSpan: c1 - c0 + 1 }], cells: nextCells });
+    onChange({
+      merges: [...keptMerges, { row: r0, col: c0, rowSpan: r1 - r0 + 1, colSpan: c1 - c0 + 1 }],
+      cells: nextCells,
+      cellStyles: nextCellStyles,
+    });
     setDragSel(null);
   }
 
@@ -4996,7 +5323,8 @@ const TableBoxOverlay = forwardRef<
       if (m.row < insertAt && m.row + m.rowSpan > insertAt) return { ...m, rowSpan: m.rowSpan + 1 };
       return m;
     });
-    onChange({ rows: newRows, cells: nextCells, merges: nextMerges });
+    const nextCellStyles = remapCellStyles((r, c) => (r >= insertAt ? { row: r + 1, col: c } : { row: r, col: c }));
+    onChange({ rows: newRows, cells: nextCells, merges: nextMerges, cellStyles: nextCellStyles });
     setActiveCell({ row: insertAt, col: activeCell.col });
     setDragSel(null);
   }
@@ -5026,7 +5354,14 @@ const TableBoxOverlay = forwardRef<
       box.colWidths && box.colWidths.length === box.cols
         ? [...box.colWidths.slice(0, insertAt), 1, ...box.colWidths.slice(insertAt)]
         : undefined;
-    onChange({ cols: newCols, cells: nextCells, merges: nextMerges, colWidths: nextColWidths });
+    const nextCellStyles = remapCellStyles((r, c) => (c >= insertAt ? { row: r, col: c + 1 } : { row: r, col: c }));
+    onChange({
+      cols: newCols,
+      cells: nextCells,
+      merges: nextMerges,
+      colWidths: nextColWidths,
+      cellStyles: nextCellStyles,
+    });
     setActiveCell({ row: activeCell.row, col: insertAt });
     setDragSel(null);
   }
@@ -5045,7 +5380,50 @@ const TableBoxOverlay = forwardRef<
     const nextMerges = (box.merges ?? [])
       .filter((m) => !(delRow >= m.row && delRow < m.row + m.rowSpan))
       .map((m) => (m.row > delRow ? { ...m, row: m.row - 1 } : m));
-    onChange({ rows: box.rows - 1, cells: nextCells, merges: nextMerges });
+    const nextRowHeights =
+      box.rowHeights && box.rowHeights.length === box.rows
+        ? box.rowHeights.filter((_, r) => r !== delRow)
+        : undefined;
+    const nextCellStyles = remapCellStyles((r, c) => {
+      if (r === delRow) return null;
+      return r > delRow ? { row: r - 1, col: c } : { row: r, col: c };
+    });
+    onChange({
+      rows: box.rows - 1,
+      cells: nextCells,
+      merges: nextMerges,
+      rowHeights: nextRowHeights,
+      cellStyles: nextCellStyles,
+    });
+    setActiveCell(null);
+    setDragSel(null);
+  }
+
+  // "열 삭제" — 지금 고른 칸이 속한 열을 통째로 지워요(2026-09-28 혜민님 요청 "행·열
+  // 추가 및 삭제" — 행 삭제는 있었는데 열 삭제가 빠져있었어요). handleDeleteRow와 같은
+  // 방식이에요.
+  function handleDeleteCol() {
+    if (!activeCell || box.cols <= 1) return;
+    const delCol = activeCell.col;
+    const nextCells = box.cells.filter((_, idx) => idx % box.cols !== delCol);
+    const nextMerges = (box.merges ?? [])
+      .filter((m) => !(delCol >= m.col && delCol < m.col + m.colSpan))
+      .map((m) => (m.col > delCol ? { ...m, col: m.col - 1 } : m));
+    const nextColWidths =
+      box.colWidths && box.colWidths.length === box.cols
+        ? box.colWidths.filter((_, c) => c !== delCol)
+        : undefined;
+    const nextCellStyles = remapCellStyles((r, c) => {
+      if (c === delCol) return null;
+      return c > delCol ? { row: r, col: c - 1 } : { row: r, col: c };
+    });
+    onChange({
+      cols: box.cols - 1,
+      cells: nextCells,
+      merges: nextMerges,
+      colWidths: nextColWidths,
+      cellStyles: nextCellStyles,
+    });
     setActiveCell(null);
     setDragSel(null);
   }
@@ -5066,6 +5444,57 @@ const TableBoxOverlay = forwardRef<
     onChange({ rowHeights: base });
   }
 
+  // "선택한 칸" 패널 섹션(2026-09-28 혜민님 요청: "표 전체 설정과 선택한 셀의 설정을
+  // 구분", "셀 배경색, 안쪽 여백", "가로 정렬", "세로 정렬") — 지금 고른 범위(단일 칸
+  // 또는 드래그로 여러 칸) 전체에 같은 개별 설정을 적용해요.
+  function setCellStyle(patch: Partial<TableCellStyle>) {
+    const anchors = selectedAnchors();
+    if (anchors.length === 0) return;
+    const next = { ...(box.cellStyles ?? {}) };
+    for (const a of anchors) {
+      const key = `${a.row}-${a.col}`;
+      next[key] = { ...next[key], ...patch };
+    }
+    onChange({ cellStyles: next });
+  }
+
+  // 개별 설정 중 특정 항목만 지워서 표 기본값으로 되돌려요("기본값" 버튼).
+  function resetCellStyleFields(fields: (keyof TableCellStyle)[]) {
+    const anchors = selectedAnchors();
+    if (anchors.length === 0 || !box.cellStyles) return;
+    const next = { ...box.cellStyles };
+    for (const a of anchors) {
+      const key = `${a.row}-${a.col}`;
+      const cur = next[key];
+      if (!cur) continue;
+      const updated = { ...cur };
+      for (const f of fields) delete updated[f];
+      if (Object.keys(updated).length === 0) delete next[key];
+      else next[key] = updated;
+    }
+    onChange({ cellStyles: Object.keys(next).length ? next : undefined });
+  }
+
+  // 칸의 한쪽 변(상/우/하/좌) 테두리 선을 숨기거나 다시 보여요(2026-09-28 혜민님 요청
+  // "테두리의 … 적용 위치(전체/바깥쪽/안쪽/개별 변)"의 "개별 변" — borderScope(표
+  // 전체 범위)와 별개로, 특정 칸의 한쪽 변만 더 숨길 수 있어요.
+  function toggleCellHiddenSide(side: "top" | "right" | "bottom" | "left") {
+    const anchors = selectedAnchors();
+    if (anchors.length === 0) return;
+    const next = { ...(box.cellStyles ?? {}) };
+    // 여러 칸을 골랐으면 첫 칸 기준으로 "지금 숨겨져 있는지"를 판단해서 전부 그 반대로
+    // 맞춰요(하나씩 따로 토글하면 뒤죽박죽돼서 헷갈려요).
+    const first = anchors[0];
+    const firstHidden = !!next[`${first.row}-${first.col}`]?.hiddenSides?.[side];
+    const nextHidden = !firstHidden;
+    for (const a of anchors) {
+      const key = `${a.row}-${a.col}`;
+      const cur = next[key] ?? {};
+      next[key] = { ...cur, hiddenSides: { ...cur.hiddenSides, [side]: nextHidden } };
+    }
+    onChange({ cellStyles: next });
+  }
+
   // 왼쪽 "표만들기" 패널의 버튼들이 이 표(선택된 칸 기준)에 직접 동작하도록 노출해요
   // (ImageBoxOverlay의 zoomIn/zoomOut과 같은 패턴).
   useImperativeHandle(ref, () => ({
@@ -5074,25 +5503,33 @@ const TableBoxOverlay = forwardRef<
     splitCol: handleSplitCol,
     fitWidth: handleFitWidth,
     deleteActiveRow: handleDeleteRow,
+    deleteActiveCol: handleDeleteCol,
     setActiveColWidth: (weight: number) => {
       if (activeCell) handleColWidthChange(activeCell.col, weight);
     },
     setActiveRowHeight: (weight: number) => {
       if (activeCell) handleRowHeightChange(activeCell.row, weight);
     },
+    setCellStyle,
+    resetCellStyleFields,
+    toggleCellHiddenSide,
   }));
 
   // 지금 선택 상태를 왼쪽 패널이 반응형으로 보여줄 수 있게 올려줘요(버튼 활성/비활성,
-  // 칸 폭·세로폭 슬라이더 값).
+  // 칸 폭·세로폭 슬라이더 값·선택 범위·선택한 칸의 개별 설정).
   useEffect(() => {
     if (!isActive) return;
+    const anchor = selRange ? resolveAnchor(selRange.r0, selRange.c0) : null;
     onSelectionChange?.({
       activeCell,
       canMerge,
       colWidth: activeCell ? box.colWidths?.[activeCell.col] ?? 1 : 1,
       rowHeight: activeCell ? box.rowHeights?.[activeCell.row] ?? 1 : 1,
+      selRange,
+      cellCount: selectedAnchors().length,
+      selStyle: anchor ? box.cellStyles?.[`${anchor.row}-${anchor.col}`] ?? null : null,
     });
-  }, [isActive, activeCell, canMerge, box.colWidths, box.rowHeights, onSelectionChange]);
+  }, [isActive, activeCell, canMerge, selRange, box.colWidths, box.rowHeights, box.cellStyles, box.merges, onSelectionChange]);
 
   const colTemplate =
     box.colWidths && box.colWidths.length === box.cols
@@ -5126,20 +5563,42 @@ const TableBoxOverlay = forwardRef<
   const gridDashLength = box.dashLength ?? (gridBorderStyle === "dotted" ? gridBorderWidthPx : gridBorderWidthPx * 3);
   const gridDashGap = box.dashGap ?? (gridBorderStyle === "dotted" ? gridBorderWidthPx * 1.5 : gridBorderWidthPx * 2);
   const gridMerges = box.merges ?? [];
+  const gridBorderScope = box.borderScope ?? "all";
+  const gridCellStyles = box.cellStyles;
+  // 이 칸(anchor 기준)의 그 변이 개별적으로 숨겨져 있는지(2026-09-28 혜민님 요청 "테두리
+  // …적용 위치(전체/바깥쪽/안쪽/개별 변)"의 "개별 변" — borderScope와 별개로 칸 하나의
+  // 한쪽 변만 더 숨길 수 있어요).
+  function sideHiddenAt(row: number, col: number, side: "top" | "right" | "bottom" | "left") {
+    const a = mergeAt(row, col);
+    const key = a ? `${a.row}-${a.col}` : `${row}-${col}`;
+    return !!gridCellStyles?.[key]?.hiddenSides?.[side];
+  }
   const gridLineSegments: { x1: number; y1: number; x2: number; y2: number }[] = [];
   for (let c = 0; c <= box.cols; c++) {
     const x = colBoundariesPct[c];
+    const isOuter = c === 0 || c === box.cols;
+    if (gridBorderScope === "outer" && !isOuter) continue;
+    if (gridBorderScope === "inner" && isOuter) continue;
     for (let r = 0; r < box.rows; r++) {
       const covered = gridMerges.some((m) => c > m.col && c < m.col + m.colSpan && r >= m.row && r < m.row + m.rowSpan);
       if (covered) continue;
+      const hiddenLeft = c > 0 && sideHiddenAt(r, c - 1, "right");
+      const hiddenRight = c < box.cols && sideHiddenAt(r, c, "left");
+      if (hiddenLeft || hiddenRight) continue;
       gridLineSegments.push({ x1: x, y1: rowBoundariesPct[r], x2: x, y2: rowBoundariesPct[r + 1] });
     }
   }
   for (let r = 0; r <= box.rows; r++) {
     const y = rowBoundariesPct[r];
+    const isOuter = r === 0 || r === box.rows;
+    if (gridBorderScope === "outer" && !isOuter) continue;
+    if (gridBorderScope === "inner" && isOuter) continue;
     for (let c = 0; c < box.cols; c++) {
       const covered = gridMerges.some((m) => r > m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan);
       if (covered) continue;
+      const hiddenTop = r > 0 && sideHiddenAt(r - 1, c, "bottom");
+      const hiddenBottom = r < box.rows && sideHiddenAt(r, c, "top");
+      if (hiddenTop || hiddenBottom) continue;
       gridLineSegments.push({ x1: colBoundariesPct[c], y1: y, x2: colBoundariesPct[c + 1], y2: y });
     }
   }
@@ -5173,6 +5632,14 @@ const TableBoxOverlay = forwardRef<
         const rowSpan = covering ? covering.rowSpan : 1;
         const colSpan = covering ? covering.colSpan : 1;
         const inSel = !!selRange && row >= selRange.r0 && row <= selRange.r1 && col >= selRange.c0 && col <= selRange.c1;
+        // 이 칸(병합이면 anchor 기준)의 개별 설정 — 표 전체 기본값(align/valign/
+        // cellPadding/fillColor)을 덮어써요(2026-09-28 혜민님 요청 "표 전체 설정과
+        // 선택한 셀의 설정을 구분").
+        const cellOverride = box.cellStyles?.[`${row}-${col}`];
+        const effAlign = cellOverride?.align ?? box.align ?? "center";
+        const effValign = cellOverride?.valign ?? box.valign ?? "middle";
+        const effPadding = cellOverride?.padding ?? box.cellPadding ?? 6;
+        const cellText = box.cells[(covering ? covering.row : row) * box.cols + (covering ? covering.col : col)] ?? "";
         return (
           <div
             key={idx}
@@ -5193,12 +5660,23 @@ const TableBoxOverlay = forwardRef<
               gridColumn: `${col + 1} / span ${colSpan}`,
               gridRow: `${row + 1} / span ${rowSpan}`,
               position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: effValign === "middle" ? "center" : effValign === "bottom" ? "flex-end" : "flex-start",
+              boxSizing: "border-box",
+              padding: `${effPadding}px`,
+              backgroundColor: cellOverride?.fillColor
+                ? hexToRgba(cellOverride.fillColor, cellOverride.fillOpacity ?? 1)
+                : undefined,
+              overflow: "hidden",
             }}
           >
+            {inSel && <div className="pointer-events-none absolute inset-0 bg-[var(--color-sky)]/15" />}
             <textarea
-              value={box.cells[(covering ? covering.row : row) * box.cols + (covering ? covering.col : col)] ?? ""}
+              value={cellText}
               onChange={(e) => handleCellChange(covering ? covering.row : row, covering ? covering.col : col, e.target.value)}
               placeholder=""
+              rows={textBoxRowCount(cellText)}
               style={{
                 fontSize: `${0.78 * (box.fontScale ?? 1)}rem`,
                 fontFamily: box.fontFamily ?? "Pretendard, sans-serif",
@@ -5207,11 +5685,11 @@ const TableBoxOverlay = forwardRef<
                 fontStyle: box.italic ? "italic" : "normal",
                 textDecoration: box.underline ? "underline" : "none",
                 lineHeight: box.lineHeight ?? 1.375,
+                textAlign: effAlign,
                 border: "none",
+                flexShrink: 0,
               }}
-              className={`relative h-full w-full resize-none bg-transparent p-1 text-center outline-none ${
-                inSel ? "bg-[var(--color-sky)]/15" : ""
-              }`}
+              className="relative z-10 max-h-full w-full resize-none overflow-hidden bg-transparent p-0 outline-none"
             />
           </div>
         );

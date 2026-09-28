@@ -170,6 +170,21 @@ export function isStickerImageBox(box: { kind?: "photo" | "sticker"; url: string
 // 기준(0~100%) 좌표를 써요(내지 스프레드는 페이지 경계를 넘나들 수 있게, 표지는 그
 // 칸 자체를 스프레드처럼 취급해요) — 화면에서는 한 덩어리로 보이고, 인쇄 파일에서는
 // drawImageBoxOnCanvas와 같은 방식으로 각 낱장 폭만큼 잘라서 그려요.
+// 표 칸 하나에 대한 "표 기본값과 다른" 개별 설정이에요(2026-09-28 혜민님 요청: "표
+// 전체 설정과 선택한 셀의 설정을 구분"). 비워둔 필드는 표 전체 기본값을 그대로 따라요
+// (TableBoxDef의 align/valign/cellPadding/fillColor 등). hiddenSides는 이 칸의 그
+// 변(상/우/하/좌) 쪽 격자선을 숨길지예요 — 이웃 칸과 경계를 공유하므로, 이 칸이나
+// 맞닿은 이웃 칸 둘 중 하나라도 그 경계를 숨기면 그 선은 안 그려요(구글시트와 같은
+// 방식). 키는 `"${row}-${col}"`(병합된 칸이면 병합 anchor, 즉 왼쪽 위 칸 기준)이에요.
+export type TableCellStyle = {
+  align?: "left" | "center" | "right";
+  valign?: "top" | "middle" | "bottom";
+  fillColor?: string;
+  fillOpacity?: number;
+  padding?: number; // px
+  hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
+};
+
 export type TableBoxDef = {
   id: string;
   xPct: number;
@@ -216,6 +231,17 @@ export type TableBoxDef = {
   italic?: boolean;
   underline?: boolean;
   lineHeight?: number; // 줄 간격 배수(em). 기본 1.25.
+  // 글자 정렬·셀 여백·테두리 적용범위(2026-09-28 혜민님 요청: "글자 위치와 정렬 탭",
+  // "셀 안쪽 여백", "테두리의 색상·굵기·적용 위치(전체/바깥쪽/안쪽/개별 변)"). 전부
+  // 표 전체 기본값이고, cellStyles로 칸별로 덮어쓸 수 있어요.
+  align?: "left" | "center" | "right"; // 가로 정렬. 기본 "center"(기존과 동일).
+  valign?: "top" | "middle" | "bottom"; // 세로 정렬. 기본 "middle".
+  cellPadding?: number; // 셀 안쪽 여백(px). 기본 6.
+  // 격자선 적용 범위. "outer"는 표 바깥 테두리만, "inner"는 안쪽 칸 구분선만, "all"은
+  // 둘 다(기존과 동일, 기본값).
+  borderScope?: "all" | "outer" | "inner";
+  // 칸별 개별 설정(배경색/여백/정렬/변별 테두리 숨김) — 키는 `"${row}-${col}"`.
+  cellStyles?: Record<string, TableCellStyle>;
 };
 
 export type SpreadDef = {
