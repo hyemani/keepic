@@ -1,3 +1,5 @@
+import type { TextRun } from "./textRuns";
+
 export type PageTemplateId =
   | "full"
   | "duo"
@@ -81,6 +83,16 @@ export type TextBoxDef = {
   // 배경 사각형이 글자보다 세로로 얼마나 더 넉넉한지(%, 글자 크기 기준) — 지정 안
   // 하면 25(기본값)으로 취급해요.
   backgroundPaddingYPct?: number;
+  // 문자 단위(글자 일부만) 서식(2026-10-06 추가, "일부 글자만 다른 서체/크기/색/
+  // 굵게/기울임/밑줄" 요청) — 드래그로 고른 범위에만 다른 서식을 줄 수 있어요. 값이
+  // 없으면(undefined, 기존 텍스트박스 전부 이 상태) 예전처럼 박스 전체가 위 필드들
+  // (fontFamily·fontScale·color·bold·italic·underline)로 통일돼요. 값이 있으면 그
+  // 구간들을 순서대로 이어붙인 게 이 박스의 실제 글자이고(= text와 항상 같은 내용),
+  // 각 구간은 자기 서식 필드가 없으면(undefined) 박스 자신의 값을 그대로 상속해요.
+  // text 필드는 runs가 있어도 항상 같이 유지돼요(다른 곳에서 box.text만 읽어도 항상
+  // 최신 전체 글자가 나오도록) — lib/textRuns.ts의 getEffectiveRuns/runsPlainText
+  // 등이 이 두 필드를 같이 맞춰줘요.
+  runs?: TextRun[];
 };
 
 // 자유 배치 이미지박스 하나예요(내지 스프레드·표지 앞면 공통으로 써요). 텍스트박스와

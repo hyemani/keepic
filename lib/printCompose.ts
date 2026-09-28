@@ -13,6 +13,12 @@
 import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, pageTemplates, sortStackedBoxes } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
+import {
+  resolveRunStyle,
+  trimRuns,
+  type ResolvedRunStyle,
+  type TextRun,
+} from "@/lib/textRuns";
 import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
 import {
   PhotobookCoverId,
@@ -199,6 +205,195 @@ function wrapTextForCanvas(ctx: CanvasRenderingContext2D, text: string, maxWidth
 // 결과와 어긋나지 않게 해요 — 값을 바꾸면 그쪽도 같이 바뀌어야 해요.
 export const TEXT_BOX_FONT_SCALE_BASE_RATIO = 0.032;
 
+
+// ── 문자 단위 서식(runs, 2026-10-06 추가) 인쇄 PDF 지원. box.runs가 없으면(예전
+// 텍스트박스 전부 + "문자 단위 서식을 한 번도 안 준" 새 텍스트박스) 아래
+// drawTextBoxOnCanvas는 원래 있던 코드를 완전히 그대로 타요(회귀 위험 0) — 이
+// 구역의 함수들은 box.runs가 실제로 있을 때만 호출돼요.
+
+type ResolvedRunStyleWithPx = ResolvedRunStyle & { fontPx: number };
+
+function resolveRunStyleWithPx(box: TextBoxDef, run: TextRun, pageW: number): ResolvedRunStyleWithPx {
+  const style = resolveRunStyle(box, run);
+  return {
+    ...style,
+    fontPx: Math.max(8, Math.round(pageW * TEXT_BOX_FONT_SCALE_BASE_RATIO * style.fontScale)),
+  };
+}
+
+function sameResolvedStyle(a: ResolvedRunStyleWithPx, b: ResolvedRunStyleWithPx): boolean {
+  return (
+    a.fontFamily === b.fontFamily &&
+    a.fontPx === b.fontPx &&
+    a.color === b.color &&
+    a.bold === b.bold &&
+    a.italic === b.italic &&
+    a.underline === b.underline
+  );
+}
+
+function setCtxFontForRunStyle(ctx: CanvasRenderingContext2D, style: ResolvedRunStyleWithPx) {
+  ctx.font = `${style.italic ? "italic " : ""}${style.bold ? "bold " : ""}${style.fontPx}px ${style.fontFamily}`;
+}
+
+type RunSegment = { text: string; style: ResolvedRunStyleWithPx };
+type WrappedLine = RunSegment[];
+
+// 원래 wrapTextForCanvas(한 글자씩 넓이를 재서 넘치면 줄바꿈 — 띄어쓰기 없는 한글도
+// 자연스럽게 줄바꿈되도록)와 완전히 같은 알고리즘을, 구간(run)마다 다른 서체/크기일
+// 수 있게 확장한 버전이에요. 같은 서식이 이어지는 글자는 한 세그먼트로 묶어서
+// ctx.fillText 호출 수를 줄여요(성능·밑줄 계산 단순화 둘 다).
+function wrapRunsForCanvas(
+  ctx: CanvasRenderingContext2D,
+  runs: TextRun[],
+  box: TextBoxDef,
+  pageW: number,
+  maxWidth: number
+): WrappedLine[] {
+  const lines: WrappedLine[] = [];
+  let currentLine: WrappedLine = [];
+  let currentWidth = 0;
+
+  function pushChar(ch: string, style: ResolvedRunStyleWithPx) {
+    setCtxFontForRunStyle(ctx, style);
+    const chWidth = ctx.measureText(ch).width;
+    if (currentWidth > 0 && currentWidth + chWidth > maxWidth) {
+      lines.push(currentLine);
+      currentLine = [];
+      currentWidth = 0;
+    }
+    const last = currentLine[currentLine.length - 1];
+    if (last && sameResolvedStyle(last.style, style)) {
+      last.text += ch;
+    } else {
+      currentLine.push({ text: ch, style });
+    }
+    currentWidth += chWidth;
+  }
+
+  for (const run of runs) {
+    const style = resolveRunStyleWithPx(box, run, pageW);
+    for (const ch of run.text) {
+      if (ch === "\n") {
+        lines.push(currentLine);
+        currentLine = [];
+        currentWidth = 0;
+        continue;
+      }
+      pushChar(ch, style);
+    }
+  }
+  lines.push(currentLine);
+  return lines;
+}
+
+// box.runs가 있는 텍스트박스 전용 그리기예요(drawTextBoxOnCanvas가 분기해서 호출).
+// 기본 뼈대(heightPct 있을 때 클리핑+세로 정렬, letterSpacing, 배경 하이라이트)는
+// 원래 함수와 같은 결과가 나오도록 맞췄고, 줄 안에서 구간마다 다른 서체/크기/색/
+// 굵게/기울임/밑줄로 그리는 부분만 새로 짰어요.
+function drawTextBoxOnCanvasRuns(
+  ctx: CanvasRenderingContext2D,
+  box: TextBoxDef,
+  runs: TextRun[],
+  pageW: number,
+  pageH: number,
+  offsetX: number,
+  offsetY: number
+) {
+  const x = offsetX + (box.xPct / 100) * pageW;
+  const y = offsetY + (box.yPct / 100) * pageH;
+  const w = (box.widthPct / 100) * pageW;
+
+  const wrapped = wrapRunsForCanvas(ctx, runs, box, pageW, w);
+  const lineInfos = wrapped.map((line) => {
+    let maxFontPx = 8;
+    for (const seg of line) maxFontPx = Math.max(maxFontPx, seg.style.fontPx);
+    return { line, maxFontPx, lineHeight: maxFontPx * (box.lineHeight ?? 1.35) };
+  });
+  const textBlockHeight = lineInfos.reduce((sum, li) => sum + li.lineHeight, 0);
+
+  const align = box.align;
+  const textXBase = align === "left" ? x : align === "right" ? x + w : x + w / 2;
+
+  function measureLineWidth(line: WrappedLine): number {
+    let total = 0;
+    for (const seg of line) {
+      setCtxFontForRunStyle(ctx, seg.style);
+      total += ctx.measureText(seg.text).width;
+    }
+    return total;
+  }
+
+  function drawLines(startY: number, clip?: { x: number; y: number; w: number; h: number }) {
+    if (clip) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(clip.x, clip.y, clip.w, clip.h);
+      ctx.clip();
+    }
+    ctx.textBaseline = "top";
+    let cursorY = startY;
+    for (const { line, maxFontPx, lineHeight } of lineInfos) {
+      if (clip && cursorY - clip.y > clip.h) break;
+      const lineWidth = measureLineWidth(line);
+      const lineStartX = align === "left" ? textXBase : align === "right" ? textXBase - lineWidth : textXBase - lineWidth / 2;
+
+      // 글자 배경(하이라이트)은 box 전체 설정(box.backgroundColor)이라 구간과 무관하게
+      // 줄 하나 전체에 한 번만 그려요 — 원래 drawLineBackground와 같은 비율(em 기준
+      // 가로/세로 여백)이지만, em 기준을 그 줄에서 제일 큰 글자(maxFontPx)로 맞췄어요.
+      if (box.backgroundColor) {
+        const padX = (maxFontPx * (box.backgroundPaddingXPct ?? 40)) / 100;
+        const padY = (maxFontPx * (box.backgroundPaddingYPct ?? 25)) / 100;
+        ctx.save();
+        ctx.fillStyle = box.backgroundColor;
+        ctx.fillRect(lineStartX - padX / 2, cursorY - padY / 2, lineWidth + padX, maxFontPx + padY);
+        ctx.restore();
+      }
+
+      ctx.textAlign = "left";
+      let cx = lineStartX;
+      for (const seg of line) {
+        setCtxFontForRunStyle(ctx, seg.style);
+        ctx.fillStyle = seg.style.color;
+        if ("letterSpacing" in ctx) {
+          (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = box.letterSpacing
+            ? `${seg.style.fontPx * box.letterSpacing}px`
+            : "0px";
+        }
+        ctx.fillText(seg.text, cx, cursorY);
+        const segWidth = ctx.measureText(seg.text).width;
+        if (seg.style.underline) {
+          const underlineY = cursorY + seg.style.fontPx * 0.92;
+          ctx.save();
+          ctx.strokeStyle = seg.style.color;
+          ctx.lineWidth = Math.max(1, seg.style.fontPx * 0.06);
+          ctx.beginPath();
+          ctx.moveTo(cx, underlineY);
+          ctx.lineTo(cx + segWidth, underlineY);
+          ctx.stroke();
+          ctx.restore();
+        }
+        cx += segWidth;
+      }
+      cursorY += lineHeight;
+    }
+    if (clip) ctx.restore();
+    if ("letterSpacing" in ctx) {
+      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    }
+  }
+
+  if (box.heightPct !== undefined) {
+    const h = (box.heightPct / 100) * pageH;
+    const extraSpace = Math.max(0, h - textBlockHeight);
+    const startYOffset = box.verticalAlign === "middle" ? extraSpace / 2 : box.verticalAlign === "bottom" ? extraSpace : 0;
+    drawLines(y + startYOffset, { x, y, w, h });
+    return;
+  }
+  drawLines(y);
+}
+
+
 function drawTextBoxOnCanvas(
   ctx: CanvasRenderingContext2D,
   box: TextBoxDef,
@@ -207,6 +402,17 @@ function drawTextBoxOnCanvas(
   offsetX: number = 0,
   offsetY: number = 0
 ) {
+  // 문자 단위 서식(runs, 2026-10-06 추가) — box.runs가 실제로 있으면(구간별로 다른
+  // 서체/크기/색/굵게/기울임/밑줄이 섞여 있을 수 있으면) drawTextBoxOnCanvasRuns로
+  // 넘겨요. runs가 없는(예전 텍스트박스 전부 + 아직 문자 단위 서식을 준 적 없는
+  // 새 텍스트박스) 아래 원래 코드는 한 글자도 안 건드렸어요 — 회귀 위험이 없어요.
+  if (box.runs && box.runs.length > 0) {
+    const trimmed = trimRuns(box.runs);
+    if (trimmed.length === 0) return;
+    drawTextBoxOnCanvasRuns(ctx, box, trimmed, pageW, pageH, offsetX, offsetY);
+    return;
+  }
+
   const text = box.text.trim();
   if (!text) return;
   const x = offsetX + (box.xPct / 100) * pageW;

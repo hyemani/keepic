@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
@@ -37,6 +37,16 @@ import {
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
+import {
+  applyRunAwareStyleChange,
+  getEffectiveRuns,
+  mergeAdjacentRuns,
+  resolveRunStyle,
+  runsPlainText,
+  simplifyRuns,
+  type ResolvedRunStyle,
+  type TextRun,
+} from "@/lib/textRuns";
 import {
   backgroundPatterns,
   backgroundPatternCategories,
@@ -1822,6 +1832,327 @@ function textBoxRowCount(text: string): number {
   return Math.max(1, text.split("\n").length);
 }
 
+
+// ── 문자 단위 서식(2026-10-06 추가) 지원 편집 영역: 아래에서 위 TextBoxOverlay가
+// <textarea> 대신 이걸 써요. 자세한 설계는 이 파일 상단(activeTextSelectionRange
+// 선언부)과 lib/textRuns.ts 주석을 참고하세요.
+
+type TextSelectionRangeValue = { boxId: string; start: number; end: number } | null;
+type TextSelectionRangeSetter = React.Dispatch<React.SetStateAction<TextSelectionRangeValue>>;
+
+// Range API로 (node, offset)을 "컨테이너 시작부터 몇 글자째인지"로 바꿔요. 텍스트
+// 노드 한가운데든, span 경계든, 컨테이너 알아서 처리해줘서 직접 트리를 걷는 것보다 훨씬 덜 위험해요.
+function getPlainTextOffset(container: HTMLElement, node: Node | null, offset: number): number | null {
+  if (!node) return null;
+  if (node !== container && !container.contains(node)) return null;
+  const range = document.createRange();
+  try {
+    range.selectNodeContents(container);
+    range.setEnd(node, offset);
+  } catch {
+    return null;
+  }
+  return range.toString().length;
+}
+
+// getPlainTextOffset의 반대예요 — "몇 글자째"를 실제 텍스트 노드+그 안의 offset으로
+// 찾아서, 커서/선택을 복원할 때 써요(문자 패널에서 서식을 적용한 뒤에도 방금 선택한
+// 범위가 계속 보이도록).
+function findDomPositionForOffset(container: HTMLElement, target: number): { node: Node; offset: number } {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let total = 0;
+  let node = walker.nextNode();
+  let last: Node | null = null;
+  while (node) {
+    const len = node.textContent?.length ?? 0;
+    if (target <= total + len) return { node, offset: Math.max(0, target - total) };
+    total += len;
+    last = node;
+    node = walker.nextNode();
+  }
+  if (last) return { node: last, offset: last.textContent?.length ?? 0 };
+  return { node: container, offset: 0 };
+}
+
+function setSelectionByOffsets(container: HTMLElement, start: number, end: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const a = findDomPositionForOffset(container, Math.max(0, start));
+  const b = findDomPositionForOffset(container, Math.max(0, end));
+  try {
+    sel.setBaseAndExtent(a.node, a.offset, b.node, b.offset);
+  } catch {
+    // 커서 복원은 "되면 좋고" 수준이라 실패해도 조용히 넘어가요(캔버스 재배치 등
+    // 드문 타이밍에 노드가 이미 사라졌을 수 있어요).
+  }
+}
+
+// 구간 하나(run)의 최종 서식을 실제 <span> 인라인 스타일로 그려요 — 화면
+// (TextBoxOverlay가 예전에 textarea에 주던 스타일)과 완전히 같은 계산식이에요.
+function applyRunStyleToSpan(span: HTMLSpanElement, run: TextRun, box: TextBoxDef) {
+  const style = resolveRunStyle(box, run);
+  span.style.fontFamily = style.fontFamily;
+  span.style.fontSize = `${0.85 * style.fontScale}rem`;
+  span.style.color = style.color;
+  span.style.fontWeight = style.bold ? "700" : "400";
+  span.style.fontStyle = style.italic ? "italic" : "normal";
+  span.style.textDecoration = style.underline ? "underline" : "none";
+}
+
+// 이미 화면에 그려둔 span의 "최종 해석된 서식"(stylesByIdxRef에 기억해둔 값)을 다시
+// TextRun(있으면 override, 없으면 undefined=상속)으로 되돌려요 — 타이핑/삭제
+// 후 DOM을 읽어서 runs를 다시 만들 때 써요.
+function runFromResolvedStyle(style: ResolvedRunStyle, box: TextBoxDef, text: string): TextRun {
+  return {
+    text,
+    fontFamily: style.fontFamily === box.fontFamily ? undefined : style.fontFamily,
+    fontScale: style.fontScale === box.fontScale ? undefined : style.fontScale,
+    color: style.color === box.color ? undefined : style.color,
+    bold: style.bold === box.bold ? undefined : style.bold,
+    italic: style.italic === (box.italic ?? false) ? undefined : style.italic,
+    underline: style.underline === (box.underline ?? false) ? undefined : style.underline,
+  };
+}
+
+function runSyncSignature(box: TextBoxDef, runs: TextRun[]): string {
+  return JSON.stringify([box.id, runs, box.fontFamily, box.fontScale, box.color, box.bold, box.italic, box.underline]);
+}
+
+// 문자 단위 서식(runs)을 지원하는 텍스트박스 편집 영역이에요. 예전엔 그냥
+// <textarea>였는데, textarea는 "이 글자만 빨간색" 같은 부분 서식을 표현할 수도, DOM
+// 선택 범위를 유지할 수도 없어서 contentEditable div로 바꿨어요.
+//
+// ⚠️ 핵심 규칙: **타이핑 중(특히 한글 조합 중)에는 이 DOM을 React가 다시 그리게
+// (rebuild) 하지 않아요.** span(구간)들은 JSX children이 아니라 아래
+// useLayoutEffect 안에서 직접 document.createElement로 만들어서 컨테이너에 꽂아
+// 넣어요 — 그래야 타이핑하는 동안 브라우저가 스스로 텍스트 노드를 수정하고, 우리는
+// 그 결과를 input 이벤트에서 "읽기"만 해요. React가 매 렌더마다 span을 새로
+// 그리면(흔한 contentEditable 실수) 커서 위치가 튀거나 한글 조합이 깨져요.
+//
+// span을 다시 만드는(rebuild) 시점은 딱 두 가지예요: 1) 다른 텍스트박스로
+// 전환됐을 때(box.id가 바뀜), 2) 이 컴포넌트가 스스로 만든 변경이 "아닌" 바깥에서
+// 온 변경일 때(예: 문자 패널에서 드래그 선택 범위에 서식을 적용 — 그땐 span
+// 스타일이 실제로 바뀌어야 하니 다시 그려야 해요). lastSyncedSignatureRef로 "방금
+// 우리가 스스로 emit한 값과 같은가"를 비교해서 우리 자신의 echo면 다시 그리지
+// 않아요. 한글 조합 중(isComposingRef)엔 무조건 rebuild를 미뤄요.
+function TextBoxRichEditor({
+  box,
+  onChange,
+  onSelectionRangeChange,
+}: {
+  box: TextBoxDef;
+  onChange: (changes: Partial<TextBoxDef>) => void;
+  onSelectionRangeChange: TextSelectionRangeSetter;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isComposingRef = useRef(false);
+  const lastSyncedSignatureRef = useRef<string>("");
+  const stylesByIdxRef = useRef<ResolvedRunStyle[]>([]);
+
+  const signature = runSyncSignature(box, getEffectiveRuns(box));
+
+  useLayoutEffect(() => {
+    if (isComposingRef.current) return;
+    if (signature === lastSyncedSignatureRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    // 다시 그리기 전에 지금 선택 범위를 기억해뒀다가, 다시 그린 뒤 복원해요(문자
+    // 패널에서 서식을 적용한 직후에도 방금 선택했던 범위가 계속 보이도록).
+    let restoreStart: number | null = null;
+    let restoreEnd: number | null = null;
+    if (document.activeElement === container) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        restoreStart = getPlainTextOffset(container, sel.anchorNode, sel.anchorOffset);
+        restoreEnd = getPlainTextOffset(container, sel.focusNode, sel.focusOffset);
+      }
+    }
+
+    const runsToRender = getEffectiveRuns(box);
+    const styles: ResolvedRunStyle[] = [];
+    const spans = runsToRender.map((run, idx) => {
+      const style = resolveRunStyle(box, run);
+      styles.push(style);
+      const span = document.createElement("span");
+      span.setAttribute("data-idx", String(idx));
+      span.textContent = run.text;
+      applyRunStyleToSpan(span, run, box);
+      return span;
+    });
+    container.replaceChildren(...spans);
+    stylesByIdxRef.current = styles;
+    lastSyncedSignatureRef.current = signature;
+
+    if (restoreStart !== null && restoreEnd !== null) {
+      setSelectionByOffsets(container, restoreStart, restoreEnd);
+    }
+    // box 전체를 deps로 넣으면 매 렌더(마우스 이동 등 무관한 상위 상태 변화)마다
+    // 이 effect가 다시 돌아 span을 갈아치울 위험이 있어서, "내용에 실제로 영향을
+    // 주는 값들을 요약한" signature만 deps로 써요.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
+  function readRunsFromDom(): TextRun[] {
+    const container = containerRef.current;
+    if (!container) return getEffectiveRuns(box);
+    const out: TextRun[] = [];
+    for (const child of Array.from(container.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as HTMLElement;
+        if (el.tagName === "BR") continue; // 개행은 문자 \n으로만 관리해요(아래 handleKeyDown).
+        const idxAttr = el.getAttribute("data-idx");
+        const idx = idxAttr !== null ? Number(idxAttr) : -1;
+        const baseStyle = idx >= 0 ? stylesByIdxRef.current[idx] : undefined;
+        const text = el.textContent ?? "";
+        if (!text) continue;
+        out.push(baseStyle ? runFromResolvedStyle(baseStyle, box, text) : { text });
+      } else if (child.nodeType === Node.TEXT_NODE) {
+        // 브라우저가 어쩌다 span 밖에 텍스트 노드를 직접 흘렸을 때(드문 경우)를
+        // 대비한 안전망이에요 — 박스 자신의 서식을 그대로 상속하는 구간으로 취급해요.
+        const text = child.textContent ?? "";
+        if (text) out.push({ text });
+      }
+    }
+    return mergeAdjacentRuns(out);
+  }
+
+  function commitFromDom() {
+    const newRuns = readRunsFromDom();
+    const newText = runsPlainText(newRuns);
+    // 우리가 스스로 emit하는 값이니, box가 이 값 그대로 되돌아와도 다시 그리지
+    // 않도록 서명을 미리 "동기화됨"으로 표시해요.
+    lastSyncedSignatureRef.current = runSyncSignature(box, newRuns);
+    onChange({ runs: simplifyRuns(newRuns), text: newText });
+  }
+
+  function handleInput(e: React.FormEvent<HTMLDivElement>) {
+    // 한글(또는 다른 IME) 조합 중에는 절대 처리하지 않아요 — 조합이 끝나야
+    // (compositionend) 글자가 확정돼요. 이걸 건너뛰지 않으면 조합 중간 글자가
+    // runs로 잘못 확정되면서 한글 입력이 깨져요.
+    if ((e.nativeEvent as InputEvent).isComposing || isComposingRef.current) return;
+    commitFromDom();
+  }
+
+  function handleCompositionStart() {
+    isComposingRef.current = true;
+  }
+
+  function handleCompositionEnd() {
+    isComposingRef.current = false;
+    commitFromDom();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Enter" && !isComposingRef.current) {
+      // 기본 동작(브라우저가 <div>/<p>/<br>로 줄을 나누는 것)을 막고, 예전
+      // textarea와 똑같이 줄바꿈 문자(\n) 하나를 직접 넣어요 — 그래야 이 DOM이
+      // 계속 "컨테이너 바로 아래 span들만" 있는 단순한 구조로 유지돼서 위
+      // 읽기/쓰기 로직이 안 깨져요.
+      e.preventDefault();
+      document.execCommand("insertText", false, "\n");
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {
+    // 붙여넣기는 항상 글자만(서식 없이) 넣어요 — 클립보드의 임의 HTML을 그대로
+    // 받으면 구간(span) 구조가 깨질 수 있어요. 지금 커서가 있는 구간의 서식을
+    // 그대로 이어받는 게 자연스럽기도 해요.
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, text);
+  }
+
+  useEffect(() => {
+    function handleSelectionChange() {
+      const container = containerRef.current;
+      if (!container) return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !sel.anchorNode || !sel.focusNode) return;
+      if (!container.contains(sel.anchorNode) || !container.contains(sel.focusNode)) return;
+      const start = getPlainTextOffset(container, sel.anchorNode, sel.anchorOffset);
+      const end = getPlainTextOffset(container, sel.focusNode, sel.focusOffset);
+      if (start === null || end === null) return;
+      onSelectionRangeChange({ boxId: box.id, start, end });
+    }
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      // 다른 박스로 옮겨가면(언마운트) 이 박스 몫으로 남아있던 선택 범위는 지워요.
+      onSelectionRangeChange((prev) => (prev && prev.boxId === box.id ? null : prev));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [box.id]);
+
+  const isEmpty = !box.text;
+
+  return (
+    <div className="relative w-full" style={{ flexShrink: 0 }}>
+      {isEmpty && (
+        <div
+          className="pointer-events-none absolute inset-0 select-none opacity-40"
+          style={{
+            fontFamily: box.fontFamily,
+            fontSize: `${0.85 * box.fontScale}rem`,
+            textAlign: box.align,
+            color: box.color,
+          }}
+        >
+          텍스트 입력
+        </div>
+      )}
+      <div
+        ref={containerRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        style={{
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          textAlign: box.align,
+          // 컨테이너 자신의 fontFamily/fontSize도 (구간마다 다시 덮어쓰긴 하지만)
+          // 박스 기본값으로 맞춰둬요 — 안 그러면 lineHeight(배수)·letterSpacing(em)·
+          // 배경 패딩(em)이 "엉뚱한(상속된 기본) 글자 크기" 기준으로 계산되고, 빈
+          // 박스일 때 클릭할 최소 높이도 사라져요(예전 textarea엔 rows=1로 항상 있던
+          // 최소 높이가, div는 내용이 없으면 0이 될 수 있어서).
+          fontFamily: box.fontFamily,
+          fontSize: `${0.85 * box.fontScale}rem`,
+          ...(box.backgroundColor
+            ? {
+                backgroundColor: box.backgroundColor,
+                paddingLeft: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                paddingRight: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                boxDecorationBreak: "clone",
+                WebkitBoxDecorationBreak: "clone",
+              }
+            : {}),
+          ...(box.lineHeight !== undefined ? { lineHeight: box.lineHeight } : {}),
+          ...(box.letterSpacing !== undefined ? { letterSpacing: `${box.letterSpacing}em` } : {}),
+          ...((box.scaleXPct ?? 100) !== 100 || (box.scaleYPct ?? 100) !== 100
+            ? {
+                transform: `scaleX(${(box.scaleXPct ?? 100) / 100}) scaleY(${(box.scaleYPct ?? 100) / 100})`,
+                transformOrigin: box.align === "right" ? "top right" : box.align === "center" ? "top center" : "top left",
+              }
+            : {}),
+        }}
+        className={`relative w-full cursor-text border-none bg-transparent leading-snug outline-none ${
+ box.heightPct !== undefined
+            ? box.verticalAlign && box.verticalAlign !== "top"
+              ? "max-h-full overflow-hidden"
+              : "h-full overflow-hidden"
+            : "overflow-hidden"
+        }`}
+      />
+    </div>
+  );
+}
+
 function TextBoxOverlay({
   box,
   onChange,
@@ -1832,6 +2163,7 @@ function TextBoxOverlay({
   zIndex,
   onDelete,
   onStackAction,
+  onSelectionRangeChange,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -1853,6 +2185,10 @@ function TextBoxOverlay({
   // 툴바를 안 띄워요.
   onDelete?: () => void;
   onStackAction?: (action: StackOrderAction) => void;
+  // 문자 단위 서식(2026-10-06 추가)을 위해, 이 박스 안 contentEditable
+  // 편집기(TextBoxRichEditor)가 드래그로 고른 글자 범위를 상위(UploadPageContent의
+  // activeTextSelectionRange)로 올려보낼 때 써요.
+  onSelectionRangeChange: TextSelectionRangeSetter;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
@@ -2101,59 +2437,7 @@ function TextBoxOverlay({
           )}
         </>
       )}
-      <textarea
-        value={box.text}
-        onChange={(e) => onChange({ text: e.target.value })}
-        rows={box.heightPct !== undefined && box.verticalAlign && box.verticalAlign !== "top" ? textBoxRowCount(box.text) : 1}
-        placeholder="텍스트 입력"
-        style={{
-          color: box.color,
-          fontFamily: box.fontFamily,
-          fontSize: `${0.85 * box.fontScale}rem`,
-          textAlign: box.align,
-          fontWeight: box.bold ? 700 : 400,
-          // 밑줄·기울임(2026-10-02 추가, "문자" 패널 요청).
-          textDecoration: box.underline ? "underline" : undefined,
-          fontStyle: box.italic ? "italic" : undefined,
-          flexShrink: 0,
-          // 글자 배경(하이라이트) — 지정 안 하면(undefined) 기존처럼 완전 투명. 가로/세로
-          // 여백(backgroundPaddingXPct/YPct)만큼 글자 크기(em) 기준으로 배경이 글자보다
-          // 넉넉하게 퍼져요. boxDecorationBreak:clone으로 줄바꿈된 줄마다 각자 배경이
-          // 붙어요(형광펜처럼).
-          ...(box.backgroundColor
-            ? {
-                backgroundColor: box.backgroundColor,
-                paddingLeft: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
-                paddingRight: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
-                paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                boxDecorationBreak: "clone",
-                WebkitBoxDecorationBreak: "clone",
-              }
-            : {}),
-          // lineHeight/letterSpacing이 지정 안 됐으면(undefined) 인라인 스타일을 아예 안
-          // 넣어서, 기존처럼 className의 "leading-snug"(1.375)·브라우저 기본 자간이 그대로
-          // 적용돼요(2026-09-23 "문자" 패널 통합 전 텍스트박스와 완전히 같은 크기로 보여요).
-          ...(box.lineHeight !== undefined ? { lineHeight: box.lineHeight } : {}),
-          ...(box.letterSpacing !== undefined ? { letterSpacing: `${box.letterSpacing}em` } : {}),
-          // 글자 가로/세로 폭(일러스트레이터 문자 패널의 "가로 폭"/"세로 폭", 2026-09-27
-          // 추가) — 둘 다 100이면(기본) transform을 아예 안 넣어요. ⚠️ 화면 전용, 인쇄
-          // PDF엔 아직 반영 안 돼요.
-          ...((box.scaleXPct ?? 100) !== 100 || (box.scaleYPct ?? 100) !== 100
-            ? {
-                transform: `scaleX(${(box.scaleXPct ?? 100) / 100}) scaleY(${(box.scaleYPct ?? 100) / 100})`,
-                transformOrigin: box.align === "right" ? "top right" : box.align === "center" ? "top center" : "top left",
-              }
-            : {}),
-        }}
-        className={`relative w-full cursor-text resize-none border-none bg-transparent leading-snug outline-none ${
- box.heightPct !== undefined
-            ? box.verticalAlign && box.verticalAlign !== "top"
-              ? "max-h-full overflow-hidden"
-              : "h-full overflow-hidden"
-            : "overflow-hidden"
-        }`}
-      />
+      <TextBoxRichEditor box={box} onChange={onChange} onSelectionRangeChange={onSelectionRangeChange} />
       {/* 모서리 4개(가로·세로 동시) + 변 4개(한쪽만) 손잡이예요 — 포토샵/일러스트레이터
           선택 상자처럼 어느 방향으로든 자유롭게 크기 조절할 수 있어요. */}
       {isActive && (
@@ -3486,10 +3770,16 @@ function TextBoxToolbar({
   onChange,
   onDelete,
   pageWidthMm,
+  selectionRange,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
   onDelete: () => void;
+  // 지금 텍스트박스 안에서 드래그로 고른 글자 범위예요(문자 단위 서식, 2026-10-06
+  // 추가) — 서체·글자크기·굵게·색·밑줄·기울임 버튼이 이 값이 있으면(그리고 이
+  // 박스 것이고 collapsed가 아니면) 그 범위에만, 없으면 박스 전체에 적용해요
+  // (lib/textRuns.ts의 applyRunAwareStyleChange).
+  selectionRange: { boxId: string; start: number; end: number } | null;
   // 지금 고르고 있는 게 앞표지/뒤표지/내지 중 어떤 텍스트박스인지 — 혼동하지 않도록
   // 항상 보여줘요(2026-09-23 요청).
   scopeLabel?: string;
@@ -3540,7 +3830,14 @@ function TextBoxToolbar({
     // 아래쪽 구분선 하나로만 다른 내용과 나눴어요.
     <div
       className="mb-4 flex flex-col gap-2 border-b border-[var(--color-hairline)] pb-4"
-      onMouseDown={(e) => e.stopPropagation()}
+      // e.preventDefault()도 같이 줘요(2026-10-06 추가) — 안 그러면 이 패널 안 버튼을
+      // 누르는 순간 브라우저가 포커스를 그 버튼으로 옮기면서 텍스트박스
+      // contentEditable의 선택(드래그로 고른 글자 범위)이 먼저 사라져서, "선택 범위에만
+      // 서식 적용"이 항상 실패해요(문자 단위 서식, applyRunAwareStyleChange 참고).
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+      }}
     >
       {/* 2026-10-04, 혜민님 요청(항목11): "내지 왼쪽 페이지 텍스트박스 제목 삭제하고
           서체로 문구 바꿔주세요" — "내지 왼쪽 페이지 텍스트박스" 같은 위치 설명 제목을
@@ -3568,7 +3865,7 @@ function TextBoxToolbar({
       <div className="relative">
         <select
           value={box.fontFamily}
-          onChange={(e) => onChange({ fontFamily: e.target.value })}
+          onChange={(e) => onChange(applyRunAwareStyleChange(box, selectionRange, { fontFamily: e.target.value }))}
           className="w-full appearance-none border border-[var(--color-hairline)] bg-white py-1.5 pl-2 pr-7 text-base"
           style={{ fontFamily: box.fontFamily }}
         >
@@ -3609,7 +3906,7 @@ function TextBoxToolbar({
               setPtDraft(raw);
               const pt = Number(raw);
               if (!Number.isFinite(pt) || pt <= 0) return;
-              onChange({ fontScale: textBoxPtToFontScale(pt, pageWidthMm) });
+              onChange(applyRunAwareStyleChange(box, selectionRange, { fontScale: textBoxPtToFontScale(pt, pageWidthMm) }));
             }}
             onBlur={() => setPtDraft(String(textBoxFontScaleToPt(box.fontScale, pageWidthMm)))}
             className="w-0 flex-1 border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
@@ -3617,7 +3914,7 @@ function TextBoxToolbar({
           <button
             type="button"
             title="굵게"
-            onClick={() => onChange({ bold: !box.bold })}
+            onClick={() => onChange(applyRunAwareStyleChange(box, selectionRange, { bold: !box.bold }))}
             className={`flex h-7 w-7 shrink-0 items-center justify-center border text-sm font-bold ${
               box.bold
                 ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -3633,7 +3930,7 @@ function TextBoxToolbar({
           <input
             type="color"
             value={box.color}
-            onChange={(e) => onChange({ color: e.target.value })}
+            onChange={(e) => onChange(applyRunAwareStyleChange(box, selectionRange, { color: e.target.value }))}
             className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
             title="글자 색"
           />
@@ -3647,7 +3944,7 @@ function TextBoxToolbar({
         <button
           type="button"
           title="밑줄"
-          onClick={() => onChange({ underline: !box.underline })}
+          onClick={() => onChange(applyRunAwareStyleChange(box, selectionRange, { underline: !box.underline }))}
           className={`flex h-7 w-7 items-center justify-center border ${
             box.underline
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -3659,7 +3956,7 @@ function TextBoxToolbar({
         <button
           type="button"
           title="기울임"
-          onClick={() => onChange({ italic: !box.italic })}
+          onClick={() => onChange(applyRunAwareStyleChange(box, selectionRange, { italic: !box.italic }))}
           className={`flex h-7 w-7 items-center justify-center border ${
             box.italic
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4007,6 +4304,7 @@ function TextBoxLayer({
   onShiftSelect,
   multiSelectedBoxIds,
   showAddButton = true,
+  onSelectionRangeChange,
 }: {
   boxes: TextBoxDef[];
   onAdd: () => void;
@@ -4027,6 +4325,9 @@ function TextBoxLayer({
   // 위에 떠 있던 이 검은 버튼은 중복이라 꺼요(2026-09-19, 혜민님 요청). 표지·뒤표지는
   // 아직 그 메뉴가 없어서 그대로 둬요.
   showAddButton?: boolean;
+  // 문자 단위 서식(2026-10-06 추가) — 이 레이어 안 어떤 박스든 contentEditable
+  // 편집기가 드래그로 고른 글자 범위를 이 콜백 하나로 상위에 올려보내요.
+  onSelectionRangeChange: TextSelectionRangeSetter;
 }) {
   return (
     <>
@@ -4042,6 +4343,7 @@ function TextBoxLayer({
           zIndex={effectiveZOrder("text", box.zOrder, index)}
           onDelete={onDelete ? () => onDelete(box.id) : undefined}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
+          onSelectionRangeChange={onSelectionRangeChange}
         />
       ))}
       {showAddButton && (
@@ -7829,6 +8131,17 @@ function UploadPageContent() {
   // 텍스트박스를 고치는지 알 수 있게 해요.
   const [activeTextBox, setActiveTextBox] = useState<{ ref: TextBoxRef; boxId: string } | null>(null);
 
+  // 지금 텍스트박스 안에서 드래그로 고른 "글자 범위"예요(문자 단위 서식, 2026-10-06
+  // 추가). start/end는 그 박스의 순수 텍스트(box.text) 기준 글자 인덱스— 순서는
+  // 보장 안 해요(사용자가 오른쪽에서 왼쪽으로 드래그하면 start>end일 수 있어요, 쓰는
+  // 쪽에서 Math.min/max로 정리해요). start===end면 그냥 커서 위치(선택 없음)예요.
+  // TextBoxToolbar가 이 값을 보고 "선택된 범위에만" 서식을 줄지 "박스 전체"에 줄지
+  // 정해요(lib/textRuns.ts의 applyRunAwareStyleChange). 박스가 바뀌거나(활성 박스
+  // 전환) 포커스를 잃으면 TextBoxRichEditor가 알아서 null로 되돌려요.
+  const [activeTextSelectionRange, setActiveTextSelectionRange] = useState<
+    { boxId: string; start: number; end: number } | null
+  >(null);
+
   // 다중 선택(정렬/분배 패널, 2026-09 추가)에 들어있는 텍스트박스들이에요. 반드시 같은
   // TextBoxRef(같은 표지 앞면/뒤표지/같은 스프레드의 같은 쪽 낱장) 안에서만 묶여요 —
   // 좌표계가 다른 텍스트박스끼리(예: 왼쪽 페이지와 오른쪽 페이지) 정렬을 시도하면 결과가
@@ -10799,6 +11112,7 @@ function UploadPageContent() {
                               onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                               scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                               pageWidthMm={coverPanelMm + coverBleedMm}
+                              selectionRange={activeTextSelectionRange}
                             />
                           )}
                           {activeCoverEditTab === "theme" && (
@@ -11559,6 +11873,7 @@ function UploadPageContent() {
                               />
                             )}
                             <TextBoxLayer
+                              onSelectionRangeChange={setActiveTextSelectionRange}
                               boxes={backCoverTextBoxes}
                               onAdd={handleAddBackCoverTextBox}
                               onChange={handleBackCoverTextBoxChange}
@@ -11694,6 +12009,7 @@ function UploadPageContent() {
                               }}
                             />
                             <TextBoxLayer
+                              onSelectionRangeChange={setActiveTextSelectionRange}
                               boxes={coverTextBoxes}
                               onAdd={handleAddCoverTextBox}
                               onChange={handleCoverTextBoxChange}
@@ -11942,6 +12258,7 @@ function UploadPageContent() {
                                 onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                                 scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                                 pageWidthMm={guidePageWorkMm}
+                                selectionRange={activeTextSelectionRange}
                               />
                             )}
                             <div>
@@ -12257,6 +12574,7 @@ function UploadPageContent() {
                                         : undefined
                                     )}
                                     <TextBoxLayer
+                                      onSelectionRangeChange={setActiveTextSelectionRange}
                                       boxes={spread.textBoxesLeft ?? []}
                                       onAdd={() => handleAddTextBox(i, "left")}
                                       showAddButton={false}
@@ -12314,6 +12632,7 @@ function UploadPageContent() {
                                     : undefined
                                 )}
                                 <TextBoxLayer
+                                  onSelectionRangeChange={setActiveTextSelectionRange}
                                   boxes={spread.textBoxesRight ?? []}
                                   onAdd={() => handleAddTextBox(i, "right")}
                                   showAddButton={false}
