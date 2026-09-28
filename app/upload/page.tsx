@@ -3425,6 +3425,7 @@ function TableBoxToolbar({
   activeBoxId: string | null;
 }) {
   const [ptDraft, setPtDraft] = useState("");
+  const [showBorderDetail, setShowBorderDetail] = useState(false);
   const lastSyncedBoxIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -3709,6 +3710,12 @@ function TableBoxToolbar({
           </div>
         </div>
       )}
+      {/* 2026-09-28 개편(혜민님 요청: "표만들기 탭 도구가 너무 많고 중복") — 표
+          전체 기본값(면·라인·정렬·여백·글꼴)은 특정 칸을 고르지 않았을 때만 보여요.
+          칸을 고르면 아래 "선택한 칸" 섹션에 집중하도록 여기는 숨겨요(값 자체는
+          그대로 남아있고, 칸 선택을 풀면 다시 보여요 — 기능 삭제 아님). */}
+      {!sel?.activeCell && (
+        <>
       <div className="grid grid-cols-2 gap-1.5">
         <div>
           <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">표 면(배경)</label>
@@ -3775,6 +3782,20 @@ function TableBoxToolbar({
           />
         </div>
       </div>
+      {/* 2026-09-28 개편: 선 종류·굵기·라운드·테두리 적용범위·점선 세부값은 자주
+          안 쓰는 고급 설정이라 접어뒀어요(혜민님 요청: "자주 안쓰는건 접어두기",
+          "세부 테두리 설정") — 기본은 접힌 상태, 눌러서 펼쳐요. */}
+      <div className="border-t border-[var(--color-hairline)] pt-2">
+        <button
+          type="button"
+          onClick={() => setShowBorderDetail((v) => !v)}
+          className="flex w-full items-center justify-between text-[11px] font-medium text-[var(--color-charcoal)]/70"
+        >
+          <span>세부 테두리 설정</span>
+          <span className="text-[var(--color-charcoal)]/40">{showBorderDetail ? "숨기기 ▲" : "펼치기 ▼"}</span>
+        </button>
+        {showBorderDetail && (
+          <div className="mt-2 flex flex-col gap-1.5">
       <div className="grid grid-cols-3 gap-1.5">
         <div>
           <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">선 종류</label>
@@ -3860,6 +3881,9 @@ function TableBoxToolbar({
           </div>
         </div>
       )}
+          </div>
+        )}
+      </div>
       {/* 2026-09-28, 혜민님 요청: "글자 위치와 정렬 탭"·"셀 안쪽 여백을 바꿨을 때
           글자 위치에 반영" — 표 전체 기본 가로/세로 정렬과 칸 안쪽 여백이에요. 특정
           칸만 다르게 하고 싶으면 아래 "선택한 칸" 섹션에서 따로 지정해요. 텍스트박스
@@ -4014,6 +4038,8 @@ function TableBoxToolbar({
           title="글자 색"
         />
       </div>
+        </>
+      )}
     </div>
   );
 }
