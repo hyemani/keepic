@@ -5973,8 +5973,13 @@ function SpineTitleOverlay({
   heightPct,
   fontSizeCqh,
   fontFamily,
+  color,
+  align,
+  isActive,
   onMove,
   onResize,
+  onSelect,
+  onChangeTitle,
 }: {
   title: string;
   emptyLabel: string;
@@ -5982,8 +5987,13 @@ function SpineTitleOverlay({
   heightPct: number;
   fontSizeCqh: number; // 실제 mm 크기를 컨테이너 높이 대비 %(cqh)로 환산한 값 — 창 크기와 무관하게 항상 같은 실물 비율로 보여요.
   fontFamily: string;
+  color: string; // spine title color, applied as inline style so a user-picked color always shows
+  align: "left" | "center" | "right"; // maps to the outer container's flex alignment
+  isActive: boolean; // true when selected on the canvas -- swaps the read-only span for an editable input
   onMove: (yPct: number) => void;
   onResize: (heightPct: number) => void;
+  onSelect: () => void; // called on click/drag-start to select this element (selectSpineTitle)
+  onChangeTitle: (value: string) => void; // called from the inline input while isActive
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -5994,6 +6004,7 @@ function SpineTitleOverlay({
   function handleDragStart(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    onSelect();
     const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
     dragStart.current = { mouseY: e.clientY, yPct, cellH: cellRect?.height || 1 };
     setIsDragging(true);
@@ -6043,24 +6054,46 @@ function SpineTitleOverlay({
     };
   }, [isResizing]);
 
-  const active = isDragging || isResizing;
+  const active = isDragging || isResizing || isActive;
+  const alignClass = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
 
   return (
     <div
       ref={boxRef}
       onMouseDown={handleDragStart}
-      className={`group/st absolute left-0 z-20 flex w-full cursor-move items-center justify-center overflow-hidden border px-0.5 transition ${
+      className={`group/st absolute left-0 z-20 flex w-full cursor-move ${alignClass} justify-center overflow-hidden border px-0.5 transition ${
  active ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/50"
       }`}
       style={{ top: `${yPct}%`, height: `${heightPct}%` }}
     >
-      {title.trim() ? (
+      {isActive ? (
+        // Selected: swap in a single-line input bound to the title so it can be edited
+        // directly on the canvas. Its own mousedown stops propagation so it does not
+        // immediately start a drag.
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => onChangeTitle(e.target.value)}
+          onMouseDown={(e) => e.stopPropagation()}
+          onFocus={onSelect}
+          spellCheck={false}
+          className="whitespace-nowrap border-none bg-transparent p-0 text-center font-bold outline-none"
+          style={{
+            fontSize: `${fontSizeCqh}cqh`,
+            lineHeight: 1,
+            transform: "rotate(90deg)",
+            fontFamily,
+            color,
+            width: `${Math.max(2, title.length + 1)}ch`,
+          }}
+        />
+      ) : title.trim() ? (
         // 키픽 로고와 같은 방향(90도)으로 한 줄로 눕혀서 보여줘요 — 글자를 하나씩 세로로
         // 쌓지 않아요. font-size는 cqh(컨테이너 높이 기준 %)라서 창 크기가 바뀌어도 항상
         // 책 실물 크기 그대로 커지고 작아져요(고정 px이 아니에요).
         <span
-          className="whitespace-nowrap font-bold text-[var(--color-charcoal)]"
-          style={{ fontSize: `${fontSizeCqh}cqh`, lineHeight: 1, transform: "rotate(90deg)", fontFamily }}
+          className="whitespace-nowrap font-bold"
+          style={{ fontSize: `${fontSizeCqh}cqh`, lineHeight: 1, transform: "rotate(90deg)", fontFamily, color }}
         >
           {title}
         </span>
@@ -6667,6 +6700,9 @@ function UploadPageContent() {
   const [spineTitleFontSizePt, setSpineTitleFontSizePt] = useState<number | null>(9); // 혜민님 요청(2026-09-28): 책등 글자 자동 크기가 길이에 따라 잘리는 문제가 있어 기본값을 9pt로 고정
   const [spineTitleFontSizePtDraft, setSpineTitleFontSizePtDraft] = useState("9");
   const [spineTitleFontFamily, setSpineTitleFontFamily] = useState(fontOptions[0].id);
+  const [spineTitleColor, setSpineTitleColor] = useState("#1F2937");
+  const [spineTitleAlign, setSpineTitleAlign] = useState<"left" | "center" | "right">("center");
+  const [spineTitleSelected, setSpineTitleSelected] = useState(false);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
   // 표지 제목⇄책등 제목 서체 연결 스위치예요(2026-09-25, 혜민님 요청). 기본 켜짐 — 켜진
@@ -6696,8 +6732,21 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setActiveCoverImageBox(null);
     setActiveTableBox(null);
+    setSpineTitleSelected(false);
     setBackCoverLogoSelected(true);
     setActiveCoverEditTab("photo");
+  }
+  function selectSpineTitle() {
+    setActiveTextBox(null);
+    setMultiTextSelection(null);
+    setActiveImageBox(null);
+    setMultiImageSelection(null);
+    setActiveCoverImageBox(null);
+    setBackCoverLogoSelected(false);
+    setActiveTableBox(null);
+    setSpineTitleSelected(true);
+    setActiveCoverEditTab("text");
+    setTextPanelSubTab("write");
   }
   const [backCoverPhoto, setBackCoverPhoto] = useState<Photo | null>(null);
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
@@ -6736,6 +6785,7 @@ function UploadPageContent() {
     setActiveImageBox(null);
     setActiveCoverImageBox(null);
     setBackCoverLogoSelected(false);
+    setSpineTitleSelected(false);
     setActiveTableBox({ scope: ref.scope, spreadIndex: ref.spreadIndex, boxId });
     setTextPanelSubTab("table");
     if (ref.scope === "cover" || ref.scope === "backCover") {
@@ -6777,6 +6827,7 @@ function UploadPageContent() {
     setActiveCoverImageBox({ target, boxId });
     setBackCoverLogoSelected(false);
     setActiveTableBox(null);
+    setSpineTitleSelected(false);
     // 2026-10-02, 혜민님 요청: "앞표지 뒤표지 메뉴 삭제, 스프레드 기준으로" — 레이아웃·
     // 스티커 패널의 수동 "적용 대상" 토글을 없앤 대신, 캔버스에서 어느 쪽 사진박스를
     // 선택하든 그 즉시 그 쪽이 "지금 작업 중인 쪽"이 되도록 자동으로 맞춰요.
@@ -7471,6 +7522,7 @@ function UploadPageContent() {
     setActiveTextBox({ ref, boxId });
     setBackCoverLogoSelected(false);
     setActiveTableBox(null);
+    setSpineTitleSelected(false);
     if (ref.scope === "cover" || ref.scope === "backCover") {
       setActiveCoverEditTab("text");
       // 2026-10-05, 혜민님 요청: 앞/뒤표지 텍스트박스 추가 버튼을 "글상자 추가" 하나로
@@ -7493,6 +7545,7 @@ function UploadPageContent() {
     setActiveCoverImageBox(null);
     setActiveImageBox(null);
     setActiveTableBox(null);
+    setSpineTitleSelected(false);
     // 같은 스프레드의 사진박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
     // 2026-09-28 추가) — 다른 스프레드/표지 쪽이면(좌표계가 달라서) 새로 시작해요.
     setMultiImageSelection((prev) =>
@@ -7698,6 +7751,7 @@ function UploadPageContent() {
     setImageBoxPhotoEditActive(false);
     setActiveImageBox({ spreadIndex, boxId });
     setActiveTableBox(null);
+    setSpineTitleSelected(false);
     // 스티커(손글씨스티커 포함)는 "사진" 탭에 편집할 속성(꽉 채우기/변형mm/사진 위치
     // 조정)이 아예 없어서, 선택해도 왼쪽 패널을 "사진" 탭으로 옮기지 않아요 — 혜민님이
     // "스티커 선택했을때 사진 메뉴로 이동하는 오류"로 보고하신 버그 수정(2026-09-24).
@@ -7739,6 +7793,7 @@ function UploadPageContent() {
     setActiveImageBox(null);
     setActiveTextBox(null);
     setActiveTableBox(null);
+    setSpineTitleSelected(false);
     // 같은 스프레드의 텍스트박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
     // 2026-09-28 추가).
     setMultiTextSelection((prev) =>
@@ -8860,6 +8915,8 @@ function UploadPageContent() {
       spineTitleHeightPct,
       spineTitleFontSizePt,
       spineTitleFontFamily,
+      spineTitleColor,
+      spineTitleAlign,
       titleFontLinked,
       backCoverLogo,
       backCoverPhoto,
@@ -8899,6 +8956,8 @@ function UploadPageContent() {
     setSpineTitleFontSizePt(s.spineTitleFontSizePt ?? null);
     setSpineTitleFontSizePtDraft(s.spineTitleFontSizePt !== undefined && s.spineTitleFontSizePt !== null ? String(s.spineTitleFontSizePt) : "");
     setSpineTitleFontFamily(s.spineTitleFontFamily ?? fontOptions[0].id);
+    setSpineTitleColor(s.spineTitleColor ?? "#1F2937");
+    setSpineTitleAlign(s.spineTitleAlign ?? "center");
     setTitleFontLinked(s.titleFontLinked ?? true);
     setBackCoverLogo(s.backCoverLogo !== undefined ? s.backCoverLogo : { xPct: 50, yPct: 50, scalePct: 100 });
     setBackCoverPhoto(s.backCoverPhoto);
@@ -8916,6 +8975,7 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setActiveCoverImageBox(null);
     setBackCoverLogoSelected(false);
+    setSpineTitleSelected(false);
   }
 
   // 매 렌더마다 지금 상태를 스냅샷으로 찍어서, 직전 스냅샷과 다르면(=혜민님이 뭔가
@@ -8964,6 +9024,8 @@ function UploadPageContent() {
     spineTitleHeightPct,
     spineTitleFontSizePt,
     spineTitleFontFamily,
+    spineTitleColor,
+    spineTitleAlign,
     titleFontLinked,
     backCoverLogo,
     backCoverPhoto,
@@ -9187,6 +9249,8 @@ function UploadPageContent() {
       spineTitleHeightPct,
       spineTitleFontSizePt: spineTitleFontSizePt ?? undefined,
       spineTitleFontFamily,
+      spineTitleColor,
+      spineTitleAlign,
       backCoverLogo,
       backCoverPhoto,
       backCoverBackgroundColor,
@@ -10315,6 +10379,7 @@ function UploadPageContent() {
                   setActiveCoverImageBox(null);
                   setBackCoverLogoSelected(false);
                   setActiveTableBox(null);
+                  setSpineTitleSelected(false);
                 }}
               >
                   <div
@@ -11142,6 +11207,90 @@ function UploadPageContent() {
                                   </div>
                                 </div>
                               </div>
+                              <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
+                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                  책등 글자색·정렬
+                                </label>
+                                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                  <div>
+                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                      책등 글자색
+                                    </label>
+                                    <input
+                                      type="color"
+                                      value={spineTitleColor}
+                                      onChange={(e) => setSpineTitleColor(e.target.value)}
+                                      className="h-9 w-full cursor-pointer border border-[var(--color-hairline)] bg-white p-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                      책등 정렬
+                                    </label>
+                                    <div className="flex gap-1">
+                                      {(
+                                        [
+                                          { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
+                                          { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
+                                          { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
+                                        ]
+                                      ).map((opt) => (
+                                        <button
+                                          key={opt.id}
+                                          type="button"
+                                          title={opt.title}
+                                          onClick={() => setSpineTitleAlign(opt.id)}
+                                          className={`flex h-9 flex-1 items-center justify-center border transition ${
+                                            spineTitleAlign === opt.id
+                                              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                                          }`}
+                                        >
+                                          <LayerIcon name={opt.icon} className="h-4 w-4" />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                                  <div>
+                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                      세로 위치(%)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={90}
+                                      step={1}
+                                      value={Math.round(coverSpineTitleYPct)}
+                                      onChange={(e) => {
+                                        const raw = Number(e.target.value);
+                                        if (!Number.isFinite(raw)) return;
+                                        setSpineTitleYPct(Math.min(90, Math.max(0, raw)));
+                                      }}
+                                      className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                      높이(%)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min={8}
+                                      max={90}
+                                      step={1}
+                                      value={Math.round(spineTitleHeightPct)}
+                                      onChange={(e) => {
+                                        const raw = Number(e.target.value);
+                                        if (!Number.isFinite(raw)) return;
+                                        setSpineTitleHeightPct(Math.min(90, Math.max(8, raw)));
+                                      }}
+                                      className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
                               </>
                               )}
                             </div>
@@ -11362,8 +11511,13 @@ function UploadPageContent() {
                               heightPct={spineTitleHeightPct}
                               fontSizeCqh={spineTitleFontSizeCqh}
                               fontFamily={spineTitleFontFamily}
+                              color={spineTitleColor}
+                              align={spineTitleAlign}
+                              isActive={spineTitleSelected}
                               onMove={setSpineTitleYPct}
                               onResize={setSpineTitleHeightPct}
+                              onSelect={selectSpineTitle}
+                              onChangeTitle={(value) => handleCoverTitleChange(value.replace(/\n/g, " "))}
                             />
                             {coverSpineLogoLayout.fits && (
                               <img

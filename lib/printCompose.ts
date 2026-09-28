@@ -1328,7 +1328,9 @@ function drawSpineTitleCanvas(
   titleBoxTopPx?: number, // 화면에서 끌어서 정한 텍스트박스의 위쪽 위치(패널 위쪽 기준 px)
   titleBoxHeightPx?: number, // 같은 텍스트박스의 높이(px)
   fontSizePt?: number, // 혜민님이 직접 고른 글자 크기(pt). 비워두면 책등 폭 기준 자동 크기.
-  fontFamily: string = "Pretendard, sans-serif"
+  fontFamily: string = "Pretendard, sans-serif",
+  color: string = "#1a1a1a",
+  align: "left" | "center" | "right" = "center"
 ): boolean {
   const trimmed = title.trim();
   if (!trimmed) return true;
@@ -1365,10 +1367,20 @@ function drawSpineTitleCanvas(
   const startFromPanelTopPx = titleBoxTopPx !== undefined ? titleBoxTopPx : topMarginPx;
   const startYpx = bleedPx + startFromPanelTopPx;
 
+  // align은 회전된(90도) 좌표계에서 책등 길이 방향(세로) 위치를 뜻해요. "left"(기존
+  // 기본 동작)는 위쪽 여백 바로 아래에서 시작하고, "center"/"right"는 사용 가능한
+  // 길이(maxLengthPx) 안에서 텍스트를 가운데/끝 쪽으로 밀어요. 글자가 박스보다 길면
+  // (fits === false) 오프셋이 음수가 되지 않도록 0으로 clamp해요.
+  const alignOffsetPx =
+    align === "center"
+      ? Math.max(0, (maxLengthPx - textWidthPx) / 2)
+      : align === "right"
+        ? Math.max(0, maxLengthPx - textWidthPx)
+        : 0;
   ctx.save();
-  ctx.translate(spineCenterXpx, startYpx);
+  ctx.translate(spineCenterXpx, startYpx + alignOffsetPx);
   ctx.rotate(Math.PI / 2); // 키픽 로고와 같은 방향 — 글자가 위(시작)→아래(끝)로 읽혀요
-  ctx.fillStyle = "#1a1a1a";
+  ctx.fillStyle = color;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(trimmed, 0, 0);
@@ -1457,6 +1469,8 @@ export async function buildCoverPrintPdf({
   spineTitleHeightPct,
   spineTitleFontSizePt,
   spineTitleFontFamily = "Pretendard, sans-serif",
+  spineTitleColor = "#1a1a1a",
+  spineTitleAlign = "center",
   backCoverLogo = { xPct: 50, yPct: 50, scalePct: 100 },
   backCoverPhoto = null,
   backCoverBackgroundColor,
@@ -1495,6 +1509,8 @@ export async function buildCoverPrintPdf({
   spineTitleHeightPct?: number; // 같은 텍스트박스의 높이(%). 지정 안 하면 자동 계산해요.
   spineTitleFontSizePt?: number; // 책등 제목 글자 크기(pt) — 혜민님이 화면에서 직접 지정. 비워두면 책등 폭에 맞춰 자동으로 정해요.
   spineTitleFontFamily?: string; // 책등 제목 서체(CSS font-family 값). 표지 제목과 별도로 고를 수 있어요.
+  spineTitleColor?: string; // 책등 제목 글자색(CSS color 값). 지정 안 하면 기존 기본색(#1a1a1a) 그대로예요.
+  spineTitleAlign?: "left" | "center" | "right"; // 책등 길이 방향 정렬. 기본 "center"는 위쪽 정렬(기존 동작)과 다르게 가운데예요 — 화면 편집기 기본값과 맞춰요.
   // 뒤표지 키픽 로고예요(2026-09, backCoverMode 토글을 대체) — null이면 로고를
   // 그리지 않고, 값이 있으면 그 위치(중심 기준 %)·크기(기본 100%=예전 고정 크기)로
   // 그려요. 사진(backCoverPhoto/backCoverImageBoxes)과는 독립된 객체라 함께 있을 수 있어요.
@@ -1696,7 +1712,9 @@ export async function buildCoverPrintPdf({
       spineTitleYPct !== undefined ? (spineTitleYPct / 100) * panelPx : undefined,
       spineTitleHeightPct !== undefined ? (spineTitleHeightPct / 100) * panelPx : undefined,
       spineTitleFontSizePt,
-      spineTitleFontFamily
+      spineTitleFontFamily,
+      spineTitleColor,
+      spineTitleAlign
     );
   }
   if (spineLogoLayout.fits) {
