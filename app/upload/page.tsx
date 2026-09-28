@@ -2371,13 +2371,12 @@ function TextBoxOverlay({
       // 바꿔서 "선택 표시"라는 게 더 잘 드러나게 했어요.
       // 2026-10-01, 혜민님 요청: "점선말고 얇은 실선으로 처리해주세요" — 점선(marching
       // ants)을 없애고 얇은 실선(outline-1)으로 통일. 사진박스(ImageBoxOverlay)도 같이 바꿈.
-      className={`absolute cursor-move outline outline-1 outline-offset-[6px] transition ${
- isActive
-          ? "outline-[var(--color-sky)]"
-          : isMultiSelected
-          ? "outline-[var(--color-brand-purple)]"
-          : "outline-transparent hover:outline-[var(--color-sky)]/40"
-      }`}
+      // 2026-09-28(통합), SelectionFrame: outline-offset을 6px→0(경계에 딱 붙임)으로
+      // 바꿔서 아래 크기조절 손잡이(항상 경계 위)와 테두리가 같은 자리에서 만나도록
+      // 통일했어요 — 자세한 이유는 SelectionFrame/selectionOutlineClassName 주석 참고.
+      className={`absolute cursor-move outline outline-1 ${SELECTION_OUTLINE_OFFSET_CLASS} transition ${selectionOutlineClassName(
+        isActive ? "active" : isMultiSelected ? "multi" : "idle"
+      )}`}
       style={{
         zIndex,
         left: `${box.xPct}%`,
@@ -2442,14 +2441,8 @@ function TextBoxOverlay({
           선택 상자처럼 어느 방향으로든 자유롭게 크기 조절할 수 있어요. */}
       {isActive && (
         <>
-          {TEXT_BOX_RESIZE_HANDLES.map(({ dir, className, cursor, title }) => (
-            <div
-              key={dir}
-              onMouseDown={(e) => handleResizeStart(dir, e)}
-              title={title}
-              className={`absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
-            />
-          ))}
+          {/* 2026-09-28(통합) SelectionFrame으로 이동 — 텍스트박스는 8방향 전부 써요. */}
+          <SelectionHandles active={isActive} onResizeStart={handleResizeStart} />
           {(onDelete || onStackAction) && (
             <StackOrderToolbar
               // 박스 아래쪽이 페이지 밑바닥에 가까우면(대략 80% 아래) 툴바가 페이지
@@ -3055,6 +3048,79 @@ const TEXT_BOX_RESIZE_HANDLES: { dir: TextBoxResizeDir; className: string; curso
   { dir: "sw", className: "-left-1.5 -bottom-1.5", cursor: "cursor-nesw-resize", title: "끌어서 크기 조절" },
   { dir: "se", className: "-right-1.5 -bottom-1.5", cursor: "cursor-nwse-resize", title: "끌어서 크기 조절" },
 ];
+
+// ============================================================================
+// SelectionFrame — 선택 테두리(outline) + 크기조절 손잡이 공용 컴포넌트
+// (2026-09-28 통합) 예전엔 TextBoxOverlay·TableBoxOverlay·ImageBoxOverlay(사진+
+// 스티커) 세 곳이 각자 따로 outline-offset 값을 갖고 있었어요 — 글상자·표는
+// outline-offset-[6px](테두리가 진짜 경계보다 6px 바깥), 사진·스티커는
+// outline-offset-0(경계에 딱 붙음). 그런데 손잡이(TEXT_BOX_RESIZE_HANDLES)는 셋 다
+// -left-1.5/-top-1.5처럼 "손잡이 12px 정사각형이 진짜 경계 위에 정확히 걸치도록" 이미
+// 똑같이 맞춰져 있었어요 — 즉 손잡이는 항상 경계에 있는데, 글상자·표만 테두리가 6px
+// 떨어져 있어서 손잡이랑 안 맞고 붕 떠 보였던 게 원인이었어요. 여기서 모든 타입을
+// outline-offset-0(경계에 딱 붙임)으로 통일해서, 테두리와 손잡이가 항상 같은 자리에서
+// 만나도록 맞췄어요 — 사진/스티커는 원래 이미 이 값이었으니 그대로, 글상자/표만 바뀌는
+// 셈이에요. 손잡이 렌더링도 한 곳(SelectionHandles)으로 합쳐서, 앞으로는 이 파일
+// 한 군데만 고치면 세 타입 모두에 반영돼요.
+//
+// 줌(zoom)과의 관계: 이 파일의 확대/축소는 CSS transform: scale()이 아니라
+// CanvasStage가 컨테이너의 실제 width(px)를 zoom배로 늘리는 방식이에요(displayW =
+// baseFit.w * zoom). 그 안에서 박스들은 xPct/widthPct 같은 "부모 대비 %"로
+// 위치·크기가 잡히기 때문에 확대할수록 화면에서 실제로 커지지만, 이 테두리
+// (outline-width 1px)와 손잡이(12px 정사각형, 6px 오프셋) 값은 전부 고정 CSS
+// px(Tailwind outline-1 / h-3 w-3 / -left-1.5 등)라서 transform으로 함께 늘어나는
+// 게 아니라 항상 그 자체 px 그대로 화면에 그려져요 — 즉 줌을 얼마로 하든 테두리
+// 굵기·손잡이 크기는 이미 "항상 같은 화면 픽셀 수"로 보여요(일러스트레이터/피그마에서
+// 확대해도 선택 손잡이가 화면상 늘 같은 크기로 보이는 것과 동일한 효과). 그래서 여기
+// 값들을 zoom으로 나누는 보정은 필요하지 않고(오히려 나누면 확대할수록 손잡이가 화면에서
+// 더 작아 보이는 반대 결과가 나요) — zoom prop은 향후 이 계산이 바뀔 경우(예: 손잡이를
+// %기반으로 다시 설계)를 대비해 그대로 받아두기만 하고, 지금은 픽셀 값에 적용하지
+// 않아요.
+type SelectionState = "idle" | "active" | "multi" | "editing";
+
+function selectionOutlineClassName(state: SelectionState): string {
+  switch (state) {
+    case "active":
+      return "outline-[var(--color-sky)]";
+    case "multi":
+      // 다중 선택(정렬/분배 패널)용 보라색 — 단일 선택(하늘색)과 구분돼요.
+      return "outline-[var(--color-brand-purple)]";
+    case "editing":
+      // 사진 위치 조정 모드처럼 "선택"이 아니라 "지금 안쪽을 만지는 중"인 상태예요.
+      return "outline-[var(--color-brand-purple)]";
+    default:
+      return "outline-transparent hover:outline-[var(--color-sky)]/40";
+  }
+}
+
+// 모든 타입이 공통으로 쓰는, 경계에 딱 붙는(0px) outline 오프셋이에요.
+const SELECTION_OUTLINE_OFFSET_CLASS = "outline-offset-0";
+
+// 8방향(모서리 4개+변 4개) 또는 모서리 4개만(cornersOnly) 크기조절 손잡이를 그려요 —
+// 텍스트박스는 8개 전부, 표와 스티커는 모서리만(cornersOnly) 씁니다.
+function SelectionHandles({
+  active,
+  cornersOnly = false,
+  onResizeStart,
+}: {
+  active: boolean;
+  cornersOnly?: boolean;
+  onResizeStart: (dir: TextBoxResizeDir, e: React.MouseEvent) => void;
+}) {
+  if (!active) return null;
+  return (
+    <>
+      {TEXT_BOX_RESIZE_HANDLES.filter((h) => !cornersOnly || h.dir.length === 2).map(({ dir, className, cursor, title }) => (
+        <div
+          key={dir}
+          onMouseDown={(e) => onResizeStart(dir, e)}
+          title={title}
+          className={`absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
+        />
+      ))}
+    </>
+  );
+}
 
 // "표만들기" 서브탭 내용이에요(기본형, 2026-09-25) — 행·열 수를 스테퍼로 고른 뒤
 // "표 추가"를 누르면 그 크기의 빈 표가 캔버스 가운데 즈음에 생겨요. 셀 병합이나
@@ -5264,17 +5330,15 @@ const ImageBoxOverlay = forwardRef<
       // 반응해서 서로 어긋남). 실제로 애니메이션이 필요한 건 선택 표시 outline
       // 색상뿐이라 transition 범위를 outline-color로 좁혀서, 회전은 슬라이더
       // 입력에 항상 그 즉시(지연 없이) 반응하게 했어요.
-      className={`absolute outline outline-1 outline-offset-0 transition-[outline-color] duration-150 ${
+      // 2026-09-28(통합) SelectionFrame: 이미 outline-offset-0(경계에 딱 붙음)이라
+      // 값 자체는 안 바뀌었고, 색상 판단만 selectionOutlineClassName으로 다른 두
+      // 타입(글상자/표)과 공유해요. "사진 위치 조정 모드"는 선택이 아니라 편집 중이라는
+      // 뜻이라 "editing" 상태(보라색, 다중선택과 같은 색이지만 의미가 달라요)로 매핑해요.
+      className={`absolute outline outline-1 ${SELECTION_OUTLINE_OFFSET_CLASS} transition-[outline-color] duration-150 ${
         isActive && photoEditMode ? "cursor-grab" : "cursor-move"
-      } ${
-        isActive && photoEditMode
-          ? "outline-[var(--color-brand-purple)]"
-          : isActive
-            ? "outline-[var(--color-sky)]"
-            : isMultiSelected
-              ? "outline-[var(--color-brand-purple)]"
-              : "outline-transparent hover:outline-[var(--color-sky)]/40"
-      }`}
+      } ${selectionOutlineClassName(
+        isActive && photoEditMode ? "editing" : isActive ? "active" : isMultiSelected ? "multi" : "idle"
+      )}`}
       style={{
         zIndex,
         left: `${box.xPct}%`,
@@ -5410,14 +5474,11 @@ const ImageBoxOverlay = forwardRef<
           {/* 스티커는 모서리(대각선) 손잡이만 보여줘요 — 위/아래/좌/우 변 손잡이는
               한쪽 축만 늘려서 비율이 깨지는 조작이라, 애초에 크기조절을 "비율유지"로만
               허용하는 스티커에는 의미가 없어서 렌더링 자체를 제외해요(2026-09-24). */}
-          {TEXT_BOX_RESIZE_HANDLES.filter((h) => !isSticker || h.dir.length === 2).map(({ dir, className, cursor, title }) => (
-            <div
-              key={dir}
-              onMouseDown={(e) => handleResizeStart(dir, e)}
-              title={title}
-              className={`absolute z-40 h-3.5 w-3.5 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
-            />
-          ))}
+          {/* 2026-09-28(통합) SelectionFrame으로 이동 — 스티커는 모서리만, 사진은
+              8방향 전부. 예전엔 손잡이가 h-3.5(14px)로 글상자/표(h-3, 12px)보다 살짝
+              커서 타입마다 손잡이 크기가 미묘하게 달랐는데, 공용 컴포넌트로 12px로
+              통일했어요. */}
+          <SelectionHandles active={isActive} cornersOnly={isSticker} onResizeStart={handleResizeStart} />
           {/* 더블클릭 안내는 사진 전용 기능(사진 위치 조정)이라 스티커에는 안 보여줘요
               (2026-09-24). "스프레드 전체 채우기" 버튼은 혜민님 요청으로 제거함
               (2026-09-24, "필요 없습니다. 삭제해주세요"). */}
@@ -6240,9 +6301,12 @@ const TableBoxOverlay = forwardRef<
     <div
       ref={boxRef}
       onMouseDown={handleMouseDown}
-      className={`absolute cursor-move outline outline-1 outline-offset-[6px] transition ${
-        isActive ? "outline-[var(--color-sky)]" : "outline-transparent hover:outline-[var(--color-sky)]/40"
-      }`}
+      // 2026-09-28(통합) SelectionFrame: outline-offset을 6px→0으로 바꿔서 손잡이와
+      // 테두리가 같은 자리에서 만나도록 통일했어요(자세한 이유는 위
+      // selectionOutlineClassName 주석 참고).
+      className={`absolute cursor-move outline outline-1 ${SELECTION_OUTLINE_OFFSET_CLASS} transition ${selectionOutlineClassName(
+        isActive ? "active" : "idle"
+      )}`}
       style={{
         zIndex,
         left: `${box.xPct}%`,
@@ -6368,14 +6432,8 @@ const TableBoxOverlay = forwardRef<
       </svg>
       {isActive && (
         <>
-          {TEXT_BOX_RESIZE_HANDLES.filter((h) => h.dir.length === 2).map(({ dir, className, cursor, title }) => (
-            <div
-              key={dir}
-              onMouseDown={(e) => handleResizeStart(dir, e)}
-              title={title}
-              className={`absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
-            />
-          ))}
+          {/* 2026-09-28(통합) SelectionFrame으로 이동 — 표는 모서리 4개만 써요. */}
+          <SelectionHandles active={isActive} cornersOnly onResizeStart={handleResizeStart} />
           {/* "이동 핸들"(2026-10-06, 혜민님 요청 "표의 바깥 테두리나 이동 핸들을
               드래그하면 표 전체가 이동하게") — 칸 안쪽과 안 겹치게 표 바깥 왼쪽
               위 모서리에 둬서, 눌러서 끌면 항상 표 전체 이동만 시작돼요(위 -inset-2
