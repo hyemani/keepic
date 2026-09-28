@@ -4132,8 +4132,17 @@ function TextBoxToolbar({
       // 누르는 순간 브라우저가 포커스를 그 버튼으로 옮기면서 텍스트박스
       // contentEditable의 선택(드래그로 고른 글자 범위)이 먼저 사라져서, "선택 범위에만
       // 서식 적용"이 항상 실패해요(문자 단위 서식, applyRunAwareStyleChange 참고).
+      // 2026-10-08(4차) 버그 수정: 위 preventDefault()가 이 패널 "안"의 모든 클릭에
+      // 적용되다 보니, "내용" textarea 자체를 클릭할 때도 기본 포커스 이동이 막혀서
+      // 아예 커서가 안 들어가고 타이핑이 안 되는 버그가 있었어요(표지 제목·책등·일반
+      // 글상자 전부 — showContentField가 통합되며 다들 이 패널을 거치게 돼서 드러남).
+      // input·textarea·select처럼 원래도 클릭하면 자기 자신에 포커스가 와야 하는
+      // 요소를 직접 눌렀을 때는 preventDefault를 건너뛰어 기본 포커스 동작을 살려두고,
+      // 나머지(버튼·색상칩 등)는 그대로 막아요.
       onMouseDown={(e) => {
         e.stopPropagation();
+        const targetTag = (e.target as HTMLElement).tagName;
+        if (targetTag === "INPUT" || targetTag === "TEXTAREA" || targetTag === "SELECT") return;
         e.preventDefault();
       }}
     >
