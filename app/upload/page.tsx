@@ -2833,6 +2833,9 @@ function TableBoxToolbar({
   onChange,
   onDelete,
   pageWidthMm,
+  sel,
+  tableBoxHandlesRef,
+  activeBoxId,
 }: {
   box: TableBoxDef | null;
   onChange: (changes: Partial<TableBoxDef>) => void;
@@ -2840,6 +2843,16 @@ function TableBoxToolbar({
   // 표 크기(pt)를 텍스트박스와 같은 단위로 보여주고 되돌리는 데 필요해요
   // (lib/textBoxFontSize.ts, 2026-09-28 혜민님 요청 "글자는 폰트 크기로 조절").
   pageWidthMm: number;
+  // 셀 병합/행 분할/열 분할/너비 맞춤/삭제·칸 폭·세로폭(2026-09-28, 혜민님 요청:
+  // "+버튼 눌렀을때 나오게 하지말고 왼쪽 패널에 넣어줘" — 캔버스 위 "+" 버튼 대신 이
+  // 패널에서 조작해요). sel은 지금 선택 상태(TableBoxOverlay가 올려줌), handle은 실제
+  // 동작을 호출하는 ref예요.
+  sel: TableSelectionInfo | null;
+  // ref.current를 렌더 중에 읽으면 안 돼서(react-hooks/refs 린트 규칙), handle을 미리
+  // 계산해 넘기지 않고 ref 자체와 지금 활성 박스 id를 넘겨요 — 실제 .get()은 버튼을
+  // 누르는 시점(이벤트 핸들러 안)에만 해요.
+  tableBoxHandlesRef: React.RefObject<Map<string, TableBoxOverlayHandle>>;
+  activeBoxId: string | null;
 }) {
   const [ptDraft, setPtDraft] = useState("");
   const lastSyncedBoxIdRef = useRef<string | undefined>(undefined);
@@ -2869,6 +2882,87 @@ function TableBoxToolbar({
         >
           표 삭제
         </button>
+      </div>
+      <div className="border border-[var(--color-hairline)] bg-white p-1.5">
+        <p className="mb-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70">표 구조</p>
+        <p className="mb-1.5 text-[10px] text-[var(--color-charcoal)]/50 break-keep">
+          칸을 눌러서(드래그하면 여러 칸) 고른 뒤 아래 버튼을 눌러주세요.
+        </p>
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            type="button"
+            disabled={!sel?.canMerge}
+            onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.mergeCells()}
+            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            셀 병합
+          </button>
+          <button
+            type="button"
+            disabled={!sel?.activeCell}
+            onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.splitRow()}
+            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            행 분할
+          </button>
+          <button
+            type="button"
+            disabled={!sel?.activeCell}
+            onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.splitCol()}
+            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            열 분할
+          </button>
+          <button
+            type="button"
+            onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.fitWidth()}
+            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)]"
+          >
+            너비 맞춤
+          </button>
+          <button
+            type="button"
+            disabled={!sel?.activeCell || box.rows <= 1}
+            onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.deleteActiveRow()}
+            className="col-span-2 border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            삭제(선택한 칸의 행)
+          </button>
+        </div>
+        {sel?.activeCell && (
+          <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
+            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+              칸 가로폭 {Math.round(sel.colWidth * 100)}%
+            </label>
+            <input
+              type="range"
+              min={0.3}
+              max={3}
+              step={0.05}
+              value={sel.colWidth}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveColWidth(v);
+              }}
+              className="w-full"
+            />
+            <label className="mb-1 mt-2 block text-[10px] text-[var(--color-charcoal)]/60">
+              칸 세로폭 {Math.round(sel.rowHeight * 100)}%
+            </label>
+            <input
+              type="range"
+              min={0.3}
+              max={3}
+              step={0.05}
+              value={sel.rowHeight}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveRowHeight(v);
+              }}
+              className="w-full"
+            />
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         <div>
@@ -4658,21 +4752,44 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${clampedAlpha})`;
 }
 
-function TableBoxOverlay({
-  box,
-  onChange,
-  onDelete,
-  isActive,
-  onSelect,
-  zIndex,
-}: {
-  box: TableBoxDef;
-  onChange: (changes: Partial<TableBoxDef>) => void;
-  onDelete: () => void;
-  isActive: boolean;
-  onSelect: () => void;
-  zIndex: number;
-}) {
+// 왼쪽 "표만들기" 패널에서 셀 병합/행 분할/열 분할/너비 맞춤/삭제와 칸 폭·세로폭을
+// 조작할 수 있도록, 상위(TableBoxLayer → 상위 페이지)가 ref로 직접 호출할 수 있는 동작
+// 목록이에요(2026-09-28, 혜민님 요청: "+버튼 눌렀을때 나오게 하지말고 왼쪽 패널에
+// 넣어줘" — 캔버스 위 "+" 버튼/드롭다운을 없애고 왼쪽 패널로 옮겼어요).
+type TableBoxOverlayHandle = {
+  mergeCells: () => void;
+  splitRow: () => void;
+  splitCol: () => void;
+  fitWidth: () => void;
+  deleteActiveRow: () => void;
+  setActiveColWidth: (weight: number) => void;
+  setActiveRowHeight: (weight: number) => void;
+};
+
+// 지금 선택 상태(활성 칸·병합 가능 여부·칸 폭/세로폭)를 왼쪽 패널에 반응형으로 보여주기
+// 위한 정보예요. ref 메서드는 "지금 상태"를 읽을 수 없어서(호출만 가능) 따로 콜백으로
+// 올려줘요.
+type TableSelectionInfo = {
+  activeCell: { row: number; col: number } | null;
+  canMerge: boolean;
+  colWidth: number;
+  rowHeight: number;
+};
+
+const TableBoxOverlay = forwardRef<
+  TableBoxOverlayHandle,
+  {
+    box: TableBoxDef;
+    onChange: (changes: Partial<TableBoxDef>) => void;
+    onDelete: () => void;
+    isActive: boolean;
+    onSelect: () => void;
+    zIndex: number;
+    // 활성 박스일 때만 넘겨줘요(다른 박스가 활성화되면 자동으로 undefined가 돼서 패널이
+    // 안 헷갈려요) — ImageBoxLayer의 onPhotoEditModeChange와 같은 패턴.
+    onSelectionChange?: (sel: TableSelectionInfo) => void;
+  }
+>(function TableBoxOverlay({ box, onChange, onDelete, isActive, onSelect, zIndex, onSelectionChange }, ref) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -4691,14 +4808,13 @@ function TableBoxOverlay({
   });
 
   // 2026-09-28, 혜민님 요청(구글독스 스타일 표 편집: "셀 병합, 행 분할, 열 분할, 너비
-  // 맞춤, 삭제 등 메뉴") — 표를 선택하면 왼쪽 위에 뜨는 "+" 버튼 메뉴에서 쓰는 상태예요.
+  // 맞춤, 삭제 등 메뉴") — 이제 왼쪽 "표만들기" 패널에서 조작해요(TableBoxToolbar).
   // dragSel: 칸을 눌러서 끌면(드래그) 그 사각형 범위가 담겨요 — 병합할 범위를 고를 때
   // 씀. activeCell: 가장 최근에 클릭한 칸(행 분할·열 분할·삭제·칸 폭 조절 기준).
   const [dragSel, setDragSel] = useState<{ anchorRow: number; anchorCol: number; row: number; col: number } | null>(
     null
   );
   const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!dragSel) return;
@@ -4859,7 +4975,6 @@ function TableBoxOverlay({
     nextCells[r0 * box.cols + c0] = parts.join(" ");
     onChange({ merges: [...keptMerges, { row: r0, col: c0, rowSpan: r1 - r0 + 1, colSpan: c1 - c0 + 1 }], cells: nextCells });
     setDragSel(null);
-    setMenuOpen(false);
   }
 
   // "행 분할" — 지금 고른 칸 바로 아래에 새 행을 추가해요(2026-09-28 혜민님 요청).
@@ -4919,7 +5034,6 @@ function TableBoxOverlay({
   // "너비 맞춤" — 칸마다 따로 준 폭·높이를 지우고 다시 전부 같은 크기로 되돌려요.
   function handleFitWidth() {
     onChange({ colWidths: undefined, rowHeights: undefined });
-    setMenuOpen(false);
   }
 
   // "삭제" — 지금 고른 칸이 속한 행을 통째로 지워요. 그 행과 겹치던 병합은(부분만 남기면
@@ -4934,7 +5048,6 @@ function TableBoxOverlay({
     onChange({ rows: box.rows - 1, cells: nextCells, merges: nextMerges });
     setActiveCell(null);
     setDragSel(null);
-    setMenuOpen(false);
   }
 
   function handleColWidthChange(col: number, weight: number) {
@@ -4952,6 +5065,34 @@ function TableBoxOverlay({
     base[row] = weight;
     onChange({ rowHeights: base });
   }
+
+  // 왼쪽 "표만들기" 패널의 버튼들이 이 표(선택된 칸 기준)에 직접 동작하도록 노출해요
+  // (ImageBoxOverlay의 zoomIn/zoomOut과 같은 패턴).
+  useImperativeHandle(ref, () => ({
+    mergeCells: handleMergeCells,
+    splitRow: handleSplitRow,
+    splitCol: handleSplitCol,
+    fitWidth: handleFitWidth,
+    deleteActiveRow: handleDeleteRow,
+    setActiveColWidth: (weight: number) => {
+      if (activeCell) handleColWidthChange(activeCell.col, weight);
+    },
+    setActiveRowHeight: (weight: number) => {
+      if (activeCell) handleRowHeightChange(activeCell.row, weight);
+    },
+  }));
+
+  // 지금 선택 상태를 왼쪽 패널이 반응형으로 보여줄 수 있게 올려줘요(버튼 활성/비활성,
+  // 칸 폭·세로폭 슬라이더 값).
+  useEffect(() => {
+    if (!isActive) return;
+    onSelectionChange?.({
+      activeCell,
+      canMerge,
+      colWidth: activeCell ? box.colWidths?.[activeCell.col] ?? 1 : 1,
+      rowHeight: activeCell ? box.rowHeights?.[activeCell.row] ?? 1 : 1,
+    });
+  }, [isActive, activeCell, canMerge, box.colWidths, box.rowHeights, onSelectionChange]);
 
   const colTemplate =
     box.colWidths && box.colWidths.length === box.cols
@@ -5119,94 +5260,11 @@ function TableBoxOverlay({
               ✕
             </button>
           )}
-          {/* 2026-09-28, 혜민님 요청 — "표 선택 시 상단 + 버튼 1개"로 셀 병합/행 분할/열
-              분할/너비 맞춤/삭제와 칸 폭 조절을 모아뒀어요. */}
-          <div className="absolute -left-2 -top-2 z-40" onMouseDown={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              title="표 편집"
-              className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-charcoal)] text-xs text-white shadow"
-            >
-              +
-            </button>
-            {menuOpen && (
-              <div className="absolute left-0 top-7 z-50 w-44 border border-[var(--color-hairline)] bg-white p-1 text-xs shadow-lg">
-                <button
-                  type="button"
-                  disabled={!canMerge}
-                  onClick={handleMergeCells}
-                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  셀 병합
-                </button>
-                <button
-                  type="button"
-                  disabled={!activeCell}
-                  onClick={handleSplitRow}
-                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  행 분할
-                </button>
-                <button
-                  type="button"
-                  disabled={!activeCell}
-                  onClick={handleSplitCol}
-                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  열 분할
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFitWidth}
-                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)]"
-                >
-                  너비 맞춤
-                </button>
-                <button
-                  type="button"
-                  disabled={!activeCell || box.rows <= 1}
-                  onClick={handleDeleteRow}
-                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  삭제
-                </button>
-                {activeCell && (
-                  <div className="mt-1 border-t border-[var(--color-hairline)] pt-1.5">
-                    <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
-                      칸 가로폭 {Math.round((box.colWidths?.[activeCell.col] ?? 1) * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min={0.3}
-                      max={3}
-                      step={0.05}
-                      value={box.colWidths?.[activeCell.col] ?? 1}
-                      onChange={(e) => handleColWidthChange(activeCell.col, Number(e.target.value))}
-                      className="w-full"
-                    />
-                    <label className="mb-1 mt-2 block text-[10px] text-[var(--color-charcoal)]/60">
-                      칸 세로폭 {Math.round((box.rowHeights?.[activeCell.row] ?? 1) * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min={0.3}
-                      max={3}
-                      step={0.05}
-                      value={box.rowHeights?.[activeCell.row] ?? 1}
-                      onChange={(e) => handleRowHeightChange(activeCell.row, Number(e.target.value))}
-                      className="w-full"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
         </>
       )}
     </div>
   );
-}
+});
 
 
 // 한 스프레드(펼침면) 전체의 표박스들을 함께 그려요 — ImageBoxLayer와 같은 방식으로
@@ -5217,24 +5275,32 @@ function TableBoxLayer({
   onDelete,
   activeBoxId,
   onSelect,
+  registerBoxRef,
+  onSelectionChange,
 }: {
   boxes: TableBoxDef[];
   onChange: (boxId: string, changes: Partial<TableBoxDef>) => void;
   onDelete: (boxId: string) => void;
   activeBoxId: string | null;
   onSelect: (boxId: string) => void;
+  // 왼쪽 "표만들기" 패널이 ref로 셀 병합/행·열 분할 등을 직접 호출할 수 있도록 박스
+  // id별 핸들을 등록해요(ImageBoxLayer와 같은 패턴, 2026-09-28).
+  registerBoxRef?: (boxId: string, handle: TableBoxOverlayHandle | null) => void;
+  onSelectionChange?: (sel: TableSelectionInfo) => void;
 }) {
   return (
     <>
       {boxes.map((box, index) => (
         <TableBoxOverlay
           key={box.id}
+          ref={(instance) => registerBoxRef?.(box.id, instance)}
           box={box}
           onChange={(c) => onChange(box.id, c)}
           onDelete={() => onDelete(box.id)}
           isActive={box.id === activeBoxId}
           onSelect={() => onSelect(box.id)}
           zIndex={9000 + index}
+          onSelectionChange={box.id === activeBoxId ? onSelectionChange : undefined}
         />
       ))}
     </>
@@ -6141,6 +6207,15 @@ function UploadPageContent() {
   const [coverTableBoxes, setCoverTableBoxes] = useState<TableBoxDef[]>([]);
   const [backCoverTableBoxes, setBackCoverTableBoxes] = useState<TableBoxDef[]>([]);
   const [activeTableBox, setActiveTableBox] = useState<{ scope: "cover" | "backCover" | "spread"; spreadIndex?: number; boxId: string } | null>(null);
+  // 왼쪽 "표만들기" 패널에서 캔버스 위 표(TableBoxOverlay)를 ref로 직접 조작하고(셀
+  // 병합/행·열 분할/너비 맞춤/삭제/칸 폭·세로폭), 지금 선택 상태를 반응형으로 보여주기
+  // 위한 상태예요(2026-09-28, 혜민님 요청: "+버튼 눌렀을때 나오게 하지말고 왼쪽 패널에
+  // 넣어줘" — imageBoxHandlesRef와 같은 패턴).
+  const tableBoxHandlesRef = useRef<Map<string, TableBoxOverlayHandle>>(new Map());
+  // TableBoxOverlay 쪽 useEffect가 isActive가 true로 바뀔 때마다 그 표의(보통 아직 아무
+  // 칸도 안 고른) 선택 상태를 바로 올려주기 때문에, 여기서 따로 초기화하지 않아도 다른
+  // 표를 선택하면 자연스럽게 새 표 기준으로 바뀌어요.
+  const [tableCellSel, setTableCellSel] = useState<TableSelectionInfo | null>(null);
   // "텍스트" 패널 상단 서브탭(글쓰기/표만들기/이모티콘, 2026-09-25 추가) — 내지·표지 모두 공유해요(패널이 한 번에 하나만 보여서 공유해도 안 섞여요).
   const [textPanelSubTab, setTextPanelSubTab] = useState<"write" | "table" | "emoji">("write");
   // 표지 레이아웃 탭에서 지금 선택된 사진박스예요(캔버스에서 클릭해 고른 박스의 편집
@@ -10272,6 +10347,9 @@ function UploadPageContent() {
                                       else if (activeTableBox.scope === "cover") handleDeleteCoverTableBox(activeTableBox.boxId);
                                     }}
                                     pageWidthMm={coverPanelMm + coverBleedMm}
+                                    sel={activeTableBox ? tableCellSel : null}
+                                    tableBoxHandlesRef={tableBoxHandlesRef}
+                                    activeBoxId={activeTableBox?.boxId ?? null}
                                   />
                                 </>
                               )}
@@ -10706,6 +10784,11 @@ function UploadPageContent() {
                               onDelete={handleDeleteBackCoverTableBox}
                               activeBoxId={activeTableBox?.scope === "backCover" ? activeTableBox.boxId : null}
                               onSelect={(boxId) => setActiveTableBox({ scope: "backCover", boxId })}
+                              registerBoxRef={(boxId, handle) => {
+                                if (handle) tableBoxHandlesRef.current.set(boxId, handle);
+                                else tableBoxHandlesRef.current.delete(boxId);
+                              }}
+                              onSelectionChange={setTableCellSel}
                             />
                           </div>
                           <div
@@ -10831,6 +10914,11 @@ function UploadPageContent() {
                               onDelete={handleDeleteCoverTableBox}
                               activeBoxId={activeTableBox?.scope === "cover" ? activeTableBox.boxId : null}
                               onSelect={(boxId) => setActiveTableBox({ scope: "cover", boxId })}
+                              registerBoxRef={(boxId, handle) => {
+                                if (handle) tableBoxHandlesRef.current.set(boxId, handle);
+                                else tableBoxHandlesRef.current.delete(boxId);
+                              }}
+                              onSelectionChange={setTableCellSel}
                             />
                           </div>
 
@@ -11010,6 +11098,11 @@ function UploadPageContent() {
                                     }
                                   }}
                                   pageWidthMm={guidePageWorkMm}
+                                  sel={activeTableBox?.scope === "spread" && activeTableBox.spreadIndex === i ? tableCellSel : null}
+                                  tableBoxHandlesRef={tableBoxHandlesRef}
+                                  activeBoxId={
+                                    activeTableBox?.scope === "spread" && activeTableBox.spreadIndex === i ? activeTableBox.boxId : null
+                                  }
                                 />
                               </>
                             )}
@@ -11763,6 +11856,11 @@ function UploadPageContent() {
                                     : null
                                 }
                                 onSelect={(boxId) => setActiveTableBox({ scope: "spread", spreadIndex: i, boxId })}
+                                registerBoxRef={(boxId, handle) => {
+                                  if (handle) tableBoxHandlesRef.current.set(boxId, handle);
+                                  else tableBoxHandlesRef.current.delete(boxId);
+                                }}
+                                onSelectionChange={setTableCellSel}
                               />
                               {/* 사진박스 2개 이상 Shift+다중 선택했을 때 뜨는 캔버스 위 정렬
                                   아이콘 툴바예요(2026-09-26 추가, 혜민님 요청 — 참고 이미지의
