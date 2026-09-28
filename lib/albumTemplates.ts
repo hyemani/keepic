@@ -184,6 +184,11 @@ export type TableBoxDef = {
   cells: string[];
   fontScale?: number; // 기본 1 — TextBoxDef.fontScale과 같은 배율.
   borderColor?: string; // 기본 "#94A3B8"(연한 회색) 격자선 색.
+  // 표 꾸미기(2026-09-28 혜민님 요청) — 전부 선택 사항이고, 비워두면 기존 기본값 그대로예요.
+  fillColor?: string; // 표 배경(표 면) 색. 기본 "#ffffff"(흰색).
+  borderWidth?: number; // 격자선 굵기(px). 기본 1.
+  borderStyle?: "solid" | "dashed" | "dotted"; // 선 종류. 기본 "solid".
+  borderRadius?: number; // 표 모서리 라운드(px). 기본 0.
 };
 
 export type SpreadDef = {

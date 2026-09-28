@@ -103,7 +103,7 @@ type StickerCategoryId =
 const STICKER_CATEGORIES: { id: string; label: string; memberIds: StickerCategoryId[] }[] = [
   { id: "decor", label: "소품", memberIds: ["props", "ribbon", "tape", "frame", "badge", "goods"] },
   { id: "nature", label: "동식물", memberIds: ["plant", "animal"] },
-  { id: "text", label: "문구", memberIds: ["phrase", "lettering", "certificate"] },
+  { id: "text", label: "기념일", memberIds: ["phrase", "lettering", "certificate"] },
   { id: "occasion", label: "이벤트", memberIds: ["season", "wedding", "party"] },
   { id: "icon", label: "아이콘", memberIds: ["icon"] },
 ];
@@ -559,12 +559,16 @@ function measureSpineTitleFontSizeMm(
   let size = Math.min(requestedMm, maxCrossMm);
   ctx.font = `bold ${size}px ${fontFamily}`;
   let textLengthMm = ctx.measureText(title).width;
-  while (size > SPINE_TITLE_MIN_FONT_MM && textLengthMm > maxLengthMm) {
+  // 혜민님이 pt를 직접 골랐으면(fontSizePt 있음) 그 값을 그대로 존중해요 — 자동 모드일 때만
+  // 책등 폭 기준 최소 크기(12pt)까지만 줄여요. (예전엔 직접 고른 9pt도 12pt로 강제 확대되면서
+  // 텍스트가 책등 밖으로 잘리는 문제가 있었어요.)
+  const minFontMm = fontSizePt !== undefined ? 0 : SPINE_TITLE_MIN_FONT_MM;
+  while (size > minFontMm && textLengthMm > maxLengthMm) {
     size -= 0.05;
     ctx.font = `bold ${size}px ${fontFamily}`;
     textLengthMm = ctx.measureText(title).width;
   }
-  if (size < SPINE_TITLE_MIN_FONT_MM) size = SPINE_TITLE_MIN_FONT_MM;
+  if (size < minFontMm) size = minFontMm;
   ctx.font = `bold ${size}px ${fontFamily}`;
   textLengthMm = ctx.measureText(title).width;
   return { sizeMm: size, textLengthMm };
@@ -2819,6 +2823,130 @@ function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => 
   );
 }
 
+// 표(테이블) 박스 하나가 선택돼 있을 때 나오는 꾸미기 툴바예요(2026-09-28 혜민님
+// 요청: "표 면, 표 색, 라인색, 선 종류, 라운드, 표크기"). TextBoxToolbar와 같은
+// 자리(표만들기 서브탭 안, + 표 추가 버튼 바로 아래)에 나와요 — 선택된 표가 없으면
+// 아무것도 안 그려요.
+function TableBoxToolbar({
+  box,
+  onChange,
+  onDelete,
+}: {
+  box: TableBoxDef | null;
+  onChange: (changes: Partial<TableBoxDef>) => void;
+  onDelete: () => void;
+}) {
+  if (!box) return null;
+  return (
+    <div
+      className="mt-2 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-2"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-[var(--color-charcoal)]/70">표 꾸미기</span>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+        >
+          표 삭제
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">표 면(배경)</label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={box.fillColor ?? "#ffffff"}
+              onChange={(e) => onChange({ fillColor: e.target.value })}
+              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="표 면 색"
+            />
+            <button
+              type="button"
+              onClick={() => onChange({ fillColor: undefined })}
+              className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+            >
+              기본값
+            </button>
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">라인색</label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={box.borderColor ?? "#94A3B8"}
+              onChange={(e) => onChange({ borderColor: e.target.value })}
+              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="라인 색"
+            />
+            <button
+              type="button"
+              onClick={() => onChange({ borderColor: undefined })}
+              className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+            >
+              기본값
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">선 종류</label>
+          <select
+            value={box.borderStyle ?? "solid"}
+            onChange={(e) => onChange({ borderStyle: e.target.value as "solid" | "dashed" | "dotted" })}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          >
+            <option value="solid">실선</option>
+            <option value="dashed">파선</option>
+            <option value="dotted">점선</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">선 굵기(px)</label>
+          <input
+            type="number"
+            min={0}
+            max={8}
+            step={0.5}
+            value={box.borderWidth ?? 1}
+            onChange={(e) => onChange({ borderWidth: Math.max(0, Math.min(8, Number(e.target.value) || 0)) })}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">라운드(px)</label>
+          <input
+            type="number"
+            min={0}
+            max={40}
+            value={box.borderRadius ?? 0}
+            onChange={(e) => onChange({ borderRadius: Math.max(0, Math.min(40, Number(e.target.value) || 0)) })}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">
+          표 크기(칸 글자 배율) — {Math.round((box.fontScale ?? 1) * 100)}%
+        </label>
+        <input
+          type="range"
+          min={0.5}
+          max={2}
+          step={0.05}
+          value={box.fontScale ?? 1}
+          onChange={(e) => onChange({ fontScale: Number(e.target.value) })}
+          className="w-full"
+        />
+      </div>
+    </div>
+  );
+}
+
 // "이모티콘" 서브탭 내용이에요(기본형, 2026-09-25 — 혜민님이 고른 "이모지 문자로
 // 삽입" 방식) — 눌러서 바로 캔버스에 추가해요. 인쇄 PDF에서 보이는 모양은
 // 서버(인쇄 파일을 만드는 브라우저)에 설치된 폰트에 따라 화면과 살짝 다를 수 있어요.
@@ -4526,7 +4654,9 @@ function TableBoxOverlay({
         display: "grid",
         gridTemplateColumns: `repeat(${box.cols}, 1fr)`,
         gridTemplateRows: `repeat(${box.rows}, 1fr)`,
-        backgroundColor: "#ffffff",
+        backgroundColor: box.fillColor ?? "#ffffff",
+        borderRadius: box.borderRadius ? `${box.borderRadius}px` : undefined,
+        overflow: box.borderRadius ? "hidden" : undefined,
       }}
     >
       {Array.from({ length: box.rows * box.cols }).map((_, idx) => {
@@ -4541,8 +4671,10 @@ function TableBoxOverlay({
             style={{
               fontSize: `${0.78 * (box.fontScale ?? 1)}rem`,
               borderColor: box.borderColor ?? "#94A3B8",
+              borderWidth: `${box.borderWidth ?? 1}px`,
+              borderStyle: box.borderStyle ?? "solid",
             }}
-            className="relative h-full w-full resize-none border bg-transparent p-1 text-center leading-snug text-[#1F2937] outline-none"
+            className="relative h-full w-full resize-none bg-transparent p-1 text-center leading-snug text-[#1F2937] outline-none"
           />
         );
       })}
@@ -5448,8 +5580,8 @@ function UploadPageContent() {
   const [spineTitleHeightPct, setSpineTitleHeightPct] = useState(50); // 12pt 최소 크기가 여유있게 들어가도록 기본 높이를 늘렸어요(로고 자리와는 안 겹쳐요).
   // 책등 제목 크기(pt)·서체 — 표지 제목과 별도로 고를 수 있어요. 비워두면(null) 책등
   // 폭에 맞춰 자동으로 크기를 정해요.
-  const [spineTitleFontSizePt, setSpineTitleFontSizePt] = useState<number | null>(null);
-  const [spineTitleFontSizePtDraft, setSpineTitleFontSizePtDraft] = useState("");
+  const [spineTitleFontSizePt, setSpineTitleFontSizePt] = useState<number | null>(9); // 혜민님 요청(2026-09-28): 책등 글자 자동 크기가 길이에 따라 잘리는 문제가 있어 기본값을 9pt로 고정
+  const [spineTitleFontSizePtDraft, setSpineTitleFontSizePtDraft] = useState("9");
   const [spineTitleFontFamily, setSpineTitleFontFamily] = useState(fontOptions[0].id);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
@@ -5596,6 +5728,9 @@ function UploadPageContent() {
   // 탭으로 바꾸고, 어느 탭이 선택됐는지에 따라 하단 바의 내용(파일 선택 vs
   // 프레임 슬라이더)이 바뀌게 했어요.
   const [coverPhotoTopTab, setCoverPhotoTopTab] = useState<"add" | "frame">("add");
+  // 내지 사진 탭도 표지와 같은 "사진 추가/사진 프레임 변경" 상단 탭을 써요
+  // (2026-09-28, 혜민님 요청: "표지편집툴과 내지편집툴을 동일하게 제작해주세요").
+  const [photoTopTab, setPhotoTopTab] = useState<"add" | "frame">("add");
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -9606,13 +9741,34 @@ function UploadPageContent() {
                                 ))}
                               </div>
                               {textPanelSubTab === "table" && (
-                                <TablePanelControls
-                                  onAdd={(rows, cols) =>
-                                    coverLayoutApplyTarget === "back"
-                                      ? handleAddBackCoverTableBox(rows, cols)
-                                      : handleAddCoverTableBox(rows, cols)
-                                  }
-                                />
+                                <>
+                                  <TablePanelControls
+                                    onAdd={(rows, cols) =>
+                                      coverLayoutApplyTarget === "back"
+                                        ? handleAddBackCoverTableBox(rows, cols)
+                                        : handleAddCoverTableBox(rows, cols)
+                                    }
+                                  />
+                                  <TableBoxToolbar
+                                    box={
+                                      activeTableBox?.scope === "backCover"
+                                        ? backCoverTableBoxes.find((b) => b.id === activeTableBox.boxId) ?? null
+                                        : activeTableBox?.scope === "cover"
+                                          ? coverTableBoxes.find((b) => b.id === activeTableBox.boxId) ?? null
+                                          : null
+                                    }
+                                    onChange={(changes) => {
+                                      if (!activeTableBox) return;
+                                      if (activeTableBox.scope === "backCover") handleBackCoverTableBoxChange(activeTableBox.boxId, changes);
+                                      else if (activeTableBox.scope === "cover") handleCoverTableBoxChange(activeTableBox.boxId, changes);
+                                    }}
+                                    onDelete={() => {
+                                      if (!activeTableBox) return;
+                                      if (activeTableBox.scope === "backCover") handleDeleteBackCoverTableBox(activeTableBox.boxId);
+                                      else if (activeTableBox.scope === "cover") handleDeleteCoverTableBox(activeTableBox.boxId);
+                                    }}
+                                  />
+                                </>
                               )}
                               {textPanelSubTab === "emoji" && (
                                 <EmojiPanelGrid
@@ -10330,7 +10486,26 @@ function UploadPageContent() {
                               </div>
                             )}
                             {activeEditTab === "text" && textPanelSubTab === "table" && (
-                              <TablePanelControls onAdd={(rows, cols) => handleAddTableBox(i, rows, cols)} />
+                              <>
+                                <TablePanelControls onAdd={(rows, cols) => handleAddTableBox(i, rows, cols)} />
+                                <TableBoxToolbar
+                                  box={
+                                    activeTableBox?.scope === "spread" && activeTableBox.spreadIndex === i
+                                      ? (customSpreads[i]?.tableBoxes ?? []).find((b) => b.id === activeTableBox.boxId) ?? null
+                                      : null
+                                  }
+                                  onChange={(changes) => {
+                                    if (activeTableBox?.scope === "spread" && activeTableBox.spreadIndex === i) {
+                                      handleTableBoxChange(i, activeTableBox.boxId, changes);
+                                    }
+                                  }}
+                                  onDelete={() => {
+                                    if (activeTableBox?.scope === "spread" && activeTableBox.spreadIndex === i) {
+                                      handleDeleteTableBox(i, activeTableBox.boxId);
+                                    }
+                                  }}
+                                />
+                              </>
                             )}
                             {activeEditTab === "text" && textPanelSubTab === "emoji" && (
                               <EmojiPanelGrid onPick={(emoji) => handleAddEmojiTextBox(i, i === 0 ? "right" : "left", emoji)} />
@@ -10471,26 +10646,110 @@ function UploadPageContent() {
                                     </>
                                   ) : (
                                     <>
-                                      <div>
-                                        {/* 2026-10-02, 혜민님 요청: "설명글 삭제" — 라벨(제목)만
-                                            남기고 부연 설명 문장은 제거. */}
-                                        <p className="text-xs font-medium text-[var(--color-charcoal)]/70">
-                                          이 페이지에 사진 추가
-                                        </p>
-                                        <label className="mt-1.5 inline-block cursor-pointer border border-[var(--color-sky)] px-2 py-2 text-xs font-medium text-[var(--color-sky)] transition hover:bg-[var(--color-sky)]/10">
-                                          + 사진 추가
-                                          <input
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={(e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) handleAddImageBox(i, file);
-                                              e.target.value = "";
-                                            }}
-                                          />
-                                        </label>
-                                      </div>
+                                      {/* 2026-09-28, 혜민님 요청: "표지편집툴과 내지편집툴을
+                                          동일하게 제작해주세요" — 표지 사진 탭과 같은 "사진
+                                          추가 / 사진 프레임 변경" 상단 탭 구조로 맞췄어요(위
+                                          activeCoverEditTab === "photo" 블록 참고, 같은 탭
+                                          스타일·같은 프레임 조절 UI). "전체 사진 관리"(사진 더
+                                          올리기·전체 목록·삭제)는 내지에만 있는 기능이라
+                                          그대로 남겨요 — 표지는 칸이 2~3개뿐이라 이 목록 자체가
+                                          필요 없었어요. */}
+                                      {(() => {
+                                        const frameTargetBox =
+                                          (activeImageBox?.spreadIndex === i
+                                            ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId)
+                                            : undefined) ?? (spread.imageBoxes ?? [])[(spread.imageBoxes ?? []).length - 1];
+                                        const canFrame = !!frameTargetBox;
+                                        const effectiveTab = photoTopTab === "frame" && !canFrame ? "add" : photoTopTab;
+                                        const tabButtonClass = (active: boolean) =>
+                                          `px-2 py-1.5 text-xs font-medium transition ${
+                                            active
+                                              ? "bg-[var(--color-charcoal)] text-white"
+                                              : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+                                          } disabled:cursor-not-allowed disabled:opacity-30`;
+                                        return (
+                                          <div className="flex flex-col gap-1.5">
+                                            <div className="grid grid-cols-2 gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => setPhotoTopTab("add")}
+                                                className={tabButtonClass(effectiveTab === "add")}
+                                              >
+                                                사진 추가
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={!canFrame}
+                                                onClick={() => setPhotoTopTab("frame")}
+                                                className={tabButtonClass(effectiveTab === "frame")}
+                                              >
+                                                사진 프레임 변경
+                                              </button>
+                                            </div>
+                                            {effectiveTab === "frame" && frameTargetBox ? (
+                                              <div className="border border-[var(--color-hairline)] bg-white p-2">
+                                                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
+                                                  테두리 두께 {frameTargetBox.borderWidthPx ?? 0}px
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                  <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={12}
+                                                    step={1}
+                                                    value={frameTargetBox.borderWidthPx ?? 0}
+                                                    onChange={(e) =>
+                                                      handleImageBoxChange(i, frameTargetBox.id, {
+                                                        borderWidthPx: Number(e.target.value),
+                                                      })
+                                                    }
+                                                    className="flex-1"
+                                                  />
+                                                  <input
+                                                    type="color"
+                                                    value={frameTargetBox.borderColor ?? "#ffffff"}
+                                                    onChange={(e) =>
+                                                      handleImageBoxChange(i, frameTargetBox.id, { borderColor: e.target.value })
+                                                    }
+                                                    className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
+                                                  />
+                                                </div>
+                                                <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
+                                                  모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
+                                                  {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
+                                                </p>
+                                                <input
+                                                  type="range"
+                                                  min={0}
+                                                  max={50}
+                                                  step={1}
+                                                  value={frameTargetBox.borderRadiusPct ?? 0}
+                                                  onChange={(e) =>
+                                                    handleImageBoxChange(i, frameTargetBox.id, {
+                                                      borderRadiusPct: Number(e.target.value),
+                                                    })
+                                                  }
+                                                  className="w-full"
+                                                />
+                                              </div>
+                                            ) : (
+                                              <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
+                                                사진 불러오기
+                                                <input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  className="hidden"
+                                                  onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleAddImageBox(i, file);
+                                                    e.target.value = "";
+                                                  }}
+                                                />
+                                              </label>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                       <details className="border-t border-[var(--color-hairline)] pt-3">
                                         <summary className="cursor-pointer text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)]">
                                           전체 사진 관리 ({photos.length}장)
@@ -10763,7 +11022,7 @@ function UploadPageContent() {
                                   activeCategoryId={handwritingCategoryTab}
                                   onSelectCategory={setHandwritingCategoryTab}
                                   onItemClick={(item) => handleAddHandwriting(i, item.url)}
-                                  emptyMessage="손글씨 스티커는 준비 중이에요. 곧 추가할게요."
+                                  emptyMessage="아직 손글씨가 없어요."
                                 />
                               )}
                             </div>

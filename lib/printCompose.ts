@@ -522,6 +522,26 @@ function drawTableGridAndCells(
   const cellH = heightPx / rows;
   const fontPx = Math.max(8, Math.round(refWidthPx * TEXT_BOX_FONT_SCALE_BASE_RATIO * (box.fontScale ?? 1)));
 
+  // 표 면(배경) — 2026-09-28 혜민님 요청. 라운드(borderRadius)가 있으면 둥근 모서리로
+  // 잘라서 채워요(화면 미리보기의 overflow:hidden과 같은 느낌).
+  const radiusPx = Math.max(0, box.borderRadius ?? 0) * (PRINT_DPI / 96);
+  ctx.save();
+  ctx.beginPath();
+  if (radiusPx > 0) {
+    const r = Math.min(radiusPx, widthPx / 2, heightPx / 2);
+    ctx.moveTo(leftPx + r, topPx);
+    ctx.arcTo(leftPx + widthPx, topPx, leftPx + widthPx, topPx + heightPx, r);
+    ctx.arcTo(leftPx + widthPx, topPx + heightPx, leftPx, topPx + heightPx, r);
+    ctx.arcTo(leftPx, topPx + heightPx, leftPx, topPx, r);
+    ctx.arcTo(leftPx, topPx, leftPx + widthPx, topPx, r);
+    ctx.closePath();
+  } else {
+    ctx.rect(leftPx, topPx, widthPx, heightPx);
+  }
+  ctx.fillStyle = box.fillColor ?? "#ffffff";
+  ctx.fill();
+  ctx.clip();
+
   // 셀 텍스트 — 격자선보다 먼저 그려서, 격자선이 셀 배경 위에 살짝 겹쳐도 항상 또렷하게 보여요.
   ctx.font = `${fontPx}px Pretendard, sans-serif`;
   ctx.fillStyle = "#1F2937";
@@ -549,10 +569,16 @@ function drawTableGridAndCells(
     }
   }
 
-  // 격자선.
+  ctx.restore(); // 표 면 채우기용 클립 해제
+
+  // 격자선 — 선 굵기·선 종류(실선/파선/점선)도 함께 반영해요(2026-09-28).
   ctx.save();
   ctx.strokeStyle = box.borderColor ?? "#94A3B8";
-  ctx.lineWidth = Math.max(1, Math.round(1 * (PRINT_DPI / 96)));
+  const lineWidthPx = Math.max(0.1, box.borderWidth ?? 1) * (PRINT_DPI / 96);
+  ctx.lineWidth = lineWidthPx;
+  if (box.borderStyle === "dashed") ctx.setLineDash([lineWidthPx * 3, lineWidthPx * 2]);
+  else if (box.borderStyle === "dotted") ctx.setLineDash([lineWidthPx, lineWidthPx * 1.5]);
+  else ctx.setLineDash([]);
   ctx.beginPath();
   for (let r = 0; r <= rows; r++) {
     const y = topPx + cellH * r;
