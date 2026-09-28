@@ -1828,13 +1828,177 @@ function CaptionField({
   );
 }
 
-// 자유 배치 텍스트박스 하나예요. 내지 페이지·표지 앞면 어디서나 같은 컴포넌트를 써요.
-// PhotoCell과 같은 방식(mousemove/mouseup을 window에 직접 붙임)으로 드래그해요 — 다만
-// 사진은 px 단위로 옮기고, 텍스트박스는 그 페이지(부모 칸) 크기를 100%로 보는 퍼센트로
-// 옮겨요. 그래야 화면 크기가 달라져도 항상 같은 자리에 보여요.
-// 드래그 중 박스 중심이 페이지 가운데(가로 50%/세로 50%)에 가까워지면 딱 맞춰 붙여주고,
-// 일러스트레이터의 "스마트 가이드"처럼 그 순간 가운데 십자선을 보여줘요.
-const CENTER_SNAP_THRESHOLD_PCT = 1.6;
+// ============================================================================
+// 공통 스냅(자석처럼 달라붙기) 계산 — 텍스트박스·이미지박스(사진/스티커)·표박스 등
+// 자유 배치 개체를 옮기거나(드래그) 크기 조절(리사이즈)할 때, 종류에 상관없이 이 함수
+// 하나만 써요(2026-09-28, "표를 이동할 때 기준선에 스냅되지 않는다" 리포트 이후 통합).
+// 일러스트레이터 "스마트 가이드"처럼 두 종류의 기준을 함께 봐요:
+//  (1) 고정 안내선 — 페이지/재단선/안전영역/제본중앙(펼침면 가운데)
+//  (2) 같은 면에 있는 "다른 개체들"의 가장자리(왼/오/위/아래)·가운데선
+// 화면 확대(줌)와 무관하게 "몇 px 안이면 붙는다"는 느낌이 항상 같도록, cellW/cellH(그
+// 축이 화면에서 실제로 차지하는 픽셀 크기)로 매 순간 %로 환산해요 — 드래그 시작 때 값을
+// 캐시해두지 않고 호출할 때마다 넘겨받아요(지금은 드래그 중 줌을 바꿀 수 있는 UI가 없어서
+// 결과적으로 드래그 시작 값과 같지만, 나중에 바뀌어도 안전해요).
+// 가로(X)·세로(Y)는 완전히 독립적으로, 각자 가장 가까운 후보 하나에만 달라붙어요 —
+// 예를 들어 사진 왼쪽 변은 표의 왼쪽 변에, 동시에 그 사진의 세로 중앙은 같은 표의 세로
+// 중앙에 붙을 수 있어요(서로 다른 대상에 축마다 따로 스냅).
+const SNAP_THRESHOLD_PX = 6;
+
+type SnapXEdge = "left" | "center" | "right";
+type SnapYEdge = "top" | "center" | "bottom";
+
+// 스냅 후보 하나(다른 개체 하나)의 가장자리·가운데 값이에요. 전부 "지금 드래그 중인
+// 개체가 쓰는 것과 같은 좌표계"(예: 스프레드 전체 0~100%, 또는 낱장 페이지 하나
+// 0~100%)여야 해요 — 서로 다른 좌표계를 섞어 쓸 땐 호출하는 쪽에서 미리 변환해서
+// 넘겨요(아래 spreadXToPageLocalX 참고, 텍스트박스는 낱장 페이지 좌표계를 써요).
+type SnapSiblingTarget = {
+  id: string; // 지금 드래그 중인 개체 자신은 이 id로 걸러내서 자기 자신에게 안 붙어요.
+  left: number;
+  right: number;
+  centerX: number;
+  top: number;
+  bottom: number;
+  centerY: number;
+};
+
+type SnapAxisResult = {
+  guidePct: number; // 화면에 그릴 안내선의 위치(%) — 스냅된 그 값 자체예요.
+  deltaPct: number; // 지금 값에 이만큼 더하면 딱 달라붙어요(음수/양수 모두 가능).
+};
+
+type SnapResult = {
+  x: SnapAxisResult | null;
+  y: SnapAxisResult | null;
+};
+
+// 드래그(이동)는 xEdges/yEdges를 기본값(왼/가운데/오른, 위/가운데/아래 전부)으로 둬서
+// 세 후보 모두를 검사해요. 리사이즈는 지금 움직이는 변 하나만 검사하도록 xEdges 또는
+// yEdges에 그 변 하나만 넘겨요(반대쪽은 고정이라 스냅 대상이 아니에요).
+function computeSnap({
+  selfId,
+  xPct,
+  yPct,
+  widthPct,
+  heightPct,
+  cellW,
+  cellH,
+  staticGuidesX,
+  staticGuidesY,
+  siblingTargets,
+  xEdges = ["left", "center", "right"],
+  yEdges = ["top", "center", "bottom"],
+}: {
+  selfId: string;
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
+  cellW: number;
+  cellH: number;
+  staticGuidesX: number[];
+  staticGuidesY: number[];
+  siblingTargets: SnapSiblingTarget[];
+  xEdges?: SnapXEdge[];
+  yEdges?: SnapYEdge[];
+}): SnapResult {
+  const thresholdXPct = cellW > 0 ? (SNAP_THRESHOLD_PX / cellW) * 100 : 0;
+  const thresholdYPct = cellH > 0 ? (SNAP_THRESHOLD_PX / cellH) * 100 : 0;
+
+  const left = xPct;
+  const right = xPct + widthPct;
+  const centerX = xPct + widthPct / 2;
+  const top = yPct;
+  const bottom = yPct + heightPct;
+  const centerY = yPct + heightPct / 2;
+
+  const others = siblingTargets.filter((t) => t.id !== selfId);
+  const targetsX = [...staticGuidesX, ...others.flatMap((t) => [t.left, t.centerX, t.right])];
+  const targetsY = [...staticGuidesY, ...others.flatMap((t) => [t.top, t.centerY, t.bottom])];
+
+  let bestX: { guidePct: number; deltaPct: number; dist: number } | null = null;
+  for (const edge of xEdges) {
+    const current = edge === "left" ? left : edge === "center" ? centerX : right;
+    for (const target of targetsX) {
+      const dist = Math.abs(current - target);
+      if (dist < thresholdXPct && (!bestX || dist < bestX.dist)) {
+        bestX = { guidePct: target, deltaPct: target - current, dist };
+      }
+    }
+  }
+
+  let bestY: { guidePct: number; deltaPct: number; dist: number } | null = null;
+  for (const edge of yEdges) {
+    const current = edge === "top" ? top : edge === "center" ? centerY : bottom;
+    for (const target of targetsY) {
+      const dist = Math.abs(current - target);
+      if (dist < thresholdYPct && (!bestY || dist < bestY.dist)) {
+        bestY = { guidePct: target, deltaPct: target - current, dist };
+      }
+    }
+  }
+
+  return {
+    x: bestX ? { guidePct: bestX.guidePct, deltaPct: bestX.deltaPct } : null,
+    y: bestY ? { guidePct: bestY.guidePct, deltaPct: bestY.deltaPct } : null,
+  };
+}
+
+// 스냅 안내선 색이에요 — 선택 테두리(--color-sky, 파랑)·재단선/안전선(검정)과 확실히
+// 구분되도록, 일러스트레이터/피그마의 "스마트 가이드"에서 흔히 쓰는 마젠타 계열을 새로
+// 골랐어요(2026-10 통합 스냅에서 추가).
+const SNAP_GUIDE_COLOR = "#FF2D9E";
+
+// 개체 하나(이미지박스·표박스·텍스트박스 등)를 스냅 후보로 만들어요. heightPct가 없는
+// (글자 양에 맞춰 자동으로 늘어나는) 텍스트박스는 아래쪽 끝을 몰라서 위쪽 끝 값으로
+// 대신해요 — 완전히 정확하진 않지만, 세로 스냅이 전혀 안 되는 것보다는 나아요.
+function boxToSnapTarget(box: {
+  id: string;
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct?: number;
+}): SnapSiblingTarget {
+  const h = box.heightPct ?? 0;
+  return {
+    id: box.id,
+    left: box.xPct,
+    right: box.xPct + box.widthPct,
+    centerX: box.xPct + box.widthPct / 2,
+    top: box.yPct,
+    bottom: box.yPct + h,
+    centerY: box.yPct + h / 2,
+  };
+}
+
+// 이미지박스·표박스는 "스프레드 전체"(0~100%, 왼쪽 페이지 0~50/오른쪽 페이지 50~100)를
+// 기준으로 좌표를 쓰는데, 텍스트박스는 "그 낱장 페이지 하나"를 0~100%로 보는 좌표를 써요
+// (TextBoxDef 타입 주석 참고). 그래서 스프레드 기준 후보를 텍스트박스 쪽 좌표계로
+// 바꾸거나, 반대로 바꿀 때 이 두 변환을 써요 — Y축은 스프레드 높이와 페이지 높이가
+// 같아서 변환이 필요 없어요(가로만 두 페이지만큼 넓어져요).
+function spreadXToPageLocalX(spreadXPct: number, side: "left" | "right"): number {
+  return side === "left" ? spreadXPct * 2 : (spreadXPct - 50) * 2;
+}
+function pageLocalXToSpreadX(localXPct: number, side: "left" | "right"): number {
+  return side === "left" ? localXPct / 2 : 50 + localXPct / 2;
+}
+function convertSnapTargetXToPageLocal(t: SnapSiblingTarget, side: "left" | "right"): SnapSiblingTarget {
+  return {
+    ...t,
+    left: spreadXToPageLocalX(t.left, side),
+    right: spreadXToPageLocalX(t.right, side),
+    centerX: spreadXToPageLocalX(t.centerX, side),
+  };
+}
+// convertSnapTargetXToPageLocal의 반대 방향이에요 — 낱장 페이지 좌표계(텍스트박스)의
+// 후보를 스프레드 전체 좌표계(이미지박스·표박스)로 바꿔요.
+function convertSnapTargetXToSpread(t: SnapSiblingTarget, side: "left" | "right"): SnapSiblingTarget {
+  return {
+    ...t,
+    left: pageLocalXToSpreadX(t.left, side),
+    right: pageLocalXToSpreadX(t.right, side),
+    centerX: pageLocalXToSpreadX(t.centerX, side),
+  };
+}
 // 이모티콘 탭에서 고를 수 있는 기본 이모지 세트예요(자주 쓰는 것 위주로 고른 큐레이션
 // — 전체 유니코드 이모지 피커는 이번 기본형 범위 밖이에요, 2026-09-25).
 const EMOJI_PICKER_SET = [
@@ -2195,6 +2359,9 @@ function TextBoxOverlay({
   onDelete,
   onStackAction,
   onSelectionRangeChange,
+  siblingTargets,
+  staticGuidesX,
+  staticGuidesY,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -2220,13 +2387,21 @@ function TextBoxOverlay({
   // 편집기(TextBoxRichEditor)가 드래그로 고른 글자 범위를 상위(UploadPageContent의
   // activeTextSelectionRange)로 올려보낼 때 써요.
   onSelectionRangeChange: TextSelectionRangeSetter;
+  // 공통 스냅 계산(computeSnap)용 입력이에요 — 같은 면에 있는 다른 개체(사진·표·다른
+  // 텍스트박스)의 가장자리·가운데선(siblingTargets)과, 재단선·안전영역·페이지 중앙 같은
+  // 고정 안내선(staticGuidesX/Y)이에요. 전부 이 텍스트박스와 같은 좌표계(그 낱장 페이지
+  // 하나를 0~100%로 보는 값)로 이미 변환돼서 내려와요 — 상위(TextBoxLayer 호출부)가
+  // 스프레드 기준 값을 spreadXToPageLocalX로 바꿔서 넘겨줘요.
+  siblingTargets: SnapSiblingTarget[];
+  staticGuidesX: number[];
+  staticGuidesY: number[];
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
-    v: false,
-    h: false,
+  const [snapGuide, setSnapGuide] = useState<{ xPct: number | null; yPct: number | null; rect: DOMRect | null }>({
+    xPct: null,
+    yPct: null,
     rect: null,
   });
   const boxRef = useRef<HTMLDivElement>(null);
@@ -2359,27 +2534,38 @@ function TextBoxOverlay({
       let nextX = Math.min(196, Math.max(-100, dragStart.current.xPct + dxPct));
       let nextY = Math.min(96, Math.max(0, dragStart.current.yPct + dyPct));
 
-      // 박스 실제 크기(픽셀)를 페이지 크기 대비 %로 환산해서, "박스의 가운데"가 페이지
-      // 가운데(50%)에 오는 자리를 계산해요(왼쪽 위 좌표가 아니라 가운데 기준으로 맞춰야
-      // 자연스럽게 붙어요).
+      // 박스 실제 크기(픽셀)를 페이지 크기 대비 %로 환산해요(고정 안내선·다른 개체와
+      // 비교할 때 박스의 왼/오/위/아래/가운데를 알아야 해요).
       const boxRect = boxRef.current?.getBoundingClientRect();
       const boxWpct = boxRect ? (boxRect.width / dragStart.current.cellW) * 100 : box.widthPct;
       const boxHpct = boxRect ? (boxRect.height / dragStart.current.cellH) * 100 : 0;
 
-      const centerXTarget = 50 - boxWpct / 2;
-      const centerYTarget = 50 - boxHpct / 2;
-      const snapV = Math.abs(nextX - centerXTarget) < CENTER_SNAP_THRESHOLD_PCT;
-      const snapH = Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
-      if (snapV) nextX = centerXTarget;
-      if (snapH) nextY = centerYTarget;
+      // 문턱값(px→%) 환산은 드래그 시작 때 캐시한 값이 아니라 "지금" 화면 크기
+      // (cellRect)로 매번 다시 계산해요 — Ctrl/Cmd+휠로 드래그 도중에도 확대/축소할 수
+      // 있어서(위 onWheel 핸들러), 줌이 바뀌어도 "몇 px 안"이라는 느낌이 항상 같아야
+      // 해요(2026-10, 통합 스냅 검증 중 확인).
+      const snap = computeSnap({
+        selfId: box.id,
+        xPct: nextX,
+        yPct: nextY,
+        widthPct: boxWpct,
+        heightPct: boxHpct,
+        cellW: cellRect?.width || dragStart.current.cellW,
+        cellH: cellRect?.height || dragStart.current.cellH,
+        staticGuidesX,
+        staticGuidesY,
+        siblingTargets,
+      });
+      if (snap.x) nextX += snap.x.deltaPct;
+      if (snap.y) nextY += snap.y.deltaPct;
 
-      setSnapGuide({ v: snapV, h: snapH, rect: cellRect });
+      setSnapGuide({ xPct: snap.x ? snap.x.guidePct : null, yPct: snap.y ? snap.y.guidePct : null, rect: cellRect });
       onChange({ xPct: nextX, yPct: nextY });
     }
     function handleMouseUp() {
       setMouseDownActive(false);
       setIsDragging(false);
-      setSnapGuide({ v: false, h: false, rect: null });
+      setSnapGuide({ xPct: null, yPct: null, rect: null });
     }
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -2388,7 +2574,7 @@ function TextBoxOverlay({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [mouseDownActive, isDragging, box.widthPct]);
+  }, [mouseDownActive, isDragging, box.id, box.widthPct, staticGuidesX, staticGuidesY, siblingTargets]);
 
   return (
     <div
@@ -2443,25 +2629,27 @@ function TextBoxOverlay({
           누르게 됐었어요. 테두리가 그려지는 여백만큼(8px, 여유 있게) 투명한 히트 영역을
           덧대서, 그 경계선 위/근처를 눌러도 항상 이 텍스트박스가 반응하도록 함. */}
       <div className="absolute -inset-2" onMouseDown={handleMouseDown} />
-      {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
+      {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
         <>
-          {snapGuide.v && (
+          {snapGuide.xPct !== null && (
             <div
-              className="pointer-events-none fixed z-40 w-px bg-[var(--color-sky)]"
+              className="pointer-events-none fixed z-40 w-px"
               style={{
-                left: snapGuide.rect.left + snapGuide.rect.width / 2,
+                left: snapGuide.rect.left + (snapGuide.xPct / 100) * snapGuide.rect.width,
                 top: snapGuide.rect.top,
                 height: snapGuide.rect.height,
+                backgroundColor: SNAP_GUIDE_COLOR,
               }}
             />
           )}
-          {snapGuide.h && (
+          {snapGuide.yPct !== null && (
             <div
-              className="pointer-events-none fixed z-40 h-px bg-[var(--color-sky)]"
+              className="pointer-events-none fixed z-40 h-px"
               style={{
-                top: snapGuide.rect.top + snapGuide.rect.height / 2,
+                top: snapGuide.rect.top + (snapGuide.yPct / 100) * snapGuide.rect.height,
                 left: snapGuide.rect.left,
                 width: snapGuide.rect.width,
+                backgroundColor: SNAP_GUIDE_COLOR,
               }}
             />
           )}
@@ -4402,6 +4590,9 @@ function TextBoxLayer({
   multiSelectedBoxIds,
   showAddButton = true,
   onSelectionRangeChange,
+  crossSiblingTargets,
+  staticGuidesX,
+  staticGuidesY,
 }: {
   boxes: TextBoxDef[];
   onAdd: () => void;
@@ -4425,7 +4616,19 @@ function TextBoxLayer({
   // 문자 단위 서식(2026-10-06 추가) — 이 레이어 안 어떤 박스든 contentEditable
   // 편집기가 드래그로 고른 글자 범위를 이 콜백 하나로 상위에 올려보내요.
   onSelectionRangeChange: TextSelectionRangeSetter;
+  // 공통 스냅용 — 같은 면의 사진·표 박스 가장자리·가운데선이에요, 이미 이 텍스트박스가
+  // 쓰는 좌표계(그 낱장 페이지 하나를 0~100%로 보는 값)로 변환돼서 내려와요(상위가
+  // spreadXToPageLocalX로 변환). 없으면(옵션) 이 레이어 안의 다른 텍스트박스끼리만
+  // 스냅해요.
+  crossSiblingTargets?: SnapSiblingTarget[];
+  staticGuidesX?: number[];
+  staticGuidesY?: number[];
 }) {
+  // 같은 레이어 안 "다른" 텍스트박스도 스냅 후보에 들어가요(자기 자신은 computeSnap이
+  // selfId로 걸러내요) — 사진·표 같은 다른 종류 후보(crossSiblingTargets)와 합쳐서
+  // 하나의 목록으로 내려줘요.
+  const ownTextTargets = boxes.map((b) => boxToSnapTarget(b));
+  const combinedSiblingTargets = [...ownTextTargets, ...(crossSiblingTargets ?? [])];
   return (
     <>
       {boxes.map((box, index) => (
@@ -4441,6 +4644,9 @@ function TextBoxLayer({
           onDelete={onDelete ? () => onDelete(box.id) : undefined}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
           onSelectionRangeChange={onSelectionRangeChange}
+          siblingTargets={combinedSiblingTargets}
+          staticGuidesX={staticGuidesX ?? [0, 50, 100]}
+          staticGuidesY={staticGuidesY ?? [0, 50, 100]}
         />
       ))}
       {showAddButton && (
@@ -4458,29 +4664,6 @@ function TextBoxLayer({
 
 function clampPct(min: number, max: number, value: number): number {
   return Math.min(max, Math.max(min, value));
-}
-
-// 이미지박스 크기를 조절할 때 손잡이가 이 거리(화면 px) 안으로 들어오는 안내선에
-// 자동으로 달라붙어요(포토샵·일러스트레이터의 스마트 가이드 스냅과 같은 개념). 확대
-// 배율과 무관하게 항상 같은 느낌으로 걸리도록 %가 아니라 px 기준 거리예요.
-const IMAGE_BOX_SNAP_THRESHOLD_PX = 6;
-
-// valuePct(0~100, 스프레드 전체 기준)에 가장 가까운 안내선이 SNAP 거리 안에 있으면 그
-// 안내선 값으로 딱 맞춰줘요. cellPx는 그 축의 실제 화면 픽셀 크기(가로는 스프레드
-// 폭, 세로는 페이지 높이)예요 — 이걸 알아야 "화면 px 몇 개 안"이라는 느낌을 %로 바꿀 수
-// 있어요.
-function snapToGuides(valuePct: number, guides: number[], cellPx: number): number {
-  const thresholdPct = cellPx > 0 ? (IMAGE_BOX_SNAP_THRESHOLD_PX / cellPx) * 100 : 0;
-  let best = valuePct;
-  let bestDist = thresholdPct;
-  for (const g of guides) {
-    const dist = Math.abs(valuePct - g);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = g;
-    }
-  }
-  return best;
 }
 
 // 자유 배치 이미지박스 하나예요 — 텍스트박스와 같은 방식으로 끌어서 옮기고, 손잡이로
@@ -4864,6 +5047,10 @@ const ImageBoxOverlay = forwardRef<
     onAltDragDuplicate?: () => void;
     guidesX: number[];
     guidesY: number[];
+    // 공통 스냅 계산용 입력이에요 — 같은 면에 있는 다른 개체(사진·표·텍스트박스)의
+    // 가장자리·가운데선이에요(스프레드 전체 기준 좌표, 텍스트박스는 상위가
+    // pageLocalXToSpreadX로 미리 변환해서 넣어줘요). 없으면(옵션) 빈 배열로 취급해요.
+    siblingTargets?: SnapSiblingTarget[];
     // 사진 위치 조정 모드(더블클릭으로 들어가는 모드)에 들어가거나 나올 때마다 부모에게
     // 알려줘요 — 왼쪽 "사진" 메뉴에 조작 버튼을 보여줄지 말지 결정하는 데 씀.
     onPhotoEditModeChange?: (active: boolean) => void;
@@ -4885,6 +5072,7 @@ const ImageBoxOverlay = forwardRef<
     onAltDragDuplicate,
     guidesX,
     guidesY,
+    siblingTargets = [],
     onPhotoEditModeChange,
     zIndex,
     onStackAction,
@@ -4911,9 +5099,9 @@ const ImageBoxOverlay = forwardRef<
   const [boxSizePx, setBoxSizePx] = useState({ w: 1, h: 1 });
   // 박스를 끌 때 스프레드 가로 중앙(책등)·페이지 세로 중앙에 딱 붙는 느낌을 주는 안내선이에요
   // (텍스트박스에 이미 있던 것과 같은 방식, 2026-09-23 이미지박스에도 추가).
-  const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
-    v: false,
-    h: false,
+  const [snapGuide, setSnapGuide] = useState<{ xPct: number | null; yPct: number | null; rect: DOMRect | null }>({
+    xPct: null,
+    yPct: null,
     rect: null,
   });
   const boxRef = useRef<HTMLDivElement>(null);
@@ -5063,24 +5251,35 @@ const ImageBoxOverlay = forwardRef<
       let nextX = Math.min(100 - 4, Math.max(0, dragStart.current.xPct + dxPct));
       let nextY = Math.min(100 - 4, Math.max(0, dragStart.current.yPct + dyPct));
 
-      // 가운데 정렬 스냅: 박스의 가로 중심이 스프레드 정중앙(책등, 50%)에, 세로 중심이
-      // 페이지 세로 정중앙(50%)에 가까워지면 자동으로 딱 맞춰요(텍스트박스와 같은 방식,
-      // 2026-09-23 요청). 가로로만 이동하는 잠금(axisLockX) 중에는 세로 스냅은 하지 않아요.
+      // 공통 스냅(computeSnap): 고정 안내선(재단선·안전영역·펼침면 중앙)과 같은 면의
+      // 다른 개체(사진·표·텍스트박스) 가장자리·가운데선에 딱 맞춰요(2026-10 통합).
+      // 가로로만 이동하는 잠금(axisLockX) 중에는 세로 스냅은 하지 않아요.
       const cellRect = boxRef.current?.parentElement?.getBoundingClientRect() ?? null;
-      const centerXTarget = 50 - box.widthPct / 2;
-      const centerYTarget = 50 - box.heightPct / 2;
-      const snapV = Math.abs(nextX - centerXTarget) < CENTER_SNAP_THRESHOLD_PCT;
-      const snapH = !dragStart.current.axisLockX && Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
-      if (snapV) nextX = centerXTarget;
-      if (snapH) nextY = centerYTarget;
-      setSnapGuide({ v: snapV, h: snapH, rect: cellRect });
+      // TextBoxOverlay와 같은 이유로, 문턱값 환산은 지금 화면 크기(cellRect)로 매번
+      // 다시 계산해요(드래그 시작 때 값을 캐시하지 않음, 2026-10).
+      const snap = computeSnap({
+        selfId: box.id,
+        xPct: nextX,
+        yPct: nextY,
+        widthPct: box.widthPct,
+        heightPct: box.heightPct,
+        cellW: cellRect?.width || dragStart.current.cellW,
+        cellH: cellRect?.height || dragStart.current.cellH,
+        staticGuidesX: guidesX,
+        staticGuidesY: guidesY,
+        siblingTargets,
+        yEdges: dragStart.current.axisLockX ? [] : undefined,
+      });
+      if (snap.x) nextX += snap.x.deltaPct;
+      if (snap.y) nextY += snap.y.deltaPct;
+      setSnapGuide({ xPct: snap.x ? snap.x.guidePct : null, yPct: snap.y ? snap.y.guidePct : null, rect: cellRect });
 
       onChange({ xPct: nextX, yPct: nextY });
     }
     function handleMouseUp() {
       setMouseDownActive(false);
       setIsDragging(false);
-      setSnapGuide({ v: false, h: false, rect: null });
+      setSnapGuide({ xPct: null, yPct: null, rect: null });
     }
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
@@ -5088,7 +5287,7 @@ const ImageBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [mouseDownActive, isDragging, box.widthPct, box.heightPct]);
+  }, [mouseDownActive, isDragging, box.id, box.widthPct, box.heightPct, guidesX, guidesY, siblingTargets]);
 
   // "사진 위치 조정" 모드에서 박스를 끌면 박스(틀)가 아니라 그 안의 사진만 옮겨요 —
   // 사진이 박스를 벗어나 빈 여백이 생기지 않도록 매번 clampImageBoxInnerOffset으로
@@ -5151,6 +5350,10 @@ const ImageBoxOverlay = forwardRef<
     if (!isResizing) return;
     function handleMouseMove(e: MouseEvent) {
       const s = resizeStart.current;
+      // 문턱값(px→%) 환산은 리사이즈 시작 때 값이 아니라 지금 화면 크기로 다시
+      // 재요(Ctrl/Cmd+휠 줌은 드래그·리사이즈 도중에도 가능해서, 2026-10).
+      const liveCellW = boxRef.current?.parentElement?.getBoundingClientRect().width || s.cellW;
+      const liveCellH = boxRef.current?.parentElement?.getBoundingClientRect().height || s.cellH;
       const dxPct = ((e.clientX - s.mouseX) / s.cellW) * 100;
       const dyPct = ((e.clientY - s.mouseY) / s.cellH) * 100;
       const hasE = s.dir.includes("e");
@@ -5233,23 +5436,81 @@ const ImageBoxOverlay = forwardRef<
         }
       }
 
-      // 재단선·안전영역·펼침면 중앙(책등/제본 경계) 같은 안내선에 가까우면 그 손잡이가
-      // 움직이는 쪽 변(왼쪽/오른쪽/위/아래)만 딱 맞춰요 — 고정된 반대쪽 변은 건드리지 않아요.
+      // 공통 스냅(computeSnap): 재단선·안전영역·펼침면 중앙 같은 고정 안내선과, 같은
+      // 면의 다른 개체(사진·표·텍스트박스) 가장자리·가운데선에 가까우면 그 손잡이가
+      // 움직이는 쪽 변(왼쪽/오른쪽/위/아래)만 딱 맞춰요 — 고정된 반대쪽 변은 건드리지
+      // 않아요(2026-10 통합, 전엔 고정 안내선에만 붙었는데 이제 다른 개체에도 붙어요).
       if (hasE) {
-        const snappedRight = snapToGuides(xPct + widthPct, guidesX, s.cellW);
-        widthPct = Math.max(6, snappedRight - xPct);
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: guidesX,
+          staticGuidesY: [],
+          siblingTargets,
+          xEdges: ["right"],
+          yEdges: [],
+        });
+        if (snap.x) widthPct = Math.max(6, widthPct + snap.x.deltaPct);
       } else if (hasW) {
-        const snappedLeft = snapToGuides(xPct, guidesX, s.cellW);
-        widthPct = Math.max(6, xPct + widthPct - snappedLeft);
-        xPct = snappedLeft;
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: guidesX,
+          staticGuidesY: [],
+          siblingTargets,
+          xEdges: ["left"],
+          yEdges: [],
+        });
+        if (snap.x) {
+          xPct += snap.x.deltaPct;
+          widthPct = Math.max(6, widthPct - snap.x.deltaPct);
+        }
       }
       if (hasS) {
-        const snappedBottom = snapToGuides(yPct + heightPct, guidesY, s.cellH);
-        heightPct = Math.max(4, snappedBottom - yPct);
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: [],
+          staticGuidesY: guidesY,
+          siblingTargets,
+          xEdges: [],
+          yEdges: ["bottom"],
+        });
+        if (snap.y) heightPct = Math.max(4, heightPct + snap.y.deltaPct);
       } else if (hasN) {
-        const snappedTop = snapToGuides(yPct, guidesY, s.cellH);
-        heightPct = Math.max(4, yPct + heightPct - snappedTop);
-        yPct = snappedTop;
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: [],
+          staticGuidesY: guidesY,
+          siblingTargets,
+          xEdges: [],
+          yEdges: ["top"],
+        });
+        if (snap.y) {
+          yPct += snap.y.deltaPct;
+          heightPct = Math.max(4, heightPct - snap.y.deltaPct);
+        }
       }
 
       // 마지막 안전장치: 어떤 경로로 계산되든 박스가 스프레드(0~100%) 밖으로 나가지
@@ -5267,7 +5528,7 @@ const ImageBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isResizing, guidesX, guidesY]);
+  }, [isResizing, guidesX, guidesY, siblingTargets, box.id]);
 
   function handleZoom(delta: number) {
     const nextScale = Math.min(3, Math.max(1, (box.innerScale ?? 1) + delta));
@@ -5385,25 +5646,27 @@ const ImageBoxOverlay = forwardRef<
         borderRadius: cssRadius,
       }}
     >
-      {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
+      {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
         <>
-          {snapGuide.v && (
+          {snapGuide.xPct !== null && (
             <div
-              className="pointer-events-none fixed z-40 w-px bg-[var(--color-sky)]"
+              className="pointer-events-none fixed z-40 w-px"
               style={{
-                left: snapGuide.rect.left + snapGuide.rect.width / 2,
+                left: snapGuide.rect.left + (snapGuide.xPct / 100) * snapGuide.rect.width,
                 top: snapGuide.rect.top,
                 height: snapGuide.rect.height,
+                backgroundColor: SNAP_GUIDE_COLOR,
               }}
             />
           )}
-          {snapGuide.h && (
+          {snapGuide.yPct !== null && (
             <div
-              className="pointer-events-none fixed z-40 h-px bg-[var(--color-sky)]"
+              className="pointer-events-none fixed z-40 h-px"
               style={{
-                top: snapGuide.rect.top + snapGuide.rect.height / 2,
+                top: snapGuide.rect.top + (snapGuide.yPct / 100) * snapGuide.rect.height,
                 left: snapGuide.rect.left,
                 width: snapGuide.rect.width,
+                backgroundColor: SNAP_GUIDE_COLOR,
               }}
             />
           )}
@@ -5660,6 +5923,7 @@ function ImageBoxLayer({
   multiSelectedBoxIds,
   guidesX,
   guidesY,
+  siblingTargets,
   onPhotoEditModeChange,
   registerBoxRef,
 }: {
@@ -5682,6 +5946,10 @@ function ImageBoxLayer({
   // 재단선·안전영역·펼침면 중앙 등) — 상위 컴포넌트가 계산해서 내려줘요.
   guidesX: number[];
   guidesY: number[];
+  // 공통 스냅용 — 같은 스프레드(또는 표지 패널)의 다른 개체(사진·표·텍스트박스) 전체
+  // 목록이에요(자기 자신도 포함해도 괜찮아요 — ImageBoxOverlay가 자기 id는 걸러내요).
+  // 없으면(옵션) 빈 배열로 취급해서 사진끼리·사진↔표 등 스냅이 빠져요.
+  siblingTargets?: SnapSiblingTarget[];
   // 박스가 사진 위치 조정 모드로 들어가거나 나올 때 상위에 알려줘요(왼쪽 "사진" 메뉴에
   // 조작 버튼을 보여줄지 결정하는 데 씀, 2026-09-22 추가).
   onPhotoEditModeChange?: (active: boolean) => void;
@@ -5708,6 +5976,7 @@ function ImageBoxLayer({
           onPhotoEditModeChange={box.id === activeBoxId ? onPhotoEditModeChange : undefined}
           guidesX={guidesX}
           guidesY={guidesY}
+          siblingTargets={siblingTargets}
           zIndex={effectiveZOrder("image", box.zOrder, index)}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
         />
@@ -5787,11 +6056,25 @@ const TableBoxOverlay = forwardRef<
     // 활성 박스일 때만 넘겨줘요(다른 박스가 활성화되면 자동으로 undefined가 돼서 패널이
     // 안 헷갈려요) — ImageBoxLayer의 onPhotoEditModeChange와 같은 패턴.
     onSelectionChange?: (sel: TableSelectionInfo) => void;
+    // 공통 스냅(computeSnap)용 입력이에요 — 이미지박스와 같은 스프레드 전체 좌표계를
+    // 써요(2026-10 추가 — "표를 이동할 때 기준선에 스냅되지 않는다" 리포트 이전엔 표에
+    // 스냅 코드 자체가 아예 없었어요).
+    guidesX?: number[];
+    guidesY?: number[];
+    siblingTargets?: SnapSiblingTarget[];
   }
->(function TableBoxOverlay({ box, onChange, onDelete, isActive, onSelect, zIndex, onSelectionChange }, ref) {
+>(function TableBoxOverlay(
+  { box, onChange, onDelete, isActive, onSelect, zIndex, onSelectionChange, guidesX = [], guidesY = [], siblingTargets = [] },
+  ref
+) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [snapGuide, setSnapGuide] = useState<{ xPct: number | null; yPct: number | null; rect: DOMRect | null }>({
+    xPct: null,
+    yPct: null,
+    rect: null,
+  });
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
   const resizeStart = useRef({
@@ -5873,13 +6156,36 @@ const TableBoxOverlay = forwardRef<
       e.preventDefault();
       const dxPct = (dxPxRaw / dragStart.current.cellW) * 100;
       const dyPct = (dyPxRaw / dragStart.current.cellH) * 100;
-      const nextX = clampPct(0, 100 - box.widthPct, dragStart.current.xPct + dxPct);
-      const nextY = clampPct(0, 100 - box.heightPct, dragStart.current.yPct + dyPct);
+      let nextX = clampPct(0, 100 - box.widthPct, dragStart.current.xPct + dxPct);
+      let nextY = clampPct(0, 100 - box.heightPct, dragStart.current.yPct + dyPct);
+
+      // 공통 스냅(computeSnap, 2026-10 추가) — 예전엔 표에 스냅 코드가 아예 없어서
+      // "표를 이동할 때 기준선에 스냅되지 않는다"는 리포트의 원인이었어요.
+      const cellRect = boxRef.current?.parentElement?.getBoundingClientRect() ?? null;
+      // 위 두 컴포넌트와 같은 이유로, 문턱값 환산은 지금 화면 크기(cellRect)로 매번
+      // 다시 계산해요(2026-10).
+      const snap = computeSnap({
+        selfId: box.id,
+        xPct: nextX,
+        yPct: nextY,
+        widthPct: box.widthPct,
+        heightPct: box.heightPct,
+        cellW: cellRect?.width || dragStart.current.cellW,
+        cellH: cellRect?.height || dragStart.current.cellH,
+        staticGuidesX: guidesX,
+        staticGuidesY: guidesY,
+        siblingTargets,
+      });
+      if (snap.x) nextX += snap.x.deltaPct;
+      if (snap.y) nextY += snap.y.deltaPct;
+      setSnapGuide({ xPct: snap.x ? snap.x.guidePct : null, yPct: snap.y ? snap.y.guidePct : null, rect: cellRect });
+
       onChange({ xPct: nextX, yPct: nextY });
     }
     function handleMouseUp() {
       setMouseDownActive(false);
       setIsDragging(false);
+      setSnapGuide({ xPct: null, yPct: null, rect: null });
     }
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
@@ -5887,12 +6193,16 @@ const TableBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [mouseDownActive, isDragging, box.widthPct, box.heightPct]);
+  }, [mouseDownActive, isDragging, box.id, box.widthPct, box.heightPct, guidesX, guidesY, siblingTargets]);
 
   useEffect(() => {
     if (!isResizing) return;
     function handleMouseMove(e: MouseEvent) {
       const s = resizeStart.current;
+      // 문턱값(px→%) 환산은 리사이즈 시작 때 값이 아니라 지금 화면 크기로 다시
+      // 재요(Ctrl/Cmd+휠 줌은 드래그·리사이즈 도중에도 가능해서, 2026-10).
+      const liveCellW = boxRef.current?.parentElement?.getBoundingClientRect().width || s.cellW;
+      const liveCellH = boxRef.current?.parentElement?.getBoundingClientRect().height || s.cellH;
       const dxPct = ((e.clientX - s.mouseX) / s.cellW) * 100;
       const dyPct = ((e.clientY - s.mouseY) / s.cellH) * 100;
       const hasE = s.dir.includes("e");
@@ -5917,6 +6227,82 @@ const TableBoxOverlay = forwardRef<
         heightPct = clampPct(8, Math.max(8, bottomEdge), s.heightPct - dyPct);
         yPct = bottomEdge - heightPct;
       }
+
+      // 공통 스냅 — 움직이는 쪽 변만 안내선/다른 개체에 달라붙어요(고정된 반대쪽 변은
+      // 그대로 둬요, ImageBoxOverlay의 리사이즈 스냅과 같은 패턴).
+      if (hasE) {
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: guidesX,
+          staticGuidesY: [],
+          siblingTargets,
+          xEdges: ["right"],
+          yEdges: [],
+        });
+        if (snap.x) widthPct = Math.max(10, widthPct + snap.x.deltaPct);
+      } else if (hasW) {
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: guidesX,
+          staticGuidesY: [],
+          siblingTargets,
+          xEdges: ["left"],
+          yEdges: [],
+        });
+        if (snap.x) {
+          xPct += snap.x.deltaPct;
+          widthPct = Math.max(10, widthPct - snap.x.deltaPct);
+        }
+      }
+      if (hasS) {
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: [],
+          staticGuidesY: guidesY,
+          siblingTargets,
+          xEdges: [],
+          yEdges: ["bottom"],
+        });
+        if (snap.y) heightPct = Math.max(8, heightPct + snap.y.deltaPct);
+      } else if (hasN) {
+        const snap = computeSnap({
+          selfId: box.id,
+          xPct,
+          yPct,
+          widthPct,
+          heightPct,
+          cellW: liveCellW,
+          cellH: liveCellH,
+          staticGuidesX: [],
+          staticGuidesY: guidesY,
+          siblingTargets,
+          xEdges: [],
+          yEdges: ["top"],
+        });
+        if (snap.y) {
+          yPct += snap.y.deltaPct;
+          heightPct = Math.max(8, heightPct - snap.y.deltaPct);
+        }
+      }
+
       onChange({ widthPct, heightPct, xPct, yPct });
     }
     function handleMouseUp() {
@@ -5928,7 +6314,7 @@ const TableBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isResizing]);
+  }, [isResizing, guidesX, guidesY, siblingTargets, box.id]);
 
   function handleCellChange(row: number, col: number, value: string) {
     const next = box.cells.slice();
@@ -6352,6 +6738,32 @@ const TableBoxOverlay = forwardRef<
         overflow: box.borderRadius ? "hidden" : undefined,
       }}
     >
+      {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
+        <>
+          {snapGuide.xPct !== null && (
+            <div
+              className="pointer-events-none fixed z-40 w-px"
+              style={{
+                left: snapGuide.rect.left + (snapGuide.xPct / 100) * snapGuide.rect.width,
+                top: snapGuide.rect.top,
+                height: snapGuide.rect.height,
+                backgroundColor: SNAP_GUIDE_COLOR,
+              }}
+            />
+          )}
+          {snapGuide.yPct !== null && (
+            <div
+              className="pointer-events-none fixed z-40 h-px"
+              style={{
+                top: snapGuide.rect.top + (snapGuide.yPct / 100) * snapGuide.rect.height,
+                left: snapGuide.rect.left,
+                width: snapGuide.rect.width,
+                backgroundColor: SNAP_GUIDE_COLOR,
+              }}
+            />
+          )}
+        </>
+      )}
       {/* 2026-10-06, 혜민님 리포트("표를 선택해도 드래그해서 위치를 옮길 수 없어") —
           칸(cell) wrapper들이 표 안쪽을 빈틈없이 채우고 있어서(그리드 gap 없음), 표
           안쪽 어디를 눌러도 전부 칸의 mousedown(stopPropagation)이 먼저 처리돼 이
@@ -6513,6 +6925,9 @@ function TableBoxLayer({
   onSelect,
   registerBoxRef,
   onSelectionChange,
+  guidesX,
+  guidesY,
+  siblingTargets,
 }: {
   boxes: TableBoxDef[];
   onChange: (boxId: string, changes: Partial<TableBoxDef>) => void;
@@ -6523,6 +6938,10 @@ function TableBoxLayer({
   // id별 핸들을 등록해요(ImageBoxLayer와 같은 패턴, 2026-09-28).
   registerBoxRef?: (boxId: string, handle: TableBoxOverlayHandle | null) => void;
   onSelectionChange?: (sel: TableSelectionInfo) => void;
+  // 공통 스냅용(2026-10 추가) — ImageBoxLayer와 같은 패턴이에요.
+  guidesX?: number[];
+  guidesY?: number[];
+  siblingTargets?: SnapSiblingTarget[];
 }) {
   return (
     <>
@@ -6537,6 +6956,9 @@ function TableBoxLayer({
           onSelect={() => onSelect(box.id)}
           zIndex={9000 + index}
           onSelectionChange={box.id === activeBoxId ? onSelectionChange : undefined}
+          guidesX={guidesX}
+          guidesY={guidesY}
+          siblingTargets={siblingTargets}
         />
       ))}
     </>
@@ -6606,14 +7028,27 @@ function CoverTitleOverlay({
       const boxRect = boxRef.current?.getBoundingClientRect();
       const boxWpct = boxRect ? (boxRect.width / dragStart.current.cellW) * 100 : widthPct;
       const boxHpct = boxRect ? (boxRect.height / dragStart.current.cellH) * 100 : 0;
-      const centerXTarget = 50 - boxWpct / 2;
-      const centerYTarget = 50 - boxHpct / 2;
-      const snapV = Math.abs(nextX - centerXTarget) < CENTER_SNAP_THRESHOLD_PCT;
-      const snapH = Math.abs(nextY - centerYTarget) < CENTER_SNAP_THRESHOLD_PCT;
-      if (snapV) nextX = centerXTarget;
-      if (snapH) nextY = centerYTarget;
+      // 표지 제목은 지금도 "페이지 가운데" 하나만 스냅해요(사진·표·다른 텍스트박스에는
+      // 안 붙어요) — computeSnap으로 계산 방식만 통일하고(같은 px 문턱값), 동작 범위는
+      // 그대로 둬요(2026-10, 통합 스냅 작업에서 "낮은 우선순위"로 분류).
+      const snap = computeSnap({
+        selfId: "cover-title",
+        xPct: nextX,
+        yPct: nextY,
+        widthPct: boxWpct,
+        heightPct: boxHpct,
+        cellW: dragStart.current.cellW,
+        cellH: dragStart.current.cellH,
+        staticGuidesX: [50],
+        staticGuidesY: [50],
+        siblingTargets: [],
+        xEdges: ["center"],
+        yEdges: ["center"],
+      });
+      if (snap.x) nextX += snap.x.deltaPct;
+      if (snap.y) nextY += snap.y.deltaPct;
 
-      setSnapGuide({ v: snapV, h: snapH, rect: cellRect });
+      setSnapGuide({ v: !!snap.x, h: !!snap.y, rect: cellRect });
       onMove({ xPct: nextX, yPct: nextY });
     }
     function handleMouseUp() {
@@ -10315,6 +10750,45 @@ function UploadPageContent() {
     // 앞표지 안전영역
     const coverFrontSafetyLeftPct = coverSpineEndPct + coverSafetyXPct;
     const coverFrontSafetyRightPct = 100 - coverBleedXPct - coverSafetyXPct;
+
+    // 뒤표지·앞표지 이미지박스·표박스의 스냅 안내선이에요(2026-10 통합 스냅 —
+    // "guidesX={[]} guidesY={[]}"로 비어 있어서 표지 사진은 스냅이 전혀 안 됐던 문제를
+    // 고쳐요). ImageBoxOverlay/TableBoxOverlay가 받는 xPct/yPct는 "그 패널(뒤표지 또는
+    // 앞표지) 자신"을 0~100%로 보는 좌표계라서(각각 독립된 컨테이너), 위에서 계산한
+    // "표지 펼침면 전체" 기준 값을 각 패널의 시작점·폭 기준으로 다시 변환해요.
+    const coverPanelLocalX = (fullPct: number, panelStartPct: number, panelWidthPct: number): number =>
+      panelWidthPct > 0 ? ((fullPct - panelStartPct) / panelWidthPct) * 100 : fullPct;
+    const coverBackGuidesX = [
+      0,
+      100,
+      50,
+      coverPanelLocalX(coverBleedXPct, 0, coverBackPct),
+      coverPanelLocalX(coverBackSafetyLeftPct, 0, coverBackPct),
+      coverPanelLocalX(coverBackSafetyRightPct, 0, coverBackPct),
+    ];
+    const coverFrontGuidesX = [
+      0,
+      100,
+      50,
+      coverPanelLocalX(100 - coverBleedXPct, coverSpineEndPct, coverFrontPct),
+      coverPanelLocalX(coverFrontSafetyLeftPct, coverSpineEndPct, coverFrontPct),
+      coverPanelLocalX(coverFrontSafetyRightPct, coverSpineEndPct, coverFrontPct),
+    ];
+    // 세로(Y)는 패널 높이가 표지 전체 높이와 같아서 변환이 필요 없어요.
+    const coverGuidesY = [0, 100, 50, coverBleedYPct, 100 - coverBleedYPct, coverSafetyTopPct, coverSafetyBottomPct];
+    // 뒤표지·앞표지 각각 사진·표·텍스트박스가 전부 같은 패널 좌표계를 쓰므로(내지
+    // 스프레드와 달리 텍스트박스도 변환 없이 그대로 합쳐요), 스냅 후보로 단순히 합쳐요.
+    const backCoverSiblingTargets: SnapSiblingTarget[] = [
+      ...backCoverImageBoxes.map((b) => boxToSnapTarget(b)),
+      ...backCoverTableBoxes.map((b) => boxToSnapTarget(b)),
+      ...backCoverTextBoxes.map((b) => boxToSnapTarget(b)),
+    ];
+    const frontCoverSiblingTargets: SnapSiblingTarget[] = [
+      ...coverImageBoxes.map((b) => boxToSnapTarget(b)),
+      ...coverTableBoxes.map((b) => boxToSnapTarget(b)),
+      ...coverTextBoxes.map((b) => boxToSnapTarget(b)),
+    ];
+
     // 책등은 실측해보면(예: 소프트커버 20p 7.22mm) 11~12pt 글자도 여유 있게 들어가서,
     // 뒤표지·앞표지처럼 별도 안전영역 여백을 두지 않아요(2026-09, 사용자 확인). 책등
     // 경계(재단선)는 위 패널 테두리로 이미 보여주고 있어요.
@@ -11975,8 +12449,9 @@ function UploadPageContent() {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
                                   else coverImageBoxHandlesRef.current.delete(boxId);
                                 }}
-                                guidesX={[]}
-                                guidesY={[]}
+                                guidesX={coverBackGuidesX}
+                                guidesY={coverGuidesY}
+                                siblingTargets={backCoverSiblingTargets}
                               />
                             ) : backCoverPhoto ? (
                               <img
@@ -12029,6 +12504,9 @@ function UploadPageContent() {
                               multiSelectedBoxIds={
                                 multiTextSelection?.ref.scope === "backCover" ? multiTextSelection.boxIds : undefined
                               }
+                              crossSiblingTargets={backCoverSiblingTargets}
+                              staticGuidesX={coverBackGuidesX}
+                              staticGuidesY={coverGuidesY}
                             />
                             <TableBoxLayer
                               boxes={backCoverTableBoxes}
@@ -12041,6 +12519,9 @@ function UploadPageContent() {
                                 else tableBoxHandlesRef.current.delete(boxId);
                               }}
                               onSelectionChange={setTableCellSel}
+                              guidesX={coverBackGuidesX}
+                              guidesY={coverGuidesY}
+                              siblingTargets={backCoverSiblingTargets}
                             />
                           </div>
                           <div
@@ -12122,8 +12603,9 @@ function UploadPageContent() {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
                                   else coverImageBoxHandlesRef.current.delete(boxId);
                                 }}
-                                guidesX={[]}
-                                guidesY={[]}
+                                guidesX={coverFrontGuidesX}
+                                guidesY={coverGuidesY}
+                                siblingTargets={frontCoverSiblingTargets}
                               />
                             ) : coverPhoto ? (
                               <PhotoCell
@@ -12165,6 +12647,9 @@ function UploadPageContent() {
                               multiSelectedBoxIds={
                                 multiTextSelection?.ref.scope === "cover" ? multiTextSelection.boxIds : undefined
                               }
+                              crossSiblingTargets={frontCoverSiblingTargets}
+                              staticGuidesX={coverFrontGuidesX}
+                              staticGuidesY={coverGuidesY}
                             />
                             <TableBoxLayer
                               boxes={coverTableBoxes}
@@ -12177,6 +12662,9 @@ function UploadPageContent() {
                                 else tableBoxHandlesRef.current.delete(boxId);
                               }}
                               onSelectionChange={setTableCellSel}
+                              guidesX={coverFrontGuidesX}
+                              guidesY={coverGuidesY}
+                              siblingTargets={frontCoverSiblingTargets}
                             />
                           </div>
 
@@ -12268,6 +12756,46 @@ function UploadPageContent() {
                       const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
                       const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
                       const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
+                      // 이 스프레드의 사진·표·텍스트박스를 전부 합친 스냅 후보예요(2026-10
+                      // 통합 스냅) — 이미지박스·표박스는 스프레드 전체 좌표계를 그대로 쓰고,
+                      // 텍스트박스(왼쪽/오른쪽 낱장 좌표계)는 pageLocalXToSpreadX로 스프레드
+                      // 좌표계로 바꿔서 합쳐요.
+                      const spreadImageTableTargets: SnapSiblingTarget[] = [
+                        ...(spread.imageBoxes ?? []).map((b) => boxToSnapTarget(b)),
+                        ...(spread.tableBoxes ?? []).map((b) => boxToSnapTarget(b)),
+                      ];
+                      const spreadTextTargets: SnapSiblingTarget[] = [
+                        ...(spread.textBoxesLeft ?? []).map((b) => convertSnapTargetXToSpread(boxToSnapTarget(b), "left")),
+                        ...(spread.textBoxesRight ?? []).map((b) => convertSnapTargetXToSpread(boxToSnapTarget(b), "right")),
+                      ];
+                      const spreadSiblingTargets: SnapSiblingTarget[] = [...spreadImageTableTargets, ...spreadTextTargets];
+                      // 텍스트박스는 그 낱장 페이지 하나를 0~100%로 보는 좌표계를 쓰므로,
+                      // 사진·표 후보를 각 낱장 좌표계로 변환해서 넘겨요(텍스트끼리는 같은
+                      // TextBoxLayer 안에서 자동으로 서로 후보가 돼요 — 왼쪽↔오른쪽 낱장을
+                      // 넘나드는 텍스트-텍스트 스냅은 이번 라운드 범위 밖이에요).
+                      const leftTextCrossSiblingTargets = spreadImageTableTargets.map((t) =>
+                        convertSnapTargetXToPageLocal(t, "left")
+                      );
+                      const rightTextCrossSiblingTargets = spreadImageTableTargets.map((t) =>
+                        convertSnapTargetXToPageLocal(t, "right")
+                      );
+                      const leftTextStaticGuidesX = [
+                        0,
+                        50,
+                        100,
+                        spreadXToPageLocalX(trimXPct, "left"),
+                        spreadXToPageLocalX(safetyOuterXPct, "left"),
+                        spreadXToPageLocalX(bindingLeftEdgePct, "left"),
+                      ];
+                      const rightTextStaticGuidesX = [
+                        0,
+                        50,
+                        100,
+                        spreadXToPageLocalX(100 - trimXPct, "right"),
+                        spreadXToPageLocalX(100 - safetyOuterXPct, "right"),
+                        spreadXToPageLocalX(bindingRightEdgePct, "right"),
+                      ];
+                      const textStaticGuidesY = [0, 50, 100, trimYPct, 100 - trimYPct, safetyYPct, 100 - safetyYPct];
                       return (
                         <div className="flex h-full min-h-0 flex-col px-2 pb-2">
                           <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
@@ -12763,6 +13291,9 @@ function UploadPageContent() {
                                           ? multiTextSelection.boxIds
                                           : undefined
                                       }
+                                      crossSiblingTargets={leftTextCrossSiblingTargets}
+                                      staticGuidesX={leftTextStaticGuidesX}
+                                      staticGuidesY={textStaticGuidesY}
                                     />
                                   </>
                                 )}
@@ -12821,6 +13352,9 @@ function UploadPageContent() {
                                       ? multiTextSelection.boxIds
                                       : undefined
                                   }
+                                  crossSiblingTargets={rightTextCrossSiblingTargets}
+                                  staticGuidesX={rightTextStaticGuidesX}
+                                  staticGuidesY={textStaticGuidesY}
                                 />
                               </div>
                               {/* 2026-09-30, 혜민님 확인: "맨뒤로 보내기를 누르면 이미지가
@@ -12851,6 +13385,7 @@ function UploadPageContent() {
                                 }}
                                 guidesX={imageBoxGuidesX}
                                 guidesY={imageBoxGuidesY}
+                                siblingTargets={spreadSiblingTargets}
                               />
                               {/* 자유 배치 표(테이블) 박스도 이미지박스와 같은 스프레드 전체
                                   좌표계를 써요(기본형, 2026-09-25 "표 만들기" 요청). */}
@@ -12869,6 +13404,9 @@ function UploadPageContent() {
                                   else tableBoxHandlesRef.current.delete(boxId);
                                 }}
                                 onSelectionChange={setTableCellSel}
+                                guidesX={imageBoxGuidesX}
+                                guidesY={imageBoxGuidesY}
+                                siblingTargets={spreadSiblingTargets}
                               />
                               {/* 사진박스 2개 이상 Shift+다중 선택했을 때 뜨는 캔버스 위 정렬
                                   아이콘 툴바예요(2026-09-26 추가, 혜민님 요청 — 참고 이미지의
