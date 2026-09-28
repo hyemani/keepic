@@ -78,7 +78,6 @@ import {
 const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 1.5; // 혜민님 확인(2026-09-19): 책등 여백 1.5mm(lib/printCompose.ts와 같은 값)
 const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
 const SPINE_TITLE_MAX_FONT_RATIO_SCREEN = 0.55; // 혜민님 확인(2026-09-19): 책등 폭 꽉 채우면 글자가 너무 커 보여서 상한을 둬요(lib/printCompose.ts와 같은 값)
-const COVER_TITLE_PT_PRESETS = [12, 18, 24, 30, 36, 48, 60, 72];
 
 // 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일하고, 표지 제목/부제목/본문
 // 처럼 스타일을 골라서 넣을 수 있게" — 글상자(TextBoxDef)를 추가할 때 바로 적용할 수
@@ -4082,10 +4081,28 @@ function TextBoxToolbar({
   onDelete,
   pageWidthMm,
   selectionRange,
+  hideAdvanced,
+  showContentField,
+  contentLabel,
+  contentValue,
+  onContentChange,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
   onDelete: () => void;
+  // 2026-10-08, 혜민님 요청("표지 타이틀·글상자·책등을 같은 패널로 통일") — 표지
+  // 제목·책등처럼 배경(하이라이트)·가로세로 폭 늘이기·박스영역(세로) 정렬 개념이 아직
+  // 화면·인쇄 어디에도 없는 대상엔 이 세 구간을 아예 숨겨요(버튼을 눌러도 아무 효과가
+  // 없는 "죽은 버튼"을 보여주지 않기 위해서예요). 일반 글상자(내지·표지 자유 글상자)는
+  // 계속 기본값(false)으로 전부 보여요.
+  hideAdvanced?: boolean;
+  // 책등처럼 캔버스가 좁아 직접 타이핑하기 어려운 대상을 위해, 패널 맨 위에 내용
+  // 입력칸(textarea)을 하나 더 보여줘요(2026-10, "좁은 책등에서도 입력하기 쉽도록").
+  // 일반 글상자는 캔버스 위에서 바로 타이핑하므로 기본은 안 보여요.
+  showContentField?: boolean;
+  contentLabel?: string;
+  contentValue?: string;
+  onContentChange?: (value: string) => void;
   // 지금 텍스트박스 안에서 드래그로 고른 글자 범위예요(문자 단위 서식, 2026-10-06
   // 추가) — 서체·글자크기·굵게·색·밑줄·기울임 버튼이 이 값이 있으면(그리고 이
   // 박스 것이고 collapsed가 아니면) 그 범위에만, 없으면 박스 전체에 적용해요
@@ -4166,6 +4183,19 @@ function TextBoxToolbar({
           삭제
         </button>
       </div>
+      {showContentField && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
+            {contentLabel ?? "내용"}
+          </label>
+          <textarea
+            value={contentValue ?? ""}
+            onChange={(e) => onContentChange?.(e.target.value)}
+            rows={2}
+            className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
+      )}
       {/* 2026-10-02, 혜민님 요청: "글자서체 오른쪽에 화살표를 조금 안쪽으로 넣기" —
           브라우저 기본 select 화살표를 없애고(appearance-none) 직접 그린 화살표를
           테두리에서 살짝 떨어진 안쪽(right-2.5)에 둠. */}
@@ -4276,6 +4306,7 @@ function TextBoxToolbar({
         >
           <LayerIcon name="italic" className="h-4 w-4" />
         </button>
+        {!hideAdvanced && (
         <button
           type="button"
           title="배경"
@@ -4288,7 +4319,8 @@ function TextBoxToolbar({
         >
           <LayerIcon name="highlight" className="h-4 w-4" />
         </button>
-        {box.backgroundColor && (
+        )}
+        {!hideAdvanced && box.backgroundColor && (
           <input
             type="color"
             value={box.backgroundColor}
@@ -4298,7 +4330,7 @@ function TextBoxToolbar({
           />
         )}
       </div>
-      {box.backgroundColor && (
+      {!hideAdvanced && box.backgroundColor && (
         <div className="grid grid-cols-2 gap-1.5">
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
@@ -4385,6 +4417,7 @@ function TextBoxToolbar({
       {/* 2026-09-27, 혜민님 요청: "가로폭, 세로폭 조절이 가능한 패널이여야해요"(일러스트
           레이터 문자 패널 참고) — 글자를 가로/세로로 눌러 늘이는 비율(%)이에요. ⚠️ 화면
           미리보기 전용, 인쇄 PDF엔 아직 반영 안 돼요(이미지박스 회전과 같은 상태). */}
+      {!hideAdvanced && (
       <div className="grid grid-cols-2 gap-1.5">
         <div>
           <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
@@ -4429,6 +4462,7 @@ function TextBoxToolbar({
           />
         </div>
       </div>
+      )}
       {/* 2026-09-27, 혜민님 요청: "가운데정렬, 가운데 라고만 버튼이 되어있으니 어떤것을
           의미하는지 확인이 어렵습니다. 텍스트 가운데 정렬이면 텍스트 관련된 아이콘으로
           박스영역이면 박스영역 관련된 아이콘으로" — 텍스트 문단 정렬(가로)은 글줄
@@ -4462,6 +4496,7 @@ function TextBoxToolbar({
           ))}
         </div>
       </div>
+      {!hideAdvanced && (
       <div>
         <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">박스영역 정렬</p>
         <div className="flex gap-1">
@@ -4488,6 +4523,7 @@ function TextBoxToolbar({
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -7002,6 +7038,10 @@ function CoverTitleOverlay({
   lineHeightEm,
   letterSpacingEm,
   fontFamily,
+  color,
+  bold,
+  underline,
+  italic,
   align,
   isActive,
   editMode,
@@ -7017,6 +7057,12 @@ function CoverTitleOverlay({
   lineHeightEm: number;
   letterSpacingEm: number;
   fontFamily: string;
+  // 2026-10-08, 혜민님 요청("일반 글상자와 동일한 편집 기능") — 예전엔 항상 흰색+굵게로
+  // 고정이었는데, 이제 일반 글상자·책등처럼 직접 고를 수 있어요.
+  color: string;
+  bold: boolean;
+  underline: boolean;
+  italic: boolean;
   // 2026-10-05, 혜민님 요청: 내지 텍스트박스처럼 문단 정렬(좌/가운데/우)을 고를 수 있게.
   align: "left" | "center" | "right";
   // 2026-10, 혜민님 요청: "표지엔 처음부터 제목 자리 1개만 빈 텍스트 영역으로 보여주고
@@ -7120,6 +7166,10 @@ function CoverTitleOverlay({
     letterSpacing: `${letterSpacingEm}em`,
     fontFamily,
     textAlign: align,
+    color,
+    fontWeight: bold ? 600 : 400,
+    textDecoration: underline ? "underline" : "none",
+    fontStyle: italic ? "italic" : "normal",
   };
 
   return (
@@ -7176,7 +7226,7 @@ function CoverTitleOverlay({
           spellCheck={false}
           placeholder="제목을 입력하세요"
           rows={Math.max(1, title.split("\n").length)}
-          className="block w-full resize-none whitespace-pre-wrap border border-dashed border-white/80 bg-black/10 font-semibold text-white outline-none placeholder:text-white/60"
+          className="block w-full resize-none whitespace-pre-wrap border border-dashed border-white/80 bg-black/10 outline-none placeholder:text-white/60"
           style={textStyle}
         />
       ) : title.trim() ? (
@@ -7186,7 +7236,7 @@ function CoverTitleOverlay({
             e.stopPropagation();
             onSelect();
           }}
-          className={`whitespace-pre-wrap font-semibold text-white drop- ${
+          className={`whitespace-pre-wrap ${
             editMode ? "cursor-text" : "pointer-events-none"
           }`}
           style={textStyle}
@@ -7225,6 +7275,9 @@ function SpineTitleOverlay({
   fontSizeCqh,
   fontFamily,
   color,
+  bold,
+  underline,
+  italic,
   align,
   isActive,
   editMode,
@@ -7240,6 +7293,11 @@ function SpineTitleOverlay({
   fontSizeCqh: number; // 실제 mm 크기를 컨테이너 높이 대비 %(cqh)로 환산한 값 — 창 크기와 무관하게 항상 같은 실물 비율로 보여요.
   fontFamily: string;
   color: string; // spine title color, applied as inline style so a user-picked color always shows
+  // 2026-10-08, 혜민님 요청("일반 글상자와 동일한 편집 기능") — 예전엔 항상 굵게로
+  // 고정이었는데, 이제 일반 글상자·표지 제목처럼 직접 고를 수 있어요.
+  bold: boolean;
+  underline: boolean;
+  italic: boolean;
   align: "left" | "center" | "right"; // maps to the outer container's flex alignment
   isActive: boolean; // true when selected on the canvas -- swaps the read-only span for an editable input
   // 편집 화면(캔버스)일 때만 true — "미리보기"에선 빈 책등 안내("책등")와 인라인 입력이
@@ -7311,6 +7369,11 @@ function SpineTitleOverlay({
 
   const active = isDragging || isResizing || isActive;
   const alignClass = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
+  const spineTextStyle: React.CSSProperties = {
+    fontWeight: bold ? 700 : 400,
+    textDecoration: underline ? "underline" : "none",
+    fontStyle: italic ? "italic" : "normal",
+  };
 
   return (
     <div
@@ -7344,8 +7407,9 @@ function SpineTitleOverlay({
             e.currentTarget.select();
           }}
           spellCheck={false}
-          className="whitespace-nowrap border-none bg-transparent p-0 text-center font-bold outline-none"
+          className="whitespace-nowrap border-none bg-transparent p-0 text-center outline-none"
           style={{
+            ...spineTextStyle,
             fontSize: `${fontSizeCqh}cqh`,
             lineHeight: 1,
             transform: "rotate(90deg)",
@@ -7359,8 +7423,15 @@ function SpineTitleOverlay({
         // 쌓지 않아요. font-size는 cqh(컨테이너 높이 기준 %)라서 창 크기가 바뀌어도 항상
         // 책 실물 크기 그대로 커지고 작아져요(고정 px이 아니에요).
         <span
-          className="whitespace-nowrap font-bold"
-          style={{ fontSize: `${fontSizeCqh}cqh`, lineHeight: 1, transform: "rotate(90deg)", fontFamily, color }}
+          className="whitespace-nowrap"
+          style={{
+            ...spineTextStyle,
+            fontSize: `${fontSizeCqh}cqh`,
+            lineHeight: 1,
+            transform: "rotate(90deg)",
+            fontFamily,
+            color,
+          }}
         >
           {title}
         </span>
@@ -7935,13 +8006,6 @@ function UploadPageContent() {
   // 골랐고, 여기서는 표지에 들어갈 사진과 제목만 정해요.
   const [coverPhoto, setCoverPhoto] = useState<Photo | null>(null);
   const [coverTitle, setCoverTitle] = useState("");
-  // 2026-10-07, 혜민님 요청: "새 텍스트박스 프리셋으로 정리하면서, 기존에 타이틀로
-  // 만들어둔 작업물(coverTitle)은 안 건드리고 화면만 접어두기" — coverTitle이 있는
-  // 책(=예전에 이 필드로 제목을 만든 책)에서만 "기존 표지 타이틀" 섹션을 펼쳐볼 수
-  // 있게 하는 토글이에요. 기본은 접힌 상태(false)로 시작해서 새 프리셋 흐름이 먼저
-  // 보이게 하고, coverTitle이 아예 비어있는 새 사용자에겐 이 섹션 자체가 안 보여요
-  // (아래 렌더링에서 coverTitle.trim() 유무로 섹션 전체를 감쌈).
-  const [legacyCoverTitleOpen, setLegacyCoverTitleOpen] = useState(false);
   // 책등(세네카) 제목은 따로 없어요 — 앞표지 제목을 그대로 책등에도 써요(혜민님 확인,
   // 2026-09: 표지 제목이 곧 책등 제목이라 입력칸을 두 개 둘 필요가 없음).
   // 표지 제목 글자 크기(pt, 실제 인쇄 크기 그대로) · 행간 · 자간이에요. 화면에서
@@ -7956,9 +8020,6 @@ function UploadPageContent() {
   // 꽂으면 타이핑 중간에 값이 계속 강제로 되돌아가 여러 자리 숫자를 못 치는 버그가
   // 생겨요(내지에서 이미 겪었던 문제와 동일). 문서를 불러올 때(loadPhotobookState
   // 근처)도 같이 동기화해요.
-  const [coverTitlePtDraft, setCoverTitlePtDraft] = useState("36");
-  const [coverTitleLineHeightDraft, setCoverTitleLineHeightDraft] = useState("1.2");
-  const [coverTitleLetterSpacingDraft, setCoverTitleLetterSpacingDraft] = useState("0");
   // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트). 기존엔 하단에 고정이었는데,
   // 이제 텍스트박스처럼 끌어서 옮길 수 있어요 — 기본값은 예전 고정 위치(하단 중앙)와
   // 비슷한 자리예요.
@@ -7972,17 +8033,37 @@ function UploadPageContent() {
   // 책등 제목 크기(pt)·서체 — 표지 제목과 별도로 고를 수 있어요. 비워두면(null) 책등
   // 폭에 맞춰 자동으로 크기를 정해요.
   const [spineTitleFontSizePt, setSpineTitleFontSizePt] = useState<number | null>(9); // 혜민님 요청(2026-09-28): 책등 글자 자동 크기가 길이에 따라 잘리는 문제가 있어 기본값을 9pt로 고정
-  const [spineTitleFontSizePtDraft, setSpineTitleFontSizePtDraft] = useState("9");
   const [spineTitleFontFamily, setSpineTitleFontFamily] = useState(fontOptions[0].id);
   const [spineTitleColor, setSpineTitleColor] = useState("#1F2937");
   const [spineTitleAlign, setSpineTitleAlign] = useState<"left" | "center" | "right">("center");
   const [spineTitleSelected, setSpineTitleSelected] = useState(false);
+  // 2026-10-08, 혜민님 요청(항목6): "표지 제목과 책등의 글자 내용은 각각 독립적으로
+  // 저장하고" — 책등 글자는 이제 coverTitle.replace(/\n/g," ")로 파생하지 않고, 자기
+  // 만의 상태를 따로 들고 있어요. 다만 완전히 처음부터 따로 두면 새 책을 만들 때마다
+  // 표지 제목을 넣고 나서 책등도 매번 따로 입력해야 해서 불편하니, 사용자가 책등을
+  // 아직 한 번도 직접 고친 적이 없으면(spineTitleEditedRef.current === false) 표지
+  // 제목을 입력할 때 책등도 같이 따라가는 예전 느낌을 유지해요(handleCoverTitleChange
+  // 참고). 책등을 한 번이라도 직접 고치면 그 뒤로는 완전히 독립적으로 저장돼요.
+  const [spineTitle, setSpineTitle] = useState("");
+  const spineTitleEditedRef = useRef(false);
+  const [spineTitleBold, setSpineTitleBold] = useState(true);
+  const [spineTitleUnderline, setSpineTitleUnderline] = useState(false);
+  const [spineTitleItalic, setSpineTitleItalic] = useState(false);
   // 2026-10, 혜민님 요청: "표지 제목 자리를 클릭해 직접 입력·수정" — 지금 앞표지 제목
   // 자리(CoverTitleOverlay)가 캔버스에서 선택돼 인라인으로 편집 중인지예요.
   // spineTitleSelected·backCoverLogoSelected와 같은 역할이에요.
   const [coverTitleSelected, setCoverTitleSelected] = useState(false);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
+  // 2026-10-08, 혜민님 요청("표지 타이틀·글상자·책등을 같은 속성 패널로 통일") — 표지
+  // 제목도 일반 글상자처럼 글자색·굵게·밑줄·기울임을 직접 고를 수 있게 됐어요. 예전엔
+  // 항상 흰색+굵게로 고정이었어서(그림자로 사진 위에서도 잘 보이도록), 기본값을 그
+  // 기존 모습과 똑같이(#ffffff, 굵게 켜짐) 맞춰서 불러온 프로젝트가 갑자기 달라 보이지
+  // 않게 했어요.
+  const [coverTitleColor, setCoverTitleColor] = useState("#ffffff");
+  const [coverTitleBold, setCoverTitleBold] = useState(true);
+  const [coverTitleUnderline, setCoverTitleUnderline] = useState(false);
+  const [coverTitleItalic, setCoverTitleItalic] = useState(false);
   // 표지 제목⇄책등 제목 서체 연결 스위치예요(2026-09-25, 혜민님 요청). 기본 켜짐 — 켜진
   // 동안은 둘 중 어느 쪽 서체를 바꿔도 같이 바뀌어요(아래 handleCoverTitleFontFamilyChange/
   // handleSpineTitleFontFamilyChange 참고). 크기·위치·회전은 서로 영향 안 받고 각자 값
@@ -8159,8 +8240,19 @@ function UploadPageContent() {
   }, []);
 
   // 앞표지 제목을 입력하면 책등 제목도 자동으로 같이 채워요. 단, 사용자가 책등 제목을
+  // 한 번이라도 직접 고친 적이 있으면(spineTitleEditedRef) 그 뒤로는 더 이상 안 따라가요
+  // (spineTitle 상태 선언부 주석 참고, 2026-10-08).
   function handleCoverTitleChange(value: string) {
     setCoverTitle(value);
+    if (!spineTitleEditedRef.current) {
+      setSpineTitle(value.replace(/\n/g, " "));
+    }
+  }
+  // 책등 내용을 캔버스(SpineTitleOverlay)나 패널 내용 입력칸에서 직접 고치면 호출돼요 —
+  // 이 시점부터 spineTitle은 coverTitle과 완전히 독립이에요.
+  function handleSpineTitleChange(value: string) {
+    spineTitleEditedRef.current = true;
+    setSpineTitle(value);
   }
   // 지금 화면 오른쪽 큰 미리보기에 어떤 페이지를 보여줄지예요.
   // "cover"면 표지(뒤표지-세네카-앞표지)를, 숫자면 그 번째 스프레드를 보여줘요.
@@ -10013,6 +10105,7 @@ function UploadPageContent() {
     if (titleFontLinked) setCoverTitleFontFamily(fontId);
   }
 
+
   // 표지 "테마" 하나를 골라 앞표지·책등·뒤표지 배경(+ 뒤표지 무늬)·제목 서체를 한 번에
   // 맞춰요. 사진·텍스트박스는 전혀 안 건드려요 — 배경·서체만 바꾸는 비파괴적 적용이라,
   // 테마를 고른 뒤에도 사진·텍스트는 원래대로 남아있어요(레이아웃 탭에서처럼 따로
@@ -10237,12 +10330,20 @@ function UploadPageContent() {
       coverTitleYPct,
       coverTitleFontFamily,
       coverTitleAlign,
+      coverTitleColor,
+      coverTitleBold,
+      coverTitleUnderline,
+      coverTitleItalic,
+      spineTitle,
       spineTitleYPct,
       spineTitleHeightPct,
       spineTitleFontSizePt,
       spineTitleFontFamily,
       spineTitleColor,
       spineTitleAlign,
+      spineTitleBold,
+      spineTitleUnderline,
+      spineTitleItalic,
       titleFontLinked,
       backCoverLogo,
       backCoverPhoto,
@@ -10270,20 +10371,37 @@ function UploadPageContent() {
     setCoverTitleLetterSpacingEm(s.coverTitleLetterSpacingEm ?? 0);
     // draft 입력창도 불러온 값으로 같이 맞춰요(안 하면 문서를 불러온 직후에도 입력칸엔
     // 이전 draft 문자열이 남아있게 됨).
-    setCoverTitlePtDraft(String(s.coverTitleFontSizePt ?? 36));
-    setCoverTitleLineHeightDraft(String(s.coverTitleLineHeightEm ?? 1.2));
-    setCoverTitleLetterSpacingDraft(String(s.coverTitleLetterSpacingEm ?? 0));
     setCoverTitleXPct(s.coverTitleXPct);
     setCoverTitleYPct(s.coverTitleYPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
     setCoverTitleAlign(s.coverTitleAlign ?? "center");
+    setCoverTitleColor(s.coverTitleColor ?? "#ffffff");
+    setCoverTitleBold(s.coverTitleBold ?? true);
+    setCoverTitleUnderline(s.coverTitleUnderline ?? false);
+    setCoverTitleItalic(s.coverTitleItalic ?? false);
+    // 2026-10-08, 혜민님 요청(항목6) — spineTitle이 없는(이번 업데이트 전에 만들어진)
+    // 스냅샷이면, 그때는 책등이 항상 coverTitle을 그대로 썼으니(coverTitle.replace
+    // (/\n/g," ")) 그 값으로 채워서 불러온 순간 화면이 예전과 똑같이 보이게 해요. 그
+    // 뒤로는(사용자가 다시 고치기 전까지) spineTitleEditedRef는 그대로 false로 둬서
+    // 계속 coverTitle을 따라가요 — s.spineTitle이 이미 있으면(이번 업데이트 이후 저장된
+    // 스냅샷) 독립적으로 고쳐졌을 수 있으니 true로 표시해요.
+    const restoredSpineTitle: string | undefined = s.spineTitle;
+    if (restoredSpineTitle === undefined || restoredSpineTitle === null) {
+      spineTitleEditedRef.current = false;
+      setSpineTitle((s.coverTitle ?? "").replace(/\n/g, " "));
+    } else {
+      spineTitleEditedRef.current = true;
+      setSpineTitle(restoredSpineTitle);
+    }
     setSpineTitleYPct(s.spineTitleYPct ?? null);
     setSpineTitleHeightPct(s.spineTitleHeightPct);
     setSpineTitleFontSizePt(s.spineTitleFontSizePt ?? null);
-    setSpineTitleFontSizePtDraft(s.spineTitleFontSizePt !== undefined && s.spineTitleFontSizePt !== null ? String(s.spineTitleFontSizePt) : "");
     setSpineTitleFontFamily(s.spineTitleFontFamily ?? fontOptions[0].id);
     setSpineTitleColor(s.spineTitleColor ?? "#1F2937");
     setSpineTitleAlign(s.spineTitleAlign ?? "center");
+    setSpineTitleBold(s.spineTitleBold ?? true);
+    setSpineTitleUnderline(s.spineTitleUnderline ?? false);
+    setSpineTitleItalic(s.spineTitleItalic ?? false);
     setTitleFontLinked(s.titleFontLinked ?? true);
     setBackCoverLogo(s.backCoverLogo !== undefined ? s.backCoverLogo : { xPct: 50, yPct: 50, scalePct: 100 });
     setBackCoverPhoto(s.backCoverPhoto);
@@ -10347,12 +10465,20 @@ function UploadPageContent() {
     coverTitleYPct,
     coverTitleFontFamily,
     coverTitleAlign,
+    coverTitleColor,
+    coverTitleBold,
+    coverTitleUnderline,
+    coverTitleItalic,
+    spineTitle,
     spineTitleYPct,
     spineTitleHeightPct,
     spineTitleFontSizePt,
     spineTitleFontFamily,
     spineTitleColor,
     spineTitleAlign,
+    spineTitleBold,
+    spineTitleUnderline,
+    spineTitleItalic,
     titleFontLinked,
     backCoverLogo,
     backCoverPhoto,
@@ -10570,14 +10696,22 @@ function UploadPageContent() {
       coverTitleXPct,
       coverTitleYPct,
       coverTitleWidthPct,
+      coverTitleColor,
+      coverTitleBold,
+      coverTitleUnderline,
+      coverTitleItalic,
       innerPaperWeightG: innerPaper.weightG,
       pages,
+      spineTitle,
       spineTitleYPct: spineTitleYPct ?? undefined,
       spineTitleHeightPct,
       spineTitleFontSizePt: spineTitleFontSizePt ?? undefined,
       spineTitleFontFamily,
       spineTitleColor,
       spineTitleAlign,
+      spineTitleBold,
+      spineTitleUnderline,
+      spineTitleItalic,
       backCoverLogo,
       backCoverPhoto,
       backCoverBackgroundColor,
@@ -10956,7 +11090,7 @@ function UploadPageContent() {
     // 고정 px이 아니라서 브라우저 창을 늘리거나 줄여도 항상 책 실물 크기 그대로예요.
     const spineTitleMaxLengthMm = (spineTitleHeightPct / 100) * coverTotalHmm;
     const spineTitleMeasure = measureSpineTitleFontSizeMm(
-      coverTitle.replace(/\n/g, " ").trim(),
+      spineTitle.trim(),
       coverSpineMm,
       spineTitleMaxLengthMm,
       spineTitleFontSizePt ?? undefined,
@@ -10978,6 +11112,86 @@ function UploadPageContent() {
     const coverSpineLogoVisibleHeightPct = (coverSpineLogoLayout.drawnHeightPt / mmToPt(coverTotalHmm)) * 100;
     const coverSpineLogoBottomMarginPct = (SPINE_LOGO_BOTTOM_MARGIN_MM / coverTotalHmm) * 100;
     const coverSpineLogoCenterYPct = 100 - coverSpineLogoBottomMarginPct - coverSpineLogoVisibleHeightPct / 2;
+
+    // 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가 모두 동일한 텍스트
+    // 속성 패널과 동일한 편집 기능을 사용하게 해줘") — 표지 제목·책등은 실제
+    // TextBoxDef가 아니라 각자 coverTitle*/spineTitle* 필드로 따로 저장돼 있어서, 이
+    // 어댑터가 그 값들을 "TextBoxDef처럼 생긴" 임시 객체로 감싸서 TextBoxToolbar에 그대로
+    // 넘겨요(runs는 절대 안 만들어서 applyRunAwareStyleChange가 항상 changes를 그대로
+    // 돌려주게 해요 — lib/textRuns.ts 참고). 실제 coverTitle*/spineTitle* 데이터 모델은
+    // 안 바꿔요(더 위험한 전면 마이그레이션 대신 이 편이 안전하다고 판단했어요) — 이
+    // 어댑터는 오직 "화면에 보여주고 되돌려 쓰는" 순수 표시/변환 계층이에요.
+    const coverTitlePanelPageWidthMm = coverPanelMm + coverBleedMm;
+    const coverTitleAsTextBox: TextBoxDef = {
+      id: "__cover_title__",
+      text: coverTitle,
+      xPct: coverTitleXPct,
+      yPct: coverTitleYPct,
+      widthPct: coverTitleWidthPct,
+      fontFamily: coverTitleFontFamily,
+      fontScale: textBoxPtToFontScale(coverTitleFontSizePt, coverTitlePanelPageWidthMm),
+      color: coverTitleColor,
+      align: coverTitleAlign,
+      bold: coverTitleBold,
+      underline: coverTitleUnderline,
+      italic: coverTitleItalic,
+      lineHeight: coverTitleLineHeightEm,
+      letterSpacing: coverTitleLetterSpacingEm,
+    };
+    function handleCoverTitleBoxChange(changes: Partial<TextBoxDef>) {
+      if (changes.fontFamily !== undefined) handleCoverTitleFontFamilyChange(changes.fontFamily);
+      if (changes.fontScale !== undefined) {
+        const pt = textBoxFontScaleToPt(changes.fontScale, coverTitlePanelPageWidthMm);
+        setCoverTitleFontSizePt(pt);
+      }
+      if (changes.color !== undefined) setCoverTitleColor(changes.color);
+      if (changes.bold !== undefined) setCoverTitleBold(changes.bold);
+      if (changes.underline !== undefined) setCoverTitleUnderline(changes.underline);
+      if (changes.italic !== undefined) setCoverTitleItalic(changes.italic);
+      if (changes.lineHeight !== undefined) {
+        setCoverTitleLineHeightEm(changes.lineHeight);
+      }
+      if (changes.letterSpacing !== undefined) {
+        setCoverTitleLetterSpacingEm(changes.letterSpacing);
+      }
+      if (changes.align !== undefined) setCoverTitleAlign(changes.align);
+    }
+
+    // 책등도 같은 방식의 어댑터예요. 책등 폭 자체는 아주 좁지만, pt↔fontScale 변환은
+    // 표지 제목과 같은 기준폭(coverTitlePanelPageWidthMm)을 그대로 써요 — 이 변환은
+    // TextBoxToolbar 안에서만 쓰는 화면 표시용 왕복 계산이라(실제 저장은 항상
+    // spineTitleFontSizePt pt 값), 어느 기준폭을 쓰든 pt로 되돌아오는 값은 항상 같아요.
+    const spineTitleAsTextBox: TextBoxDef = {
+      id: "__spine_title__",
+      text: spineTitle,
+      xPct: 0,
+      yPct: coverSpineTitleYPct,
+      widthPct: 100,
+      fontFamily: spineTitleFontFamily,
+      fontScale: textBoxPtToFontScale(spineTitleFontSizePt ?? 9, coverTitlePanelPageWidthMm),
+      color: spineTitleColor,
+      align: spineTitleAlign,
+      bold: spineTitleBold,
+      underline: spineTitleUnderline,
+      italic: spineTitleItalic,
+      // 책등은 행간·자간을 따로 안 둬요(한 줄짜리 세로쓰기 글자라 줄바꿈 개념이 없어요) —
+      // 패널엔 그대로 보이지만(같은 컴포넌트라서) 바꿔도 저장할 자리가 없어 조용히
+      // 무시돼요. 기본값만 채워둬요.
+      lineHeight: 1.2,
+      letterSpacing: 0,
+    };
+    function handleSpineTitleBoxChange(changes: Partial<TextBoxDef>) {
+      if (changes.fontFamily !== undefined) handleSpineTitleFontFamilyChange(changes.fontFamily);
+      if (changes.fontScale !== undefined) {
+        const pt = textBoxFontScaleToPt(changes.fontScale, coverTitlePanelPageWidthMm);
+        setSpineTitleFontSizePt(pt);
+      }
+      if (changes.color !== undefined) setSpineTitleColor(changes.color);
+      if (changes.bold !== undefined) setSpineTitleBold(changes.bold);
+      if (changes.underline !== undefined) setSpineTitleUnderline(changes.underline);
+      if (changes.italic !== undefined) setSpineTitleItalic(changes.italic);
+      if (changes.align !== undefined) setSpineTitleAlign(changes.align);
+    }
 
     return (
       <main className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
@@ -11843,6 +12057,64 @@ function UploadPageContent() {
                               selectionRange={activeTextSelectionRange}
                             />
                           )}
+                          {/* 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가
+                              모두 동일한 텍스트 속성 패널과 동일한 편집 기능을 사용하게 해줘" +
+                              "'표지 타이틀 추가'라는 별도 메뉴는 없애줘") — 표지 제목 자리
+                              (CoverTitleOverlay)를 캔버스에서 선택하면(coverTitleSelected),
+                              예전의 "기존 표지 타이틀 (직접 입력)" 전용 패널 대신 일반
+                              글상자와 완전히 같은 TextBoxToolbar 컴포넌트를 그대로 보여줘요
+                              (coverTitleAsTextBox 어댑터 경유). 삭제 버튼은 제목 자리 자체를
+                              없앨 수는 없으니(표지엔 항상 제목 자리 1개가 있어요) 내용만
+                              비워요. */}
+                          {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
+                            coverTitleSelected && (
+                            <TextBoxToolbar
+                              box={coverTitleAsTextBox}
+                              onChange={handleCoverTitleBoxChange}
+                              onDelete={() => handleCoverTitleChange("")}
+                              pageWidthMm={coverTitlePanelPageWidthMm}
+                              selectionRange={null}
+                              hideAdvanced
+                              showContentField
+                              contentLabel="타이틀"
+                              contentValue={coverTitle}
+                              onContentChange={handleCoverTitleChange}
+                            />
+                          )}
+                          {/* 책등도 같은 방식이에요(항목4·5) — 별도의 "책등 제목 크기·서체"/
+                              "책등 글자색·정렬" 패널 대신 같은 TextBoxToolbar를 재사용하고,
+                              책등은 캔버스가 좁아 직접 타이핑하기 어려우니 내용 입력칸을 같이
+                              보여줘요(showContentField). 표지 제목⇄책등 서체 "연결" 스위치는
+                              두 자리에 걸친 특수한 동작이라(하나가 아니라 둘 다 바뀌는 것)
+                              TextBoxToolbar 위에 따로 작은 체크박스로 둬요. */}
+                          {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
+                            spineTitleSelected && (
+                            <div className="flex flex-col gap-1.5">
+                              <label className="flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
+                                <input
+                                  type="checkbox"
+                                  checked={!titleFontLinked}
+                                  onChange={(e) => setTitleFontLinked(!e.target.checked)}
+                                  className="h-3.5 w-3.5"
+                                />
+                                서체 분리(기본은 표지 제목과 동기화돼요)
+                              </label>
+                              <TextBoxToolbar
+                                box={spineTitleAsTextBox}
+                                onChange={handleSpineTitleBoxChange}
+                                onDelete={() => handleSpineTitleChange("")}
+                                pageWidthMm={coverTitlePanelPageWidthMm}
+                                selectionRange={null}
+                                hideAdvanced
+                                showContentField
+                                contentLabel="책등 내용"
+                                contentValue={spineTitle}
+                                onContentChange={handleSpineTitleChange}
+                              />
+                            </div>
+                          )}
                           {activeCoverEditTab === "theme" && (
                             // 2026-10-04, 혜민님 요청: "표지테마 상단에 문구삭제" — 위
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
@@ -12151,355 +12423,6 @@ function UploadPageContent() {
                                 </div>
                                 )}
                               </div>
-                              {/* 2026-10-07, 혜민님 요청: 새 프리셋 흐름을 방해하지 않도록, 기존
-                                  coverTitle(타이틀) 필드로 만들어둔 작업물이 있는 책에서만 이 섹션을
-                                  보여주고(비어있으면 아예 안 그림), 기본은 접어둬요 — 위치·서식은 전혀
-                                  안 건드리고 화면에서만 숨겨요. */}
-                              {coverTitle.trim() !== "" && (
-                              <div className="mt-2 border border-[var(--color-hairline)] bg-white">
-                                <button
-                                  type="button"
-                                  onClick={() => setLegacyCoverTitleOpen((v) => !v)}
-                                  className="flex w-full items-center justify-between px-1.5 py-2 text-xs font-medium text-[var(--color-charcoal)]/70"
-                                >
-                                  <span>기존 표지 타이틀 (직접 입력)</span>
-                                  <span className="text-[var(--color-charcoal)]/40">{legacyCoverTitleOpen ? "접기 ▲" : "펼치기 ▼"}</span>
-                                </button>
-                                {legacyCoverTitleOpen && (
-                                <div className="border-t border-[var(--color-hairline)] p-1.5">
-                              {/* 2026-10-02, 혜민님 요청(항목8): "표지에 넣을 제목을 타이틀로,
-                                  글자크기, 행간, 자간처럼 텍스트로 넣어주고 밑에 박스에는
-                                  (예:우리 가족의 여름) 내용만 넣습니다" — 아래 다른 필드들
-                                  (글자 크기·행간·자간)처럼 라벨을 먼저 붙이고, placeholder는
-                                  예시 문구만 남겨요. */}
-                              <div>
-                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                  타이틀
-                                </label>
-                                <textarea
-                                  value={coverTitle}
-                                  onChange={(e) => handleCoverTitleChange(e.target.value)}
-                                  placeholder="예: 우리 가족의 여름"
-                                  rows={2}
-                                  className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                />
-                              </div>
-                              <div className="mt-2 grid grid-cols-1 gap-1.5">
-                                <div>
-                                  <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                    글자 크기(pt)
-                                  </label>
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="number"
-                                      min={8}
-                                      max={200}
-                                      list="titlePtPresets"
-                                      value={coverTitlePtDraft}
-                                      onChange={(e) => {
-                                        const raw = e.target.value;
-                                        setCoverTitlePtDraft(raw);
-                                        const pt = Number(raw);
-                                        if (Number.isFinite(pt) && pt > 0) {
-                                          setCoverTitleFontSizePt(Math.max(8, Math.min(200, pt)));
-                                        }
-                                      }}
-                                      onBlur={() => setCoverTitlePtDraft(String(coverTitleFontSizePt))}
-                                      className="w-24 border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                    />
-                                    <span className="text-xs text-[var(--color-charcoal)]/40">pt</span>
-                                    <datalist id="titlePtPresets">
-                                      {COVER_TITLE_PT_PRESETS.map((pt) => (
-                                        <option key={pt} value={pt} />
-                                      ))}
-                                    </datalist>
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                    행간(줄 간격)
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min={0.8}
-                                    max={2.5}
-                                    step={0.05}
-                                    value={coverTitleLineHeightDraft}
-                                    onChange={(e) => {
-                                      const raw = e.target.value;
-                                      setCoverTitleLineHeightDraft(raw);
-                                      const v = Number(raw);
-                                      if (Number.isFinite(v)) {
-                                        setCoverTitleLineHeightEm(Math.max(0.8, Math.min(2.5, v)));
-                                      }
-                                    }}
-                                    onBlur={() => setCoverTitleLineHeightDraft(String(coverTitleLineHeightEm))}
-                                    className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                    자간
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min={-0.1}
-                                    max={0.5}
-                                    step={0.01}
-                                    value={coverTitleLetterSpacingDraft}
-                                    onChange={(e) => {
-                                      const raw = e.target.value;
-                                      setCoverTitleLetterSpacingDraft(raw);
-                                      const v = Number(raw);
-                                      if (Number.isFinite(v)) {
-                                        setCoverTitleLetterSpacingEm(Math.max(-0.1, Math.min(0.5, v)));
-                                      }
-                                    }}
-                                    onBlur={() => setCoverTitleLetterSpacingDraft(String(coverTitleLetterSpacingEm))}
-                                    className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                  />
-                                </div>
-                              </div>
-                              <div className="mt-2">
-                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                  표지 제목 서체
-                                </label>
-                                <select
-                                  value={coverTitleFontFamily}
-                                  onChange={(e) => handleCoverTitleFontFamilyChange(e.target.value)}
-                                  className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                  style={{ fontFamily: coverTitleFontFamily }}
-                                >
-                                  {fontOptions.map((f) => (
-                                    <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
-                                      {f.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              {/* 2026-10-05, 혜민님 요청: "내지페이지에 적용한 텍스트 수정메뉴도
-                                  넣어줘(폰트정렬, 박스정렬 등)" — 내지 텍스트박스(TextBoxToolbar)의
-                                  "문단 정렬"과 같은 3버튼(좌/가운데/우)을 표지 제목에도 추가. */}
-                              <div className="mt-2">
-                                <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
-                                  문단 정렬
-                                </p>
-                                <div className="flex gap-1">
-                                  {(
-                                    [
-                                      { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
-                                      { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
-                                      { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
-                                    ]
-                                  ).map((opt) => (
-                                    <button
-                                      key={opt.id}
-                                      type="button"
-                                      title={opt.title}
-                                      onClick={() => setCoverTitleAlign(opt.id)}
-                                      className={`flex h-7 flex-1 items-center justify-center border transition ${
-                                        coverTitleAlign === opt.id
-                                          ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                          : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                                      }`}
-                                    >
-                                      <LayerIcon name={opt.icon} className="h-4 w-4" />
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                                </div>
-                                )}
-                              </div>
-                              )}
-                              {/* 2026-10, 혜민님 요청(항목7): "책등이 좁아 캔버스에서 직접
-                                  타이핑하기 어려우면 패널의 내용 입력란에서도 수정할 수 있게" —
-                                  책등 글자는 별도 필드가 아니라 앞표지 제목(coverTitle)을 그대로
-                                  써요(줄바꿈만 공백으로 합쳐서, SpineTitleOverlay와 printCompose.ts
-                                  둘 다 같은 방식). 그래서 여기서 고치면 캔버스의 책등·앞표지 제목
-                                  둘 다 함께 바뀌어요 — 회전된 좁은 캔버스 대신 이 입력란에서 편하게
-                                  타이핑할 수 있어요. */}
-                              <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
-                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                  책등 내용
-                                </label>
-                                <input
-                                  type="text"
-                                  value={coverTitle.replace(/\n/g, " ")}
-                                  onChange={(e) => handleCoverTitleChange(e.target.value.replace(/\n/g, " "))}
-                                  onFocus={() => selectSpineTitle()}
-                                  placeholder="책등에 표시할 문구"
-                                  className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                />
-                                <p className="mt-1 text-[10px] text-[var(--color-charcoal)]/40">
-                                  표지 제목과 같은 내용이에요 — 여기서 고치면 캔버스의 표지 제목도
-                                  함께 바뀌어요.
-                                </p>
-                              </div>
-                              <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
-                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                  책등 제목 크기·서체
-                                </label>
-                                <label className="mb-2 flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
-                                  <input
-                                    type="checkbox"
-                                    checked={!titleFontLinked}
-                                    onChange={(e) => setTitleFontLinked(!e.target.checked)}
-                                    className="h-3.5 w-3.5"
-                                  />
-                                  서체 분리(기본은 표지 제목과 동기화돼요)
-                                </label>
-                                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                  <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                      글자 크기(pt)
-                                    </label>
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="number"
-                                        min={8}
-                                        max={200}
-                                        list="titlePtPresets"
-                                        value={spineTitleFontSizePtDraft}
-                                        placeholder="자동"
-                                        onChange={(e) => {
-                                          const raw = e.target.value;
-                                          setSpineTitleFontSizePtDraft(raw);
-                                          if (raw === "") {
-                                            setSpineTitleFontSizePt(null);
-                                            return;
-                                          }
-                                          const pt = Number(raw);
-                                          if (Number.isFinite(pt) && pt > 0) {
-                                            setSpineTitleFontSizePt(Math.max(8, Math.min(200, pt)));
-                                          }
-                                        }}
-                                        onBlur={() =>
-                                          setSpineTitleFontSizePtDraft(
-                                            spineTitleFontSizePt === null ? "" : String(spineTitleFontSizePt)
-                                          )
-                                        }
-                                        className="w-24 border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSpineTitleFontSizePt(null);
-                                          setSpineTitleFontSizePtDraft("");
-                                        }}
-                                        className={`shrink-0 border px-1.5 py-2.5 text-xs font-medium transition ${
-                                          spineTitleFontSizePt === null
-                                            ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                            : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
-                                        }`}
-                                      >
-                                        자동
-                                      </button>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                      책등 서체
-                                    </label>
-                                    <select
-                                      value={spineTitleFontFamily}
-                                      onChange={(e) => handleSpineTitleFontFamilyChange(e.target.value)}
-                                      className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                      style={{ fontFamily: spineTitleFontFamily }}
-                                    >
-                                      {fontOptions.map((f) => (
-                                        <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
-                                          {f.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
-                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                  책등 글자색·정렬
-                                </label>
-                                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                  <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                      책등 글자색
-                                    </label>
-                                    <input
-                                      type="color"
-                                      value={spineTitleColor}
-                                      onChange={(e) => setSpineTitleColor(e.target.value)}
-                                      className="h-9 w-full cursor-pointer border border-[var(--color-hairline)] bg-white p-1"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                      책등 정렬
-                                    </label>
-                                    <div className="flex gap-1">
-                                      {(
-                                        [
-                                          { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
-                                          { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
-                                          { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
-                                        ]
-                                      ).map((opt) => (
-                                        <button
-                                          key={opt.id}
-                                          type="button"
-                                          title={opt.title}
-                                          onClick={() => setSpineTitleAlign(opt.id)}
-                                          className={`flex h-9 flex-1 items-center justify-center border transition ${
-                                            spineTitleAlign === opt.id
-                                              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                                          }`}
-                                        >
-                                          <LayerIcon name={opt.icon} className="h-4 w-4" />
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                                  <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                      세로 위치(%)
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={90}
-                                      step={1}
-                                      value={Math.round(coverSpineTitleYPct)}
-                                      onChange={(e) => {
-                                        const raw = Number(e.target.value);
-                                        if (!Number.isFinite(raw)) return;
-                                        setSpineTitleYPct(Math.min(90, Math.max(0, raw)));
-                                      }}
-                                      className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
-                                      높이(%)
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min={8}
-                                      max={90}
-                                      step={1}
-                                      value={Math.round(spineTitleHeightPct)}
-                                      onChange={(e) => {
-                                        const raw = Number(e.target.value);
-                                        if (!Number.isFinite(raw)) return;
-                                        setSpineTitleHeightPct(Math.min(90, Math.max(8, raw)));
-                                      }}
-                                      className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
                               </>
                               )}
                             </div>
@@ -12722,20 +12645,23 @@ function UploadPageContent() {
                                 90도로 눕히고(글자가 위→아래로 읽혀요), 재단선에서 안전영역과 같은
                                 10mm 띄운 자리에 고정으로 둬요(화면에서 위치를 바꿀 수 없어요). */}
                             <SpineTitleOverlay
-                              title={coverTitle.replace(/\n/g, " ")}
+                              title={spineTitle}
                               emptyLabel="책등"
                               yPct={coverSpineTitleYPct}
                               heightPct={spineTitleHeightPct}
                               fontSizeCqh={spineTitleFontSizeCqh}
                               fontFamily={spineTitleFontFamily}
                               color={spineTitleColor}
+                              bold={spineTitleBold}
+                              underline={spineTitleUnderline}
+                              italic={spineTitleItalic}
                               align={spineTitleAlign}
                               isActive={spineTitleSelected}
                               editMode={editorMode === "edit"}
                               onMove={setSpineTitleYPct}
                               onResize={setSpineTitleHeightPct}
                               onSelect={selectSpineTitle}
-                              onChangeTitle={(value) => handleCoverTitleChange(value.replace(/\n/g, " "))}
+                              onChangeTitle={(value) => handleSpineTitleChange(value.replace(/\n/g, " "))}
                             />
                             {coverSpineLogoLayout.fits && (
                               <img
@@ -12806,6 +12732,10 @@ function UploadPageContent() {
                               lineHeightEm={coverTitleLineHeightEm}
                               letterSpacingEm={coverTitleLetterSpacingEm}
                               fontFamily={coverTitleFontFamily}
+                              color={coverTitleColor}
+                              bold={coverTitleBold}
+                              underline={coverTitleUnderline}
+                              italic={coverTitleItalic}
                               align={coverTitleAlign}
                               isActive={coverTitleSelected}
                               editMode={editorMode === "edit"}

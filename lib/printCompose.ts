@@ -1536,7 +1536,10 @@ function drawSpineTitleCanvas(
   fontSizePt?: number, // 혜민님이 직접 고른 글자 크기(pt). 비워두면 책등 폭 기준 자동 크기.
   fontFamily: string = "Pretendard, sans-serif",
   color: string = "#1a1a1a",
-  align: "left" | "center" | "right" = "center"
+  align: "left" | "center" | "right" = "center",
+  bold: boolean = true,
+  underline: boolean = false,
+  italic: boolean = false
 ): boolean {
   const trimmed = title.trim();
   if (!trimmed) return true;
@@ -1553,17 +1556,18 @@ function drawSpineTitleCanvas(
   // 시작 크기: 혜민님이 pt로 직접 골랐으면 그 값(px로 환산)을 쓰되, 책등 여백(1.5mm)이
   // 줄어들지 않도록 maxCrossPx를 넘지 않게 잘라요. 직접 고르지 않았으면(자동) 책등 폭의
   // 55%를 시작 크기로 잡아요 — 어느 쪽이든 글자가 다 안 들어가면(length 방향) 더 줄여요.
+  const fontStylePrefix = `${italic ? "italic " : ""}${bold ? "bold " : ""}`;
   const requestedPx = fontSizePt !== undefined ? mmToPx((fontSizePt * 25.4) / 72) : maxCrossPx * SPINE_TITLE_MAX_FONT_RATIO;
   let size = Math.min(requestedPx, maxCrossPx);
-  ctx.font = `bold ${size}px ${fontFamily}`;
+  ctx.font = `${fontStylePrefix}${size}px ${fontFamily}`;
   let textWidthPx = ctx.measureText(trimmed).width;
   while (size > SPINE_TITLE_MIN_FONT_PX && textWidthPx > maxLengthPx) {
     size -= 0.5;
-    ctx.font = `bold ${size}px ${fontFamily}`;
+    ctx.font = `${fontStylePrefix}${size}px ${fontFamily}`;
     textWidthPx = ctx.measureText(trimmed).width;
   }
   if (size < SPINE_TITLE_MIN_FONT_PX) size = SPINE_TITLE_MIN_FONT_PX;
-  ctx.font = `bold ${size}px ${fontFamily}`;
+  ctx.font = `${fontStylePrefix}${size}px ${fontFamily}`;
   textWidthPx = ctx.measureText(trimmed).width;
   const fits = textWidthPx <= maxLengthPx;
 
@@ -1590,6 +1594,19 @@ function drawSpineTitleCanvas(
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   ctx.fillText(trimmed, 0, 0);
+  // 밑줄(2026-10-08, 표지 제목·일반 글상자와 같은 밑줄 기능을 책등에도) — 회전된
+  // 좌표계 안에서 글자 baseline 바로 아래(글자 진행 방향으로) 한 줄 그어요.
+  if (underline) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, size * 0.06);
+    const underlineOffset = size * 0.38;
+    ctx.beginPath();
+    ctx.moveTo(0, underlineOffset);
+    ctx.lineTo(textWidthPx, underlineOffset);
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();
 
   return fits;
@@ -1668,6 +1685,10 @@ export async function buildCoverPrintPdf({
   coverTitleXPct = 8,
   coverTitleYPct = 84,
   coverTitleWidthPct = 84,
+  coverTitleColor = "#ffffff",
+  coverTitleBold = true,
+  coverTitleUnderline = false,
+  coverTitleItalic = false,
   innerPaperWeightG,
   pages,
   spineTitle,
@@ -1677,6 +1698,9 @@ export async function buildCoverPrintPdf({
   spineTitleFontFamily = "Pretendard, sans-serif",
   spineTitleColor = "#1a1a1a",
   spineTitleAlign = "center",
+  spineTitleBold = true,
+  spineTitleUnderline = false,
+  spineTitleItalic = false,
   backCoverLogo = { xPct: 50, yPct: 50, scalePct: 100 },
   backCoverPhoto = null,
   backCoverBackgroundColor,
@@ -1707,6 +1731,13 @@ export async function buildCoverPrintPdf({
   coverTitleXPct?: number;
   coverTitleYPct?: number;
   coverTitleWidthPct?: number;
+  // 2026-10-08, 혜민님 요청("표지 타이틀·글상자·책등을 같은 패널로 통일") — 표지 제목도
+  // 일반 글상자처럼 글자색·굵게·밑줄·기울임을 직접 고를 수 있어요. 기본값은 예전에
+  // 항상 고정이던 모습(흰색+굵게, 밑줄·기울임 없음) 그대로예요.
+  coverTitleColor?: string;
+  coverTitleBold?: boolean;
+  coverTitleUnderline?: boolean;
+  coverTitleItalic?: boolean;
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
@@ -1717,6 +1748,9 @@ export async function buildCoverPrintPdf({
   spineTitleFontFamily?: string; // 책등 제목 서체(CSS font-family 값). 표지 제목과 별도로 고를 수 있어요.
   spineTitleColor?: string; // 책등 제목 글자색(CSS color 값). 지정 안 하면 기존 기본색(#1a1a1a) 그대로예요.
   spineTitleAlign?: "left" | "center" | "right"; // 책등 길이 방향 정렬. 기본 "center"는 위쪽 정렬(기존 동작)과 다르게 가운데예요 — 화면 편집기 기본값과 맞춰요.
+  spineTitleBold?: boolean; // 기본 true(기존엔 항상 굵게 고정이었어요).
+  spineTitleUnderline?: boolean;
+  spineTitleItalic?: boolean;
   // 뒤표지 키픽 로고예요(2026-09, backCoverMode 토글을 대체) — null이면 로고를
   // 그리지 않고, 값이 있으면 그 위치(중심 기준 %)·크기(기본 100%=예전 고정 크기)로
   // 그려요. 사진(backCoverPhoto/backCoverImageBoxes)과는 독립된 객체라 함께 있을 수 있어요.
@@ -1920,7 +1954,10 @@ export async function buildCoverPrintPdf({
       spineTitleFontSizePt,
       spineTitleFontFamily,
       spineTitleColor,
-      spineTitleAlign
+      spineTitleAlign,
+      spineTitleBold,
+      spineTitleUnderline,
+      spineTitleItalic
     );
   }
   if (spineLogoLayout.fits) {
@@ -1959,8 +1996,9 @@ export async function buildCoverPrintPdf({
     // 24pt, 36pt). Enter로 줄바꿈하면 여러 줄로 나눠 그리고, 줄 간격(행간)·자간도
     // 사용자가 지정한 값을 그대로 반영해요.
     const titlePx = mmToPx((coverTitleFontSizePt * 25.4) / 72);
-    ctxNN.font = `bold ${titlePx}px ${coverTitleFontFamily}`;
-    ctxNN.fillStyle = "#ffffff";
+    const coverTitleFontStylePrefix = `${coverTitleItalic ? "italic " : ""}${coverTitleBold ? "bold " : ""}`;
+    ctxNN.font = `${coverTitleFontStylePrefix}${titlePx}px ${coverTitleFontFamily}`;
+    ctxNN.fillStyle = coverTitleColor;
     ctxNN.textAlign = coverTitleAlign;
     ctxNN.textBaseline = "top";
     ctxNN.shadowColor = "rgba(0,0,0,0.45)";
@@ -1980,8 +2018,31 @@ export async function buildCoverPrintPdf({
     const titleMaxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
     const titleLinePx = titlePx * coverTitleLineHeightEm;
     const titleLines = coverTitle.trim().split("\n");
+    // 밑줄(2026-10-08, 표지 제목도 일반 글상자·책등과 같은 밑줄 기능을 쓸 수 있게) — 줄마다
+    // 실제 그려진 폭을 재서, 정렬(align) 기준점에 맞춰 시작 x를 다시 계산해요
+    // (drawTextBoxOnCanvas의 measureLineBox와 같은 방식).
     titleLines.forEach((line, i) => {
-      ctxNN.fillText(line, titleXpx, titleYpx + i * titleLinePx, titleMaxWidthPx);
+      const lineY = titleYpx + i * titleLinePx;
+      ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
+      if (coverTitleUnderline && line.trim()) {
+        const lineWidth = Math.min(ctxNN.measureText(line).width, titleMaxWidthPx);
+        const lineStartX =
+          coverTitleAlign === "left"
+            ? titleXpx
+            : coverTitleAlign === "right"
+              ? titleXpx - lineWidth
+              : titleXpx - lineWidth / 2;
+        const underlineY = lineY + titlePx * 0.92;
+        ctxNN.save();
+        ctxNN.shadowBlur = 0;
+        ctxNN.strokeStyle = coverTitleColor;
+        ctxNN.lineWidth = Math.max(1, titlePx * 0.06);
+        ctxNN.beginPath();
+        ctxNN.moveTo(lineStartX, underlineY);
+        ctxNN.lineTo(lineStartX + lineWidth, underlineY);
+        ctxNN.stroke();
+        ctxNN.restore();
+      }
     });
     if ("letterSpacing" in ctxNN) {
       (ctxNN as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
