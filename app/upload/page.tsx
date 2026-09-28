@@ -79,37 +79,6 @@ const SPINE_TEXT_SIDE_PADDING_MM_SCREEN = 1.5; // 혜민님 확인(2026-09-19): 
 const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
 const SPINE_TITLE_MAX_FONT_RATIO_SCREEN = 0.55; // 혜민님 확인(2026-09-19): 책등 폭 꽉 채우면 글자가 너무 커 보여서 상한을 둬요(lib/printCompose.ts와 같은 값)
 
-// 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일하고, 표지 제목/부제목/본문
-// 처럼 스타일을 골라서 넣을 수 있게" — 글상자(TextBoxDef)를 추가할 때 바로 적용할 수
-// 있는 스타일 프리셋이에요. pt는 표지 제목(coverTitleFontSizePt)과 같은 단위(실제 인쇄
-// pt 기준)라서, 텍스트박스에 적용할 땐 그 칸의 실제 폭(mm)을 알아야 fontScale로 정확히
-// 환산돼요(textBoxPtToFontScale, lib/textBoxFontSize.ts) — 그래서 이 표엔 fontScale이
-// 아니라 pt를 저장해두고, 적용하는 자리(칸 폭을 아는 곳)에서 textStylePresetOverrides로
-// 바꿔요. 표지엔 없는 스프레드에도 그대로 재사용해요(제목/부제목/본문 개념은 표지·내지
-// 공통).
-type TextStylePresetKey = "title" | "subtitle" | "body";
-const TEXT_STYLE_PRESETS: Record<
-  TextStylePresetKey,
-  { label: string; pt: number; bold: boolean; align: "left" | "center" | "right"; lineHeight: number; letterSpacing: number }
-> = {
-  // 기존 표지 제목(coverTitle) 기본값(36pt)에서 영감을 받은 큰 제목용 프리셋이에요.
-  title: { label: "제목", pt: 36, bold: true, align: "center", lineHeight: 1.2, letterSpacing: 0 },
-  subtitle: { label: "부제목", pt: 20, bold: false, align: "center", lineHeight: 1.3, letterSpacing: 0 },
-  body: { label: "본문", pt: 14, bold: false, align: "left", lineHeight: 1.375, letterSpacing: 0 },
-};
-// 위 프리셋(pt 기준)을 실제 텍스트박스가 들어갈 칸의 폭(mm)에 맞춰 TextBoxDef 필드로
-// 바꿔요 — makeTextBox()의 overrides로 그대로 넘길 수 있어요.
-function textStylePresetOverrides(key: TextStylePresetKey, pageWidthMm: number): Partial<TextBoxDef> {
-  const preset = TEXT_STYLE_PRESETS[key];
-  return {
-    fontScale: textBoxPtToFontScale(preset.pt, pageWidthMm),
-    bold: preset.bold,
-    align: preset.align,
-    lineHeight: preset.lineHeight,
-    letterSpacing: preset.letterSpacing,
-  };
-}
-
 // 페이지에 자유롭게 얹을 수 있는 기본 스티커 세트예요. 실제로는 이미지박스와 같은
 // 방식(ImageBoxDef)으로 다뤄져서, 스티커도 사진처럼 끌어서 옮기고 크기를 바꿀 수
 // 있어요.
@@ -4082,8 +4051,6 @@ function TextBoxToolbar({
   pageWidthMm,
   selectionRange,
   hideAdvanced,
-  showContentField,
-  contentLabel,
   contentValue,
   onContentChange,
 }: {
@@ -4096,13 +4063,16 @@ function TextBoxToolbar({
   // 없는 "죽은 버튼"을 보여주지 않기 위해서예요). 일반 글상자(내지·표지 자유 글상자)는
   // 계속 기본값(false)으로 전부 보여요.
   hideAdvanced?: boolean;
-  // 책등처럼 캔버스가 좁아 직접 타이핑하기 어려운 대상을 위해, 패널 맨 위에 내용
-  // 입력칸(textarea)을 하나 더 보여줘요(2026-10, "좁은 책등에서도 입력하기 쉽도록").
-  // 일반 글상자는 캔버스 위에서 바로 타이핑하므로 기본은 안 보여요.
-  showContentField?: boolean;
-  contentLabel?: string;
-  contentValue?: string;
-  onContentChange?: (value: string) => void;
+  // 2026-10-08(3차), 혜민님 요청: "선택한 텍스트가 표지 제목이든 책등이든 일반
+  // 글상자든, 오른쪽엔 항상 똑같이 생긴 속성 패널 하나만 보이게 해줘" — 예전엔 이
+  // 내용 입력칸이 표지 제목/책등에서만 서로 다른 라벨("타이틀"/"책등 내용")로 조건부로
+  // 나타나서, 셋 중 뭘 골랐는지에 따라 패널 모양 자체가 달라 보였어요(일반 글상자는 이
+  // 칸이 아예 없었음). 이제 세 경우 모두 항상 이 칸이 나오고 라벨도 똑같이 "내용"
+  // 하나예요 — 호출하는 쪽 3곳(표지 제목/책등/일반 글상자) 전부 반드시 이 두 값을
+  // 넘겨야 해요(optional 아님). 일반 글상자는 캔버스 위 직접 타이핑
+  // (TextBoxRichEditor)도 그대로 계속 되고, 이 칸은 그 보조 수단이에요.
+  contentValue: string;
+  onContentChange: (value: string) => void;
   // 지금 텍스트박스 안에서 드래그로 고른 글자 범위예요(문자 단위 서식, 2026-10-06
   // 추가) — 서체·글자크기·굵게·색·밑줄·기울임 버튼이 이 값이 있으면(그리고 이
   // 박스 것이고 collapsed가 아니면) 그 범위에만, 없으면 박스 전체에 적용해요
@@ -4183,19 +4153,17 @@ function TextBoxToolbar({
           삭제
         </button>
       </div>
-      {showContentField && (
-        <div>
-          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
-            {contentLabel ?? "내용"}
-          </label>
-          <textarea
-            value={contentValue ?? ""}
-            onChange={(e) => onContentChange?.(e.target.value)}
-            rows={2}
-            className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
-          />
-        </div>
-      )}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
+          내용
+        </label>
+        <textarea
+          value={contentValue}
+          onChange={(e) => onContentChange(e.target.value)}
+          rows={2}
+          className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+        />
+      </div>
       {/* 2026-10-02, 혜민님 요청: "글자서체 오른쪽에 화살표를 조금 안쪽으로 넣기" —
           브라우저 기본 select 화살표를 없애고(appearance-none) 직접 그린 화살표를
           테두리에서 살짝 떨어진 안쪽(right-2.5)에 둠. */}
@@ -7215,7 +7183,7 @@ function CoverTitleOverlay({
         // 2026-10-08 후속 수정(혜민님 요청 "선택한 텍스트의 내용은 오른쪽 텍스트 속성
         // 패널 한곳에서만 수정하게 해줘") — 예전엔 여기 선택 시(isActive) textarea로
         // 바뀌어 캔버스 위에서도 직접 타이핑할 수 있었는데, 그러면 사이드바의
-        // TextBoxToolbar 내용 입력칸(contentLabel="타이틀")과 입력 창구가 두 곳이 돼요.
+        // TextBoxToolbar 내용 입력칸("내용")과 입력 창구가 두 곳이 돼요.
         // 이제 캔버스 클릭은 "선택"만 하고(onSelect), 실제 타이핑은 항상 사이드바 패널
         // 쪽 내용 입력칸에서만 해요 — 선택된 상태는 위 wrapper의 하늘색 outline으로
         // 보여줘요.
@@ -7377,7 +7345,7 @@ function SpineTitleOverlay({
         // 2026-10-08 후속 수정(혜민님 요청 "선택한 텍스트의 내용은 오른쪽 텍스트 속성
         // 패널 한곳에서만 수정하게 해줘") — 예전엔 여기 선택 시(isActive) 회전된
         // (rotate(90deg)) input으로 바뀌어 캔버스 위에서도 직접 타이핑할 수 있었는데,
-        // 그러면 사이드바 TextBoxToolbar 내용 입력칸(contentLabel="책등 내용")과
+        // 그러면 사이드바 TextBoxToolbar 내용 입력칸("내용")과
         // 입력 창구가 두 곳이 돼요. 이제 캔버스 클릭/드래그는 "선택+이동"만 하고
         // (onSelect, 바깥 div의 onMouseDown=handleDragStart), 실제 타이핑은 항상
         // 사이드바 패널 쪽 내용 입력칸에서만 해요 — 선택된 상태는 바깥 div의 하늘색
@@ -9100,15 +9068,19 @@ function UploadPageContent() {
     ? getTextBoxesForRef(activeTextBox.ref).find((b) => b.id === activeTextBox.boxId) ?? null
     : null;
 
-  // 2026-10, 혜민님 요청: "표지 제목/부제목/본문은 각각 별도 생성 메뉴로 두지 말고,
-  // 선택한 글상자에 적용하는 스타일로만 제공" — 예전엔 이 프리셋 버튼이 새 글상자를
-  // "만들면서" 스타일을 입혔는데(handleAddCoverTextBox(overrides) 등), 이제는 지금
-  // 캔버스에서 선택된 글상자(activeTextBox)가 있을 때만 그 글상자에 스타일만
-  // 덮어써요(updateTextBoxByRef) — 아무것도 안 만들어요. 선택된 글상자가 없으면 이
-  // 함수를 호출할 UI 자체가 안 보여요(호출부에서 activeTextBox 존재를 먼저 확인).
-  function applyTextStylePresetToActive(key: TextStylePresetKey, pageWidthMm: number) {
+  // 2026-10-08(3차), 혜민님 요청: "표지 제목/부제목/본문 프리셋 버튼도 없애고, 선택된
+  // 텍스트가 뭐든 똑같은 속성 패널 하나만 보이게" — 프리셋(applyTextStylePresetToActive)은
+  // 완전히 없앴어요. 대신 일반 글상자(TextBoxDef)도 표지 제목·책등과 똑같이
+  // TextBoxToolbar의 "내용" 입력칸에서 고칠 수 있게 이 헬퍼를 둬요(아래 TextBoxToolbar
+  // 호출부 2곳— 표지/내지—이 공통으로 씀). 사이드바에서 고치면 그 순간의 내용을
+  // "박스 전체가 같은 서식"인 구간 하나로 되돌려요(runs: undefined) — 문자 단위 서식
+  // (선택 범위별로 다른 서식)은 캔버스 위 직접 타이핑(TextBoxRichEditor)에서만 유지할
+  // 수 있는 개념이라, 평범한 한 줄짜리 사이드바 입력칸으로는 그 구간 경계를 다시
+  // 정확히 표현할 방법이 없어서예요 — 대신 박스 자체의 서체·크기·색 등 기본 서식은
+  // 그대로 남아요.
+  function handleActiveTextBoxContentChange(value: string) {
     if (!activeTextBox) return;
-    updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, textStylePresetOverrides(key, pageWidthMm));
+    updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, { text: value, runs: undefined });
   }
 
   // ---- 자유 배치 이미지박스(스프레드 전체 기준) ----
@@ -12263,12 +12235,11 @@ function UploadPageContent() {
                               <>
                               {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일" — 새
                                   글상자를 만드는 방법은 이 버튼 하나뿐이에요(스타일 없이 기본
-                                  글상자). 2026-10, 후속 요청: "표지 제목/부제목/본문은 각각
-                                  별도 생성 메뉴로 두지 말고, 선택한 글상자에 적용하는 스타일로만
-                                  제공" — 프리셋 칩은 더 이상 글상자를 "만들지" 않고, 지금 캔버스
-                                  에서 글상자가 선택돼 있을 때만 나타나서 그 글상자에 스타일만
-                                  입혀요(applyTextStylePresetToActive). 선택된 글상자가 없으면
-                                  적용할 대상이 없으니 칩 자체를 안 보여줘요. */}
+                                  글상자). 2026-10-08(3차), 후속 요청: "표지 제목/부제목/본문
+                                  프리셋 버튼도 없애고, 선택된 게 없을 땐 이 버튼 하나만 보이게" —
+                                  "선택한 글상자에 스타일 적용" 프리셋 칩 자체를 없앴어요. 이제
+                                  아무것도 선택 안 된 상태에선 이 "+ 텍스트 추가" 버튼 하나만
+                                  보여요. */}
                               <div className="flex flex-col gap-1.5 border-b border-[var(--color-hairline)] pb-2">
                                 <button
                                   type="button"
@@ -12281,25 +12252,6 @@ function UploadPageContent() {
                                 >
                                   + 텍스트 추가
                                 </button>
-                                {activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
-                                <div className="flex flex-col gap-1">
-                                  <p className="text-[10px] text-[var(--color-charcoal)]/50">
-                                    선택한 글상자에 스타일 적용
-                                  </p>
-                                  <div className="flex gap-1">
-                                    {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
-                                      <button
-                                        key={key}
-                                        type="button"
-                                        onClick={() => applyTextStylePresetToActive(key, coverPanelMm + coverBleedMm)}
-                                        className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
-                                      >
-                                        {key === "title" ? "표지 " : ""}{TEXT_STYLE_PRESETS[key].label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                                )}
                               </div>
                               {/* 2026-10-08 후속 수정(혜민님 재보고: "글쓰기/표만들기/이모티콘
                                   상단바와 +텍스트 추가 버튼이 원래 위치보다 아래로 내려갔어요")
@@ -12338,6 +12290,8 @@ function UploadPageContent() {
                               scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                               pageWidthMm={coverPanelMm + coverBleedMm}
                               selectionRange={activeTextSelectionRange}
+                              contentValue={activeTextBoxDef?.text ?? ""}
+                              onContentChange={handleActiveTextBoxContentChange}
                             />
                           )}
                           {/* 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가
@@ -12359,8 +12313,6 @@ function UploadPageContent() {
                               pageWidthMm={coverTitlePanelPageWidthMm}
                               selectionRange={null}
                               hideAdvanced
-                              showContentField
-                              contentLabel="타이틀"
                               contentValue={coverTitle}
                               onContentChange={handleCoverTitleChange}
                             />
@@ -12368,7 +12320,7 @@ function UploadPageContent() {
                           {/* 책등도 같은 방식이에요(항목4·5) — 별도의 "책등 제목 크기·서체"/
                               "책등 글자색·정렬" 패널 대신 같은 TextBoxToolbar를 재사용하고,
                               책등은 캔버스가 좁아 직접 타이핑하기 어려우니 내용 입력칸을 같이
-                              보여줘요(showContentField). 표지 제목⇄책등 서체 "연결" 스위치는
+                              보여줘요(이제 일반 글상자도 똑같이 보여요). 표지 제목⇄책등 서체 "연결" 스위치는
                               두 자리에 걸친 특수한 동작이라(하나가 아니라 둘 다 바뀌는 것)
                               TextBoxToolbar 위에 따로 작은 체크박스로 둬요. */}
                           {activeCoverEditTab === "text" &&
@@ -12391,8 +12343,6 @@ function UploadPageContent() {
                                 pageWidthMm={coverTitlePanelPageWidthMm}
                                 selectionRange={null}
                                 hideAdvanced
-                                showContentField
-                                contentLabel="책등 내용"
                                 contentValue={spineTitle}
                                 onContentChange={handleSpineTitleChange}
                               />
@@ -12983,11 +12933,9 @@ function UploadPageContent() {
                             {activeEditTab === "text" && textPanelSubTab === "write" && (
                               <div className="mb-1.5 flex flex-col gap-1.5">
                                 {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일" — 새
-                                    글상자를 만드는 방법은 이 버튼 하나뿐이에요. 2026-10, 후속
-                                    요청: 프리셋 칩은 더 이상 글상자를 만들지 않고, 지금 이
-                                    스프레드에서 글상자가 선택돼 있을 때만 나타나서 그 글상자에
-                                    스타일만 입혀요(표지와 같은 패턴,
-                                    applyTextStylePresetToActive). */}
+                                    글상자를 만드는 방법은 이 버튼 하나뿐이에요. 2026-10-08(3차),
+                                    후속 요청: 프리셋 칩(선택한 글상자에 스타일 적용)도 없앴어요 —
+                                    아무것도 선택 안 된 상태에선 이 버튼 하나만 보여요. */}
                                 <button
                                   type="button"
                                   onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
@@ -12995,25 +12943,6 @@ function UploadPageContent() {
                                 >
                                   + 텍스트 추가
                                 </button>
-                                {activeTextBox && activeTextBox.ref.scope === "spread" && activeTextBox.ref.spreadIndex === i && (
-                                <div className="flex flex-col gap-1">
-                                  <p className="text-[10px] text-[var(--color-charcoal)]/50">
-                                    선택한 글상자에 스타일 적용
-                                  </p>
-                                  <div className="flex gap-1">
-                                    {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
-                                      <button
-                                        key={key}
-                                        type="button"
-                                        onClick={() => applyTextStylePresetToActive(key, guidePageWorkMm)}
-                                        className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
-                                      >
-                                        {TEXT_STYLE_PRESETS[key].label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                                )}
                               </div>
                             )}
                             {activeEditTab === "text" &&
@@ -13037,6 +12966,8 @@ function UploadPageContent() {
                                 scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                                 pageWidthMm={guidePageWorkMm}
                                 selectionRange={activeTextSelectionRange}
+                                contentValue={activeTextBoxDef?.text ?? ""}
+                                onContentChange={handleActiveTextBoxContentChange}
                               />
                             )}
                             <div>
