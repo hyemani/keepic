@@ -2832,11 +2832,28 @@ function TableBoxToolbar({
   box,
   onChange,
   onDelete,
+  pageWidthMm,
 }: {
   box: TableBoxDef | null;
   onChange: (changes: Partial<TableBoxDef>) => void;
   onDelete: () => void;
+  // 표 크기(pt)를 텍스트박스와 같은 단위로 보여주고 되돌리는 데 필요해요
+  // (lib/textBoxFontSize.ts, 2026-09-28 혜민님 요청 "글자는 폰트 크기로 조절").
+  pageWidthMm: number;
 }) {
+  const [ptDraft, setPtDraft] = useState("");
+  const lastSyncedBoxIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!box) {
+      lastSyncedBoxIdRef.current = undefined;
+      return;
+    }
+    if (lastSyncedBoxIdRef.current === box.id) return;
+    lastSyncedBoxIdRef.current = box.id;
+    setPtDraft(String(textBoxFontScaleToPt(box.fontScale ?? 1, pageWidthMm)));
+  }, [box, pageWidthMm]);
+
   if (!box) return null;
   return (
     <div
@@ -2866,12 +2883,26 @@ function TableBoxToolbar({
             />
             <button
               type="button"
-              onClick={() => onChange({ fillColor: undefined })}
+              onClick={() => onChange({ fillColor: undefined, fillOpacity: undefined })}
               className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
             >
               기본값
             </button>
           </div>
+          {/* 2026-09-28, 혜민님 요청: "표 면 색상과 라인색은 투명도 있도록 해줘" —
+              네이티브 color input은 hex만 지원해서(투명도 없음) 슬라이더를 따로 뒀어요. */}
+          <label className="mb-1 mt-1.5 block text-[10px] text-[var(--color-charcoal)]/60">
+            투명도 {Math.round((box.fillOpacity ?? 1) * 100)}%
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={box.fillOpacity ?? 1}
+            onChange={(e) => onChange({ fillOpacity: Number(e.target.value) })}
+            className="w-full"
+          />
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">라인색</label>
@@ -2885,12 +2916,24 @@ function TableBoxToolbar({
             />
             <button
               type="button"
-              onClick={() => onChange({ borderColor: undefined })}
+              onClick={() => onChange({ borderColor: undefined, borderOpacity: undefined })}
               className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
             >
               기본값
             </button>
           </div>
+          <label className="mb-1 mt-1.5 block text-[10px] text-[var(--color-charcoal)]/60">
+            투명도 {Math.round((box.borderOpacity ?? 1) * 100)}%
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={box.borderOpacity ?? 1}
+            onChange={(e) => onChange({ borderOpacity: Number(e.target.value) })}
+            className="w-full"
+          />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-1.5">
@@ -2963,18 +3006,88 @@ function TableBoxToolbar({
           </div>
         </div>
       )}
-      <div>
-        <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">
-          표 크기(칸 글자 배율) — {Math.round((box.fontScale ?? 1) * 100)}%
-        </label>
+      {/* 2026-09-28, 혜민님 요청: "글자는 폰트 크기로 조절할수 있도록 하고 텍스트
+          글상자 내용을 표에서도 적용할수있게" — "표 크기(칸 글자 배율)" 슬라이더 대신
+          텍스트박스(TextBoxToolbar)와 똑같이 pt로 글자 크기를 정하고, 글꼴·굵게·기울임·
+          밑줄·글자색도 표 칸 글자에 그대로 적용돼요. */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">글꼴</label>
+          <select
+            value={box.fontFamily ?? fontOptions[0].id}
+            onChange={(e) => onChange({ fontFamily: e.target.value })}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          >
+            {fontOptions.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">글자 크기(pt)</label>
+          <input
+            type="number"
+            min={6}
+            max={200}
+            value={ptDraft}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setPtDraft(raw);
+              const pt = Number(raw);
+              if (Number.isFinite(pt) && pt > 0) {
+                onChange({ fontScale: textBoxPtToFontScale(Math.max(6, Math.min(200, pt)), pageWidthMm) });
+              }
+            }}
+            onBlur={() => setPtDraft(String(textBoxFontScaleToPt(box.fontScale ?? 1, pageWidthMm)))}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange({ bold: !box.bold })}
+          title="굵게"
+          className={`flex h-7 w-7 items-center justify-center border text-sm font-bold ${
+            box.bold
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)]"
+          }`}
+        >
+          B
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ italic: !box.italic })}
+          title="기울임"
+          className={`flex h-7 w-7 items-center justify-center border ${
+            box.italic
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="italic" className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ underline: !box.underline })}
+          title="밑줄"
+          className={`flex h-7 w-7 items-center justify-center border ${
+            box.underline
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="underline" className="h-4 w-4" />
+        </button>
         <input
-          type="range"
-          min={0.5}
-          max={2}
-          step={0.05}
-          value={box.fontScale ?? 1}
-          onChange={(e) => onChange({ fontScale: Number(e.target.value) })}
-          className="w-full"
+          type="color"
+          value={box.color ?? "#1F2937"}
+          onChange={(e) => onChange({ color: e.target.value })}
+          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+          title="글자 색"
         />
       </div>
     </div>
@@ -4530,6 +4643,21 @@ function ImageBoxLayer({
 // 옮기고, 칸 안(textarea)을 클릭하면 커서가 그 자리에 놓여요 — TextBoxOverlay와 똑같이
 // "먼저 stopPropagation만 하고 preventDefault는 안 해서" 클릭은 그대로 포커스로
 // 이어지고, 실제로 마우스를 끌 때만(문턱값 초과) 박스가 움직이게 나눴어요.
+// hex 색(#rrggbb 또는 #rgb)에 투명도(0~1)를 입혀 rgba() 문자열로 바꿔요 — 표 면/라인
+// 색에 투명도를 줄 수 있게(2026-09-28 혜민님 요청) 네이티브 color input(hex만 지원)과
+// 별도 투명도 슬라이더를 조합하는 데 써요. 형식이 이상하면 원래 값을 그냥 돌려줘요.
+function hexToRgba(hex: string, alpha: number): string {
+  const clampedAlpha = Math.max(0, Math.min(1, alpha));
+  const m = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return hex;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${clampedAlpha})`;
+}
+
 function TableBoxOverlay({
   box,
   onChange,
@@ -4788,9 +4916,9 @@ function TableBoxOverlay({
     setDragSel(null);
   }
 
-  // "너비 맞춤" — 칸마다 따로 준 폭을 지우고 다시 전부 같은 폭으로 되돌려요.
+  // "너비 맞춤" — 칸마다 따로 준 폭·높이를 지우고 다시 전부 같은 크기로 되돌려요.
   function handleFitWidth() {
-    onChange({ colWidths: undefined });
+    onChange({ colWidths: undefined, rowHeights: undefined });
     setMenuOpen(false);
   }
 
@@ -4816,10 +4944,64 @@ function TableBoxOverlay({
     onChange({ colWidths: base });
   }
 
+  // "표 칸 하나당 가로폭이나 세로폭을 몇으로 할지"(2026-09-28 혜민님 요청) — 칸 폭과
+  // 같은 방식으로 행(가로줄)별 상대 높이도 조절해요.
+  function handleRowHeightChange(row: number, weight: number) {
+    const base =
+      box.rowHeights && box.rowHeights.length === box.rows ? box.rowHeights.slice() : new Array(box.rows).fill(1);
+    base[row] = weight;
+    onChange({ rowHeights: base });
+  }
+
   const colTemplate =
     box.colWidths && box.colWidths.length === box.cols
       ? box.colWidths.map((w) => `${Math.max(0.1, w)}fr`).join(" ")
       : `repeat(${box.cols}, 1fr)`;
+  const rowTemplate =
+    box.rowHeights && box.rowHeights.length === box.rows
+      ? box.rowHeights.map((h) => `${Math.max(0.1, h)}fr`).join(" ")
+      : `repeat(${box.rows}, 1fr)`;
+
+  // 격자선을 칸마다 따로 그리지 않고 표 전체 위에 SVG 하나로 한 번만 그려요(2026-09-28
+  // 혜민님 요청: "선이 만나는 부분은 + 모양으로 정돈되게") — 칸마다 테두리를 각자
+  // 그리면 겹치는 자리에서 점선/파선이 어긋나 보였는데, 좌표를 한 번만 계산해서 선을
+  // 한 번만 그리면 교차점이 항상 깔끔한 +(십자) 모양이 돼요. 인쇄(lib/printCompose.ts
+  // drawTableGridAndCells)와 완전히 같은 계산식(칸 폭 가중치 → 경계 좌표, 병합에 덮인
+  // 구간은 건너뜀)을 화면에서도 그대로 써요.
+  const colWeights =
+    box.colWidths && box.colWidths.length === box.cols ? box.colWidths.map((w) => Math.max(0.1, w)) : new Array(box.cols).fill(1);
+  const colTotalWeight = colWeights.reduce((a, b) => a + b, 0) || box.cols;
+  const colBoundariesPct: number[] = [0];
+  for (let c = 0; c < box.cols; c++) colBoundariesPct.push(colBoundariesPct[c] + (colWeights[c] / colTotalWeight) * 100);
+  const rowWeights =
+    box.rowHeights && box.rowHeights.length === box.rows ? box.rowHeights.map((h) => Math.max(0.1, h)) : new Array(box.rows).fill(1);
+  const rowTotalWeight = rowWeights.reduce((a, b) => a + b, 0) || box.rows;
+  const rowBoundariesPct: number[] = [0];
+  for (let r = 0; r < box.rows; r++) rowBoundariesPct.push(rowBoundariesPct[r] + (rowWeights[r] / rowTotalWeight) * 100);
+  const gridBorderStyle = box.borderStyle ?? "solid";
+  const gridBorderWidthPx = box.borderWidth ?? 1;
+  const gridBorderColor = hexToRgba(box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
+  const gridDashed = gridBorderStyle !== "solid";
+  const gridDashLength = box.dashLength ?? (gridBorderStyle === "dotted" ? gridBorderWidthPx : gridBorderWidthPx * 3);
+  const gridDashGap = box.dashGap ?? (gridBorderStyle === "dotted" ? gridBorderWidthPx * 1.5 : gridBorderWidthPx * 2);
+  const gridMerges = box.merges ?? [];
+  const gridLineSegments: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  for (let c = 0; c <= box.cols; c++) {
+    const x = colBoundariesPct[c];
+    for (let r = 0; r < box.rows; r++) {
+      const covered = gridMerges.some((m) => c > m.col && c < m.col + m.colSpan && r >= m.row && r < m.row + m.rowSpan);
+      if (covered) continue;
+      gridLineSegments.push({ x1: x, y1: rowBoundariesPct[r], x2: x, y2: rowBoundariesPct[r + 1] });
+    }
+  }
+  for (let r = 0; r <= box.rows; r++) {
+    const y = rowBoundariesPct[r];
+    for (let c = 0; c < box.cols; c++) {
+      const covered = gridMerges.some((m) => r > m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan);
+      if (covered) continue;
+      gridLineSegments.push({ x1: colBoundariesPct[c], y1: y, x2: colBoundariesPct[c + 1], y2: y });
+    }
+  }
 
   return (
     <div
@@ -4836,8 +5018,8 @@ function TableBoxOverlay({
         height: `${box.heightPct}%`,
         display: "grid",
         gridTemplateColumns: colTemplate,
-        gridTemplateRows: `repeat(${box.rows}, 1fr)`,
-        backgroundColor: box.fillColor ?? "#ffffff",
+        gridTemplateRows: rowTemplate,
+        backgroundColor: hexToRgba(box.fillColor ?? "#ffffff", box.fillOpacity ?? 1),
         borderRadius: box.borderRadius ? `${box.borderRadius}px` : undefined,
         overflow: box.borderRadius ? "hidden" : undefined,
       }}
@@ -4850,12 +5032,6 @@ function TableBoxOverlay({
         const rowSpan = covering ? covering.rowSpan : 1;
         const colSpan = covering ? covering.colSpan : 1;
         const inSel = !!selRange && row >= selRange.r0 && row <= selRange.r1 && col >= selRange.c0 && col <= selRange.c1;
-        const borderStyleValue = box.borderStyle ?? "solid";
-        const borderWidthPx = box.borderWidth ?? 1;
-        const borderColorValue = box.borderColor ?? "#94A3B8";
-        const dashLength = box.dashLength ?? (borderStyleValue === "dotted" ? borderWidthPx : borderWidthPx * 3);
-        const dashGap = box.dashGap ?? (borderStyleValue === "dotted" ? borderWidthPx * 1.5 : borderWidthPx * 2);
-        const dashed = borderStyleValue !== "solid";
         return (
           <div
             key={idx}
@@ -4876,19 +5052,6 @@ function TableBoxOverlay({
               gridColumn: `${col + 1} / span ${colSpan}`,
               gridRow: `${row + 1} / span ${rowSpan}`,
               position: "relative",
-              ...(dashed
-                ? {
-                    backgroundImage: [
-                      `linear-gradient(to right, ${borderColorValue} 50%, transparent 0%)`,
-                      `linear-gradient(to right, ${borderColorValue} 50%, transparent 0%)`,
-                      `linear-gradient(to bottom, ${borderColorValue} 50%, transparent 0%)`,
-                      `linear-gradient(to bottom, ${borderColorValue} 50%, transparent 0%)`,
-                    ].join(", "),
-                    backgroundPosition: "top, bottom, left, right",
-                    backgroundSize: `${dashLength + dashGap}px ${borderWidthPx}px, ${dashLength + dashGap}px ${borderWidthPx}px, ${borderWidthPx}px ${dashLength + dashGap}px, ${borderWidthPx}px ${dashLength + dashGap}px`,
-                    backgroundRepeat: "repeat-x, repeat-x, repeat-y, repeat-y",
-                  }
-                : {}),
             }}
           >
             <textarea
@@ -4897,17 +5060,44 @@ function TableBoxOverlay({
               placeholder=""
               style={{
                 fontSize: `${0.78 * (box.fontScale ?? 1)}rem`,
-                borderColor: dashed ? undefined : borderColorValue,
-                borderWidth: dashed ? 0 : `${borderWidthPx}px`,
-                borderStyle: dashed ? "none" : "solid",
+                fontFamily: box.fontFamily ?? "Pretendard, sans-serif",
+                color: box.color ?? "#1F2937",
+                fontWeight: box.bold ? 700 : 400,
+                fontStyle: box.italic ? "italic" : "normal",
+                textDecoration: box.underline ? "underline" : "none",
+                lineHeight: box.lineHeight ?? 1.375,
+                border: "none",
               }}
-              className={`relative h-full w-full resize-none bg-transparent p-1 text-center leading-snug text-[#1F2937] outline-none ${
+              className={`relative h-full w-full resize-none bg-transparent p-1 text-center outline-none ${
                 inSel ? "bg-[var(--color-sky)]/15" : ""
               }`}
             />
           </div>
         );
       })}
+      {/* 표 전체 위에 한 번만 그리는 격자선/바깥 테두리 — 칸마다 따로 그리지 않아서
+          교차점이 항상 깔끔한 +(십자) 모양이에요. */}
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        style={{ overflow: "visible" }}
+      >
+        {gridLineSegments.map((seg, i) => (
+          <line
+            key={i}
+            x1={seg.x1}
+            y1={seg.y1}
+            x2={seg.x2}
+            y2={seg.y2}
+            stroke={gridBorderColor}
+            strokeWidth={gridBorderWidthPx}
+            strokeDasharray={gridDashed ? `${gridDashLength} ${gridDashGap}` : undefined}
+            strokeLinecap={gridDashed ? "butt" : "square"}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+      </svg>
       {isActive && (
         <>
           {TEXT_BOX_RESIZE_HANDLES.filter((h) => h.dir.length === 2).map(({ dir, className, cursor, title }) => (
@@ -4984,7 +5174,7 @@ function TableBoxOverlay({
                 {activeCell && (
                   <div className="mt-1 border-t border-[var(--color-hairline)] pt-1.5">
                     <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
-                      칸 폭 {Math.round((box.colWidths?.[activeCell.col] ?? 1) * 100)}%
+                      칸 가로폭 {Math.round((box.colWidths?.[activeCell.col] ?? 1) * 100)}%
                     </label>
                     <input
                       type="range"
@@ -4993,6 +5183,18 @@ function TableBoxOverlay({
                       step={0.05}
                       value={box.colWidths?.[activeCell.col] ?? 1}
                       onChange={(e) => handleColWidthChange(activeCell.col, Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <label className="mb-1 mt-2 block text-[10px] text-[var(--color-charcoal)]/60">
+                      칸 세로폭 {Math.round((box.rowHeights?.[activeCell.row] ?? 1) * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min={0.3}
+                      max={3}
+                      step={0.05}
+                      value={box.rowHeights?.[activeCell.row] ?? 1}
+                      onChange={(e) => handleRowHeightChange(activeCell.row, Number(e.target.value))}
                       className="w-full"
                     />
                   </div>
@@ -10069,6 +10271,7 @@ function UploadPageContent() {
                                       if (activeTableBox.scope === "backCover") handleDeleteBackCoverTableBox(activeTableBox.boxId);
                                       else if (activeTableBox.scope === "cover") handleDeleteCoverTableBox(activeTableBox.boxId);
                                     }}
+                                    pageWidthMm={coverPanelMm + coverBleedMm}
                                   />
                                 </>
                               )}
@@ -10806,6 +11009,7 @@ function UploadPageContent() {
                                       handleDeleteTableBox(i, activeTableBox.boxId);
                                     }
                                   }}
+                                  pageWidthMm={guidePageWorkMm}
                                 />
                               </>
                             )}

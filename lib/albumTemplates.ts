@@ -201,6 +201,21 @@ export type TableBoxDef = {
   // 점선/파선의 선분 길이·간격(px)이에요. 비워두면 borderWidth 기준 기본 비율을 써요.
   dashLength?: number;
   dashGap?: number;
+  // 행(가로줄)별 상대 높이 가중치예요 — colWidths와 같은 방식(길이가 rows와 다르면
+  // 무시하고 전부 같은 높이로 그려요). 2026-09-28 혜민님 요청("표 칸 하나당 가로폭이나
+  // 세로폭을 몇으로 할지").
+  rowHeights?: number[];
+  // 표 면(배경)·라인 색 투명도(0~1). 비워두면 1(불투명)이에요(2026-09-28 혜민님 요청).
+  fillOpacity?: number;
+  borderOpacity?: number;
+  // 텍스트박스(TextBoxDef)와 같은 글자 꾸미기 — 비워두면 예전처럼 검정 고딕체예요
+  // (2026-09-28 혜민님 요청: "텍스트 글상자 내용을 표에서도 적용할수있게").
+  fontFamily?: string; // 기본 "Pretendard, sans-serif"
+  color?: string; // 글자 색. 기본 "#1F2937".
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  lineHeight?: number; // 줄 간격 배수(em). 기본 1.25.
 };
 
 export type SpreadDef = {
