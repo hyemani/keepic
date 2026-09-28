@@ -102,7 +102,7 @@ type StickerCategoryId =
 // 줄였어요(묶는 category는 그대로 유지, 라벨 표기만 축약).
 const STICKER_CATEGORIES: { id: string; label: string; memberIds: StickerCategoryId[] }[] = [
   { id: "decor", label: "소품", memberIds: ["props", "ribbon", "tape", "frame", "badge", "goods"] },
-  { id: "nature", label: "동물", memberIds: ["plant", "animal"] },
+  { id: "nature", label: "동식물", memberIds: ["plant", "animal"] },
   { id: "text", label: "문구", memberIds: ["phrase", "lettering", "certificate"] },
   { id: "occasion", label: "이벤트", memberIds: ["season", "wedding", "party"] },
   { id: "icon", label: "아이콘", memberIds: ["icon"] },
@@ -123,17 +123,17 @@ type HandwritingCategoryId =
 // 2026-09-28, 혜민님 요청: "검은색 탭 길이를 가로폭에 맞춰주세요. 글자가 많은건
 // 내용을 축소해주세요" — 10개 탭이라 라벨이 조금만 길어도 폭을 넘겨 가로
 // 스크롤이 생겼어요. 각 category는 그대로 두고 라벨만 짧게 줄였어요.
-const HANDWRITING_CATEGORIES: { id: HandwritingCategoryId; label: string }[] = [
-  { id: "daily", label: "일상" },
-  { id: "family", label: "가족" },
-  { id: "travel", label: "여행" },
-  { id: "love", label: "커플" },
-  { id: "pet", label: "반려" },
-  { id: "baby", label: "아기" },
-  { id: "birthday", label: "생일" },
-  { id: "graduation", label: "졸업" },
-  { id: "thanks", label: "감사" },
-  { id: "season", label: "계절" },
+// 2026-09-28, 혜민님 요청: "손글씨탭도 5개 테마로 수정" — 스티커와 같은 방식으로
+// 10개 category를 5개 탭으로 묶었어요(각 아이템의 category는 그대로 두고,
+// CategoryTabbedGrid의 memberIds로 묶음). 실제 아이템 수가 0개인 category(family,
+// pet, season)는 단독 탭으로 두면 빈 화면만 보이니, 비슷한 성격의 탭에 같이
+// 묶었어요.
+const HANDWRITING_CATEGORIES: { id: string; label: string; memberIds: HandwritingCategoryId[] }[] = [
+  { id: "daily", label: "일상", memberIds: ["daily"] },
+  { id: "celebrate", label: "축하", memberIds: ["birthday", "graduation"] },
+  { id: "love", label: "커플", memberIds: ["love"] },
+  { id: "baby", label: "아기", memberIds: ["baby"] },
+  { id: "etc", label: "기타", memberIds: ["travel", "family", "pet", "season", "thanks"] },
 ];
 
 // 스티커·손글씨 아이템이 공유하는 모양이에요. category가 없으면(=지정 안 하면) "전체"
@@ -266,16 +266,6 @@ const STICKERS: StickerLikeItem[] = [
   { id: "tape-sticker-20", url: "/stickers/tape/tape-sticker-20.png", label: "테이프·메모 스티커 20", category: "tape" },
   // 2026-10-05, 혜민님 요청: 영문 문구·웨딩소품·파티소품(폭죽 포함)·왕관·메달·일상소품
   // 스티커 50+9종을 새 카테고리(phrase 확장/wedding/party/badge/goods)로 추가했어요.
-  { id: "phrase-en-01", url: "/stickers/phrase/phrase-en-01.png", label: "JUST MARRIED", category: "phrase" },
-  { id: "phrase-en-02", url: "/stickers/phrase/phrase-en-02.png", label: "FOREVER US", category: "phrase" },
-  { id: "phrase-en-03", url: "/stickers/phrase/phrase-en-03.png", label: "LOVE ALWAYS", category: "phrase" },
-  { id: "phrase-en-04", url: "/stickers/phrase/phrase-en-04.png", label: "OUR STORY", category: "phrase" },
-  { id: "phrase-en-05", url: "/stickers/phrase/phrase-en-05.png", label: "HAPPY BIRTHDAY", category: "phrase" },
-  { id: "phrase-en-06", url: "/stickers/phrase/phrase-en-06.png", label: "MAKE A WISH", category: "phrase" },
-  { id: "phrase-en-07", url: "/stickers/phrase/phrase-en-07.png", label: "CHEERS TO 60", category: "phrase" },
-  { id: "phrase-en-08", url: "/stickers/phrase/phrase-en-08.png", label: "CELEBRATE YOU", category: "phrase" },
-  { id: "phrase-en-09", url: "/stickers/phrase/phrase-en-09.png", label: "BEST DAY EVER", category: "phrase" },
-  { id: "phrase-en-10", url: "/stickers/phrase/phrase-en-10.png", label: "MEMORIES FOREVER", category: "phrase" },
   { id: "wedding-01", url: "/stickers/wedding/wedding-01.png", label: "웨딩링", category: "wedding" },
   { id: "wedding-02", url: "/stickers/wedding/wedding-02.png", label: "부케", category: "wedding" },
   { id: "wedding-03", url: "/stickers/wedding/wedding-03.png", label: "웨딩케이크", category: "wedding" },
@@ -378,6 +368,16 @@ const HANDWRITING_ITEMS: StickerLikeItem[] = [
   { id: "hw2-kr-08", url: "/stickers/birthday/hw2-kr-08.png", label: "오래오래 건강하세요", category: "birthday" },
   { id: "hw2-kr-09", url: "/stickers/birthday/hw2-kr-09.png", label: "생일 축하해", category: "birthday" },
   { id: "hw2-kr-10", url: "/stickers/baby/hw2-kr-10.png", label: "태어나줘서 고마워", category: "baby" },
+  { id: "phrase-en-01", url: "/stickers/phrase/phrase-en-01.png", label: "JUST MARRIED", category: "love" },
+  { id: "phrase-en-02", url: "/stickers/phrase/phrase-en-02.png", label: "FOREVER US", category: "love" },
+  { id: "phrase-en-03", url: "/stickers/phrase/phrase-en-03.png", label: "LOVE ALWAYS", category: "love" },
+  { id: "phrase-en-04", url: "/stickers/phrase/phrase-en-04.png", label: "OUR STORY", category: "love" },
+  { id: "phrase-en-05", url: "/stickers/phrase/phrase-en-05.png", label: "HAPPY BIRTHDAY", category: "birthday" },
+  { id: "phrase-en-06", url: "/stickers/phrase/phrase-en-06.png", label: "MAKE A WISH", category: "birthday" },
+  { id: "phrase-en-07", url: "/stickers/phrase/phrase-en-07.png", label: "CHEERS TO 60", category: "birthday" },
+  { id: "phrase-en-08", url: "/stickers/phrase/phrase-en-08.png", label: "CELEBRATE YOU", category: "birthday" },
+  { id: "phrase-en-09", url: "/stickers/phrase/phrase-en-09.png", label: "BEST DAY EVER", category: "daily" },
+  { id: "phrase-en-10", url: "/stickers/phrase/phrase-en-10.png", label: "MEMORIES FOREVER", category: "daily" },
 ];
 
 // 편집 화면 왼쪽 아이콘 메뉴예요(스프레드 페이지 편집 전용, 2026-09-19). 예전엔 사진 추가·
@@ -2466,7 +2466,6 @@ function StackOrderToolbar({
   onFit,
   onZoomIn,
   onZoomOut,
-  onRotate,
   rotation,
   onRotationChange,
   onFlip,
@@ -2489,9 +2488,10 @@ function StackOrderToolbar({
   onFit?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
-  onRotate?: () => void;
-  // 2026-10-06, 혜민님 요청: "미세한 회전조절" — 기존 onRotate(90도씩 즉시회전)와
-  // 별개로, 슬라이더·숫자입력으로 임의 각도를 바로 지정하는 정밀 회전 컨트롤이에요.
+  // 2026-09-28, 혜민님 요청: "회전툴을 직접 수정하는 툴 1만 남겨주세요" — 예전엔
+  // 90도씩 즉시 돌리는 버튼(onRotate)과, 슬라이더·숫자입력으로 값을 직접 지정하는
+  // 정밀 회전 버튼 2개가 있었는데, "직접 수정하는" 쪽(아래 rotation/onRotationChange)
+  // 하나만 남기고 90도 즉시회전 버튼은 없앴어요.
   rotation?: number;
   onRotationChange?: (deg: number) => void;
   onFlip?: () => void;
@@ -2525,7 +2525,6 @@ function StackOrderToolbar({
     if (onFit) buttons.push({ key: "fit", title: "맞춤(사진 위치 초기화)", icon: "fit", onClick: onFit });
     if (onZoomIn) buttons.push({ key: "zoomIn", title: "확대", icon: "zoomIn", onClick: onZoomIn });
     if (onZoomOut) buttons.push({ key: "zoomOut", title: "축소", icon: "zoomOut", onClick: onZoomOut });
-    if (onRotate) buttons.push({ key: "rotate", title: "회전", icon: "rotate", onClick: onRotate });
     if (onFlip) buttons.push({ key: "flip", title: "좌우 반전", icon: "flip", onClick: onFlip });
   }
 
@@ -3939,12 +3938,8 @@ const ImageBoxOverlay = forwardRef<
     });
   }
 
-  // 회전(2026-09-26 "편집툴에 회전 버튼 추가" 요청) — 누를 때마다 시계방향 90도씩
-  // 돌아가요(예전 표지 사진의 회전 버튼과 같은 방식). 지금은 화면 미리보기에서만
-  // 돌아가 보여요 — 인쇄 파일 반영은 ImageBoxDef.rotation 주석 참고(다음 라운드).
-  function handleRotate() {
-    onChange({ rotation: ((box.rotation ?? 0) + 90) % 360 });
-  }
+  // 2026-09-28, 혜민님 요청: "회전툴을 직접 수정하는 툴 1만 남겨주세요" — 90도씩
+  // 즉시 돌리던 handleRotate는 없앴어요(정밀 회전 슬라이더 하나만 남김).
 
   // 박스를 스프레드(펼침면) 전체에 한 번에 꽉 채워요 — 사진 한 장으로 양쪽 페이지를
   // 가득 채우고 싶을 때 매번 손잡이로 정확히 맞추지 않아도 되게(2026-09 요청).
@@ -4274,7 +4269,6 @@ const ImageBoxOverlay = forwardRef<
               onFit={isSticker ? undefined : handleResetPhotoPosition}
               onZoomIn={() => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
               onZoomOut={() => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
-              onRotate={handleRotate}
               rotation={box.rotation ?? 0}
               onRotationChange={(deg) => onChange({ rotation: deg })}
               onFlip={() => onChange({ flipX: !box.flipX })}
