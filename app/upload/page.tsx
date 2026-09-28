@@ -7047,7 +7047,6 @@ function CoverTitleOverlay({
   editMode,
   onMove,
   onSelect,
-  onChangeTitle,
 }: {
   title: string;
   xPct: number;
@@ -7082,8 +7081,6 @@ function CoverTitleOverlay({
   onMove: (changes: { xPct: number; yPct: number }) => void;
   // 제목 자리를 클릭하면 선택해요(selectCoverTitle).
   onSelect: () => void;
-  // 인라인 textarea에서 타이핑할 때마다 coverTitle에 그대로 반영해요.
-  onChangeTitle: (value: string) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
@@ -7175,7 +7172,9 @@ function CoverTitleOverlay({
   return (
     <div
       ref={boxRef}
-      className="group/ct absolute z-28"
+      className={`group/ct absolute z-28 outline outline-1 ${SELECTION_OUTLINE_OFFSET_CLASS} transition ${selectionOutlineClassName(
+        isActive && editMode ? "active" : "idle"
+      )}`}
       style={{ left: `${xPct}%`, top: `${yPct}%`, width: `${widthPct}%` }}
     >
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
@@ -7212,24 +7211,16 @@ function CoverTitleOverlay({
           ⠿
         </button>
       )}
-      {isActive && editMode ? (
-        // 선택된 상태: 읽기전용 텍스트 대신 textarea로 바꿔서 캔버스 위에서 바로 타이핑할
-        // 수 있게 해요(SpineTitleOverlay의 인라인 입력과 같은 패턴). 자신의 mousedown은
-        // 멈춰서(stopPropagation) 커서를 옮기려고 다시 클릭해도 캔버스 바깥 클릭으로
-        // 오인해 선택이 풀리지 않게 해요.
-        <textarea
-          autoFocus
-          value={title}
-          onChange={(e) => onChangeTitle(e.target.value)}
-          onMouseDown={(e) => e.stopPropagation()}
-          onFocus={onSelect}
-          spellCheck={false}
-          placeholder="제목을 입력하세요"
-          rows={Math.max(1, title.split("\n").length)}
-          className="block w-full resize-none whitespace-pre-wrap border border-dashed border-white/80 bg-black/10 outline-none placeholder:text-white/60"
-          style={textStyle}
-        />
-      ) : title.trim() ? (
+      {
+        // 2026-10-08 후속 수정(혜민님 요청 "선택한 텍스트의 내용은 오른쪽 텍스트 속성
+        // 패널 한곳에서만 수정하게 해줘") — 예전엔 여기 선택 시(isActive) textarea로
+        // 바뀌어 캔버스 위에서도 직접 타이핑할 수 있었는데, 그러면 사이드바의
+        // TextBoxToolbar 내용 입력칸(contentLabel="타이틀")과 입력 창구가 두 곳이 돼요.
+        // 이제 캔버스 클릭은 "선택"만 하고(onSelect), 실제 타이핑은 항상 사이드바 패널
+        // 쪽 내용 입력칸에서만 해요 — 선택된 상태는 위 wrapper의 하늘색 outline으로
+        // 보여줘요.
+      }
+      {title.trim() ? (
         <p
           onMouseDown={(e) => {
             if (!editMode) return;
@@ -7284,7 +7275,6 @@ function SpineTitleOverlay({
   onMove,
   onResize,
   onSelect,
-  onChangeTitle,
 }: {
   title: string;
   emptyLabel: string;
@@ -7306,7 +7296,6 @@ function SpineTitleOverlay({
   onMove: (yPct: number) => void;
   onResize: (heightPct: number) => void;
   onSelect: () => void; // called on click/drag-start to select this element (selectSpineTitle)
-  onChangeTitle: (value: string) => void; // called from the inline input while isActive
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -7384,41 +7373,17 @@ function SpineTitleOverlay({
       }`}
       style={{ top: `${yPct}%`, height: `${heightPct}%` }}
     >
-      {isActive && editMode ? (
-        // Selected: swap in a single-line input bound to the title so it can be edited
-        // directly on the canvas. Its own mousedown stops propagation so it does not
-        // immediately start a drag.
-        // 2026-10, 버그 수정(혜민님 보고: "책등을 선택하거나 내용을 바꾸지 못해요") —
-        // 캔버스에서 클릭해 선택은 됐어도(isActive=true) 이 input이 실제로 포커스를
-        // 받은 적이 없어서, 곧바로 타이핑해도 아무 데도 입력되지 않는 문제였어요
-        // (CoverTitleOverlay의 textarea도 같은 이유로 autoFocus를 추가했어요). 회전된
-        // (rotate(90deg)) 좁은 input을 다시 정확히 클릭해야만 포커스가 잡혔던 셈이라,
-        // 실제로는 "선택은 됐는데 입력은 안 되는" 상태로 보였어요. autoFocus로 선택
-        // 즉시 포커스를 주고, select()로 기존 글자를 전체 선택해서 바로 이어 쓰거나
-        // 덮어쓸 수 있게 했어요.
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => onChangeTitle(e.target.value)}
-          onMouseDown={(e) => e.stopPropagation()}
-          autoFocus
-          onFocus={(e) => {
-            onSelect();
-            e.currentTarget.select();
-          }}
-          spellCheck={false}
-          className="whitespace-nowrap border-none bg-transparent p-0 text-center outline-none"
-          style={{
-            ...spineTextStyle,
-            fontSize: `${fontSizeCqh}cqh`,
-            lineHeight: 1,
-            transform: "rotate(90deg)",
-            fontFamily,
-            color,
-            width: `${Math.max(2, title.length + 1)}ch`,
-          }}
-        />
-      ) : title.trim() ? (
+      {
+        // 2026-10-08 후속 수정(혜민님 요청 "선택한 텍스트의 내용은 오른쪽 텍스트 속성
+        // 패널 한곳에서만 수정하게 해줘") — 예전엔 여기 선택 시(isActive) 회전된
+        // (rotate(90deg)) input으로 바뀌어 캔버스 위에서도 직접 타이핑할 수 있었는데,
+        // 그러면 사이드바 TextBoxToolbar 내용 입력칸(contentLabel="책등 내용")과
+        // 입력 창구가 두 곳이 돼요. 이제 캔버스 클릭/드래그는 "선택+이동"만 하고
+        // (onSelect, 바깥 div의 onMouseDown=handleDragStart), 실제 타이핑은 항상
+        // 사이드바 패널 쪽 내용 입력칸에서만 해요 — 선택된 상태는 바깥 div의 하늘색
+        // 테두리(active 변수)로 그대로 보여줘요.
+      }
+      {title.trim() ? (
         // 키픽 로고와 같은 방향(90도)으로 한 줄로 눕혀서 보여줘요 — 글자를 하나씩 세로로
         // 쌓지 않아요. font-size는 cqh(컨테이너 높이 기준 %)라서 창 크기가 바뀌어도 항상
         // 책 실물 크기 그대로 커지고 작아져요(고정 px이 아니에요).
@@ -12028,93 +11993,6 @@ function UploadPageContent() {
                           <div
                             className="flex min-h-0 flex-col overflow-y-auto lg:w-[clamp(160px,22cqw,224px)] lg:shrink-0 lg:pr-1"
                           >
-                          {/* 2026-10-07, 혜민님 요청: 표지도 내지처럼 "글쓰기" 서브탭일
-                              때만 텍스트박스 툴바가 보이게(표만들기/이모티콘으로 바꾸면
-                              숨겨지게) — textPanelSubTab === "write" 조건 추가. */}
-                          {activeCoverEditTab === "text" &&
-                            textPanelSubTab === "write" &&
-                            multiTextSelection &&
-                            (multiTextSelection.ref.scope === "cover" || multiTextSelection.ref.scope === "backCover") &&
-                            multiTextSelection.boxIds.length >= 2 && (
-                            <MultiTextAlignPanel
-                              count={multiTextSelection.boxIds.length}
-                              canVerticalAlign={multiTextSelectedBoxes().every((b) => b.heightPct !== undefined)}
-                              onAlign={alignMultiTextBoxes}
-                              onDistribute={distributeMultiTextBoxes}
-                              onClear={() => setMultiTextSelection(null)}
-                            />
-                          )}
-                          {activeCoverEditTab === "text" &&
-                            textPanelSubTab === "write" &&
-                            activeTextBox &&
-                            (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
-                            <TextBoxToolbar
-                              box={activeTextBoxDef}
-                              onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
-                              onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
-                              scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
-                              pageWidthMm={coverPanelMm + coverBleedMm}
-                              selectionRange={activeTextSelectionRange}
-                            />
-                          )}
-                          {/* 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가
-                              모두 동일한 텍스트 속성 패널과 동일한 편집 기능을 사용하게 해줘" +
-                              "'표지 타이틀 추가'라는 별도 메뉴는 없애줘") — 표지 제목 자리
-                              (CoverTitleOverlay)를 캔버스에서 선택하면(coverTitleSelected),
-                              예전의 "기존 표지 타이틀 (직접 입력)" 전용 패널 대신 일반
-                              글상자와 완전히 같은 TextBoxToolbar 컴포넌트를 그대로 보여줘요
-                              (coverTitleAsTextBox 어댑터 경유). 삭제 버튼은 제목 자리 자체를
-                              없앨 수는 없으니(표지엔 항상 제목 자리 1개가 있어요) 내용만
-                              비워요. */}
-                          {activeCoverEditTab === "text" &&
-                            textPanelSubTab === "write" &&
-                            coverTitleSelected && (
-                            <TextBoxToolbar
-                              box={coverTitleAsTextBox}
-                              onChange={handleCoverTitleBoxChange}
-                              onDelete={() => handleCoverTitleChange("")}
-                              pageWidthMm={coverTitlePanelPageWidthMm}
-                              selectionRange={null}
-                              hideAdvanced
-                              showContentField
-                              contentLabel="타이틀"
-                              contentValue={coverTitle}
-                              onContentChange={handleCoverTitleChange}
-                            />
-                          )}
-                          {/* 책등도 같은 방식이에요(항목4·5) — 별도의 "책등 제목 크기·서체"/
-                              "책등 글자색·정렬" 패널 대신 같은 TextBoxToolbar를 재사용하고,
-                              책등은 캔버스가 좁아 직접 타이핑하기 어려우니 내용 입력칸을 같이
-                              보여줘요(showContentField). 표지 제목⇄책등 서체 "연결" 스위치는
-                              두 자리에 걸친 특수한 동작이라(하나가 아니라 둘 다 바뀌는 것)
-                              TextBoxToolbar 위에 따로 작은 체크박스로 둬요. */}
-                          {activeCoverEditTab === "text" &&
-                            textPanelSubTab === "write" &&
-                            spineTitleSelected && (
-                            <div className="flex flex-col gap-1.5">
-                              <label className="flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
-                                <input
-                                  type="checkbox"
-                                  checked={!titleFontLinked}
-                                  onChange={(e) => setTitleFontLinked(!e.target.checked)}
-                                  className="h-3.5 w-3.5"
-                                />
-                                서체 분리(기본은 표지 제목과 동기화돼요)
-                              </label>
-                              <TextBoxToolbar
-                                box={spineTitleAsTextBox}
-                                onChange={handleSpineTitleBoxChange}
-                                onDelete={() => handleSpineTitleChange("")}
-                                pageWidthMm={coverTitlePanelPageWidthMm}
-                                selectionRange={null}
-                                hideAdvanced
-                                showContentField
-                                contentLabel="책등 내용"
-                                contentValue={spineTitle}
-                                onContentChange={handleSpineTitleChange}
-                              />
-                            </div>
-                          )}
                           {activeCoverEditTab === "theme" && (
                             // 2026-10-04, 혜민님 요청: "표지테마 상단에 문구삭제" — 위
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
@@ -12423,6 +12301,103 @@ function UploadPageContent() {
                                 </div>
                                 )}
                               </div>
+                              {/* 2026-10-08 후속 수정(혜민님 재보고: "글쓰기/표만들기/이모티콘
+                                  상단바와 +텍스트 추가 버튼이 원래 위치보다 아래로 내려갔어요")
+                                  — 이 선택 속성 패널들(멀티선택 정렬/글상자 툴바/표지 제목
+                                  툴바/책등 툴바)은 원래 이 sub-tab 바 "위"에 있었는데, 선택에
+                                  따라 키가 크게 늘었다 줄었다 하는 내용이라(특히 지금은 내용
+                                  입력칸까지 포함) 그 위에 있던 sub-tab 바와 "+ 텍스트 추가"
+                                  버튼을 아래로 밀어냈어요. 이제 sub-tab 바·추가 버튼을 항상
+                                  먼저(구조적으로 고정된 자리에) 그리고, 키가 변하는 이 선택
+                                  패널들은 그 "아래"에 두어 밀림 없이 항상 같은 자리에
+                                  보이게 했어요. */}
+                          {/* 2026-10-07, 혜민님 요청: 표지도 내지처럼 "글쓰기" 서브탭일
+                              때만 텍스트박스 툴바가 보이게(표만들기/이모티콘으로 바꾸면
+                              숨겨지게) — textPanelSubTab === "write" 조건 추가. */}
+                          {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
+                            multiTextSelection &&
+                            (multiTextSelection.ref.scope === "cover" || multiTextSelection.ref.scope === "backCover") &&
+                            multiTextSelection.boxIds.length >= 2 && (
+                            <MultiTextAlignPanel
+                              count={multiTextSelection.boxIds.length}
+                              canVerticalAlign={multiTextSelectedBoxes().every((b) => b.heightPct !== undefined)}
+                              onAlign={alignMultiTextBoxes}
+                              onDistribute={distributeMultiTextBoxes}
+                              onClear={() => setMultiTextSelection(null)}
+                            />
+                          )}
+                          {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
+                            activeTextBox &&
+                            (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
+                            <TextBoxToolbar
+                              box={activeTextBoxDef}
+                              onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
+                              onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+                              scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
+                              pageWidthMm={coverPanelMm + coverBleedMm}
+                              selectionRange={activeTextSelectionRange}
+                            />
+                          )}
+                          {/* 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가
+                              모두 동일한 텍스트 속성 패널과 동일한 편집 기능을 사용하게 해줘" +
+                              "'표지 타이틀 추가'라는 별도 메뉴는 없애줘") — 표지 제목 자리
+                              (CoverTitleOverlay)를 캔버스에서 선택하면(coverTitleSelected),
+                              예전의 "기존 표지 타이틀 (직접 입력)" 전용 패널 대신 일반
+                              글상자와 완전히 같은 TextBoxToolbar 컴포넌트를 그대로 보여줘요
+                              (coverTitleAsTextBox 어댑터 경유). 삭제 버튼은 제목 자리 자체를
+                              없앨 수는 없으니(표지엔 항상 제목 자리 1개가 있어요) 내용만
+                              비워요. */}
+                          {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
+                            coverTitleSelected && (
+                            <TextBoxToolbar
+                              box={coverTitleAsTextBox}
+                              onChange={handleCoverTitleBoxChange}
+                              onDelete={() => handleCoverTitleChange("")}
+                              pageWidthMm={coverTitlePanelPageWidthMm}
+                              selectionRange={null}
+                              hideAdvanced
+                              showContentField
+                              contentLabel="타이틀"
+                              contentValue={coverTitle}
+                              onContentChange={handleCoverTitleChange}
+                            />
+                          )}
+                          {/* 책등도 같은 방식이에요(항목4·5) — 별도의 "책등 제목 크기·서체"/
+                              "책등 글자색·정렬" 패널 대신 같은 TextBoxToolbar를 재사용하고,
+                              책등은 캔버스가 좁아 직접 타이핑하기 어려우니 내용 입력칸을 같이
+                              보여줘요(showContentField). 표지 제목⇄책등 서체 "연결" 스위치는
+                              두 자리에 걸친 특수한 동작이라(하나가 아니라 둘 다 바뀌는 것)
+                              TextBoxToolbar 위에 따로 작은 체크박스로 둬요. */}
+                          {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
+                            spineTitleSelected && (
+                            <div className="flex flex-col gap-1.5">
+                              <label className="flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
+                                <input
+                                  type="checkbox"
+                                  checked={!titleFontLinked}
+                                  onChange={(e) => setTitleFontLinked(!e.target.checked)}
+                                  className="h-3.5 w-3.5"
+                                />
+                                서체 분리(기본은 표지 제목과 동기화돼요)
+                              </label>
+                              <TextBoxToolbar
+                                box={spineTitleAsTextBox}
+                                onChange={handleSpineTitleBoxChange}
+                                onDelete={() => handleSpineTitleChange("")}
+                                pageWidthMm={coverTitlePanelPageWidthMm}
+                                selectionRange={null}
+                                hideAdvanced
+                                showContentField
+                                contentLabel="책등 내용"
+                                contentValue={spineTitle}
+                                onContentChange={handleSpineTitleChange}
+                              />
+                            </div>
+                          )}
                               </>
                               )}
                             </div>
@@ -12661,7 +12636,6 @@ function UploadPageContent() {
                               onMove={setSpineTitleYPct}
                               onResize={setSpineTitleHeightPct}
                               onSelect={selectSpineTitle}
-                              onChangeTitle={(value) => handleSpineTitleChange(value.replace(/\n/g, " "))}
                             />
                             {coverSpineLogoLayout.fits && (
                               <img
@@ -12744,7 +12718,6 @@ function UploadPageContent() {
                                 setCoverTitleYPct(yPct);
                               }}
                               onSelect={selectCoverTitle}
-                              onChangeTitle={handleCoverTitleChange}
                             />
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
