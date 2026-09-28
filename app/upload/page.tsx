@@ -5624,6 +5624,15 @@ const TableBoxOverlay = forwardRef<
         overflow: box.borderRadius ? "hidden" : undefined,
       }}
     >
+      {/* 2026-10-06, 혜민님 리포트("표를 선택해도 드래그해서 위치를 옮길 수 없어") —
+          칸(cell) wrapper들이 표 안쪽을 빈틈없이 채우고 있어서(그리드 gap 없음), 표
+          안쪽 어디를 눌러도 전부 칸의 mousedown(stopPropagation)이 먼저 처리돼 이
+          바깥 div의 onMouseDown(표 이동 시작)이 사실상 호출될 방법이 없었어요.
+          TextBoxOverlay의 "-inset-2 히트 영역" 트릭과 같은 방식으로, 표 바로 바깥
+          테두리(선택 표시 outline이 그려지는 자리)를 눌러 끌면 표 전체가 이동하도록
+          별도의 히트 영역을 둬요 — 칸 안쪽과는 아예 겹치지 않아서(칸은 0~100% 안쪽만
+          차지) 셀 편집과 절대 충돌하지 않아요. */}
+      <div className="absolute -inset-2" onMouseDown={handleMouseDown} />
       {Array.from({ length: box.rows * box.cols }).map((_, idx) => {
         const row = Math.floor(idx / box.cols);
         const col = idx % box.cols;
@@ -5646,10 +5655,17 @@ const TableBoxOverlay = forwardRef<
             onMouseDown={(e) => {
               // 2026-09-28, 혜민님 요청("드래그로 여러 칸 선택 후 병합") — 이 칸 wrapper의
               // mousedown에서만 stopPropagation해서, 칸을 눌러 끄는 동안엔 표 전체가
-              // 같이 옮겨지지 않게 하고(박스 이동은 칸과 칸 사이 여백에서만), textarea
-              // 자체의 포커스/클릭은 그대로 막지 않아요(브라우저 기본 동작이라 여기서
-              // preventDefault는 안 함).
+              // 같이 옮겨지지 않게 하고(박스 이동은 표 바깥 테두리·이동 핸들에서만),
+              // textarea 자체의 포커스/클릭은 그대로 막지 않아요(브라우저 기본 동작이라
+              // 여기서 preventDefault는 안 함).
+              // 2026-10-06, 혜민님 리포트("표를 클릭해 수정하려고 하면 표 편집창이
+              // 사라져") — stopPropagation 때문에 이 표(outer div)의 onMouseDown이
+              // 전혀 호출되지 않아서, 정작 칸을 눌러 편집을 시작할 땐 이 표가 "선택됨"
+              // 상태(onSelect)가 된 적이 없었어요(=isActive가 안 켜져서 왼쪽 편집
+              // 패널이 안 보임). 표 이동은 시작하지 않되(stopPropagation은 유지),
+              // 선택 자체는 여기서 직접 호출해요.
               e.stopPropagation();
+              onSelect();
               setDragSel({ anchorRow: row, anchorCol: col, row, col });
               setActiveCell({ row, col });
             }}
@@ -5727,6 +5743,26 @@ const TableBoxOverlay = forwardRef<
               className={`absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
             />
           ))}
+          {/* "이동 핸들"(2026-10-06, 혜민님 요청 "표의 바깥 테두리나 이동 핸들을
+              드래그하면 표 전체가 이동하게") — 칸 안쪽과 안 겹치게 표 바깥 왼쪽
+              위 모서리에 둬서, 눌러서 끌면 항상 표 전체 이동만 시작돼요(위 -inset-2
+              히트 영역과 완전히 같은 handleMouseDown을 그대로 써요). */}
+          {/* 표는 모서리 4개(nw/ne/sw/se)만 크기 조절 손잡이가 있어서(가운데-위는 안 씀),
+              가운데 위쪽에 둬도 손잡이끼리 안 겹쳐요. */}
+          <div
+            onMouseDown={handleMouseDown}
+            title="눌러서 끌면 표 전체를 옮겨요"
+            className="absolute -top-2 left-1/2 z-40 flex h-6 w-6 -translate-x-1/2 cursor-move items-center justify-center rounded-full border border-white bg-[var(--color-sky)] text-white shadow"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+              <polyline points="5 9 2 12 5 15" />
+              <polyline points="9 5 12 2 15 5" />
+              <polyline points="15 19 12 22 9 19" />
+              <polyline points="19 9 22 12 19 15" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <line x1="12" y1="2" x2="12" y2="22" />
+            </svg>
+          </div>
           {onDelete && (
             <button
               type="button"
@@ -6659,6 +6695,7 @@ function UploadPageContent() {
   function selectBackCoverLogo() {
     setActiveTextBox(null);
     setActiveCoverImageBox(null);
+    setActiveTableBox(null);
     setBackCoverLogoSelected(true);
     setActiveCoverEditTab("photo");
   }
@@ -6685,6 +6722,29 @@ function UploadPageContent() {
   const [coverTableBoxes, setCoverTableBoxes] = useState<TableBoxDef[]>([]);
   const [backCoverTableBoxes, setBackCoverTableBoxes] = useState<TableBoxDef[]>([]);
   const [activeTableBox, setActiveTableBox] = useState<{ scope: "cover" | "backCover" | "spread"; spreadIndex?: number; boxId: string } | null>(null);
+  // 표를 캔버스에서 선택하면(칸을 클릭하든, 표 바깥 테두리/이동 핸들을 누르든) 왼쪽
+  // 패널이 자동으로 "텍스트" 탭 → "표만들기" 서브탭으로 전환되고, 다른 선택(텍스트박스·
+  // 사진박스·뒤표지 로고)은 풀려요 — selectTextBox/selectImageBox와 같은 패턴이에요.
+  // 2026-10-06, 혜민님 리포트("표를 클릭해 수정하려고 하면 표 편집창이 사라져") — 예전엔
+  // TableBoxLayer의 onSelect가 그냥 setActiveTableBox만 호출해서, 다른 탭을 보고 있는
+  // 중에 표를 클릭하면 activeTableBox는 바뀌어도 왼쪽 패널이 "표만들기" 탭으로 안
+  // 넘어가서(탭이 안 맞아서) 편집창이 아예 안 보였어요.
+  function selectTableBox(ref: { scope: "cover" | "backCover" | "spread"; spreadIndex?: number }, boxId: string) {
+    setActiveTextBox(null);
+    setMultiTextSelection(null);
+    setMultiImageSelection(null);
+    setActiveImageBox(null);
+    setActiveCoverImageBox(null);
+    setBackCoverLogoSelected(false);
+    setActiveTableBox({ scope: ref.scope, spreadIndex: ref.spreadIndex, boxId });
+    setTextPanelSubTab("table");
+    if (ref.scope === "cover" || ref.scope === "backCover") {
+      setActiveCoverEditTab("text");
+      setCoverLayoutApplyTarget(ref.scope === "backCover" ? "back" : "front");
+    } else {
+      setActiveEditTab("text");
+    }
+  }
   // 왼쪽 "표만들기" 패널에서 캔버스 위 표(TableBoxOverlay)를 ref로 직접 조작하고(셀
   // 병합/행·열 분할/너비 맞춤/삭제/칸 폭·세로폭), 지금 선택 상태를 반응형으로 보여주기
   // 위한 상태예요(2026-09-28, 혜민님 요청: "+버튼 눌렀을때 나오게 하지말고 왼쪽 패널에
@@ -6716,6 +6776,7 @@ function UploadPageContent() {
     setCoverImageBoxPhotoEditActive(false);
     setActiveCoverImageBox({ target, boxId });
     setBackCoverLogoSelected(false);
+    setActiveTableBox(null);
     // 2026-10-02, 혜민님 요청: "앞표지 뒤표지 메뉴 삭제, 스프레드 기준으로" — 레이아웃·
     // 스티커 패널의 수동 "적용 대상" 토글을 없앤 대신, 캔버스에서 어느 쪽 사진박스를
     // 선택하든 그 즉시 그 쪽이 "지금 작업 중인 쪽"이 되도록 자동으로 맞춰요.
@@ -7409,6 +7470,7 @@ function UploadPageContent() {
     setActiveImageBox(null);
     setActiveTextBox({ ref, boxId });
     setBackCoverLogoSelected(false);
+    setActiveTableBox(null);
     if (ref.scope === "cover" || ref.scope === "backCover") {
       setActiveCoverEditTab("text");
       // 2026-10-05, 혜민님 요청: 앞/뒤표지 텍스트박스 추가 버튼을 "글상자 추가" 하나로
@@ -7430,6 +7492,7 @@ function UploadPageContent() {
     setBackCoverLogoSelected(false);
     setActiveCoverImageBox(null);
     setActiveImageBox(null);
+    setActiveTableBox(null);
     // 같은 스프레드의 사진박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
     // 2026-09-28 추가) — 다른 스프레드/표지 쪽이면(좌표계가 달라서) 새로 시작해요.
     setMultiImageSelection((prev) =>
@@ -7634,6 +7697,7 @@ function UploadPageContent() {
     setMultiTextSelection(null);
     setImageBoxPhotoEditActive(false);
     setActiveImageBox({ spreadIndex, boxId });
+    setActiveTableBox(null);
     // 스티커(손글씨스티커 포함)는 "사진" 탭에 편집할 속성(꽉 채우기/변형mm/사진 위치
     // 조정)이 아예 없어서, 선택해도 왼쪽 패널을 "사진" 탭으로 옮기지 않아요 — 혜민님이
     // "스티커 선택했을때 사진 메뉴로 이동하는 오류"로 보고하신 버그 수정(2026-09-24).
@@ -7674,6 +7738,7 @@ function UploadPageContent() {
   function toggleImageBoxMultiSelect(spreadIndex: number, boxId: string) {
     setActiveImageBox(null);
     setActiveTextBox(null);
+    setActiveTableBox(null);
     // 같은 스프레드의 텍스트박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
     // 2026-09-28 추가).
     setMultiTextSelection((prev) =>
@@ -10249,6 +10314,7 @@ function UploadPageContent() {
                   setMultiImageSelection(null);
                   setActiveCoverImageBox(null);
                   setBackCoverLogoSelected(false);
+                  setActiveTableBox(null);
                 }}
               >
                   <div
@@ -11261,7 +11327,7 @@ function UploadPageContent() {
                               onChange={handleBackCoverTableBoxChange}
                               onDelete={handleDeleteBackCoverTableBox}
                               activeBoxId={activeTableBox?.scope === "backCover" ? activeTableBox.boxId : null}
-                              onSelect={(boxId) => setActiveTableBox({ scope: "backCover", boxId })}
+                              onSelect={(boxId) => selectTableBox({ scope: "backCover" }, boxId)}
                               registerBoxRef={(boxId, handle) => {
                                 if (handle) tableBoxHandlesRef.current.set(boxId, handle);
                                 else tableBoxHandlesRef.current.delete(boxId);
@@ -11391,7 +11457,7 @@ function UploadPageContent() {
                               onChange={handleCoverTableBoxChange}
                               onDelete={handleDeleteCoverTableBox}
                               activeBoxId={activeTableBox?.scope === "cover" ? activeTableBox.boxId : null}
-                              onSelect={(boxId) => setActiveTableBox({ scope: "cover", boxId })}
+                              onSelect={(boxId) => selectTableBox({ scope: "cover" }, boxId)}
                               registerBoxRef={(boxId, handle) => {
                                 if (handle) tableBoxHandlesRef.current.set(boxId, handle);
                                 else tableBoxHandlesRef.current.delete(boxId);
@@ -12333,7 +12399,7 @@ function UploadPageContent() {
                                     ? activeTableBox.boxId
                                     : null
                                 }
-                                onSelect={(boxId) => setActiveTableBox({ scope: "spread", spreadIndex: i, boxId })}
+                                onSelect={(boxId) => selectTableBox({ scope: "spread", spreadIndex: i }, boxId)}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) tableBoxHandlesRef.current.set(boxId, handle);
                                   else tableBoxHandlesRef.current.delete(boxId);
