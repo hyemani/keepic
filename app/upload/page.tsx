@@ -80,6 +80,37 @@ const SPINE_TITLE_MIN_FONT_MM = (12 / 72) * 25.4; // 12pt
 const SPINE_TITLE_MAX_FONT_RATIO_SCREEN = 0.55; // 혜민님 확인(2026-09-19): 책등 폭 꽉 채우면 글자가 너무 커 보여서 상한을 둬요(lib/printCompose.ts와 같은 값)
 const COVER_TITLE_PT_PRESETS = [12, 18, 24, 30, 36, 48, 60, 72];
 
+// 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일하고, 표지 제목/부제목/본문
+// 처럼 스타일을 골라서 넣을 수 있게" — 글상자(TextBoxDef)를 추가할 때 바로 적용할 수
+// 있는 스타일 프리셋이에요. pt는 표지 제목(coverTitleFontSizePt)과 같은 단위(실제 인쇄
+// pt 기준)라서, 텍스트박스에 적용할 땐 그 칸의 실제 폭(mm)을 알아야 fontScale로 정확히
+// 환산돼요(textBoxPtToFontScale, lib/textBoxFontSize.ts) — 그래서 이 표엔 fontScale이
+// 아니라 pt를 저장해두고, 적용하는 자리(칸 폭을 아는 곳)에서 textStylePresetOverrides로
+// 바꿔요. 표지엔 없는 스프레드에도 그대로 재사용해요(제목/부제목/본문 개념은 표지·내지
+// 공통).
+type TextStylePresetKey = "title" | "subtitle" | "body";
+const TEXT_STYLE_PRESETS: Record<
+  TextStylePresetKey,
+  { label: string; pt: number; bold: boolean; align: "left" | "center" | "right"; lineHeight: number; letterSpacing: number }
+> = {
+  // 기존 표지 제목(coverTitle) 기본값(36pt)에서 영감을 받은 큰 제목용 프리셋이에요.
+  title: { label: "제목", pt: 36, bold: true, align: "center", lineHeight: 1.2, letterSpacing: 0 },
+  subtitle: { label: "부제목", pt: 20, bold: false, align: "center", lineHeight: 1.3, letterSpacing: 0 },
+  body: { label: "본문", pt: 14, bold: false, align: "left", lineHeight: 1.375, letterSpacing: 0 },
+};
+// 위 프리셋(pt 기준)을 실제 텍스트박스가 들어갈 칸의 폭(mm)에 맞춰 TextBoxDef 필드로
+// 바꿔요 — makeTextBox()의 overrides로 그대로 넘길 수 있어요.
+function textStylePresetOverrides(key: TextStylePresetKey, pageWidthMm: number): Partial<TextBoxDef> {
+  const preset = TEXT_STYLE_PRESETS[key];
+  return {
+    fontScale: textBoxPtToFontScale(preset.pt, pageWidthMm),
+    bold: preset.bold,
+    align: preset.align,
+    lineHeight: preset.lineHeight,
+    letterSpacing: preset.letterSpacing,
+  };
+}
+
 // 페이지에 자유롭게 얹을 수 있는 기본 스티커 세트예요. 실제로는 이미지박스와 같은
 // 방식(ImageBoxDef)으로 다뤄져서, 스티커도 사진처럼 끌어서 옮기고 크기를 바꿀 수
 // 있어요.
@@ -7359,6 +7390,13 @@ function UploadPageContent() {
   // 골랐고, 여기서는 표지에 들어갈 사진과 제목만 정해요.
   const [coverPhoto, setCoverPhoto] = useState<Photo | null>(null);
   const [coverTitle, setCoverTitle] = useState("");
+  // 2026-10-07, 혜민님 요청: "새 텍스트박스 프리셋으로 정리하면서, 기존에 타이틀로
+  // 만들어둔 작업물(coverTitle)은 안 건드리고 화면만 접어두기" — coverTitle이 있는
+  // 책(=예전에 이 필드로 제목을 만든 책)에서만 "기존 표지 타이틀" 섹션을 펼쳐볼 수
+  // 있게 하는 토글이에요. 기본은 접힌 상태(false)로 시작해서 새 프리셋 흐름이 먼저
+  // 보이게 하고, coverTitle이 아예 비어있는 새 사용자에겐 이 섹션 자체가 안 보여요
+  // (아래 렌더링에서 coverTitle.trim() 유무로 섹션 전체를 감쌈).
+  const [legacyCoverTitleOpen, setLegacyCoverTitleOpen] = useState(false);
   // 책등(세네카) 제목은 따로 없어요 — 앞표지 제목을 그대로 책등에도 써요(혜민님 확인,
   // 2026-09: 표지 제목이 곧 책등 제목이라 입력칸을 두 개 둘 필요가 없음).
   // 표지 제목 글자 크기(pt, 실제 인쇄 크기 그대로) · 행간 · 자간이에요. 화면에서
@@ -7950,7 +7988,9 @@ function UploadPageContent() {
   // 직사각형 크기에 글상자 왼쪽 상단에 텍스트 입력 창이 있었으면 합니다" — 가로로
   // 넓게 퍼진 박스(폭 70%, 높이 자동) 대신 적당한 직사각형(폭 45%, 높이 28% 고정)으로,
   // 정렬도 가운데가 아니라 왼쪽 위로 바꿨어요.
-  function makeTextBox(): TextBoxDef {
+  // 2026-10-07: "텍스트 추가" 버튼에서 스타일 프리셋(제목/부제목/본문)을 바로 적용할
+  // 수 있도록 overrides를 받아요 — 안 넘기면(undefined) 기존과 완전히 같은 기본 박스.
+  function makeTextBox(overrides?: Partial<TextBoxDef>): TextBoxDef {
     return {
       id: crypto.randomUUID(),
       text: "",
@@ -7964,6 +8004,7 @@ function UploadPageContent() {
       align: "left",
       verticalAlign: "top",
       bold: false,
+      ...overrides,
     };
   }
 
@@ -7999,8 +8040,8 @@ function UploadPageContent() {
   }
 
   // 내지 페이지(스프레드 하나의 왼쪽/오른쪽 낱장)에 텍스트박스를 추가·수정·삭제해요.
-  function handleAddTextBox(spreadIndex: number, side: "left" | "right") {
-    const box = makeTextBox();
+  function handleAddTextBox(spreadIndex: number, side: "left" | "right", overrides?: Partial<TextBoxDef>) {
+    const box = makeTextBox(overrides);
     const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
     setCustomSpreads((prev) =>
       prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
@@ -8032,8 +8073,8 @@ function UploadPageContent() {
   }
 
   // 표지 앞면 텍스트박스예요. 스프레드가 아니라서 별도 state(coverTextBoxes)로 따로 관리해요.
-  function handleAddCoverTextBox() {
-    const box = makeTextBox();
+  function handleAddCoverTextBox(overrides?: Partial<TextBoxDef>) {
+    const box = makeTextBox(overrides);
     setCoverTextBoxes((prev) => [...prev, box]);
     selectTextBox({ scope: "cover" }, box.id);
   }
@@ -8048,8 +8089,8 @@ function UploadPageContent() {
 
   // 뒤표지 텍스트박스예요. 표지 앞면(coverTextBoxes)과 같은 방식으로, 별도 state로
   // 관리해요.
-  function handleAddBackCoverTextBox() {
-    const box = makeTextBox();
+  function handleAddBackCoverTextBox(overrides?: Partial<TextBoxDef>) {
+    const box = makeTextBox(overrides);
     setBackCoverTextBoxes((prev) => [...prev, box]);
     selectTextBox({ scope: "backCover" }, box.id);
   }
@@ -11149,7 +11190,11 @@ function UploadPageContent() {
                           <div
                             className="flex min-h-0 flex-col overflow-y-auto lg:w-[clamp(160px,22cqw,224px)] lg:shrink-0 lg:pr-1"
                           >
+                          {/* 2026-10-07, 혜민님 요청: 표지도 내지처럼 "글쓰기" 서브탭일
+                              때만 텍스트박스 툴바가 보이게(표만들기/이모티콘으로 바꾸면
+                              숨겨지게) — textPanelSubTab === "write" 조건 추가. */}
                           {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
                             multiTextSelection &&
                             (multiTextSelection.ref.scope === "cover" || multiTextSelection.ref.scope === "backCover") &&
                             multiTextSelection.boxIds.length >= 2 && (
@@ -11162,6 +11207,7 @@ function UploadPageContent() {
                             />
                           )}
                           {activeCoverEditTab === "text" &&
+                            textPanelSubTab === "write" &&
                             activeTextBox &&
                             (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
                             <TextBoxToolbar
@@ -11441,10 +11487,11 @@ function UploadPageContent() {
                               )}
                               {textPanelSubTab === "write" && (
                               <>
-                              {/* 2026-10-06, 혜민님 요청: "글상자추가 버튼을 상단으로
-                                  올려주세요" — 원래 탭 맨 아래(타이틀·책등 필드들 뒤)에
-                                  있던 버튼을 탭 맨 위로 옮겼어요(선택 여부와 무관하게 항상
-                                  표시, 내지 텍스트 탭과 같은 방식). */}
+                              {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일하고
+                                  표지 제목/부제목/본문 스타일 프리셋을 고를 수 있게" — 기본
+                                  글상자를 더하는 주 버튼과, 클릭 한 번으로 글상자를 만들면서
+                                  스타일까지 같이 입히는 프리셋 칩을 같이 둬요(2026-10-06에
+                                  버튼을 탭 맨 위로 올린 위치는 그대로 유지). */}
                               <div className="flex flex-col gap-1.5 border-b border-[var(--color-hairline)] pb-2">
                                 <button
                                   type="button"
@@ -11455,9 +11502,44 @@ function UploadPageContent() {
                                   }
                                   className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
-                                  + 글상자 추가
+                                  + 텍스트 추가
                                 </button>
+                                <div className="flex gap-1">
+                                  {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() => {
+                                        const overrides = textStylePresetOverrides(key, coverPanelMm + coverBleedMm);
+                                        if (coverLayoutApplyTarget === "back") {
+                                          handleAddBackCoverTextBox(overrides);
+                                        } else {
+                                          handleAddCoverTextBox(overrides);
+                                        }
+                                      }}
+                                      className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
+                                    >
+                                      {key === "title" ? "표지 " : ""}{TEXT_STYLE_PRESETS[key].label}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
+                              {/* 2026-10-07, 혜민님 요청: 새 프리셋 흐름을 방해하지 않도록, 기존
+                                  coverTitle(타이틀) 필드로 만들어둔 작업물이 있는 책에서만 이 섹션을
+                                  보여주고(비어있으면 아예 안 그림), 기본은 접어둬요 — 위치·서식은 전혀
+                                  안 건드리고 화면에서만 숨겨요. */}
+                              {coverTitle.trim() !== "" && (
+                              <div className="mt-2 border border-[var(--color-hairline)] bg-white">
+                                <button
+                                  type="button"
+                                  onClick={() => setLegacyCoverTitleOpen((v) => !v)}
+                                  className="flex w-full items-center justify-between px-1.5 py-2 text-xs font-medium text-[var(--color-charcoal)]/70"
+                                >
+                                  <span>기존 표지 타이틀 (직접 입력)</span>
+                                  <span className="text-[var(--color-charcoal)]/40">{legacyCoverTitleOpen ? "접기 ▲" : "펼치기 ▼"}</span>
+                                </button>
+                                {legacyCoverTitleOpen && (
+                                <div className="border-t border-[var(--color-hairline)] p-1.5">
                               {/* 2026-10-02, 혜민님 요청(항목8): "표지에 넣을 제목을 타이틀로,
                                   글자크기, 행간, 자간처럼 텍스트로 넣어주고 밑에 박스에는
                                   (예:우리 가족의 여름) 내용만 넣습니다" — 아래 다른 필드들
@@ -11599,6 +11681,10 @@ function UploadPageContent() {
                                   ))}
                                 </div>
                               </div>
+                                </div>
+                                )}
+                              </div>
+                              )}
                               <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
                                 <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   책등 제목 크기·서체
@@ -12283,17 +12369,35 @@ function UploadPageContent() {
                             )}
                             {activeEditTab === "text" && textPanelSubTab === "write" && (
                               <div className="mb-1.5 flex flex-col gap-1.5">
-                                {/* 2026-10-06, 혜민님 요청: "글상자추가 버튼을 상단으로
-                                    올려주세요" — 텍스트박스를 선택하면 바로 아래
-                                    TextBoxToolbar가 길어져서 버튼이 화면 밖으로 밀렸어요.
-                                    선택 여부와 무관하게 "텍스트" 탭 맨 위에 항상 보이게 함. */}
+                                {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일하고
+                                    제목/부제목/본문 스타일 프리셋을 고를 수 있게" — 표지와 같은
+                                    구성(주 버튼 + 프리셋 칩)을 내지에도 그대로 둬요. 2026-10-06에
+                                    버튼을 탭 맨 위로 올린 위치는 그대로 유지. */}
                                 <button
                                   type="button"
                                   onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
                                   className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
-                                  + 글상자 추가
+                                  + 텍스트 추가
                                 </button>
+                                <div className="flex gap-1">
+                                  {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
+                                    <button
+                                      key={key}
+                                      type="button"
+                                      onClick={() =>
+                                        handleAddTextBox(
+                                          i,
+                                          i === 0 ? "right" : "left",
+                                          textStylePresetOverrides(key, guidePageWorkMm)
+                                        )
+                                      }
+                                      className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
+                                    >
+                                      {TEXT_STYLE_PRESETS[key].label}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             )}
                             {activeEditTab === "text" &&
