@@ -97,11 +97,14 @@ type StickerCategoryId =
 // 2026-09-27, 혜민님 요청: "스티커의 메뉴를 5개로 줄여서 폭을 맞춰주세요" — 기존
 // 15개 category(개별 스티커에 이미 붙어있는 값, 아래 STICKERS 배열은 그대로 둠)를
 // 5개 탭으로 묶었어요. 각 탭의 memberIds가 예전 category들을 모아서 가리켜요.
+// 2026-09-28, 혜민님 요청: "검은색 탭 길이를 가로폭에 맞춰주세요. 글자가 많은건
+// 내용을 축소해주세요" — 패널 폭을 넘어서 가로 스크롤이 생기던 탭 라벨을 짧게
+// 줄였어요(묶는 category는 그대로 유지, 라벨 표기만 축약).
 const STICKER_CATEGORIES: { id: string; label: string; memberIds: StickerCategoryId[] }[] = [
-  { id: "decor", label: "소품·데코", memberIds: ["props", "ribbon", "tape", "frame", "badge", "goods"] },
-  { id: "nature", label: "자연·동물", memberIds: ["plant", "animal"] },
-  { id: "text", label: "문구·글자", memberIds: ["phrase", "lettering", "certificate"] },
-  { id: "occasion", label: "기념일·이벤트", memberIds: ["season", "wedding", "party"] },
+  { id: "decor", label: "소품", memberIds: ["props", "ribbon", "tape", "frame", "badge", "goods"] },
+  { id: "nature", label: "동물", memberIds: ["plant", "animal"] },
+  { id: "text", label: "문구", memberIds: ["phrase", "lettering", "certificate"] },
+  { id: "occasion", label: "이벤트", memberIds: ["season", "wedding", "party"] },
   { id: "icon", label: "아이콘", memberIds: ["icon"] },
 ];
 
@@ -117,16 +120,19 @@ type HandwritingCategoryId =
   | "graduation"
   | "thanks"
   | "season";
+// 2026-09-28, 혜민님 요청: "검은색 탭 길이를 가로폭에 맞춰주세요. 글자가 많은건
+// 내용을 축소해주세요" — 10개 탭이라 라벨이 조금만 길어도 폭을 넘겨 가로
+// 스크롤이 생겼어요. 각 category는 그대로 두고 라벨만 짧게 줄였어요.
 const HANDWRITING_CATEGORIES: { id: HandwritingCategoryId; label: string }[] = [
   { id: "daily", label: "일상" },
   { id: "family", label: "가족" },
   { id: "travel", label: "여행" },
-  { id: "love", label: "사랑·커플" },
-  { id: "pet", label: "반려동물" },
-  { id: "baby", label: "아기·성장" },
-  { id: "birthday", label: "생일·기념일" },
-  { id: "graduation", label: "졸업·입학" },
-  { id: "thanks", label: "감사·축하" },
+  { id: "love", label: "커플" },
+  { id: "pet", label: "반려" },
+  { id: "baby", label: "아기" },
+  { id: "birthday", label: "생일" },
+  { id: "graduation", label: "졸업" },
+  { id: "thanks", label: "감사" },
   { id: "season", label: "계절" },
 ];
 
@@ -3993,7 +3999,14 @@ const ImageBoxOverlay = forwardRef<
       // 모델(레이아웃 크기)에 전혀 영향을 안 줘서 사진이 박스를 항상 끝까지 꽉
       // 채우고, 점선은 그 위에 딱 겹쳐서(offset 0) 그려져요.
       // 2026-10-01, 혜민님 요청: "점선말고 얇은 실선으로 처리해주세요"
-      className={`absolute outline outline-1 outline-offset-0 transition ${
+      // 2026-09-28, 혜민님 요청: "회전이 자연스럽지않게 버벅이는 느낌과 회전도
+      // 부드럽게 안돼요" — 여기 있던 범용 transition(150ms)이 transform까지
+      // 같이 애니메이션시켜서, 회전 슬라이더를 계속 움직이는 동안 박스가 매번
+      // 0.15초씩 늦게 따라오며 버벅였어요(반대로 회전을 상쇄하는 래퍼는 바로
+      // 반응해서 서로 어긋남). 실제로 애니메이션이 필요한 건 선택 표시 outline
+      // 색상뿐이라 transition 범위를 outline-color로 좁혀서, 회전은 슬라이더
+      // 입력에 항상 그 즉시(지연 없이) 반응하게 했어요.
+      className={`absolute outline outline-1 outline-offset-0 transition-[outline-color] duration-150 ${
         isActive && photoEditMode ? "cursor-grab" : "cursor-move"
       } ${
         isActive && photoEditMode
@@ -5288,13 +5301,16 @@ function CategoryTabbedGrid({
       {/* 2026-09-25, 혜민님 요청: "보라색·파란색 상단 메뉴는 통일감도없고 크기도
           제각각이라 텍스트메뉴처럼 맞춰주세요" — 색상을 텍스트 서브탭(글쓰기/표만들기/
           이모티콘)과 같은 톤(선택: 차콜+흰 글자, 비선택: 아이보리)으로 통일. */}
-      <div className="flex overflow-x-auto pb-1 text-[11px]" style={{ scrollbarWidth: "thin" }}>
+      {/* 2026-09-28, 혜민님 요청: "검은색 탭 길이를 가로폭에 맞춰주세요" — 폭을
+          넘으면 가로 스크롤되던 flex 대신, "글쓰기/표만들기/이모티콘" 탭과 같은
+          grid(칸 수만큼 정확히 등분)로 바꿔서 항상 패널 폭에 딱 맞게 해요. */}
+      <div className="grid pb-1 text-[11px]" style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))` }}>
         {categories.map((cat) => (
           <button
             key={cat.id}
             type="button"
             onClick={() => onSelectCategory(cat.id)}
-            className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
+            className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
               activeCategoryId === cat.id
                 ? "bg-[var(--color-charcoal)] text-white"
                 : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
@@ -9147,13 +9163,13 @@ function UploadPageContent() {
                                   아기 생일 이렇게 5개 메뉴로 나눠주세요" — 위의 글쓰기/
                                   표만들기/이모티콘 탭과 같은 스타일(진한 차콜=선택,
                                   아이보리=선택안됨)로 카테고리 탭을 만들었어요. */}
-                              <div className="flex overflow-x-auto text-[11px]" style={{ scrollbarWidth: "thin" }}>
+                              <div className="grid text-[11px]" style={{ gridTemplateColumns: `repeat(${THEME_CATEGORIES.length}, minmax(0, 1fr))` }}>
                                 {THEME_CATEGORIES.map((cat) => (
                                   <button
                                     key={cat.id}
                                     type="button"
                                     onClick={() => setThemeCategoryTab(cat.id)}
-                                    className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
+                                    className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
                                       themeCategoryTab === cat.id
                                         ? "bg-[var(--color-charcoal)] text-white"
                                         : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
@@ -9336,11 +9352,16 @@ function UploadPageContent() {
                                     : undefined) ?? coverImageBoxes[coverImageBoxes.length - 1];
                                 const canFrame = !!frameTargetBox;
                                 const effectiveTab = coverPhotoTopTab === "frame" && !canFrame ? "add" : coverPhotoTopTab;
+                                // 2026-09-28, 혜민님 요청: "상단은 보라,블루 색이 아니고
+                                // 검은계열의 글쓰기 표만들기 이모티콘 버튼과 동일하게
+                                // 해주세요" — 탭(선택 상태를 보여주는 요소)은 그라데이션이
+                                // 아니라 다른 카테고리 탭들과 같은 차콜/아이보리 톤으로.
+                                // 그라데이션은 진짜 실행 버튼(아래 "사진 불러오기")에만 남김.
                                 const tabButtonClass = (active: boolean) =>
-                                  `rounded-md px-2 py-2 text-xs font-medium transition ${
+                                  `px-2 py-1.5 text-xs font-medium transition ${
                                     active
-                                      ? "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] text-white shadow-sm shadow-[var(--color-brand-purple)]/20"
-                                      : "border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:border-[var(--color-charcoal)]/30"
+                                      ? "bg-[var(--color-charcoal)] text-white"
+                                      : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
                                   } disabled:cursor-not-allowed disabled:opacity-30`;
                                 return (
                                   <div className="flex flex-col gap-1.5">
@@ -9488,22 +9509,32 @@ function UploadPageContent() {
                               <div className="flex flex-col gap-1.5">
                                 {/* 2026-09-25, 혜민님 요청: "설명글 삭제(레이아웃패널)" —
                                     "지금 OO에 사진이 N장 있어요" 안내문을 없앴어요. */}
-                                <div className="flex overflow-x-auto text-[11px]" style={{ scrollbarWidth: "thin" }}>
-                                  {LAYOUT_COUNT_FILTERS.filter((f) => f.id === "all" || (typeof f.id === "number" && f.id <= 3)).map((f) => (
-                                    <button
-                                      key={String(f.id)}
-                                      type="button"
-                                      onClick={() => setLayoutCountFilter(f.id)}
-                                      className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
-                                        layoutCountFilter === f.id
-                                          ? "bg-[var(--color-charcoal)] text-white"
-                                          : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                      }`}
+                                {(() => {
+                                  const visibleFilters = LAYOUT_COUNT_FILTERS.filter(
+                                    (f) => f.id === "all" || (typeof f.id === "number" && f.id <= 3)
+                                  );
+                                  return (
+                                    <div
+                                      className="grid text-[11px]"
+                                      style={{ gridTemplateColumns: `repeat(${visibleFilters.length}, minmax(0, 1fr))` }}
                                     >
-                                      {f.label}
-                                    </button>
-                                  ))}
-                                </div>
+                                      {visibleFilters.map((f) => (
+                                        <button
+                                          key={String(f.id)}
+                                          type="button"
+                                          onClick={() => setLayoutCountFilter(f.id)}
+                                          className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
+                                            layoutCountFilter === f.id
+                                              ? "bg-[var(--color-charcoal)] text-white"
+                                              : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+                                          }`}
+                                        >
+                                          {f.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                                 {coverLayoutApplyMessage && (
                                   <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
                                     {coverLayoutApplyMessage}
@@ -10588,13 +10619,16 @@ function UploadPageContent() {
                                 return (
                                   <div className="flex flex-col gap-1.5">
                                     {/* 2026-09-25, 혜민님 요청: "설명글 삭제(레이아웃패널)" — 안내문을 없앴어요. */}
-                                    <div className="flex overflow-x-auto text-[11px]" style={{ scrollbarWidth: "thin" }}>
+                                    <div
+                                      className="grid text-[11px]"
+                                      style={{ gridTemplateColumns: `repeat(${LAYOUT_COUNT_FILTERS.length}, minmax(0, 1fr))` }}
+                                    >
                                       {LAYOUT_COUNT_FILTERS.map((f) => (
                                         <button
                                           key={String(f.id)}
                                           type="button"
                                           onClick={() => setLayoutCountFilter(f.id)}
-                                          className={`shrink-0 border-r border-white/40 px-2 py-1.5 font-medium transition last:border-r-0 ${
+                                          className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
                                             layoutCountFilter === f.id
                                               ? "bg-[var(--color-charcoal)] text-white"
                                               : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
