@@ -7003,7 +7003,11 @@ function CoverTitleOverlay({
   letterSpacingEm,
   fontFamily,
   align,
+  isActive,
+  editMode,
   onMove,
+  onSelect,
+  onChangeTitle,
 }: {
   title: string;
   xPct: number;
@@ -7015,7 +7019,25 @@ function CoverTitleOverlay({
   fontFamily: string;
   // 2026-10-05, 혜민님 요청: 내지 텍스트박스처럼 문단 정렬(좌/가운데/우)을 고를 수 있게.
   align: "left" | "center" | "right";
+  // 2026-10, 혜민님 요청: "표지엔 처음부터 제목 자리 1개만 빈 텍스트 영역으로 보여주고
+  // 클릭해서 직접 입력·수정" — 지금 캔버스에서 선택돼 인라인으로 편집 중인지예요.
+  // 켜지면 읽기전용 텍스트/안내문 대신 textarea로 바뀌어요(SpineTitleOverlay와 같은 패턴).
+  isActive: boolean;
+  // 편집 화면(캔버스)일 때만 true — "미리보기"·인쇄 PDF에선 항상 false로 넘겨야 해요.
+  // 예전엔 coverTitle이 비어 있으면 이 컴포넌트가 아예 안 그려졌는데(아래
+  // `if (!title.trim()) return null`), 이제 편집 화면에서는 비어 있어도 "제목을
+  // 입력하세요" 안내가 있는 빈 자리를 항상 보여줘요. 다만 "미리보기" 모드는 별도 화면이
+  // 아니라 이 컴포넌트를 그대로 재사용하면서 부모가 pointer-events만 꺼서 흉내 내는
+  // 방식이라(편집 캔버스 코드 참고), editMode를 직접 넘겨받아 안내 문구 자체를
+  // 렌더링하지 않는 방식으로 가려요 — 인쇄(lib/printCompose.ts)는 원래도 완전히 별도
+  // 그리기라 이 컴포넌트와 무관하고, coverTitle이 비어 있으면 그쪽에서도 항상 그냥
+  // 아무것도 안 그려요.
+  editMode: boolean;
   onMove: (changes: { xPct: number; yPct: number }) => void;
+  // 제목 자리를 클릭하면 선택해요(selectCoverTitle).
+  onSelect: () => void;
+  // 인라인 textarea에서 타이핑할 때마다 coverTitle에 그대로 반영해요.
+  onChangeTitle: (value: string) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
@@ -7029,6 +7051,7 @@ function CoverTitleOverlay({
   function handleDragStart(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    onSelect();
     const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
     setIsDragging(true);
     dragStart.current = {
@@ -7089,7 +7112,15 @@ function CoverTitleOverlay({
     };
   }, [isDragging, widthPct]);
 
-  if (!title.trim()) return null;
+  if (!title.trim() && !editMode) return null;
+
+  const textStyle: React.CSSProperties = {
+    fontSize: `${fontSizeCqh}cqh`,
+    lineHeight: lineHeightEm,
+    letterSpacing: `${letterSpacingEm}em`,
+    fontFamily,
+    textAlign: align,
+  };
 
   return (
     <div
@@ -7121,26 +7152,63 @@ function CoverTitleOverlay({
           )}
         </>
       )}
-      <button
-        type="button"
-        title="끌어서 이동"
-        onMouseDown={handleDragStart}
-        className="absolute -top-7 left-1/2 flex h-6 w-6 -translate-x-1/2 cursor-grab items-center justify-center bg-black/60 text-[11px] text-white opacity-0 transition active:cursor-grabbing group-hover/ct:opacity-100"
-      >
-        ⠿
-      </button>
-      <p
-        className="pointer-events-none whitespace-pre-wrap font-semibold text-white drop-"
-        style={{
-          fontSize: `${fontSizeCqh}cqh`,
-          lineHeight: lineHeightEm,
-          letterSpacing: `${letterSpacingEm}em`,
-          fontFamily,
-          textAlign: align,
-        }}
-      >
-        {title}
-      </p>
+      {editMode && (
+        <button
+          type="button"
+          title="끌어서 이동"
+          onMouseDown={handleDragStart}
+          className="absolute -top-7 left-1/2 flex h-6 w-6 -translate-x-1/2 cursor-grab items-center justify-center bg-black/60 text-[11px] text-white opacity-0 transition active:cursor-grabbing group-hover/ct:opacity-100"
+        >
+          ⠿
+        </button>
+      )}
+      {isActive && editMode ? (
+        // 선택된 상태: 읽기전용 텍스트 대신 textarea로 바꿔서 캔버스 위에서 바로 타이핑할
+        // 수 있게 해요(SpineTitleOverlay의 인라인 입력과 같은 패턴). 자신의 mousedown은
+        // 멈춰서(stopPropagation) 커서를 옮기려고 다시 클릭해도 캔버스 바깥 클릭으로
+        // 오인해 선택이 풀리지 않게 해요.
+        <textarea
+          autoFocus
+          value={title}
+          onChange={(e) => onChangeTitle(e.target.value)}
+          onMouseDown={(e) => e.stopPropagation()}
+          onFocus={onSelect}
+          spellCheck={false}
+          placeholder="제목을 입력하세요"
+          rows={Math.max(1, title.split("\n").length)}
+          className="block w-full resize-none whitespace-pre-wrap border border-dashed border-white/80 bg-black/10 font-semibold text-white outline-none placeholder:text-white/60"
+          style={textStyle}
+        />
+      ) : title.trim() ? (
+        <p
+          onMouseDown={(e) => {
+            if (!editMode) return;
+            e.stopPropagation();
+            onSelect();
+          }}
+          className={`whitespace-pre-wrap font-semibold text-white drop- ${
+            editMode ? "cursor-text" : "pointer-events-none"
+          }`}
+          style={textStyle}
+        >
+          {title}
+        </p>
+      ) : (
+        // 표지 제목이 아직 비어 있을 때: 편집 화면에서만 "제목을 입력하세요" 안내와 함께
+        // 빈 제목 자리를 점선 박스로 보여줘요. editMode가 false(미리보기·인쇄)면 바로 위의
+        // `if (!title.trim() && !editMode) return null`에서 이미 걸러져서 이 분기 자체가
+        // 렌더링되지 않아요 — 즉 이 안내 문구는 편집 캔버스에서만 나올 수 있어요.
+        <p
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+          className="cursor-text whitespace-pre-wrap border border-dashed border-white/70 bg-black/10 px-2 py-1 font-semibold text-white/70"
+          style={textStyle}
+        >
+          제목을 입력하세요
+        </p>
+      )}
     </div>
   );
 }
@@ -7159,6 +7227,7 @@ function SpineTitleOverlay({
   color,
   align,
   isActive,
+  editMode,
   onMove,
   onResize,
   onSelect,
@@ -7173,6 +7242,9 @@ function SpineTitleOverlay({
   color: string; // spine title color, applied as inline style so a user-picked color always shows
   align: "left" | "center" | "right"; // maps to the outer container's flex alignment
   isActive: boolean; // true when selected on the canvas -- swaps the read-only span for an editable input
+  // 편집 화면(캔버스)일 때만 true — "미리보기"에선 빈 책등 안내("책등")와 인라인 입력이
+  // 안 보이게 해요(CoverTitleOverlay와 같은 이유, 2026-10).
+  editMode: boolean;
   onMove: (yPct: number) => void;
   onResize: (heightPct: number) => void;
   onSelect: () => void; // called on click/drag-start to select this element (selectSpineTitle)
@@ -7249,16 +7321,28 @@ function SpineTitleOverlay({
       }`}
       style={{ top: `${yPct}%`, height: `${heightPct}%` }}
     >
-      {isActive ? (
+      {isActive && editMode ? (
         // Selected: swap in a single-line input bound to the title so it can be edited
         // directly on the canvas. Its own mousedown stops propagation so it does not
         // immediately start a drag.
+        // 2026-10, 버그 수정(혜민님 보고: "책등을 선택하거나 내용을 바꾸지 못해요") —
+        // 캔버스에서 클릭해 선택은 됐어도(isActive=true) 이 input이 실제로 포커스를
+        // 받은 적이 없어서, 곧바로 타이핑해도 아무 데도 입력되지 않는 문제였어요
+        // (CoverTitleOverlay의 textarea도 같은 이유로 autoFocus를 추가했어요). 회전된
+        // (rotate(90deg)) 좁은 input을 다시 정확히 클릭해야만 포커스가 잡혔던 셈이라,
+        // 실제로는 "선택은 됐는데 입력은 안 되는" 상태로 보였어요. autoFocus로 선택
+        // 즉시 포커스를 주고, select()로 기존 글자를 전체 선택해서 바로 이어 쓰거나
+        // 덮어쓸 수 있게 했어요.
         <input
           type="text"
           value={title}
           onChange={(e) => onChangeTitle(e.target.value)}
           onMouseDown={(e) => e.stopPropagation()}
-          onFocus={onSelect}
+          autoFocus
+          onFocus={(e) => {
+            onSelect();
+            e.currentTarget.select();
+          }}
           spellCheck={false}
           className="whitespace-nowrap border-none bg-transparent p-0 text-center font-bold outline-none"
           style={{
@@ -7280,14 +7364,14 @@ function SpineTitleOverlay({
         >
           {title}
         </span>
-      ) : (
+      ) : editMode ? (
         <span
           className="text-[11px] text-[var(--color-charcoal)]/40"
           style={{ writingMode: "vertical-lr", textOrientation: "upright" }}
         >
           {emptyLabel}
         </span>
-      )}
+      ) : null}
       <div
         onMouseDown={handleResizeStart}
         title="끌어서 세로 크기 조절"
@@ -7893,6 +7977,10 @@ function UploadPageContent() {
   const [spineTitleColor, setSpineTitleColor] = useState("#1F2937");
   const [spineTitleAlign, setSpineTitleAlign] = useState<"left" | "center" | "right">("center");
   const [spineTitleSelected, setSpineTitleSelected] = useState(false);
+  // 2026-10, 혜민님 요청: "표지 제목 자리를 클릭해 직접 입력·수정" — 지금 앞표지 제목
+  // 자리(CoverTitleOverlay)가 캔버스에서 선택돼 인라인으로 편집 중인지예요.
+  // spineTitleSelected·backCoverLogoSelected와 같은 역할이에요.
+  const [coverTitleSelected, setCoverTitleSelected] = useState(false);
   // 표지 제목 서체예요. 캡션 서체 선택지(fontOptions)와 같은 목록을 그대로 써요.
   const [coverTitleFontFamily, setCoverTitleFontFamily] = useState(fontOptions[0].id);
   // 표지 제목⇄책등 제목 서체 연결 스위치예요(2026-09-25, 혜민님 요청). 기본 켜짐 — 켜진
@@ -7923,6 +8011,7 @@ function UploadPageContent() {
     setActiveCoverImageBox(null);
     setActiveTableBox(null);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
     setBackCoverLogoSelected(true);
     setActiveCoverEditTab("photo");
   }
@@ -7934,7 +8023,23 @@ function UploadPageContent() {
     setActiveCoverImageBox(null);
     setBackCoverLogoSelected(false);
     setActiveTableBox(null);
+    setCoverTitleSelected(false);
     setSpineTitleSelected(true);
+    setActiveCoverEditTab("text");
+    setTextPanelSubTab("write");
+  }
+  // 앞표지 제목 자리(CoverTitleOverlay)를 캔버스에서 클릭하면 선택해요 —
+  // selectSpineTitle과 같은 패턴이에요(다른 선택은 모두 풀고, 글쓰기 탭으로 전환).
+  function selectCoverTitle() {
+    setActiveTextBox(null);
+    setMultiTextSelection(null);
+    setActiveImageBox(null);
+    setMultiImageSelection(null);
+    setActiveCoverImageBox(null);
+    setBackCoverLogoSelected(false);
+    setActiveTableBox(null);
+    setSpineTitleSelected(false);
+    setCoverTitleSelected(true);
     setActiveCoverEditTab("text");
     setTextPanelSubTab("write");
   }
@@ -7976,6 +8081,7 @@ function UploadPageContent() {
     setActiveCoverImageBox(null);
     setBackCoverLogoSelected(false);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
     setActiveTableBox({ scope: ref.scope, spreadIndex: ref.spreadIndex, boxId });
     setTextPanelSubTab("table");
     if (ref.scope === "cover" || ref.scope === "backCover") {
@@ -8018,6 +8124,7 @@ function UploadPageContent() {
     setBackCoverLogoSelected(false);
     setActiveTableBox(null);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
     // 2026-10-02, 혜민님 요청: "앞표지 뒤표지 메뉴 삭제, 스프레드 기준으로" — 레이아웃·
     // 스티커 패널의 수동 "적용 대상" 토글을 없앤 대신, 캔버스에서 어느 쪽 사진박스를
     // 선택하든 그 즉시 그 쪽이 "지금 작업 중인 쪽"이 되도록 자동으로 맞춰요.
@@ -8727,6 +8834,7 @@ function UploadPageContent() {
     setBackCoverLogoSelected(false);
     setActiveTableBox(null);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
     if (ref.scope === "cover" || ref.scope === "backCover") {
       setActiveCoverEditTab("text");
       // 2026-10-05, 혜민님 요청: 앞/뒤표지 텍스트박스 추가 버튼을 "글상자 추가" 하나로
@@ -8750,6 +8858,7 @@ function UploadPageContent() {
     setActiveImageBox(null);
     setActiveTableBox(null);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
     // 같은 스프레드의 사진박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
     // 2026-09-28 추가) — 다른 스프레드/표지 쪽이면(좌표계가 달라서) 새로 시작해요.
     setMultiImageSelection((prev) =>
@@ -8934,6 +9043,17 @@ function UploadPageContent() {
     ? getTextBoxesForRef(activeTextBox.ref).find((b) => b.id === activeTextBox.boxId) ?? null
     : null;
 
+  // 2026-10, 혜민님 요청: "표지 제목/부제목/본문은 각각 별도 생성 메뉴로 두지 말고,
+  // 선택한 글상자에 적용하는 스타일로만 제공" — 예전엔 이 프리셋 버튼이 새 글상자를
+  // "만들면서" 스타일을 입혔는데(handleAddCoverTextBox(overrides) 등), 이제는 지금
+  // 캔버스에서 선택된 글상자(activeTextBox)가 있을 때만 그 글상자에 스타일만
+  // 덮어써요(updateTextBoxByRef) — 아무것도 안 만들어요. 선택된 글상자가 없으면 이
+  // 함수를 호출할 UI 자체가 안 보여요(호출부에서 activeTextBox 존재를 먼저 확인).
+  function applyTextStylePresetToActive(key: TextStylePresetKey, pageWidthMm: number) {
+    if (!activeTextBox) return;
+    updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, textStylePresetOverrides(key, pageWidthMm));
+  }
+
   // ---- 자유 배치 이미지박스(스프레드 전체 기준) ----
   // 지금 선택된 이미지박스가 어느 스프레드에 있는지 가리켜요.
   const [activeImageBox, setActiveImageBox] = useState<{ spreadIndex: number; boxId: string } | null>(null);
@@ -8956,6 +9076,7 @@ function UploadPageContent() {
     setActiveImageBox({ spreadIndex, boxId });
     setActiveTableBox(null);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
     // 스티커(손글씨스티커 포함)는 "사진" 탭에 편집할 속성(꽉 채우기/변형mm/사진 위치
     // 조정)이 아예 없어서, 선택해도 왼쪽 패널을 "사진" 탭으로 옮기지 않아요 — 혜민님이
     // "스티커 선택했을때 사진 메뉴로 이동하는 오류"로 보고하신 버그 수정(2026-09-24).
@@ -8998,6 +9119,7 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setActiveTableBox(null);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
     // 같은 스프레드의 텍스트박스 다중 선택은 그대로 둬요(사진+텍스트 혼합 다중 선택,
     // 2026-09-28 추가).
     setMultiTextSelection((prev) =>
@@ -10180,6 +10302,7 @@ function UploadPageContent() {
     setActiveCoverImageBox(null);
     setBackCoverLogoSelected(false);
     setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
   }
 
   // 매 렌더마다 지금 상태를 스냅샷으로 찍어서, 직전 스냅샷과 다르면(=혜민님이 뭔가
@@ -11623,6 +11746,7 @@ function UploadPageContent() {
                   setBackCoverLogoSelected(false);
                   setActiveTableBox(null);
                   setSpineTitleSelected(false);
+                  setCoverTitleSelected(false);
                 }}
               >
                   <div
@@ -11987,11 +12111,14 @@ function UploadPageContent() {
                               )}
                               {textPanelSubTab === "write" && (
                               <>
-                              {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일하고
-                                  표지 제목/부제목/본문 스타일 프리셋을 고를 수 있게" — 기본
-                                  글상자를 더하는 주 버튼과, 클릭 한 번으로 글상자를 만들면서
-                                  스타일까지 같이 입히는 프리셋 칩을 같이 둬요(2026-10-06에
-                                  버튼을 탭 맨 위로 올린 위치는 그대로 유지). */}
+                              {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일" — 새
+                                  글상자를 만드는 방법은 이 버튼 하나뿐이에요(스타일 없이 기본
+                                  글상자). 2026-10, 후속 요청: "표지 제목/부제목/본문은 각각
+                                  별도 생성 메뉴로 두지 말고, 선택한 글상자에 적용하는 스타일로만
+                                  제공" — 프리셋 칩은 더 이상 글상자를 "만들지" 않고, 지금 캔버스
+                                  에서 글상자가 선택돼 있을 때만 나타나서 그 글상자에 스타일만
+                                  입혀요(applyTextStylePresetToActive). 선택된 글상자가 없으면
+                                  적용할 대상이 없으니 칩 자체를 안 보여줘요. */}
                               <div className="flex flex-col gap-1.5 border-b border-[var(--color-hairline)] pb-2">
                                 <button
                                   type="button"
@@ -12004,25 +12131,25 @@ function UploadPageContent() {
                                 >
                                   + 텍스트 추가
                                 </button>
-                                <div className="flex gap-1">
-                                  {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
-                                    <button
-                                      key={key}
-                                      type="button"
-                                      onClick={() => {
-                                        const overrides = textStylePresetOverrides(key, coverPanelMm + coverBleedMm);
-                                        if (coverLayoutApplyTarget === "back") {
-                                          handleAddBackCoverTextBox(overrides);
-                                        } else {
-                                          handleAddCoverTextBox(overrides);
-                                        }
-                                      }}
-                                      className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
-                                    >
-                                      {key === "title" ? "표지 " : ""}{TEXT_STYLE_PRESETS[key].label}
-                                    </button>
-                                  ))}
+                                {activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
+                                <div className="flex flex-col gap-1">
+                                  <p className="text-[10px] text-[var(--color-charcoal)]/50">
+                                    선택한 글상자에 스타일 적용
+                                  </p>
+                                  <div className="flex gap-1">
+                                    {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
+                                      <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => applyTextStylePresetToActive(key, coverPanelMm + coverBleedMm)}
+                                        className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
+                                      >
+                                        {key === "title" ? "표지 " : ""}{TEXT_STYLE_PRESETS[key].label}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
+                                )}
                               </div>
                               {/* 2026-10-07, 혜민님 요청: 새 프리셋 흐름을 방해하지 않도록, 기존
                                   coverTitle(타이틀) 필드로 만들어둔 작업물이 있는 책에서만 이 섹션을
@@ -12185,6 +12312,30 @@ function UploadPageContent() {
                                 )}
                               </div>
                               )}
+                              {/* 2026-10, 혜민님 요청(항목7): "책등이 좁아 캔버스에서 직접
+                                  타이핑하기 어려우면 패널의 내용 입력란에서도 수정할 수 있게" —
+                                  책등 글자는 별도 필드가 아니라 앞표지 제목(coverTitle)을 그대로
+                                  써요(줄바꿈만 공백으로 합쳐서, SpineTitleOverlay와 printCompose.ts
+                                  둘 다 같은 방식). 그래서 여기서 고치면 캔버스의 책등·앞표지 제목
+                                  둘 다 함께 바뀌어요 — 회전된 좁은 캔버스 대신 이 입력란에서 편하게
+                                  타이핑할 수 있어요. */}
+                              <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
+                                <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
+                                  책등 내용
+                                </label>
+                                <input
+                                  type="text"
+                                  value={coverTitle.replace(/\n/g, " ")}
+                                  onChange={(e) => handleCoverTitleChange(e.target.value.replace(/\n/g, " "))}
+                                  onFocus={() => selectSpineTitle()}
+                                  placeholder="책등에 표시할 문구"
+                                  className="w-full border border-[var(--color-hairline)] bg-white px-2 py-2.5 text-sm outline-none focus:border-[var(--color-sky)]"
+                                />
+                                <p className="mt-1 text-[10px] text-[var(--color-charcoal)]/40">
+                                  표지 제목과 같은 내용이에요 — 여기서 고치면 캔버스의 표지 제목도
+                                  함께 바뀌어요.
+                                </p>
+                              </div>
                               <div className="mt-2 border border-[var(--color-hairline)] bg-white p-1.5">
                                 <label className="mb-1 block text-xs font-medium text-[var(--color-charcoal)]/70">
                                   책등 제목 크기·서체
@@ -12580,6 +12731,7 @@ function UploadPageContent() {
                               color={spineTitleColor}
                               align={spineTitleAlign}
                               isActive={spineTitleSelected}
+                              editMode={editorMode === "edit"}
                               onMove={setSpineTitleYPct}
                               onResize={setSpineTitleHeightPct}
                               onSelect={selectSpineTitle}
@@ -12655,10 +12807,14 @@ function UploadPageContent() {
                               letterSpacingEm={coverTitleLetterSpacingEm}
                               fontFamily={coverTitleFontFamily}
                               align={coverTitleAlign}
+                              isActive={coverTitleSelected}
+                              editMode={editorMode === "edit"}
                               onMove={({ xPct, yPct }) => {
                                 setCoverTitleXPct(xPct);
                                 setCoverTitleYPct(yPct);
                               }}
+                              onSelect={selectCoverTitle}
+                              onChangeTitle={handleCoverTitleChange}
                             />
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
@@ -12923,10 +13079,12 @@ function UploadPageContent() {
                             )}
                             {activeEditTab === "text" && textPanelSubTab === "write" && (
                               <div className="mb-1.5 flex flex-col gap-1.5">
-                                {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일하고
-                                    제목/부제목/본문 스타일 프리셋을 고를 수 있게" — 표지와 같은
-                                    구성(주 버튼 + 프리셋 칩)을 내지에도 그대로 둬요. 2026-10-06에
-                                    버튼을 탭 맨 위로 올린 위치는 그대로 유지. */}
+                                {/* 2026-10-07, 혜민님 요청: "텍스트 추가 버튼 하나로 통일" — 새
+                                    글상자를 만드는 방법은 이 버튼 하나뿐이에요. 2026-10, 후속
+                                    요청: 프리셋 칩은 더 이상 글상자를 만들지 않고, 지금 이
+                                    스프레드에서 글상자가 선택돼 있을 때만 나타나서 그 글상자에
+                                    스타일만 입혀요(표지와 같은 패턴,
+                                    applyTextStylePresetToActive). */}
                                 <button
                                   type="button"
                                   onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
@@ -12934,24 +13092,25 @@ function UploadPageContent() {
                                 >
                                   + 텍스트 추가
                                 </button>
-                                <div className="flex gap-1">
-                                  {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
-                                    <button
-                                      key={key}
-                                      type="button"
-                                      onClick={() =>
-                                        handleAddTextBox(
-                                          i,
-                                          i === 0 ? "right" : "left",
-                                          textStylePresetOverrides(key, guidePageWorkMm)
-                                        )
-                                      }
-                                      className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
-                                    >
-                                      {TEXT_STYLE_PRESETS[key].label}
-                                    </button>
-                                  ))}
+                                {activeTextBox && activeTextBox.ref.scope === "spread" && activeTextBox.ref.spreadIndex === i && (
+                                <div className="flex flex-col gap-1">
+                                  <p className="text-[10px] text-[var(--color-charcoal)]/50">
+                                    선택한 글상자에 스타일 적용
+                                  </p>
+                                  <div className="flex gap-1">
+                                    {(Object.keys(TEXT_STYLE_PRESETS) as TextStylePresetKey[]).map((key) => (
+                                      <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => applyTextStylePresetToActive(key, guidePageWorkMm)}
+                                        className="flex-1 border border-[var(--color-hairline)] bg-white px-1 py-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:border-[var(--color-sky)] hover:text-[var(--color-sky)]"
+                                      >
+                                        {TEXT_STYLE_PRESETS[key].label}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
+                                )}
                               </div>
                             )}
                             {activeEditTab === "text" &&
