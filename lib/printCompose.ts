@@ -518,9 +518,19 @@ function drawTableGridAndCells(
 ) {
   const rows = Math.max(1, box.rows);
   const cols = Math.max(1, box.cols);
-  const cellW = widthPx / cols;
+  // 열(세로줄)별 상대 폭(2026-09-28 혜민님 요청 "칸 폭 조절") — colWidths 길이가
+  // cols와 안 맞으면(예전 데이터) 무시하고 전부 같은 폭으로 그려요.
+  const colWeights =
+    box.colWidths && box.colWidths.length === cols ? box.colWidths.map((w) => Math.max(0.1, w)) : new Array(cols).fill(1);
+  const totalWeight = colWeights.reduce((a, b) => a + b, 0) || cols;
+  const colLefts: number[] = [0];
+  for (let c = 0; c < cols; c++) colLefts.push(colLefts[c] + (colWeights[c] / totalWeight) * widthPx);
   const cellH = heightPx / rows;
   const fontPx = Math.max(8, Math.round(refWidthPx * TEXT_BOX_FONT_SCALE_BASE_RATIO * (box.fontScale ?? 1)));
+  const merges = box.merges ?? [];
+  function mergeAtPrint(row: number, col: number) {
+    return merges.find((m) => row >= m.row && row < m.row + m.rowSpan && col >= m.col && col < m.col + m.colSpan);
+  }
 
   // 표 면(배경) — 2026-09-28 혜민님 요청. 라운드(borderRadius)가 있으면 둥근 모서리로
   // 잘라서 채워요(화면 미리보기의 overflow:hidden과 같은 느낌).
@@ -547,20 +557,32 @@ function drawTableGridAndCells(
   ctx.fillStyle = "#1F2937";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  const cellPad = cellW * 0.08;
+  // 병합(2026-09-28 혜민님 요청 "셀 병합")된 칸은 덮인 나머지 칸을 건너뛰고, 병합 anchor
+  // 칸만 합쳐진 넓이(cellLeft~cellRight, cellTop~cellBottom) 기준으로 그려요.
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
+      const m = mergeAtPrint(r, c);
+      if (m && !(m.row === r && m.col === c)) continue;
+      const rowSpan = m ? m.rowSpan : 1;
+      const colSpan = m ? m.colSpan : 1;
       const text = box.cells[r * cols + c] ?? "";
       if (!text.trim()) continue;
-      const cx = leftPx + cellW * (c + 0.5);
-      const cy = topPx + cellH * (r + 0.5);
+      const cellLeftPx = leftPx + colLefts[c];
+      const cellRightPx = leftPx + colLefts[c + colSpan];
+      const cellW = cellRightPx - cellLeftPx;
+      const cellTopPx = topPx + cellH * r;
+      const cellBottomPx = topPx + cellH * (r + rowSpan);
+      const cellHeight = cellBottomPx - cellTopPx;
+      const cellPad = cellW * 0.08;
+      const cx = cellLeftPx + cellW / 2;
+      const cy = cellTopPx + cellHeight / 2;
       const maxTextWidth = Math.max(4, cellW - cellPad * 2);
       const lines = wrapTextForCanvas(ctx, text, maxTextWidth);
       const lineHeight = fontPx * 1.25;
       const startY = cy - ((lines.length - 1) * lineHeight) / 2;
       ctx.save();
       ctx.beginPath();
-      ctx.rect(leftPx + cellW * c, topPx + cellH * r, cellW, cellH);
+      ctx.rect(cellLeftPx, cellTopPx, cellW, cellHeight);
       ctx.clip();
       lines.forEach((line, i) => {
         ctx.fillText(line, cx, startY + i * lineHeight, maxTextWidth);
@@ -571,24 +593,41 @@ function drawTableGridAndCells(
 
   ctx.restore(); // 표 면 채우기용 클립 해제
 
-  // 격자선 — 선 굵기·선 종류(실선/파선/점선)도 함께 반영해요(2026-09-28).
+  // 격자선 — 선 굵기·선 종류(실선/파선/점선)·점선 길이/간격을 반영하고(2026-09-28),
+  // 병합된 칸 안쪽을 지나는 격자선 구간은 건너뛰어요.
   ctx.save();
   ctx.strokeStyle = box.borderColor ?? "#94A3B8";
   const lineWidthPx = Math.max(0.1, box.borderWidth ?? 1) * (PRINT_DPI / 96);
   ctx.lineWidth = lineWidthPx;
-  if (box.borderStyle === "dashed") ctx.setLineDash([lineWidthPx * 3, lineWidthPx * 2]);
-  else if (box.borderStyle === "dotted") ctx.setLineDash([lineWidthPx, lineWidthPx * 1.5]);
-  else ctx.setLineDash([]);
+  if (box.borderStyle === "dashed" || box.borderStyle === "dotted") {
+    const dashLenPx =
+      (box.dashLength ?? (box.borderStyle === "dotted" ? (box.borderWidth ?? 1) : (box.borderWidth ?? 1) * 3)) *
+      (PRINT_DPI / 96);
+    const dashGapPx =
+      (box.dashGap ?? (box.borderStyle === "dotted" ? (box.borderWidth ?? 1) * 1.5 : (box.borderWidth ?? 1) * 2)) *
+      (PRINT_DPI / 96);
+    ctx.setLineDash([dashLenPx, dashGapPx]);
+  } else {
+    ctx.setLineDash([]);
+  }
   ctx.beginPath();
+  for (let c = 0; c <= cols; c++) {
+    const x = leftPx + colLefts[c];
+    for (let r = 0; r < rows; r++) {
+      const covered = merges.some((m) => c > m.col && c < m.col + m.colSpan && r >= m.row && r < m.row + m.rowSpan);
+      if (covered) continue;
+      ctx.moveTo(x, topPx + cellH * r);
+      ctx.lineTo(x, topPx + cellH * (r + 1));
+    }
+  }
   for (let r = 0; r <= rows; r++) {
     const y = topPx + cellH * r;
-    ctx.moveTo(leftPx, y);
-    ctx.lineTo(leftPx + widthPx, y);
-  }
-  for (let c = 0; c <= cols; c++) {
-    const x = leftPx + cellW * c;
-    ctx.moveTo(x, topPx);
-    ctx.lineTo(x, topPx + heightPx);
+    for (let c = 0; c < cols; c++) {
+      const covered = merges.some((m) => r > m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan);
+      if (covered) continue;
+      ctx.moveTo(leftPx + colLefts[c], y);
+      ctx.lineTo(leftPx + colLefts[c + 1], y);
+    }
   }
   ctx.stroke();
   ctx.restore();

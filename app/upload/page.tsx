@@ -2817,7 +2817,8 @@ function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => 
       </button>
       <p className="text-[11px] leading-relaxed text-[var(--color-charcoal)]/50 break-keep">
         칸을 클릭하고 바로 입력하면 돼요. 표 전체는 테두리를 끌어서 옮기거나 모서리로
-        크기를 조절할 수 있어요(셀 병합·셀별 색은 아직 지원하지 않아요).
+        크기를 조절할 수 있어요. 표를 선택하면 왼쪽 위 + 버튼에서 셀 병합·행/열 추가·
+        칸 폭 조절도 할 수 있어요.
       </p>
     </div>
   );
@@ -2929,6 +2930,39 @@ function TableBoxToolbar({
           />
         </div>
       </div>
+      {/* 2026-09-28, 혜민님 요청: "점선, 점의 길이와 크기도 조절할수 있어야합니다" —
+          선 종류가 실선이 아닐 때만 나와요. 점선/파선 한 칸(선분)의 길이와 칸 사이
+          간격을 직접 px로 조절해요(점선의 "점 크기"는 이 선분 길이로 조절돼요). */}
+      {(box.borderStyle ?? "solid") !== "solid" && (
+        <div className="grid grid-cols-2 gap-1.5">
+          <div>
+            <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">
+              {box.borderStyle === "dotted" ? "점 크기(px)" : "선분 길이(px)"}
+            </label>
+            <input
+              type="number"
+              min={0.5}
+              max={40}
+              step={0.5}
+              value={box.dashLength ?? (box.borderStyle === "dotted" ? (box.borderWidth ?? 1) : (box.borderWidth ?? 1) * 3)}
+              onChange={(e) => onChange({ dashLength: Math.max(0.5, Math.min(40, Number(e.target.value) || 0.5)) })}
+              className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">간격(px)</label>
+            <input
+              type="number"
+              min={0.5}
+              max={40}
+              step={0.5}
+              value={box.dashGap ?? (box.borderStyle === "dotted" ? (box.borderWidth ?? 1) * 1.5 : (box.borderWidth ?? 1) * 2)}
+              onChange={(e) => onChange({ dashGap: Math.max(0.5, Math.min(40, Number(e.target.value) || 0.5)) })}
+              className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            />
+          </div>
+        </div>
+      )}
       <div>
         <label className="mb-1 block text-[11px] text-[var(--color-charcoal)]/70">
           표 크기(칸 글자 배율) — {Math.round((box.fontScale ?? 1) * 100)}%
@@ -4528,6 +4562,27 @@ function TableBoxOverlay({
     dir: "se" as TextBoxResizeDir,
   });
 
+  // 2026-09-28, 혜민님 요청(구글독스 스타일 표 편집: "셀 병합, 행 분할, 열 분할, 너비
+  // 맞춤, 삭제 등 메뉴") — 표를 선택하면 왼쪽 위에 뜨는 "+" 버튼 메뉴에서 쓰는 상태예요.
+  // dragSel: 칸을 눌러서 끌면(드래그) 그 사각형 범위가 담겨요 — 병합할 범위를 고를 때
+  // 씀. activeCell: 가장 최근에 클릭한 칸(행 분할·열 분할·삭제·칸 폭 조절 기준).
+  const [dragSel, setDragSel] = useState<{ anchorRow: number; anchorCol: number; row: number; col: number } | null>(
+    null
+  );
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!dragSel) return;
+    function handleUp() {
+      // 드래그가 끝나도 선택 범위는 남겨둬요(메뉴에서 "셀 병합" 누를 때까지) — 다만
+      // 빈 캔버스를 클릭하면 선택이 풀리도록, 박스 바깥 클릭 시엔 이 박스가 비활성화되면서
+      // 자연스럽게 이 컴포넌트가 다시 그려지진 않지만, 메뉴를 닫아 혼동을 줄여요.
+    }
+    window.addEventListener("mouseup", handleUp);
+    return () => window.removeEventListener("mouseup", handleUp);
+  }, [dragSel]);
+
   function handleMouseDown(e: React.MouseEvent) {
     e.stopPropagation();
     onSelect();
@@ -4638,6 +4693,134 @@ function TableBoxOverlay({
     onChange({ cells: next });
   }
 
+  function mergeAt(row: number, col: number) {
+    return (box.merges ?? []).find(
+      (m) => row >= m.row && row < m.row + m.rowSpan && col >= m.col && col < m.col + m.colSpan
+    );
+  }
+
+  const selRange = dragSel
+    ? {
+        r0: Math.min(dragSel.anchorRow, dragSel.row),
+        r1: Math.max(dragSel.anchorRow, dragSel.row),
+        c0: Math.min(dragSel.anchorCol, dragSel.col),
+        c1: Math.max(dragSel.anchorCol, dragSel.col),
+      }
+    : null;
+  const canMerge = !!selRange && (selRange.r1 > selRange.r0 || selRange.c1 > selRange.c0);
+
+  // "셀 병합" — 드래그로 고른 사각형 범위를 칸 하나로 합쳐요. 범위 안의 글자는 순서대로
+  // 이어붙이고(빈 칸은 건너뜀), 그 범위와 겹치던 예전 병합은 새 병합이 대신해요.
+  function handleMergeCells() {
+    if (!selRange) return;
+    const { r0, c0, r1, c1 } = selRange;
+    const keptMerges = (box.merges ?? []).filter((m) => {
+      const overlap = !(m.col + m.colSpan <= c0 || m.col > c1 || m.row + m.rowSpan <= r0 || m.row > r1);
+      return !overlap;
+    });
+    const nextCells = box.cells.slice();
+    const parts: string[] = [];
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const idx = r * box.cols + c;
+        const v = (box.cells[idx] ?? "").trim();
+        if (v) parts.push(v);
+        if (!(r === r0 && c === c0)) nextCells[idx] = "";
+      }
+    }
+    nextCells[r0 * box.cols + c0] = parts.join(" ");
+    onChange({ merges: [...keptMerges, { row: r0, col: c0, rowSpan: r1 - r0 + 1, colSpan: c1 - c0 + 1 }], cells: nextCells });
+    setDragSel(null);
+    setMenuOpen(false);
+  }
+
+  // "행 분할" — 지금 고른 칸 바로 아래에 새 행을 추가해요(2026-09-28 혜민님 요청).
+  function handleSplitRow() {
+    if (!activeCell) return;
+    const insertAt = activeCell.row + 1;
+    const newRows = box.rows + 1;
+    const nextCells: string[] = [];
+    for (let r = 0; r < newRows; r++) {
+      if (r === insertAt) {
+        for (let c = 0; c < box.cols; c++) nextCells.push("");
+      } else {
+        const srcRow = r < insertAt ? r : r - 1;
+        for (let c = 0; c < box.cols; c++) nextCells.push(box.cells[srcRow * box.cols + c] ?? "");
+      }
+    }
+    const nextMerges = (box.merges ?? []).map((m) => {
+      if (m.row >= insertAt) return { ...m, row: m.row + 1 };
+      if (m.row < insertAt && m.row + m.rowSpan > insertAt) return { ...m, rowSpan: m.rowSpan + 1 };
+      return m;
+    });
+    onChange({ rows: newRows, cells: nextCells, merges: nextMerges });
+    setActiveCell({ row: insertAt, col: activeCell.col });
+    setDragSel(null);
+  }
+
+  // "열 분할" — 지금 고른 칸 바로 오른쪽에 새 열을 추가해요.
+  function handleSplitCol() {
+    if (!activeCell) return;
+    const insertAt = activeCell.col + 1;
+    const newCols = box.cols + 1;
+    const nextCells: string[] = [];
+    for (let r = 0; r < box.rows; r++) {
+      for (let c = 0; c < newCols; c++) {
+        if (c === insertAt) {
+          nextCells.push("");
+          continue;
+        }
+        const srcCol = c < insertAt ? c : c - 1;
+        nextCells.push(box.cells[r * box.cols + srcCol] ?? "");
+      }
+    }
+    const nextMerges = (box.merges ?? []).map((m) => {
+      if (m.col >= insertAt) return { ...m, col: m.col + 1 };
+      if (m.col < insertAt && m.col + m.colSpan > insertAt) return { ...m, colSpan: m.colSpan + 1 };
+      return m;
+    });
+    const nextColWidths =
+      box.colWidths && box.colWidths.length === box.cols
+        ? [...box.colWidths.slice(0, insertAt), 1, ...box.colWidths.slice(insertAt)]
+        : undefined;
+    onChange({ cols: newCols, cells: nextCells, merges: nextMerges, colWidths: nextColWidths });
+    setActiveCell({ row: activeCell.row, col: insertAt });
+    setDragSel(null);
+  }
+
+  // "너비 맞춤" — 칸마다 따로 준 폭을 지우고 다시 전부 같은 폭으로 되돌려요.
+  function handleFitWidth() {
+    onChange({ colWidths: undefined });
+    setMenuOpen(false);
+  }
+
+  // "삭제" — 지금 고른 칸이 속한 행을 통째로 지워요. 그 행과 겹치던 병합은(부분만 남기면
+  // 범위가 꼬이니) 안전하게 병합 자체를 풀어요.
+  function handleDeleteRow() {
+    if (!activeCell || box.rows <= 1) return;
+    const delRow = activeCell.row;
+    const nextCells = box.cells.filter((_, idx) => Math.floor(idx / box.cols) !== delRow);
+    const nextMerges = (box.merges ?? [])
+      .filter((m) => !(delRow >= m.row && delRow < m.row + m.rowSpan))
+      .map((m) => (m.row > delRow ? { ...m, row: m.row - 1 } : m));
+    onChange({ rows: box.rows - 1, cells: nextCells, merges: nextMerges });
+    setActiveCell(null);
+    setDragSel(null);
+    setMenuOpen(false);
+  }
+
+  function handleColWidthChange(col: number, weight: number) {
+    const base =
+      box.colWidths && box.colWidths.length === box.cols ? box.colWidths.slice() : new Array(box.cols).fill(1);
+    base[col] = weight;
+    onChange({ colWidths: base });
+  }
+
+  const colTemplate =
+    box.colWidths && box.colWidths.length === box.cols
+      ? box.colWidths.map((w) => `${Math.max(0.1, w)}fr`).join(" ")
+      : `repeat(${box.cols}, 1fr)`;
+
   return (
     <div
       ref={boxRef}
@@ -4652,7 +4835,7 @@ function TableBoxOverlay({
         width: `${box.widthPct}%`,
         height: `${box.heightPct}%`,
         display: "grid",
-        gridTemplateColumns: `repeat(${box.cols}, 1fr)`,
+        gridTemplateColumns: colTemplate,
         gridTemplateRows: `repeat(${box.rows}, 1fr)`,
         backgroundColor: box.fillColor ?? "#ffffff",
         borderRadius: box.borderRadius ? `${box.borderRadius}px` : undefined,
@@ -4662,20 +4845,67 @@ function TableBoxOverlay({
       {Array.from({ length: box.rows * box.cols }).map((_, idx) => {
         const row = Math.floor(idx / box.cols);
         const col = idx % box.cols;
+        const covering = mergeAt(row, col);
+        if (covering && !(covering.row === row && covering.col === col)) return null;
+        const rowSpan = covering ? covering.rowSpan : 1;
+        const colSpan = covering ? covering.colSpan : 1;
+        const inSel = !!selRange && row >= selRange.r0 && row <= selRange.r1 && col >= selRange.c0 && col <= selRange.c1;
+        const borderStyleValue = box.borderStyle ?? "solid";
+        const borderWidthPx = box.borderWidth ?? 1;
+        const borderColorValue = box.borderColor ?? "#94A3B8";
+        const dashLength = box.dashLength ?? (borderStyleValue === "dotted" ? borderWidthPx : borderWidthPx * 3);
+        const dashGap = box.dashGap ?? (borderStyleValue === "dotted" ? borderWidthPx * 1.5 : borderWidthPx * 2);
+        const dashed = borderStyleValue !== "solid";
         return (
-          <textarea
+          <div
             key={idx}
-            value={box.cells[idx] ?? ""}
-            onChange={(e) => handleCellChange(row, col, e.target.value)}
-            placeholder=""
-            style={{
-              fontSize: `${0.78 * (box.fontScale ?? 1)}rem`,
-              borderColor: box.borderColor ?? "#94A3B8",
-              borderWidth: `${box.borderWidth ?? 1}px`,
-              borderStyle: box.borderStyle ?? "solid",
+            onMouseDown={(e) => {
+              // 2026-09-28, 혜민님 요청("드래그로 여러 칸 선택 후 병합") — 이 칸 wrapper의
+              // mousedown에서만 stopPropagation해서, 칸을 눌러 끄는 동안엔 표 전체가
+              // 같이 옮겨지지 않게 하고(박스 이동은 칸과 칸 사이 여백에서만), textarea
+              // 자체의 포커스/클릭은 그대로 막지 않아요(브라우저 기본 동작이라 여기서
+              // preventDefault는 안 함).
+              e.stopPropagation();
+              setDragSel({ anchorRow: row, anchorCol: col, row, col });
+              setActiveCell({ row, col });
             }}
-            className="relative h-full w-full resize-none bg-transparent p-1 text-center leading-snug text-[#1F2937] outline-none"
-          />
+            onMouseEnter={() => {
+              setDragSel((prev) => (prev ? { ...prev, row, col } : prev));
+            }}
+            style={{
+              gridColumn: `${col + 1} / span ${colSpan}`,
+              gridRow: `${row + 1} / span ${rowSpan}`,
+              position: "relative",
+              ...(dashed
+                ? {
+                    backgroundImage: [
+                      `linear-gradient(to right, ${borderColorValue} 50%, transparent 0%)`,
+                      `linear-gradient(to right, ${borderColorValue} 50%, transparent 0%)`,
+                      `linear-gradient(to bottom, ${borderColorValue} 50%, transparent 0%)`,
+                      `linear-gradient(to bottom, ${borderColorValue} 50%, transparent 0%)`,
+                    ].join(", "),
+                    backgroundPosition: "top, bottom, left, right",
+                    backgroundSize: `${dashLength + dashGap}px ${borderWidthPx}px, ${dashLength + dashGap}px ${borderWidthPx}px, ${borderWidthPx}px ${dashLength + dashGap}px, ${borderWidthPx}px ${dashLength + dashGap}px`,
+                    backgroundRepeat: "repeat-x, repeat-x, repeat-y, repeat-y",
+                  }
+                : {}),
+            }}
+          >
+            <textarea
+              value={box.cells[(covering ? covering.row : row) * box.cols + (covering ? covering.col : col)] ?? ""}
+              onChange={(e) => handleCellChange(covering ? covering.row : row, covering ? covering.col : col, e.target.value)}
+              placeholder=""
+              style={{
+                fontSize: `${0.78 * (box.fontScale ?? 1)}rem`,
+                borderColor: dashed ? undefined : borderColorValue,
+                borderWidth: dashed ? 0 : `${borderWidthPx}px`,
+                borderStyle: dashed ? "none" : "solid",
+              }}
+              className={`relative h-full w-full resize-none bg-transparent p-1 text-center leading-snug text-[#1F2937] outline-none ${
+                inSel ? "bg-[var(--color-sky)]/15" : ""
+              }`}
+            />
+          </div>
         );
       })}
       {isActive && (
@@ -4699,11 +4929,83 @@ function TableBoxOverlay({
               ✕
             </button>
           )}
+          {/* 2026-09-28, 혜민님 요청 — "표 선택 시 상단 + 버튼 1개"로 셀 병합/행 분할/열
+              분할/너비 맞춤/삭제와 칸 폭 조절을 모아뒀어요. */}
+          <div className="absolute -left-2 -top-2 z-40" onMouseDown={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              title="표 편집"
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-charcoal)] text-xs text-white shadow"
+            >
+              +
+            </button>
+            {menuOpen && (
+              <div className="absolute left-0 top-7 z-50 w-44 border border-[var(--color-hairline)] bg-white p-1 text-xs shadow-lg">
+                <button
+                  type="button"
+                  disabled={!canMerge}
+                  onClick={handleMergeCells}
+                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  셀 병합
+                </button>
+                <button
+                  type="button"
+                  disabled={!activeCell}
+                  onClick={handleSplitRow}
+                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  행 분할
+                </button>
+                <button
+                  type="button"
+                  disabled={!activeCell}
+                  onClick={handleSplitCol}
+                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  열 분할
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFitWidth}
+                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)]"
+                >
+                  너비 맞춤
+                </button>
+                <button
+                  type="button"
+                  disabled={!activeCell || box.rows <= 1}
+                  onClick={handleDeleteRow}
+                  className="block w-full px-2 py-1.5 text-left text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  삭제
+                </button>
+                {activeCell && (
+                  <div className="mt-1 border-t border-[var(--color-hairline)] pt-1.5">
+                    <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                      칸 폭 {Math.round((box.colWidths?.[activeCell.col] ?? 1) * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min={0.3}
+                      max={3}
+                      step={0.05}
+                      value={box.colWidths?.[activeCell.col] ?? 1}
+                      onChange={(e) => handleColWidthChange(activeCell.col, Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
   );
 }
+
 
 // 한 스프레드(펼침면) 전체의 표박스들을 함께 그려요 — ImageBoxLayer와 같은 방식으로
 // 스프레드 전체 컨테이너 위에 얹어서, 박스가 페이지 경계를 자유롭게 넘나들 수 있어요.

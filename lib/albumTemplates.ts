@@ -189,6 +189,18 @@ export type TableBoxDef = {
   borderWidth?: number; // 격자선 굵기(px). 기본 1.
   borderStyle?: "solid" | "dashed" | "dotted"; // 선 종류. 기본 "solid".
   borderRadius?: number; // 표 모서리 라운드(px). 기본 0.
+  // 셀 병합·행/열 삽입·칸 폭(2026-09-28 혜민님 요청, 구글독스 스타일 표 편집) — 전부
+  // 선택 사항이고 비워두면 예전처럼 동작해요.
+  // 열(세로줄)별 상대 폭 가중치예요. 길이가 cols와 다르면 무시하고(비워둔 것처럼)
+  // 전부 같은 폭으로 그려요. 예: [2, 1, 1]이면 첫 열이 나머지보다 2배 넓어요.
+  colWidths?: number[];
+  // 병합된 셀 범위들이에요. row/col은 병합 영역의 왼쪽 위 칸(anchor) 위치이고, 그
+  // anchor 칸의 cells 값이 병합된 칸 전체의 글자예요. 병합에 덮인 나머지 칸들은
+  // 화면/인쇄 양쪽에서 건너뛰고, cells 배열 자체에는 자리만 남고 빈 문자열로 둬요.
+  merges?: { row: number; col: number; rowSpan: number; colSpan: number }[];
+  // 점선/파선의 선분 길이·간격(px)이에요. 비워두면 borderWidth 기준 기본 비율을 써요.
+  dashLength?: number;
+  dashGap?: number;
 };
 
 export type SpreadDef = {
