@@ -4112,6 +4112,337 @@ type ImageBoxOverlayHandle = {
   fillSpread: () => void;
 };
 
+// 표지·내지에서 이미지박스를 선택했을 때 왼쪽 "사진" 탭에 보여주는 편집 패널이에요.
+// 원래 표지(activeCoverEditTab === "photo")와 내지(activeEditTab === "photo") 두
+// 곳에 거의 똑같은 JSX가 복붙되어 있던 걸 하나로 합쳤어요(2026-09-28, 다른 패널들
+// — TextBoxToolbar/TableBoxToolbar와 같은 패턴: 서로 다른 값·콜백은 props로 받고,
+// 내지에만 있는 "전체 사진 관리" 섹션만 fullPhotoManager prop 유무로 갈라요).
+type ImageBoxPanelFullPhotoManager = {
+  photos: Photo[];
+  lowResCount: number;
+  requiredMinPx: number;
+  photoGridPage: number;
+  setPhotoGridPage: (page: number) => void;
+  onUploadMore: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemovePhoto: (index: number) => void;
+};
+
+function ImageBoxPanel({
+  selected,
+  activeBoxId,
+  onBack,
+  handlesRef,
+  backCoverLogoSelected,
+  onBackCoverLogoBack,
+  frameTargetBox,
+  topTab,
+  onTopTabChange,
+  onFrameChange,
+  onAddPhotoFile,
+  fullPhotoManager,
+}: {
+  // 사진박스를 선택하고 사진 위치 조정 모드(더블클릭)에도 들어가 있는지 — 이때만
+  // "선택한 사진박스" 화면(확대/축소/반전/초기화/완료)을 보여줘요.
+  selected: boolean;
+  activeBoxId: string | null;
+  onBack: () => void;
+  handlesRef: React.RefObject<Map<string, ImageBoxOverlayHandle>>;
+  // 뒤표지 키픽 로고를 선택했을 때의 화면 — 표지에만 있어요(내지는 항상 undefined).
+  backCoverLogoSelected?: boolean;
+  onBackCoverLogoBack?: () => void;
+  frameTargetBox: ImageBoxDef | undefined;
+  topTab: "add" | "frame";
+  onTopTabChange: (tab: "add" | "frame") => void;
+  onFrameChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
+  onAddPhotoFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  // "전체 사진 관리" 섹션 — 내지에만 있어요. 이 값을 넘기지 않으면(표지) 섹션 자체가
+  // 렌더되지 않아요.
+  fullPhotoManager?: ImageBoxPanelFullPhotoManager;
+}) {
+  const canFrame = !!frameTargetBox;
+  const effectiveTab = topTab === "frame" && !canFrame ? "add" : topTab;
+  // 2026-09-28, 혜민님 요청: "상단은 보라,블루 색이 아니고 검은계열의 글쓰기
+  // 표만들기 이모티콘 버튼과 동일하게 해주세요" — 탭(선택 상태를 보여주는 요소)은
+  // 그라데이션이 아니라 다른 카테고리 탭들과 같은 차콜/아이보리 톤으로. 그라데이션은
+  // 진짜 실행 버튼(아래 "사진 불러오기")에만 남김.
+  const tabButtonClass = (active: boolean) =>
+    `px-2 py-1.5 text-xs font-medium transition ${
+      active
+        ? "bg-[var(--color-charcoal)] text-white"
+        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
+    } disabled:cursor-not-allowed disabled:opacity-30`;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {/* 2026-10-02, 혜민님 요청: "이미지 선택하면 '선택한 사진박스'라고 메뉴 뜨는데
+          왜뜨는지 이유를 모르겠습니다" — 사진 위치 조정 모드(더블클릭)에 들어가지
+          않았으면 이 안내문 자체가 필요 없었어요(테두리·확대·반전 등은 캔버스 위
+          StackOrderToolbar로 이미 다 되고 있어서, 이 헤더+뒤로가기만 있는 빈 화면은
+          이유 없이 목록을 가리고만 있었음). 실제로 조정 모드에 들어갔을 때만 이
+          화면으로 바뀌게 함. */}
+      {selected ? (
+        <>
+          {/* 사진박스를 선택한 직후엔 목록 대신 이 박스의 속성부터 바로 보여줘요
+              (2026-09, 내지 꾸미기 탭과 같은 패턴). */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-[var(--color-charcoal)]">선택한 사진박스</p>
+            <button
+              type="button"
+              onClick={onBack}
+              className="text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
+            >
+              ‹ 뒤로가기
+            </button>
+          </div>
+          {/* "꽉 채우기"·"변형 (mm)" 패널 — 혜민님 요청으로 제거(2026-09-24,
+              캔버스 위 드래그·손잡이로도 위치·크기 조절이 되니 중복이라는 판단). */}
+          <div className=" border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-1.5">
+            <p className="text-xs font-medium text-[var(--color-brand-purple)]">사진 위치 조정 중</p>
+            <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
+              박스 안에서 사진의 위치·확대·반전을 조정해요(박스 자체 크기는 캔버스에서
+              손잡이로 조절해주세요).
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                title="축소"
+                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.zoomOut()}
+                className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
+              >
+                −
+              </button>
+              <button
+                type="button"
+                title="확대"
+                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.zoomIn()}
+                className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
+              >
+                +
+              </button>
+              <button
+                type="button"
+                title="좌우 반전"
+                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.toggleFlip()}
+                className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
+              >
+                ⇌
+              </button>
+              <button
+                type="button"
+                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.resetPhotoPosition()}
+                className=" bg-white px-1.5 py-1 text-[11px] text-[var(--color-charcoal)]/70 "
+              >
+                초기화
+              </button>
+              <button
+                type="button"
+                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.exitPhotoEditMode()}
+                className=" bg-[var(--color-charcoal)] px-1.5 py-1 text-[11px] text-white"
+              >
+                완료
+              </button>
+            </div>
+          </div>
+        </>
+      ) : backCoverLogoSelected ? (
+        <>
+          {/* 뒤표지 로고 속성 패널 — 드래그 대신 숫자 입력으로 위치·크기를 조절해요
+              (2026-09, 실제 브라우저 드래그 동작을 확인할 수 없어 안전한 방식을
+              택했어요). */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-[var(--color-charcoal)]">키픽 로고</p>
+            <button
+              type="button"
+              onClick={onBackCoverLogoBack}
+              className="text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
+            >
+              ‹ 뒤로가기
+            </button>
+          </div>
+          {/* 2026-10-02, 혜민님 요청: "가로위치 세로위치 크기 메뉴가 보이는데
+              삭제해주세요. 테마에따라 변경되게 하고 수정하고싶을때는 이미지툴처럼
+              적용해서 수정할수있게 할겁니다" — 숫자 입력 패널을 없앴어요. */}
+        </>
+      ) : (
+        <>
+          {/* 2026-09-27, 혜민님 요청: "사진 추가/사진 프레임 변경 메뉴는 선택하는
+              상단메뉴에요, 선택하면 하단에 사진 불러오기 바를 만질 수 있게 / 버튼은
+              전부 글상자 추가 버튼으로 디자인 통일해주세요" — 상단 2개를 파일을
+              바로 여는 버튼이 아니라 서로 배타적으로 고르는 탭으로 바꿨어요. */}
+          <div className="flex flex-col gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => onTopTabChange("add")}
+                className={tabButtonClass(effectiveTab === "add")}
+              >
+                사진 추가
+              </button>
+              <button
+                type="button"
+                disabled={!canFrame}
+                onClick={() => onTopTabChange("frame")}
+                className={tabButtonClass(effectiveTab === "frame")}
+              >
+                사진 프레임 변경
+              </button>
+            </div>
+            {effectiveTab === "frame" && frameTargetBox ? (
+              // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의 "테두리"
+              // 조절판과 똑같은 기능이에요.
+              <div className="border border-[var(--color-hairline)] bg-white p-2">
+                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
+                  테두리 두께 {frameTargetBox.borderWidthPx ?? 0}px
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={12}
+                    step={1}
+                    value={frameTargetBox.borderWidthPx ?? 0}
+                    onChange={(e) =>
+                      onFrameChange(frameTargetBox.id, { borderWidthPx: Number(e.target.value) })
+                    }
+                    className="flex-1"
+                  />
+                  <input
+                    type="color"
+                    value={frameTargetBox.borderColor ?? "#ffffff"}
+                    onChange={(e) => onFrameChange(frameTargetBox.id, { borderColor: e.target.value })}
+                    className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
+                  />
+                </div>
+                <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
+                  모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
+                  {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
+                </p>
+                <input
+                  type="range"
+                  min={0}
+                  max={50}
+                  step={1}
+                  value={frameTargetBox.borderRadiusPct ?? 0}
+                  onChange={(e) =>
+                    onFrameChange(frameTargetBox.id, { borderRadiusPct: Number(e.target.value) })
+                  }
+                  className="w-full"
+                />
+              </div>
+            ) : (
+              <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
+                사진 불러오기
+                <input type="file" accept="image/*" onChange={onAddPhotoFile} className="hidden" />
+              </label>
+            )}
+          </div>
+          {/* "전체 사진 관리"(사진 더 올리기·전체 목록·삭제)는 내지에만 있는
+              기능이에요 — 표지는 칸이 2~3개뿐이라 이 목록 자체가 필요 없었어요. */}
+          {fullPhotoManager && (
+            <details className="border-t border-[var(--color-hairline)] pt-3">
+              <summary className="cursor-pointer text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)]">
+                전체 사진 관리 ({fullPhotoManager.photos.length}장)
+              </summary>
+              <div className="mt-2">
+                <label className="inline-block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white transition hover:opacity-90">
+                  사진 더 올리기
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={fullPhotoManager.onUploadMore}
+                    className="hidden"
+                  />
+                </label>
+                {fullPhotoManager.lowResCount > 0 && (
+                  <p className="mt-2 bg-red-50 px-1.5 py-2 text-[11px] text-red-600 break-keep">
+                    해상도가 낮은 사진이 {fullPhotoManager.lowResCount}장 있어요. 인쇄 시 흐릿하게
+                    나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
+                  </p>
+                )}
+                {fullPhotoManager.photos.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)]">
+                      전체 사진 목록 보기 (순서 확인 · 삭제)
+                    </summary>
+                    {(() => {
+                      const { photos, photoGridPage, setPhotoGridPage, requiredMinPx, onRemovePhoto } =
+                        fullPhotoManager;
+                      const pageCount = Math.max(1, Math.ceil(photos.length / PHOTO_GRID_PAGE_SIZE));
+                      const page = Math.min(photoGridPage, pageCount - 1);
+                      const start = page * PHOTO_GRID_PAGE_SIZE;
+                      const visiblePhotos = photos.slice(start, start + PHOTO_GRID_PAGE_SIZE);
+                      return (
+                        <div className="mt-3">
+                          {pageCount > 1 && (
+                            <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-[var(--color-charcoal)]/60">
+                              <button
+                                type="button"
+                                onClick={() => setPhotoGridPage(Math.max(0, page - 1))}
+                                disabled={page === 0}
+                                className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
+                              >
+                                ‹ 이전
+                              </button>
+                              <span>
+                                {page + 1} / {pageCount}페이지 · {start + 1}–
+                                {Math.min(start + PHOTO_GRID_PAGE_SIZE, photos.length)}번째 (전체 {photos.length}장)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setPhotoGridPage(Math.min(pageCount - 1, page + 1))}
+                                disabled={page >= pageCount - 1}
+                                className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
+                              >
+                                다음 ›
+                              </button>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-3 gap-2">
+                            {visiblePhotos.map((photo, pi) => {
+                              const index = start + pi;
+                              return (
+                                <div
+                                  key={index}
+                                  className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
+                                >
+                                  <img
+                                    src={photo.url}
+                                    alt={`선택한 사진 ${index + 1}`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  {isLowRes(photo, requiredMinPx / 2) && (
+                                    <span
+                                      title="인쇄 기준 화질이 낮아요"
+                                      className="absolute left-1 top-1 bg-red-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white"
+                                    >
+                                      저해상도
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => onRemovePhoto(index)}
+                                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </details>
+                )}
+              </div>
+            </details>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 const ImageBoxOverlay = forwardRef<
   ImageBoxOverlayHandle,
   {
@@ -10527,254 +10858,23 @@ function UploadPageContent() {
                             </div>
                           )}
                           {activeCoverEditTab === "photo" && (
-                            <div className="flex flex-col gap-1.5">
-                              {/* 2026-10-02, 혜민님 요청: "이미지 선택하면 '선택한
-                                  사진박스'라고 메뉴 뜨는데 왜뜨는지 이유를 모르겠습니다"
-                                  — 사진 위치 조정 모드(더블클릭)에 들어가지 않았으면 이
-                                  안내문 자체가 필요 없었어요(테두리·확대·반전 등은 캔버스
-                                  위 StackOrderToolbar로 이미 다 되고 있어서, 이 헤더+
-                                  뒤로가기만 있는 빈 화면은 이유 없이 목록을 가리고만
-                                  있었음). 실제로 조정 모드에 들어갔을 때만 이 화면으로
-                                  바뀌게 함. */}
-                              {activeCoverImageBox && coverImageBoxPhotoEditActive ? (
-                                <>
-                                  {/* 표지 사진박스를 선택한 직후엔 목록 대신 이 박스의 속성부터
-                                      바로 보여줘요(2026-09, 내지 꾸미기 탭과 같은 패턴). */}
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs font-medium text-[var(--color-charcoal)]">
-                                      선택한 사진박스
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => setActiveCoverImageBox(null)}
-                                      className="text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
-                                    >
-                                      ‹ 뒤로가기
-                                    </button>
-                                  </div>
-                                  {/* "꽉 채우기" 버튼 — 혜민님 요청으로 제거(2026-09-24,
-                                      "스프레드 전체 채우기 버튼이 확인됩니다. 필요
-                                      없습니다. 삭제해주세요" — 표지 쪽 같은 기능도 함께
-                                      제거). */}
-                                  {coverImageBoxPhotoEditActive && (
-                                    <div className=" border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-1.5">
-                                      <p className="text-xs font-medium text-[var(--color-brand-purple)]">
-                                        사진 위치 조정 중
-                                      </p>
-                                      <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                        박스 안에서 사진의 위치·확대·반전을 조정해요(박스 자체
-                                        크기는 캔버스에서 손잡이로 조절해주세요).
-                                      </p>
-                                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          title="축소"
-                                          onClick={() =>
-                                            activeCoverImageBox &&
-                                            coverImageBoxHandlesRef.current.get(activeCoverImageBox.boxId)?.zoomOut()
-                                          }
-                                          className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-                                        >
-                                          −
-                                        </button>
-                                        <button
-                                          type="button"
-                                          title="확대"
-                                          onClick={() =>
-                                            activeCoverImageBox &&
-                                            coverImageBoxHandlesRef.current.get(activeCoverImageBox.boxId)?.zoomIn()
-                                          }
-                                          className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-                                        >
-                                          +
-                                        </button>
-                                        <button
-                                          type="button"
-                                          title="좌우 반전"
-                                          onClick={() =>
-                                            activeCoverImageBox &&
-                                            coverImageBoxHandlesRef.current.get(activeCoverImageBox.boxId)?.toggleFlip()
-                                          }
-                                          className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-                                        >
-                                          ⇌
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            activeCoverImageBox &&
-                                            coverImageBoxHandlesRef.current.get(activeCoverImageBox.boxId)?.resetPhotoPosition()
-                                          }
-                                          className=" bg-white px-1.5 py-1 text-[11px] text-[var(--color-charcoal)]/70 "
-                                        >
-                                          초기화
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            activeCoverImageBox &&
-                                            coverImageBoxHandlesRef.current.get(activeCoverImageBox.boxId)?.exitPhotoEditMode()
-                                          }
-                                          className=" bg-[var(--color-charcoal)] px-1.5 py-1 text-[11px] text-white"
-                                        >
-                                          완료
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              ) : backCoverLogoSelected ? (
-                                <>
-                                  {/* 뒤표지 로고 속성 패널 — 드래그 대신 숫자 입력으로 위치·
-                                      크기를 조절해요(2026-09, 실제 브라우저 드래그 동작을
-                                      확인할 수 없어 안전한 방식을 택했어요). */}
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs font-medium text-[var(--color-charcoal)]">
-                                      키픽 로고
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => setBackCoverLogoSelected(false)}
-                                      className="text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
-                                    >
-                                      ‹ 뒤로가기
-                                    </button>
-                                  </div>
-                                  {/* 2026-10-02, 혜민님 요청: "가로위치 세로위치 크기 메뉴가
-                                      보이는데 삭제해주세요. 테마에따라 변경되게 하고
-                                      수정하고싶을때는 이미지툴처럼 적용해서 수정할수있게
-                                      할겁니다" — 숫자 입력 패널을 없앴어요. 로고 위치·크기를
-                                      테마별로 정하고, 나중에 이미지박스처럼 캔버스에서 직접
-                                      드래그로 조절하는 방식은 별도 작업으로 다시 요청해주세요
-                                      (지금은 이 패널 자체가 빠진 상태예요). */}
-                                </>
-                              ) : (
-                                <>
-                              {/* 2026-09-27, 혜민님 요청: "사진 추가/사진 프레임 변경
-                                  메뉴는 선택하는 상단메뉴에요, 선택하면 하단에 사진
-                                  불러오기 바를 만질 수 있게 / 버튼은 전부 글상자 추가
-                                  버튼으로 디자인 통일해주세요" — 상단 2개를 파일을 바로
-                                  여는 버튼이 아니라 서로 배타적으로 고르는 탭으로
-                                  바꿨어요. "사진 추가" 탭을 고르면 하단 바가 파일
-                                  선택기가 되고, "사진 프레임 변경" 탭을 고르면 하단 바가
-                                  테두리 두께·색·모서리 둥글게를 직접 만질 수 있는
-                                  슬라이더로 바뀌어요. 선택된 탭·하단 액션 버튼은 모두
-                                  "+ 글상자 추가" 버튼과 똑같은 rounded-md 그라데이션
-                                  스타일로 맞췄어요(전에는 하단 버튼에 rounded-md가
-                                  빠져 있었어요). */}
-                              {(() => {
-                                const frameTargetBox =
-                                  (activeCoverImageBox?.target === "front"
-                                    ? coverImageBoxes.find((b) => b.id === activeCoverImageBox.boxId)
-                                    : undefined) ?? coverImageBoxes[coverImageBoxes.length - 1];
-                                const canFrame = !!frameTargetBox;
-                                const effectiveTab = coverPhotoTopTab === "frame" && !canFrame ? "add" : coverPhotoTopTab;
-                                // 2026-09-28, 혜민님 요청: "상단은 보라,블루 색이 아니고
-                                // 검은계열의 글쓰기 표만들기 이모티콘 버튼과 동일하게
-                                // 해주세요" — 탭(선택 상태를 보여주는 요소)은 그라데이션이
-                                // 아니라 다른 카테고리 탭들과 같은 차콜/아이보리 톤으로.
-                                // 그라데이션은 진짜 실행 버튼(아래 "사진 불러오기")에만 남김.
-                                const tabButtonClass = (active: boolean) =>
-                                  `px-2 py-1.5 text-xs font-medium transition ${
-                                    active
-                                      ? "bg-[var(--color-charcoal)] text-white"
-                                      : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                  } disabled:cursor-not-allowed disabled:opacity-30`;
-                                return (
-                                  <div className="flex flex-col gap-1.5">
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => setCoverPhotoTopTab("add")}
-                                        className={tabButtonClass(effectiveTab === "add")}
-                                      >
-                                        사진 추가
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={!canFrame}
-                                        onClick={() => setCoverPhotoTopTab("frame")}
-                                        className={tabButtonClass(effectiveTab === "frame")}
-                                      >
-                                        사진 프레임 변경
-                                      </button>
-                                    </div>
-                                    {effectiveTab === "frame" && frameTargetBox ? (
-                                      // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의
-                                      // "테두리" 조절판(테두리 두께·색·모서리 둥글게)과 똑같은
-                                      // 기능이에요 — handleCoverImageBoxChange로 같은 상태를 갱신.
-                                      <div className="border border-[var(--color-hairline)] bg-white p-2">
-                                        <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
-                                          테두리 두께 {frameTargetBox.borderWidthPx ?? 0}px
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="range"
-                                            min={0}
-                                            max={12}
-                                            step={1}
-                                            value={frameTargetBox.borderWidthPx ?? 0}
-                                            onChange={(e) =>
-                                              handleCoverImageBoxChange(frameTargetBox.id, {
-                                                borderWidthPx: Number(e.target.value),
-                                              })
-                                            }
-                                            className="flex-1"
-                                          />
-                                          <input
-                                            type="color"
-                                            value={frameTargetBox.borderColor ?? "#ffffff"}
-                                            onChange={(e) =>
-                                              handleCoverImageBoxChange(frameTargetBox.id, { borderColor: e.target.value })
-                                            }
-                                            className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
-                                          />
-                                        </div>
-                                        <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
-                                          모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
-                                          {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
-                                        </p>
-                                        <input
-                                          type="range"
-                                          min={0}
-                                          max={50}
-                                          step={1}
-                                          value={frameTargetBox.borderRadiusPct ?? 0}
-                                          onChange={(e) =>
-                                            handleCoverImageBoxChange(frameTargetBox.id, {
-                                              borderRadiusPct: Number(e.target.value),
-                                            })
-                                          }
-                                          className="w-full"
-                                        />
-                                      </div>
-                                    ) : (
-                                      <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
-                                        사진 불러오기
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
-                                          className="hidden"
-                                        />
-                                      </label>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                              {/* 2026-10-02, 혜민님 요청: "뒤표지꾸미기 사진선택, 로고빼기도
-                                  다 삭제 사진탭은 사진올리기, 프레임, 모서리 두께, 둥글게
-                                  메뉴만 확인되게 해주세요" — "뒤표지 꾸미기"(사진선택/로고빼기)
-                                  블록 전체 삭제. 프레임·모서리 두께·둥글게는 이미 내지와 똑같은
-                                  ImageBoxLayer/ImageBoxOverlay를 표지에도 그대로 쓰고 있어서
-                                  (위 <ImageBoxLayer boxes={coverImageBoxes} .../> 참고), 사진
-                                  박스를 캔버스에서 선택하면 뜨는 StackOrderToolbar(레이어
-                                  툴바)에도 테두리 두께·색·모서리 둥글게가 있어요 — 위 "사진
-                                  프레임 변경" 패널은 그 기능을 이 사진 탭 안에서도 바로 쓸 수
-                                  있게 한 거예요(2026-09-25). */}
-                                </>
-                              )}
-                            </div>
+                            <ImageBoxPanel
+                              selected={!!(activeCoverImageBox && coverImageBoxPhotoEditActive)}
+                              activeBoxId={activeCoverImageBox?.boxId ?? null}
+                              onBack={() => setActiveCoverImageBox(null)}
+                              handlesRef={coverImageBoxHandlesRef}
+                              backCoverLogoSelected={backCoverLogoSelected}
+                              onBackCoverLogoBack={() => setBackCoverLogoSelected(false)}
+                              frameTargetBox={
+                                (activeCoverImageBox?.target === "front"
+                                  ? coverImageBoxes.find((b) => b.id === activeCoverImageBox.boxId)
+                                  : undefined) ?? coverImageBoxes[coverImageBoxes.length - 1]
+                              }
+                              topTab={coverPhotoTopTab}
+                              onTopTabChange={setCoverPhotoTopTab}
+                              onFrameChange={handleCoverImageBoxChange}
+                              onAddPhotoFile={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
+                            />
                           )}
                           {activeCoverEditTab === "sticker" && (
                             <div className="flex flex-col gap-1.5">
@@ -11846,305 +11946,34 @@ function UploadPageContent() {
                             )}
                             <div>
                               {activeEditTab === "photo" && (
-                                <div className="flex flex-col gap-1.5">
-                                  {/* 2026-10-02, 혜민님 요청: "이미지 선택하면 '선택한
-                                      사진박스'라고 메뉴 뜨는데 왜뜨는지 이유를 모르겠습니다"
-                                      — 사진 위치 조정 모드(더블클릭)에 들어가지 않았으면 이
-                                      화면(헤더+뒤로가기만)으로 바뀔 이유가 없었어요(테두리·
-                                      확대·반전은 캔버스 위 StackOrderToolbar가 이미 담당).
-                                      실제로 조정 모드에 들어갔을 때만 이 화면으로 바뀌게 함. */}
-                                  {activeImageBox?.spreadIndex === i && imageBoxPhotoEditActive ? (
-                                    <>
-                                      {/* 사진박스를 선택한 직후엔 목록 대신 이 박스의 속성(꽉 채우기·
-                                          mm 변형·사진 위치 조정)부터 바로 보여줘요(2026-09,
-                                          혜민님 요청 — "선택 즉시 그 사진 속성부터"). "뒤로가기"를
-                                          누르거나 선택을 해제하면 아래 기본 목록으로 돌아가요. */}
-                                      <div className="flex items-center justify-between">
-                                        <p className="text-xs font-medium text-[var(--color-charcoal)]">
-                                          선택한 사진박스
-                                        </p>
-                                        <button
-                                          type="button"
-                                          onClick={() => setActiveImageBox(null)}
-                                          className="text-[11px] text-[var(--color-charcoal)]/50 underline underline-offset-4"
-                                        >
-                                          ‹ 뒤로가기
-                                        </button>
-                                      </div>
-                                      {/* "스프레드 전체 채우기" 버튼과 "변형 (mm)" 숫자입력
-                                          패널 — 혜민님 요청으로 제거(2026-09-24, "사진메뉴에는
-                                          사진추가, 테두리, 사진틀모양 메뉴만 필요합니다" — 캔버스
-                                          위 드래그·손잡이로도 위치·크기 조절이 되니 중복이라는
-                                          판단, 테두리·사진틀모양 새 기능은 다음 라운드 과제로
-                                          확인받음). */}
-                                      {imageBoxPhotoEditActive && (
-                                        <div className=" border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-1.5">
-                                          <p className="text-xs font-medium text-[var(--color-brand-purple)]">
-                                            사진 위치 조정 중
-                                          </p>
-                                          <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-                                            박스 안에서 사진의 위치·확대·반전을 조정해요(박스 자체
-                                            크기는 캔버스에서 손잡이로 조절해주세요).
-                                          </p>
-                                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                            <button
-                                              type="button"
-                                              title="축소"
-                                              onClick={() =>
-                                                activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.zoomOut()
-                                              }
-                                              className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-                                            >
-                                              −
-                                            </button>
-                                            <button
-                                              type="button"
-                                              title="확대"
-                                              onClick={() =>
-                                                activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.zoomIn()
-                                              }
-                                              className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-                                            >
-                                              +
-                                            </button>
-                                            <button
-                                              type="button"
-                                              title="좌우 반전"
-                                              onClick={() =>
-                                                activeImageBox && imageBoxHandlesRef.current.get(activeImageBox.boxId)?.toggleFlip()
-                                              }
-                                              className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-                                            >
-                                              ⇌
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                activeImageBox &&
-                                                imageBoxHandlesRef.current.get(activeImageBox.boxId)?.resetPhotoPosition()
-                                              }
-                                              className=" bg-white px-1.5 py-1 text-[11px] text-[var(--color-charcoal)]/70 "
-                                            >
-                                              초기화
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                activeImageBox &&
-                                                imageBoxHandlesRef.current.get(activeImageBox.boxId)?.exitPhotoEditMode()
-                                              }
-                                              className=" bg-[var(--color-charcoal)] px-1.5 py-1 text-[11px] text-white"
-                                            >
-                                              완료
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <>
-                                      {/* 2026-09-28, 혜민님 요청: "표지편집툴과 내지편집툴을
-                                          동일하게 제작해주세요" — 표지 사진 탭과 같은 "사진
-                                          추가 / 사진 프레임 변경" 상단 탭 구조로 맞췄어요(위
-                                          activeCoverEditTab === "photo" 블록 참고, 같은 탭
-                                          스타일·같은 프레임 조절 UI). "전체 사진 관리"(사진 더
-                                          올리기·전체 목록·삭제)는 내지에만 있는 기능이라
-                                          그대로 남겨요 — 표지는 칸이 2~3개뿐이라 이 목록 자체가
-                                          필요 없었어요. */}
-                                      {(() => {
-                                        const frameTargetBox =
-                                          (activeImageBox?.spreadIndex === i
-                                            ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId)
-                                            : undefined) ?? (spread.imageBoxes ?? [])[(spread.imageBoxes ?? []).length - 1];
-                                        const canFrame = !!frameTargetBox;
-                                        const effectiveTab = photoTopTab === "frame" && !canFrame ? "add" : photoTopTab;
-                                        const tabButtonClass = (active: boolean) =>
-                                          `px-2 py-1.5 text-xs font-medium transition ${
-                                            active
-                                              ? "bg-[var(--color-charcoal)] text-white"
-                                              : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                          } disabled:cursor-not-allowed disabled:opacity-30`;
-                                        return (
-                                          <div className="flex flex-col gap-1.5">
-                                            <div className="grid grid-cols-2 gap-1.5">
-                                              <button
-                                                type="button"
-                                                onClick={() => setPhotoTopTab("add")}
-                                                className={tabButtonClass(effectiveTab === "add")}
-                                              >
-                                                사진 추가
-                                              </button>
-                                              <button
-                                                type="button"
-                                                disabled={!canFrame}
-                                                onClick={() => setPhotoTopTab("frame")}
-                                                className={tabButtonClass(effectiveTab === "frame")}
-                                              >
-                                                사진 프레임 변경
-                                              </button>
-                                            </div>
-                                            {effectiveTab === "frame" && frameTargetBox ? (
-                                              <div className="border border-[var(--color-hairline)] bg-white p-2">
-                                                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
-                                                  테두리 두께 {frameTargetBox.borderWidthPx ?? 0}px
-                                                </p>
-                                                <div className="flex items-center gap-2">
-                                                  <input
-                                                    type="range"
-                                                    min={0}
-                                                    max={12}
-                                                    step={1}
-                                                    value={frameTargetBox.borderWidthPx ?? 0}
-                                                    onChange={(e) =>
-                                                      handleImageBoxChange(i, frameTargetBox.id, {
-                                                        borderWidthPx: Number(e.target.value),
-                                                      })
-                                                    }
-                                                    className="flex-1"
-                                                  />
-                                                  <input
-                                                    type="color"
-                                                    value={frameTargetBox.borderColor ?? "#ffffff"}
-                                                    onChange={(e) =>
-                                                      handleImageBoxChange(i, frameTargetBox.id, { borderColor: e.target.value })
-                                                    }
-                                                    className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
-                                                  />
-                                                </div>
-                                                <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
-                                                  모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
-                                                  {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
-                                                </p>
-                                                <input
-                                                  type="range"
-                                                  min={0}
-                                                  max={50}
-                                                  step={1}
-                                                  value={frameTargetBox.borderRadiusPct ?? 0}
-                                                  onChange={(e) =>
-                                                    handleImageBoxChange(i, frameTargetBox.id, {
-                                                      borderRadiusPct: Number(e.target.value),
-                                                    })
-                                                  }
-                                                  className="w-full"
-                                                />
-                                              </div>
-                                            ) : (
-                                              <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
-                                                사진 불러오기
-                                                <input
-                                                  type="file"
-                                                  accept="image/*"
-                                                  className="hidden"
-                                                  onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) handleAddImageBox(i, file);
-                                                    e.target.value = "";
-                                                  }}
-                                                />
-                                              </label>
-                                            )}
-                                          </div>
-                                        );
-                                      })()}
-                                      <details className="border-t border-[var(--color-hairline)] pt-3">
-                                        <summary className="cursor-pointer text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)]">
-                                          전체 사진 관리 ({photos.length}장)
-                                        </summary>
-                                        <div className="mt-2">
-                                          <label className="inline-block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white transition hover:opacity-90">
-                                            사진 더 올리기
-                                            <input
-                                              type="file"
-                                              accept="image/*"
-                                              multiple
-                                              onChange={handleFileSelect}
-                                              className="hidden"
-                                            />
-                                          </label>
-                                          {lowResCount > 0 && (
-                                            <p className="mt-2 bg-red-50 px-1.5 py-2 text-[11px] text-red-600 break-keep">
-                                              해상도가 낮은 사진이 {lowResCount}장 있어요. 인쇄 시 흐릿하게
-                                              나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
-                                            </p>
-                                          )}
-                                          {photos.length > 0 && (
-                                            <details className="mt-2">
-                                              <summary className="cursor-pointer text-xs text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)]">
-                                                전체 사진 목록 보기 (순서 확인 · 삭제)
-                                              </summary>
-                                              {(() => {
-                                                const pageCount = Math.max(1, Math.ceil(photos.length / PHOTO_GRID_PAGE_SIZE));
-                                                const page = Math.min(photoGridPage, pageCount - 1);
-                                                const start = page * PHOTO_GRID_PAGE_SIZE;
-                                                const visiblePhotos = photos.slice(start, start + PHOTO_GRID_PAGE_SIZE);
-                                                return (
-                                                  <div className="mt-3">
-                                                    {pageCount > 1 && (
-                                                      <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-[var(--color-charcoal)]/60">
-                                                        <button
-                                                          type="button"
-                                                          onClick={() => setPhotoGridPage(Math.max(0, page - 1))}
-                                                          disabled={page === 0}
-                                                          className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
-                                                        >
-                                                          ‹ 이전
-                                                        </button>
-                                                        <span>
-                                                          {page + 1} / {pageCount}페이지 · {start + 1}–
-                                                          {Math.min(start + PHOTO_GRID_PAGE_SIZE, photos.length)}번째 (전체 {photos.length}장)
-                                                        </span>
-                                                        <button
-                                                          type="button"
-                                                          onClick={() => setPhotoGridPage(Math.min(pageCount - 1, page + 1))}
-                                                          disabled={page >= pageCount - 1}
-                                                          className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
-                                                        >
-                                                          다음 ›
-                                                        </button>
-                                                      </div>
-                                                    )}
-                                                    <div className="grid grid-cols-3 gap-2">
-                                                      {visiblePhotos.map((photo, pi) => {
-                                                        const index = start + pi;
-                                                        return (
-                                                          <div
-                                                            key={index}
-                                                            className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
-                                                          >
-                                                            <img
-                                                              src={photo.url}
-                                                              alt={`선택한 사진 ${index + 1}`}
-                                                              className="h-full w-full object-cover"
-                                                            />
-                                                            {isLowRes(photo, requiredMinPx / 2) && (
-                                                              <span
-                                                                title="인쇄 기준 화질이 낮아요"
-                                                                className="absolute left-1 top-1 bg-red-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white"
-                                                              >
-                                                                저해상도
-                                                              </span>
-                                                            )}
-                                                            <button
-                                                              onClick={() => handleRemovePhoto(index)}
-                                                              className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                                                            >
-                                                              ✕
-                                                            </button>
-                                                          </div>
-                                                        );
-                                                      })}
-                                                    </div>
-                                                  </div>
-                                                );
-                                              })()}
-                                            </details>
-                                          )}
-                                        </div>
-                                      </details>
-                                    </>
-                                  )}
-                                </div>
+                                <ImageBoxPanel
+                                  selected={!!(activeImageBox?.spreadIndex === i && imageBoxPhotoEditActive)}
+                                  activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
+                                  onBack={() => setActiveImageBox(null)}
+                                  handlesRef={imageBoxHandlesRef}
+                                  frameTargetBox={
+                                    (activeImageBox?.spreadIndex === i
+                                      ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId)
+                                      : undefined) ?? (spread.imageBoxes ?? [])[(spread.imageBoxes ?? []).length - 1]
+                                  }
+                                  topTab={photoTopTab}
+                                  onTopTabChange={setPhotoTopTab}
+                                  onFrameChange={(boxId, changes) => handleImageBoxChange(i, boxId, changes)}
+                                  onAddPhotoFile={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleAddImageBox(i, file);
+                                    e.target.value = "";
+                                  }}
+                                  fullPhotoManager={{
+                                    photos,
+                                    lowResCount,
+                                    requiredMinPx,
+                                    photoGridPage,
+                                    setPhotoGridPage,
+                                    onUploadMore: handleFileSelect,
+                                    onRemovePhoto: handleRemovePhoto,
+                                  }}
+                                />
                               )}
                               {activeEditTab === "layout" && (() => {
                                 // 2026-09-27, 혜민님 요청: "기본적으로 펼침면으로 레이아웃을
