@@ -2270,9 +2270,30 @@ function TextBoxRichEditor({
   }, [box.id]);
 
   const isEmpty = !box.text;
+  // 배경 띠 너비를 직접 지정했으면(backgroundWidthPct, 2026-10) 아래 contentEditable
+  // 자신엔 배경색·가로 여백을 안 주고(글자 폭을 안 건드리려고), 대신 이 바깥
+  // 컨테이너(박스 자신의 너비=box.widthPct%) 안에 별도의 절대배치 띠를 글자 뒤에
+  // 깔아요. 띠 너비는 이 박스가 속한 페이지 전체를 100%로 보는 backgroundWidthPct를
+  // "박스 자신의 너비" 기준 퍼센트로 환산해요(box.widthPct가 0이면 나눗셈을 피해요).
+  const hasBackgroundWidthOverride = box.backgroundColor !== undefined && box.backgroundWidthPct !== undefined;
+  const backgroundStripPctOfBox =
+    hasBackgroundWidthOverride && box.widthPct > 0 ? (box.backgroundWidthPct! / box.widthPct) * 100 : 0;
 
   return (
     <div className="relative w-full" style={{ flexShrink: 0 }}>
+      {hasBackgroundWidthOverride && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-0 bottom-0"
+          style={{
+            backgroundColor: box.backgroundColor,
+            width: `${backgroundStripPctOfBox}%`,
+            left: box.align === "left" ? 0 : box.align === "center" ? "50%" : undefined,
+            right: box.align === "right" ? 0 : undefined,
+            transform: box.align === "center" ? "translateX(-50%)" : undefined,
+          }}
+        />
+      )}
       {isEmpty && (
         <div
           className="pointer-events-none absolute inset-0 select-none opacity-40"
@@ -2307,15 +2328,22 @@ function TextBoxRichEditor({
           fontFamily: box.fontFamily,
           fontSize: `${0.85 * box.fontScale}rem`,
           ...(box.backgroundColor
-            ? {
-                backgroundColor: box.backgroundColor,
-                paddingLeft: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
-                paddingRight: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
-                paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                boxDecorationBreak: "clone",
-                WebkitBoxDecorationBreak: "clone",
-              }
+            ? hasBackgroundWidthOverride
+              ? {
+                  // 띠는 위 별도 div가 그려요 — 글자 쪽엔 배경색·가로 여백을 안 줘서
+                  // (텍스트 폭이 안 바뀌도록) 세로 여백만 그대로 유지해요.
+                  paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                  paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                }
+              : {
+                  backgroundColor: box.backgroundColor,
+                  paddingLeft: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                  paddingRight: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                  paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                  paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                  boxDecorationBreak: "clone",
+                  WebkitBoxDecorationBreak: "clone",
+                }
             : {}),
           ...(box.lineHeight !== undefined ? { lineHeight: box.lineHeight } : {}),
           ...(box.letterSpacing !== undefined ? { letterSpacing: `${box.letterSpacing}em` } : {}),
@@ -4385,6 +4413,55 @@ function TextBoxToolbar({
               className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
             />
           </div>
+        </div>
+      )}
+      {box.backgroundColor && (
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-sm font-medium text-[var(--color-charcoal)]/70">
+              배경 띠 너비(%, 전체 너비 기준)
+            </label>
+            {/* "배경 가로 여백"(위)은 글자 주변 여백이고, 이건 배경 띠 자체의 전체
+                너비예요 — 서로 다른 설정이라는 걸 라벨과 이 토글 버튼으로 분명히
+                구분해요(2026-10, 혜민님 요청: "노란 배경 띠 가로길이를 글자와 별개로
+                조절하고 싶다"). 꺼두면(자동) 글자 폭+위 여백으로 예전처럼 자동
+                계산되고, 켜면 그 값을 무시하고 이 너비로 고정돼요. */}
+            <button
+              type="button"
+              onClick={() =>
+                onChange({
+                  backgroundWidthPct:
+                    box.backgroundWidthPct === undefined ? Math.round(box.widthPct) : undefined,
+                })
+              }
+              className={`shrink-0 border px-2 py-0.5 text-xs ${
+                box.backgroundWidthPct !== undefined
+                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+              }`}
+            >
+              {box.backgroundWidthPct !== undefined ? "직접 지정" : "자동"}
+            </button>
+          </div>
+          {box.backgroundWidthPct !== undefined && (
+            <input
+              type="number"
+              min={1}
+              max={100}
+              step={1}
+              value={Math.round(box.backgroundWidthPct)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                onChange({ backgroundWidthPct: Math.max(1, Math.min(100, v)) });
+              }}
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+            />
+          )}
+          <p className="mt-1 text-xs text-[var(--color-charcoal)]/50">
+            글자는 그대로 두고 배경 띠만 늘리거나 줄여요. “배경 가로 여백”과는 다른
+            설정이에요.
+          </p>
         </div>
       )}
       <div className="grid grid-cols-2 gap-1.5">
@@ -7195,6 +7272,12 @@ function CoverTitleOverlay({
   // 땐 이 스타일이 TextBoxRichEditor를 감싸는 바깥 div에 적용되고, 실제 글자 색상 등
   // 세부 스타일은 TextBoxRichEditor 자신이 editableBox를 보고 다시 그려요(문자 단위
   // 서식과 같은 방식) — 미리보기(!editMode)에서는 이 style이 아래 <p>에 그대로 쓰여요.
+  // 배경 띠 너비를 직접 지정했으면(backgroundWidthPct, 2026-10) 여기(textStyle)엔
+  // 배경색·가로 여백을 안 줘요 — 아래에서 별도의 절대배치 띠(coverTitleBackgroundStrip)를
+  // 따로 그려서 TextBoxRichEditor(app/upload/page.tsx의 같은 패턴)와 동일하게 맞춰요.
+  // 세로 여백은 그대로 둬요(글자 위아래 공간은 예전과 같아요).
+  const hasBackgroundWidthOverride =
+    editableBox.backgroundColor !== undefined && editableBox.backgroundWidthPct !== undefined;
   const textStyle: React.CSSProperties = {
     fontSize: `${fontSizeCqh}cqh`,
     lineHeight: lineHeightEm,
@@ -7206,13 +7289,18 @@ function CoverTitleOverlay({
     textDecoration: textDecorationValue(underline, editableBox.strikethrough),
     fontStyle: italic ? "italic" : "normal",
     ...(editableBox.backgroundColor
-      ? {
-          backgroundColor: editableBox.backgroundColor,
-          paddingLeft: `${(editableBox.backgroundPaddingXPct ?? 40) / 100}em`,
-          paddingRight: `${(editableBox.backgroundPaddingXPct ?? 40) / 100}em`,
-          paddingTop: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
-          paddingBottom: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
-        }
+      ? hasBackgroundWidthOverride
+        ? {
+            paddingTop: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
+            paddingBottom: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
+          }
+        : {
+            backgroundColor: editableBox.backgroundColor,
+            paddingLeft: `${(editableBox.backgroundPaddingXPct ?? 40) / 100}em`,
+            paddingRight: `${(editableBox.backgroundPaddingXPct ?? 40) / 100}em`,
+            paddingTop: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
+            paddingBottom: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
+          }
       : {}),
     ...((editableBox.scaleXPct ?? 100) !== 100 || (editableBox.scaleYPct ?? 100) !== 100
       ? {
@@ -7221,6 +7309,11 @@ function CoverTitleOverlay({
         }
       : {}),
   };
+  // 띠 너비는 backgroundWidthPct(앞표지 칸 전체 기준 %)를 "이 제목 박스 자신의 너비
+  // (widthPct)" 기준 퍼센트로 환산해요 — boxRef 컨테이너 자체가 widthPct%로 이미
+  // 자리잡고 있어서, 그 안에서의 상대 퍼센트로 다시 계산해야 해요.
+  const backgroundStripPctOfBox =
+    hasBackgroundWidthOverride && widthPct > 0 ? (editableBox.backgroundWidthPct! / widthPct) * 100 : 0;
 
   return (
     <div
@@ -7230,6 +7323,19 @@ function CoverTitleOverlay({
       )}`}
       style={{ left: `${xPct}%`, top: `${yPct}%`, width: `${widthPct}%` }}
     >
+      {hasBackgroundWidthOverride && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-0 bottom-0"
+          style={{
+            backgroundColor: editableBox.backgroundColor,
+            width: `${backgroundStripPctOfBox}%`,
+            left: align === "left" ? 0 : align === "center" ? "50%" : undefined,
+            right: align === "right" ? 0 : undefined,
+            transform: align === "center" ? "translateX(-50%)" : undefined,
+          }}
+        />
+      )}
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
         <>
           {snapGuide.v && (
@@ -8142,6 +8248,9 @@ function UploadPageContent() {
   const [coverTitleBackgroundColor, setCoverTitleBackgroundColor] = useState<string | undefined>(undefined);
   const [coverTitleBackgroundPaddingXPct, setCoverTitleBackgroundPaddingXPct] = useState(40);
   const [coverTitleBackgroundPaddingYPct, setCoverTitleBackgroundPaddingYPct] = useState(25);
+  // 배경 띠 전체 너비 직접 지정(backgroundWidthPct, 2026-10) — 지정 안 하면(undefined,
+  // 기본) 예전처럼 글자 폭+위 여백으로 자동 계산돼요.
+  const [coverTitleBackgroundWidthPct, setCoverTitleBackgroundWidthPct] = useState<number | undefined>(undefined);
   const [coverTitleScaleXPct, setCoverTitleScaleXPct] = useState(100);
   const [coverTitleScaleYPct, setCoverTitleScaleYPct] = useState(100);
   const [coverTitleVerticalAlign, setCoverTitleVerticalAlign] = useState<"top" | "middle" | "bottom">("top");
@@ -10423,6 +10532,7 @@ function UploadPageContent() {
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
+      coverTitleBackgroundWidthPct,
       coverTitleScaleXPct,
       coverTitleScaleYPct,
       coverTitleVerticalAlign,
@@ -10482,6 +10592,7 @@ function UploadPageContent() {
     setCoverTitleBackgroundColor(s.coverTitleBackgroundColor);
     setCoverTitleBackgroundPaddingXPct(s.coverTitleBackgroundPaddingXPct ?? 40);
     setCoverTitleBackgroundPaddingYPct(s.coverTitleBackgroundPaddingYPct ?? 25);
+    setCoverTitleBackgroundWidthPct(s.coverTitleBackgroundWidthPct);
     setCoverTitleScaleXPct(s.coverTitleScaleXPct ?? 100);
     setCoverTitleScaleYPct(s.coverTitleScaleYPct ?? 100);
     setCoverTitleVerticalAlign(s.coverTitleVerticalAlign ?? "top");
@@ -10586,6 +10697,7 @@ function UploadPageContent() {
     coverTitleBackgroundColor,
     coverTitleBackgroundPaddingXPct,
     coverTitleBackgroundPaddingYPct,
+    coverTitleBackgroundWidthPct,
     coverTitleScaleXPct,
     coverTitleScaleYPct,
     coverTitleVerticalAlign,
@@ -10831,6 +10943,7 @@ function UploadPageContent() {
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
+      coverTitleBackgroundWidthPct,
       innerPaperWeightG: innerPaper.weightG,
       pages,
       spineTitle,
@@ -11276,6 +11389,7 @@ function UploadPageContent() {
       backgroundColor: coverTitleBackgroundColor,
       backgroundPaddingXPct: coverTitleBackgroundPaddingXPct,
       backgroundPaddingYPct: coverTitleBackgroundPaddingYPct,
+      backgroundWidthPct: coverTitleBackgroundWidthPct,
       scaleXPct: coverTitleScaleXPct,
       scaleYPct: coverTitleScaleYPct,
       verticalAlign: coverTitleVerticalAlign,
@@ -11306,6 +11420,7 @@ function UploadPageContent() {
       if ("backgroundColor" in changes) setCoverTitleBackgroundColor(changes.backgroundColor);
       if (changes.backgroundPaddingXPct !== undefined) setCoverTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setCoverTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
+      if ("backgroundWidthPct" in changes) setCoverTitleBackgroundWidthPct(changes.backgroundWidthPct);
       if (changes.scaleXPct !== undefined) setCoverTitleScaleXPct(changes.scaleXPct);
       if (changes.scaleYPct !== undefined) setCoverTitleScaleYPct(changes.scaleYPct);
       if (changes.verticalAlign !== undefined) setCoverTitleVerticalAlign(changes.verticalAlign);

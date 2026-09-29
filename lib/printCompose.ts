@@ -344,9 +344,18 @@ function drawTextBoxOnCanvasRuns(
       if (box.backgroundColor) {
         const padX = (maxFontPx * (box.backgroundPaddingXPct ?? 40)) / 100;
         const padY = (maxFontPx * (box.backgroundPaddingYPct ?? 25)) / 100;
+        // 배경 띠 너비를 직접 지정했으면(backgroundWidthPct, 2026-10) 글자 폭+여백
+        // 대신 그 값을 쓰고, 글자의 가로 중심을 기준으로 좌우 대칭으로 넓혀요(글자
+        // 위치는 그대로 두고 띠만 늘리거나 줄여요).
+        const stripWidth =
+          box.backgroundWidthPct !== undefined ? (box.backgroundWidthPct / 100) * pageW : lineWidth + padX;
+        const stripX =
+          box.backgroundWidthPct !== undefined
+            ? lineStartX + lineWidth / 2 - stripWidth / 2
+            : lineStartX - padX / 2;
         ctx.save();
         ctx.fillStyle = box.backgroundColor;
-        ctx.fillRect(lineStartX - padX / 2, cursorY - padY / 2, lineWidth + padX, maxFontPx + padY);
+        ctx.fillRect(stripX, cursorY - padY / 2, stripWidth, maxFontPx + padY);
         ctx.restore();
       }
 
@@ -472,9 +481,16 @@ function drawTextBoxOnCanvas(
     const { lineStartX, lineWidth } = measureLineBox(line);
     const padX = (fontPx * (box.backgroundPaddingXPct ?? 40)) / 100;
     const padY = (fontPx * (box.backgroundPaddingYPct ?? 25)) / 100;
+    // backgroundWidthPct(2026-10)가 있으면 드러난 배경 띠 너비를 직접 그 값으로
+    // 쓰고(drawTextBoxOnCanvasRuns와 같은 방식), 글자 가로 중심 기준으로 좌우
+    // 대칭으로 넓혀요.
+    const stripWidth =
+      box.backgroundWidthPct !== undefined ? (box.backgroundWidthPct / 100) * pageW : lineWidth + padX;
+    const stripX =
+      box.backgroundWidthPct !== undefined ? lineStartX + lineWidth / 2 - stripWidth / 2 : lineStartX - padX / 2;
     ctx.save();
     ctx.fillStyle = box.backgroundColor;
-    ctx.fillRect(lineStartX - padX / 2, lineY - padY / 2, lineWidth + padX, fontPx + padY);
+    ctx.fillRect(stripX, lineY - padY / 2, stripWidth, fontPx + padY);
     ctx.restore();
   };
 
@@ -1576,7 +1592,11 @@ function drawSpineTitleCanvas(
   strikethrough: boolean = false,
   backgroundColor?: string,
   backgroundPaddingXPct: number = 40,
-  backgroundPaddingYPct: number = 25
+  backgroundPaddingYPct: number = 25,
+  // 배경 띠 "길이"(책등의 세로/글자 진행 방향)를 직접 지정해요(%, panelPx=책등
+  // 패널 전체 길이를 100%로 보는 퍼센트 — spineTitleHeightPct와 같은 좌표계). 값이
+  // 없으면(기존과 동일) 글자 폭+backgroundPaddingXPct로 자동 계산돼요.
+  backgroundWidthPct?: number
 ): boolean {
   const trimmed = title.trim();
   if (!trimmed) return true;
@@ -1632,9 +1652,13 @@ function drawSpineTitleCanvas(
   if (backgroundColor) {
     const padX = (size * backgroundPaddingXPct) / 100;
     const padY = (size * backgroundPaddingYPct) / 100;
+    // backgroundWidthPct(2026-10)가 있으면 panelPx(책등 패널 전체 길이) 기준으로
+    // 띠 길이를 직접 정하고, 글자 중심을 기준으로 좌우(길이 방향) 대칭으로 넓혀요.
+    const stripWidth = backgroundWidthPct !== undefined ? (backgroundWidthPct / 100) * panelPx : textWidthPx + padX;
+    const stripX = backgroundWidthPct !== undefined ? textWidthPx / 2 - stripWidth / 2 : -padX / 2;
     ctx.save();
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(-padX / 2, -size / 2 - padY / 2, textWidthPx + padX, size + padY);
+    ctx.fillRect(stripX, -size / 2 - padY / 2, stripWidth, size + padY);
     ctx.restore();
   }
   ctx.fillStyle = color;
@@ -1753,6 +1777,7 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundColor,
   coverTitleBackgroundPaddingXPct = 40,
   coverTitleBackgroundPaddingYPct = 25,
+  coverTitleBackgroundWidthPct,
   innerPaperWeightG,
   pages,
   spineTitle,
@@ -1769,6 +1794,7 @@ export async function buildCoverPrintPdf({
   spineTitleBackgroundColor,
   spineTitleBackgroundPaddingXPct = 40,
   spineTitleBackgroundPaddingYPct = 25,
+  spineTitleBackgroundWidthPct,
   backCoverLogo = { xPct: 50, yPct: 50, scalePct: 100 },
   backCoverPhoto = null,
   backCoverBackgroundColor,
@@ -1814,6 +1840,9 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundColor?: string;
   coverTitleBackgroundPaddingXPct?: number;
   coverTitleBackgroundPaddingYPct?: number;
+  // 배경 띠 전체 너비를 직접 지정해요(%, 앞표지 칸 전체 기준 — coverTitleWidthPct와
+  // 같은 좌표계, 2026-10). 없으면 예전처럼 글자 폭+여백으로 자동 계산돼요.
+  coverTitleBackgroundWidthPct?: number;
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
@@ -1832,6 +1861,9 @@ export async function buildCoverPrintPdf({
   spineTitleBackgroundColor?: string;
   spineTitleBackgroundPaddingXPct?: number;
   spineTitleBackgroundPaddingYPct?: number;
+  // 배경 띠 전체 길이를 직접 지정해요(%, 책등 패널 전체 길이 기준 —
+  // spineTitleHeightPct와 같은 좌표계, 2026-10). 없으면 예전처럼 자동 계산돼요.
+  spineTitleBackgroundWidthPct?: number;
   // 뒤표지 키픽 로고예요(2026-09, backCoverMode 토글을 대체) — null이면 로고를
   // 그리지 않고, 값이 있으면 그 위치(중심 기준 %)·크기(기본 100%=예전 고정 크기)로
   // 그려요. 사진(backCoverPhoto/backCoverImageBoxes)과는 독립된 객체라 함께 있을 수 있어요.
@@ -2042,7 +2074,8 @@ export async function buildCoverPrintPdf({
       spineTitleStrikethrough,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
-      spineTitleBackgroundPaddingYPct
+      spineTitleBackgroundPaddingYPct,
+      spineTitleBackgroundWidthPct
     );
   }
   if (spineLogoLayout.fits) {
@@ -2120,10 +2153,20 @@ export async function buildCoverPrintPdf({
       if (coverTitleBackgroundColor && line.trim()) {
         const padX = (titlePx * coverTitleBackgroundPaddingXPct) / 100;
         const padY = (titlePx * coverTitleBackgroundPaddingYPct) / 100;
+        // backgroundWidthPct(2026-10)가 있으면 앞표지 칸(frontCellWpx) 기준으로 띠
+        // 너비를 직접 정하고, 글자 가로 중심을 기준으로 좌우 대칭으로 넓혀요.
+        const stripWidth =
+          coverTitleBackgroundWidthPct !== undefined
+            ? (coverTitleBackgroundWidthPct / 100) * frontCellWpx
+            : lineWidth + padX;
+        const stripX =
+          coverTitleBackgroundWidthPct !== undefined
+            ? lineStartX + lineWidth / 2 - stripWidth / 2
+            : lineStartX - padX / 2;
         ctxNN.save();
         ctxNN.shadowBlur = 0;
         ctxNN.fillStyle = coverTitleBackgroundColor;
-        ctxNN.fillRect(lineStartX - padX / 2, lineY - padY / 2, lineWidth + padX, titlePx + padY);
+        ctxNN.fillRect(stripX, lineY - padY / 2, stripWidth, titlePx + padY);
         ctxNN.restore();
       }
       ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
