@@ -4779,7 +4779,32 @@ function TextBoxToolbar({
         <button
           type="button"
           title="배경"
-          onClick={() => onChange({ backgroundColor: box.backgroundColor ? undefined : "#fff59d" })}
+          onClick={() => {
+            if (box.backgroundColor) {
+              // 이미 켜져 있으면 그냥 꺼요(방식/여백 등 다른 설정은 그대로 남겨둬서,
+              // 다시 켜면 마지막으로 쓰던 모습 그대로 돌아와요).
+              onChange({ backgroundColor: undefined });
+              return;
+            }
+            // 2026-10(7차), 혜민님 요청("배경은 글상자의 실제 가로폭에 맞춰 채워지고,
+            // 크기를 조절하면 함께 바뀌게") — 처음 배경을 켤 때(box.backgroundColor가
+            // 아직 없을 때만) 기본을 "박스 전체 배경"(fillBox)으로 시작해요. 이미 저장된
+            // 옛 글상자는 이 코드를 안 타니(backgroundColor가 이미 있어서 위 분기로
+            // 빠짐) 화면이 안 바뀌고, 새로 배경을 켜는 경우만 "선택 테두리 = 배경"이 한
+            // 번에 되게 해요. 높이가 아직 없으면(자동 높이) fillBox가 의미 있으려면
+            // 실제 높이가 있어야 하니 "박스 전체 배경" 버튼과 같은 기본 높이(20)를 같이
+            // 지정해요. 새 모드를 늘리는 게 아니라 이미 있는 "박스 전체 배경" 옵션을
+            // 기본값으로만 골라주는 거예요(글자 주변 배경으로 언제든 바꿀 수 있어요).
+            onChange(
+              allowFillBoxBackground
+                ? {
+                    backgroundColor: "#fff59d",
+                    backgroundMode: "fillBox",
+                    heightPct: box.heightPct ?? 20,
+                  }
+                : { backgroundColor: "#fff59d" }
+            );
+          }}
           className={`flex h-7 w-7 items-center justify-center border ${
             box.backgroundColor
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
