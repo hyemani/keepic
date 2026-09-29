@@ -3502,9 +3502,14 @@ function BorderPositionPicker({
   onPreset: (keys: TableBorderPositionKey[]) => void;
 }) {
   return (
-    <div>
-      <div className="flex items-center justify-center border border-[var(--color-hairline)] bg-white py-1.5">
-        <svg viewBox="0 0 120 80" width={140} height={94} role="group" aria-label="테두리 위치 미리보기 — 선을 클릭해서 고르세요">
+    // 2026-10 축소(혜민님 요청: "인디자인처럼 작고 간결하게, 큰 표 그림과 글자 버튼
+    // 중복 없이") — 미리보기(80x54, InDesign stroke 패널 수준의 작은 크기)와 자주 쓰는
+    // 4개 프리셋을 아이콘만으로 한 줄에 나란히 배치해요. 프리셋 버튼에는 더 이상
+    // 글자 라벨을 화면에 띄우지 않고(아이콘만 보이는 InDesign 방식), title/aria-label로
+    // 이름을 알려줘요 — 같은 기능을 그림과 글자 버튼 두 번 보여주던 것을 없앴어요.
+    <div className="flex items-start gap-1.5">
+      <div className="flex shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white p-1">
+        <svg viewBox="0 0 120 80" width={80} height={54} role="group" aria-label="테두리 위치 미리보기 — 선을 클릭해서 고르세요">
           {BORDER_PREVIEW_SEGMENTS.map((seg) => {
             const isSelected = selected.has(seg.key);
             return (
@@ -3538,7 +3543,7 @@ function BorderPositionPicker({
           })}
         </svg>
       </div>
-      <div className="mt-1 grid grid-cols-4 gap-1">
+      <div className="grid grid-cols-2 gap-0.5">
         {BORDER_POSITION_PRESETS.map((p) => (
           <button
             key={p.id}
@@ -3546,7 +3551,7 @@ function BorderPositionPicker({
             onClick={() => onPreset(p.keys)}
             title={p.label}
             aria-label={p.label}
-            className="flex flex-col items-center gap-0.5 border border-[var(--color-hairline)] px-1 py-1 text-[9px] leading-tight text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
+            className="flex h-[25px] w-[25px] items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
           >
             <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true">
               {p.id === "allOuter" && (
@@ -3572,7 +3577,6 @@ function BorderPositionPicker({
                 </>
               )}
             </svg>
-            {p.label}
           </button>
         ))}
       </div>
