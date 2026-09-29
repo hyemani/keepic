@@ -3551,9 +3551,9 @@ function BorderPositionPicker({
   return (
     <div className="flex flex-col gap-1.5">
       <div
-        className="flex items-center gap-1 overflow-x-auto pb-0.5"
+        className="grid grid-cols-6 gap-1"
         role="group"
-        aria-label="테두리 위치 선택 — 위/아래/왼쪽/오른쪽/안쪽 가로/안쪽 세로 및 자주 쓰는 프리셋"
+        aria-label="테두리 위치 선택 — 위/아래/왼쪽/오른쪽/안쪽 가로/안쪽 세로"
       >
         {BORDER_POSITION_ICON_ORDER.map((key) => {
           const isSelected = selected.has(key);
@@ -3565,7 +3565,7 @@ function BorderPositionPicker({
               title={`${BORDER_POSITION_LABELS[key]}${isSelected ? " (선택됨)" : ""} — 눌러서 ${isSelected ? "선택 해제" : "선택"}`}
               aria-label={BORDER_POSITION_LABELS[key]}
               aria-pressed={isSelected}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center border transition ${
+              className={`flex h-8 w-full items-center justify-center border transition ${
                 isSelected
                   ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
                   : "border-[var(--color-hairline)] hover:bg-[var(--color-ivory)]"
@@ -3575,7 +3575,12 @@ function BorderPositionPicker({
             </button>
           );
         })}
-        <div className="mx-0.5 h-6 w-px shrink-0 bg-[var(--color-hairline)]" aria-hidden="true" />
+      </div>
+      <div
+        className="grid grid-cols-4 gap-1"
+        role="group"
+        aria-label="자주 쓰는 테두리 프리셋"
+      >
         {BORDER_POSITION_PRESETS.map((p) => {
           const isActive = presetActiveId === p.id;
           return (
@@ -3586,7 +3591,7 @@ function BorderPositionPicker({
             title={p.label}
             aria-label={p.label}
             aria-pressed={isActive}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center border transition ${
+            className={`flex h-8 w-full items-center justify-center border transition ${
               isActive
                 ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
                 : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
@@ -4015,23 +4020,38 @@ function TableBoxToolbar({
                   (lib/printCompose.ts drawTableGridAndCells)도 배경 fillRect과 글자·선
                   그리기가 서로 다른 호출이라 화면과 똑같이 동작해요. */}
               <div className="mt-1.5">
-                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
-                  배경 투명도 {Math.round(((sel.selStyle?.fillOpacity ?? box.fillOpacity ?? 1)) * 100)}%
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={Math.round(((sel.selStyle?.fillOpacity ?? box.fillOpacity ?? 1)) * 100)}
-                  onChange={(e) =>
-                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
-                      fillOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100,
-                    })
-                  }
-                  className="w-full"
-                  title="선택한 칸 배경색의 투명도(0~100%) — 채우기 색은 그대로 두고 진하기만 조절해요"
-                />
+                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 투명도</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(((sel.selStyle?.fillOpacity ?? box.fillOpacity ?? 1)) * 100)}
+                    onChange={(e) =>
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                        fillOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100,
+                      })
+                    }
+                    className="w-full"
+                    title="선택한 칸 배경색의 투명도(0~100%) — 채우기 색은 그대로 두고 진하기만 조절해요"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(((sel.selStyle?.fillOpacity ?? box.fillOpacity ?? 1)) * 100)}
+                    onChange={(e) =>
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                        fillOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100,
+                      })
+                    }
+                    className="w-12 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                    title="선택한 칸 배경색의 투명도를 숫자로 직접 입력(0~100)"
+                  />
+                  <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+                </div>
               </div>
             </div>
             <div>
