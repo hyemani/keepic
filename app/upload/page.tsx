@@ -2003,6 +2003,16 @@ function textBoxRowCount(text: string): number {
 type TextSelectionRangeValue = { boxId: string; start: number; end: number } | null;
 type TextSelectionRangeSetter = React.Dispatch<React.SetStateAction<TextSelectionRangeValue>>;
 
+// 표지 제목·책등 제목을 캔버스에서 TextBoxRichEditor로 직접 타이핑할 수 있게 할 때
+// (2026-10-08 이후 요청 "화면에서 직접 입력") 쓰는 더미 선택범위 설정 함수예요. 표지
+// 제목·책등은 문자 단위 서식(runs)을 지원하지 않아서(coverTitleAsTextBox/
+// spineTitleAsTextBox 어댑터가 runs를 절대 안 만들어요 — 만들어도 매 렌더마다 새로
+// 지어지는 어댑터 객체라 바로 사라져요), 드래그로 고른 범위를 실제로 어디에도 반영할
+// 데이터 저장소가 없어요. 그래서 이 두 곳은 진짜 setState 대신 이 아무 일도 안 하는
+// 함수를 넘겨요 — TextBoxRichEditor는 selectionRange를 몰라도(항상 null 취급) 타이핑
+// 자체는 100% 그대로 동작해요(그 값은 오직 "부분 선택 서식" 기능에만 쓰여요).
+const noopSelectionRangeSetter: TextSelectionRangeSetter = () => {};
+
 // Range API로 (node, offset)을 "컨테이너 시작부터 몇 글자째인지"로 바꿔요. 텍스트
 // 노드 한가운데든, span 경계든, 컨테이너 알아서 처리해줘서 직접 트리를 걷는 것보다 훨씬 덜 위험해요.
 function getPlainTextOffset(container: HTMLElement, node: Node | null, offset: number): number | null {
@@ -7024,6 +7034,8 @@ function CoverTitleOverlay({
   editMode,
   onMove,
   onSelect,
+  editableBox,
+  onEditableBoxChange,
 }: {
   title: string;
   xPct: number;
@@ -7058,6 +7070,16 @@ function CoverTitleOverlay({
   onMove: (changes: { xPct: number; yPct: number }) => void;
   // 제목 자리를 클릭하면 선택해요(selectCoverTitle).
   onSelect: () => void;
+  // 2026-10(5차), 혜민님 요청("표지나 책등의 기존 글자는... 일반 텍스트 상자처럼 화면에서
+  // 선택·이동·직접 입력할 수 있게") — 캔버스에서 바로 타이핑할 수 있도록, 표지 제목을
+  // "TextBoxDef처럼 생긴" 어댑터 객체(coverTitleAsTextBox, 실제 데이터 모델은 그대로
+  // coverTitle*이에요)로도 같이 받아서, 아래에서 일반 글상자와 완전히 같은
+  // TextBoxRichEditor를 그대로 재사용해요. editMode일 때는 항상(선택 여부와 무관하게)
+  // 이 에디터를 보여줘요 — 일반 글상자가 항상 TextBoxRichEditor를 그려두고 선택
+  // 여부는 테두리로만 표시하는 것과 같은 패턴이에요(클릭한 그 자리에 바로 커서가
+  // 놓이도록, 별도 상태 갱신을 기다리지 않아요).
+  editableBox: TextBoxDef;
+  onEditableBoxChange: (changes: Partial<TextBoxDef>) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
@@ -7189,44 +7211,42 @@ function CoverTitleOverlay({
         </button>
       )}
       {
-        // 2026-10-08 후속 수정(혜민님 요청 "선택한 텍스트의 내용은 오른쪽 텍스트 속성
-        // 패널 한곳에서만 수정하게 해줘") — 예전엔 여기 선택 시(isActive) textarea로
-        // 바뀌어 캔버스 위에서도 직접 타이핑할 수 있었는데, 그러면 사이드바의
-        // TextBoxToolbar 내용 입력칸("내용")과 입력 창구가 두 곳이 돼요.
-        // 이제 캔버스 클릭은 "선택"만 하고(onSelect), 실제 타이핑은 항상 사이드바 패널
-        // 쪽 내용 입력칸에서만 해요 — 선택된 상태는 위 wrapper의 하늘색 outline으로
-        // 보여줘요.
+        // 2026-10(5차), 혜민님 요청("표지나 책등의 기존 글자는... 일반 텍스트 상자처럼
+        // 화면에서 선택·이동·직접 입력할 수 있게") — editMode일 땐 일반 글상자와 똑같이
+        // TextBoxRichEditor(contentEditable)를 항상 그려서, 캔버스를 클릭한 그 자리에
+        // 바로 커서가 놓이고 타이핑이 돼요(일반 TextBoxOverlay가 항상 에디터를 그려두는
+        // 것과 같은 패턴 — box.tsx 위 TextBoxOverlay/mouseDownActive 주석 참고). 바깥
+        // wrapper의 onMouseDown은 stopPropagation만 하고 preventDefault는 안 해요 —
+        // 그래야 에디터 안을 클릭했을 때 브라우저가 원래 하던 대로 포커스를 주고 그
+        // 자리에 커서를 놓아줘요(2026-10-08 f17127a에서 겪었던, 클릭해도 타이핑이 안
+        // 되는 버그와 같은 원인을 여기서도 피해요). 미리보기(editMode=false)에서는
+        // 예전처럼 읽기전용 <p>만 보여줘요 — 인쇄(lib/printCompose.ts)는 이 컴포넌트와
+        // 완전히 무관해서 여기 변경과 상관없이 그대로예요.
       }
-      {title.trim() ? (
-        <p
+      {editMode ? (
+        <div
           onMouseDown={(e) => {
-            if (!editMode) return;
             e.stopPropagation();
             onSelect();
           }}
-          className={`whitespace-pre-wrap ${
-            editMode ? "cursor-text" : "pointer-events-none"
-          }`}
+          className={
+            title.trim()
+              ? "cursor-text"
+              : "cursor-text border border-dashed border-white/70 bg-black/10 px-2 py-1"
+          }
           style={textStyle}
         >
+          <TextBoxRichEditor
+            box={editableBox}
+            onChange={onEditableBoxChange}
+            onSelectionRangeChange={noopSelectionRangeSetter}
+          />
+        </div>
+      ) : title.trim() ? (
+        <p className="pointer-events-none whitespace-pre-wrap" style={textStyle}>
           {title}
         </p>
-      ) : (
-        // 표지 제목이 아직 비어 있을 때: 편집 화면에서만 "제목을 입력하세요" 안내와 함께
-        // 빈 제목 자리를 점선 박스로 보여줘요. editMode가 false(미리보기·인쇄)면 바로 위의
-        // `if (!title.trim() && !editMode) return null`에서 이미 걸러져서 이 분기 자체가
-        // 렌더링되지 않아요 — 즉 이 안내 문구는 편집 캔버스에서만 나올 수 있어요.
-        <p
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
-          className="cursor-text whitespace-pre-wrap border border-dashed border-white/70 bg-black/10 px-2 py-1 font-semibold text-white/70"
-          style={textStyle}
-        >
-          제목을 입력하세요
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -11085,6 +11105,11 @@ function UploadPageContent() {
       letterSpacing: coverTitleLetterSpacingEm,
     };
     function handleCoverTitleBoxChange(changes: Partial<TextBoxDef>) {
+      // 2026-10(5차): 캔버스 위 TextBoxRichEditor에서 직접 타이핑하면 여기로 text(+runs)가
+      // 들어와요. runs는 이 어댑터가 애초에 안 만드니(위 주석 참고) 조용히 무시하고,
+      // text만 coverTitle 상태로 반영해요 — handleCoverTitleChange를 그대로 써서 책등
+      // 자동 동기화(spineTitleEditedRef가 아직 false일 때) 로직도 똑같이 타요.
+      if (changes.text !== undefined) handleCoverTitleChange(changes.text);
       if (changes.fontFamily !== undefined) handleCoverTitleFontFamilyChange(changes.fontFamily);
       if (changes.fontScale !== undefined) {
         const pt = textBoxFontScaleToPt(changes.fontScale, coverTitlePanelPageWidthMm);
@@ -12677,6 +12702,8 @@ function UploadPageContent() {
                                 setCoverTitleYPct(yPct);
                               }}
                               onSelect={selectCoverTitle}
+                              editableBox={coverTitleAsTextBox}
+                              onEditableBoxChange={handleCoverTitleBoxChange}
                             />
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
