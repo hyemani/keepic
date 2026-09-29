@@ -7370,7 +7370,26 @@ const TableBoxOverlay = forwardRef<
       return m;
     });
     const nextCellStyles = remapCellStyles((r, c) => (r >= insertAt ? { row: r + 1, col: c } : { row: r, col: c }));
-    onChange({ rows: newRows, cells: nextCells, merges: nextMerges, cellStyles: nextCellStyles });
+    // 2026-11-5차, 혜민님 리포트("표를 합치거나 나눌때 적용되어있던 선의 스타일이 새로
+    // 만든 표는 기본값으로 돌아가") — 근본 원인: 새로 생긴 행(insertAt)의 칸들은
+    // cellStyles에 아예 키가 없어서(=undefined) 표 전체 기본값으로만 그려졌어요. 분할
+    // 기준이 된 원래 행(activeCell.row)의 같은 열 칸 스타일(배경/여백/정렬/테두리 —
+    // sideBorders 포함, TableCellStyle 전체)을 그대로 복사해서 새 칸에 심어요. 원래
+    // 칸이 병합돼 있었으면 resolveAnchor로 그 병합의 anchor 스타일을 따라가요(merge와
+    // 같은 anchor 규칙). remapCellStyles는 "기존 칸이 밀려난 새 위치"만 옮기므로, 그
+    // 다음에 새 행 몫을 따로 얹어요.
+    const withInheritedRow = { ...(nextCellStyles ?? {}) };
+    for (let c = 0; c < box.cols; c++) {
+      const srcAnchor = resolveAnchor(activeCell.row, c);
+      const srcStyle = box.cellStyles?.[`${srcAnchor.row}-${srcAnchor.col}`];
+      if (srcStyle) withInheritedRow[`${insertAt}-${c}`] = { ...srcStyle };
+    }
+    onChange({
+      rows: newRows,
+      cells: nextCells,
+      merges: nextMerges,
+      cellStyles: Object.keys(withInheritedRow).length ? withInheritedRow : undefined,
+    });
     setActiveCell({ row: insertAt, col: activeCell.col });
     setDragSel(null);
   }
@@ -7401,12 +7420,23 @@ const TableBoxOverlay = forwardRef<
         ? [...box.colWidths.slice(0, insertAt), 1, ...box.colWidths.slice(insertAt)]
         : undefined;
     const nextCellStyles = remapCellStyles((r, c) => (c >= insertAt ? { row: r, col: c + 1 } : { row: r, col: c }));
+    // 2026-11-5차 — handleSplitRow와 같은 이유·같은 방식으로, 새로 생긴 열(insertAt)의
+    // 칸들에 분할 기준이 된 원래 열(activeCell.col)의 같은 행 칸 스타일을 그대로
+    // 복사해요(fill/opacity/padding/align/valign/hiddenSides/borderColor/Width/Style/
+    // sideBorders 전체 — TableCellStyle을 통째로 복사하므로 새 필드가 추가돼도 자동으로
+    // 같이 복사돼요).
+    const withInheritedCol = { ...(nextCellStyles ?? {}) };
+    for (let r = 0; r < box.rows; r++) {
+      const srcAnchor = resolveAnchor(r, activeCell.col);
+      const srcStyle = box.cellStyles?.[`${srcAnchor.row}-${srcAnchor.col}`];
+      if (srcStyle) withInheritedCol[`${r}-${insertAt}`] = { ...srcStyle };
+    }
     onChange({
       cols: newCols,
       cells: nextCells,
       merges: nextMerges,
       colWidths: nextColWidths,
-      cellStyles: nextCellStyles,
+      cellStyles: Object.keys(withInheritedCol).length ? withInheritedCol : undefined,
     });
     setActiveCell({ row: activeCell.row, col: insertAt });
     setDragSel(null);
