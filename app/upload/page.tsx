@@ -8718,8 +8718,17 @@ function SpineTitleOverlay({
         // 키픽 로고와 같은 방향(90도)으로 한 줄로 눕혀서 보여줘요 — 글자를 하나씩 세로로
         // 쌓지 않아요. font-size는 cqh(컨테이너 높이 기준 %)라서 창 크기가 바뀌어도 항상
         // 책 실물 크기 그대로 커지고 작아져요(고정 px이 아니에요).
+        // 2026-09-29, 버그 수정(혜민님 리포트 — "책등 띄어쓰기가 적용 안 됨") —
+        // whitespace-nowrap은 줄바꿈만 막을 뿐 연속된 공백은 브라우저가 기본으로
+        // 1칸으로 시각적으로 뭉개요(normal과 같은 collapsing 규칙). 문자열(state)에는
+        // 사용자가 입력한 공백 개수가 그대로 들어있었지만(handleSpineTitleChange 참고),
+        // 화면에는 1칸으로만 보였던 원인이 이거예요. whitespace-pre로 바꾸면 줄바꿈
+        // 안 하는 동작(nowrap과 동일)은 그대로 유지하면서, 연속 공백도 입력한 그대로
+        // 다 보여줘요 — 인쇄(lib/printCompose.ts drawSpineTitleCanvas)는 canvas
+        // fillText라 애초에 공백을 안 뭉갰어서(title.trim()은 앞뒤 공백만 제거) 이 수정
+        // 전에도 인쇄본은 맞았고, 이제 화면도 인쇄본과 같아져요.
         <span
-          className="whitespace-nowrap"
+          className="whitespace-pre"
           style={{
             ...spineTextStyle,
             fontSize: `${fontSizeCqh}cqh`,
