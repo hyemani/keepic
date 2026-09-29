@@ -7595,7 +7595,18 @@ const TableBoxOverlay = forwardRef<
         display: "grid",
         gridTemplateColumns: colTemplate,
         gridTemplateRows: rowTemplate,
-        backgroundColor: hexToRgba(box.fillColor ?? "#ffffff", box.fillOpacity ?? 1),
+        // 2026-11-2차, 혜민님 리포트("셀 배경 '없음'을 눌러도 흰색/옅은 색으로 채워진
+        // 것처럼 보임 — 뒤에 사진이 있으면 비쳐 보여야 함") — 예전에는 이 바깥(표
+        // 전체) div가 표 전체 사각형에 box.fillColor를 불투명하게 칠했고, 그 위에 각
+        // 칸이 "겹쳐서" 그려졌어요. 그래서 칸의 fillOpacity를 0으로 둬도(칸 자기
+        // 배경은 진짜로 투명해져도) 바로 아래 깔린 "표 전체"의 불투명한 흰 배경이
+        // 그대로 비쳐 보였던 거예요(표 뒤 사진이 아니라 표 자신의 배경이 보인 것) —
+        // 선택 중 파란 오버레이(inSel 표시, 아래 참고)와는 별개의, 진짜 배경 버그였어요.
+        // 지금은 이 바깥 div엔 배경을 안 칠하고, 칸마다 "자기 설정이 있으면 그 설정,
+        // 없으면 표 전체 기본값"을 스스로 칠해요(칸이 그리드로 빈틈없이 표 전체를
+        // 덮으므로 평소엔 화면이 똑같고, "없음" 칸만 진짜로 아무것도 안 칠해서 표
+        // 뒤(사진 등)가 그대로 비쳐요). 인쇄(lib/printCompose.ts drawTableGridAndCells)도
+        // 같은 방식으로 맞춰 놨어요.
         borderRadius: box.borderRadius ? `${box.borderRadius}px` : undefined,
         overflow: box.borderRadius ? "hidden" : undefined,
       }}
@@ -7683,16 +7694,29 @@ const TableBoxOverlay = forwardRef<
               justifyContent: effValign === "middle" ? "center" : effValign === "bottom" ? "flex-end" : "flex-start",
               boxSizing: "border-box",
               padding: `${effPadding}px`,
-              // 2026-11, "없음"(채우기 없음) 스와치 지원: fillColor 없이 fillOpacity만
-              // (예: 0) 따로 준 칸도 반영해야 해요 — lib/printCompose.ts의 같은 수정과
-              // 짝을 이뤄요(둘 다 안 고치면 화면·인쇄가 서로 달라져요).
-              backgroundColor:
+              // 2026-11-2차, "없음"(채우기 없음) 스와치 지원 — 이 칸에 개별 설정
+              // (fillColor 또는 fillOpacity)이 있으면 그 값을, 없으면 표 전체 기본값
+              // (box.fillColor/fillOpacity)을 이 칸 자신이 직접 칠해요(바깥 표 전체 div는
+              // 더 이상 배경을 안 칠함 — 위 style 객체의 backgroundColor 주석 참고). 칸이
+              // 빈틈없이 표 전체를 덮으니 "설정 없는 칸"의 화면은 예전과 똑같고, 이
+              // 칸만 fillOpacity:0(색 없음)이면 rgba(...,0)이라 진짜 아무것도 안 칠해져서
+              // 표 뒤(사진 등)가 그대로 비쳐요. lib/printCompose.ts의 같은 수정과 짝을
+              // 이뤄요(둘 다 안 맞추면 화면·인쇄가 서로 달라져요).
+              backgroundColor: hexToRgba(
+                cellOverride?.fillColor ?? box.fillColor ?? "#ffffff",
                 cellOverride?.fillColor !== undefined || cellOverride?.fillOpacity !== undefined
-                  ? hexToRgba(cellOverride.fillColor ?? box.fillColor ?? "#ffffff", cellOverride.fillOpacity ?? 1)
-                  : undefined,
+                  ? cellOverride?.fillOpacity ?? 1
+                  : box.fillOpacity ?? 1
+              ),
               overflow: "hidden",
             }}
           >
+            {/* 이 파란 반투명 오버레이는 "지금 편집 중 선택된 칸"을 보여주는 용도일
+                뿐, 실제 저장되는 배경색과는 완전히 별개예요(같은 칸이라도 선택을
+                풀면 이 div 자체가 사라지고, 위 style.backgroundColor만 남아요) — 혜민님이
+                여러 칸을 선택하고 "없음"을 눌렀을 때 보이는 옅은 하늘색 틴트는 대부분
+                이 선택 표시이고(정상), 선택을 해제한 화면에서 흰색/틴트가 남아있다면
+                그건 위 backgroundColor 계산 쪽의 문제예요. */}
             {inSel && <div className="pointer-events-none absolute inset-0 bg-[var(--color-sky)]/15" />}
             <textarea
               value={cellText}

@@ -856,6 +856,19 @@ function drawTableGridAndCells(
 
   // 표 면(배경) — 2026-09-28 혜민님 요청. 라운드(borderRadius)가 있으면 둥근 모서리로
   // 잘라서 채워요(화면 미리보기의 overflow:hidden과 같은 느낌). 투명도도 반영해요.
+  //
+  // 2026-11-2차, 혜민님 리포트("셀 배경 '없음'을 눌러도 흰색처럼 보임 — 뒤에 사진이
+  // 있으면 비쳐 보여야 함") — 예전엔 여기서 표 전체 사각형을 box.fillColor로 먼저
+  // 불투명하게 채우고(ctx.fill()), 그 위에 개별 설정이 있는 칸만 "덧칠"했어요. 칸의
+  // fillOpacity를 0으로 둬도 캔버스에 alpha 0으로 그리는 건 "그 자리에 아무것도 안
+  // 그리는 것"과 같아서, 이미 먼저 칠해둔 표 전체의 불투명한 흰 배경이 그 칸 밑에
+  // 그대로 남아 비쳐 보였어요(표 뒤 사진이 아니라 표 자신의 배경이 보인 것). 지금은
+  // 표 전체를 먼저 채우지 않고, 칸마다 한 번씩만 칠해요 — 개별 설정이 있으면 그
+  // 색/투명도, 없으면 표 전체 기본값(box.fillColor/fillOpacity)을 그 칸 자리에 칠하고,
+  // 칸들이 빈틈없이 표 전체를 덮으므로(colLefts/rowTops가 0~widthPx/heightPx를 정확히
+  // 나눔) 평소엔 인쇄 결과가 예전과 똑같고, "없음"(fillOpacity:0, fillColor 없음) 칸만
+  // 캔버스에 진짜 아무것도 안 그려져서 표 뒤(사진 등)가 그대로 비쳐요. 화면
+  // (app/upload/page.tsx TableBoxOverlay)도 같은 방식으로 맞춰 놨어요.
   const radiusPx = Math.max(0, box.borderRadius ?? 0) * (PRINT_DPI / 96);
   ctx.save();
   ctx.beginPath();
@@ -870,29 +883,26 @@ function drawTableGridAndCells(
   } else {
     ctx.rect(leftPx, topPx, widthPx, heightPx);
   }
-  ctx.fillStyle = hexToRgbaPrint(box.fillColor ?? "#ffffff", box.fillOpacity ?? 1);
-  ctx.fill();
   ctx.clip();
 
-  // 칸별 배경색(2026-09-28 혜민님 요청 "셀 배경색" — 표 전체 배경 위에 겹쳐서, 개별
-  // 설정이 있는 칸만 덧칠해요).
+  // 칸별 배경색 — 표 전체를 칸 단위로 한 번씩만 칠해요(2026-09-28 혜민님 요청 "셀
+  // 배경색"; 2026-11-2차 수정으로 표 전체를 먼저 덮어 칠하는 단계를 없앴어요. 위 주석
+  // 참고).
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const m = mergeAtPrint(r, c);
       if (m && !(m.row === r && m.col === c)) continue;
       const style = cellStyleAtPrint(r, c);
-      // 2026-11, "없음"(채우기 없음) 스와치 지원: fillColor 없이 fillOpacity만(예: 0)
-      // 따로 준 칸도 여기서 덧칠해야 해요 — 원래는 fillColor가 있어야만 덧칠했는데,
-      // 그러면 "이 칸만 투명도 0" 같은 fillOpacity 전용 개별 설정이 무시되고 표 전체
-      // 배경(box.fillColor/fillOpacity)이 그대로 비쳐 보였어요.
-      if (style?.fillColor === undefined && style?.fillOpacity === undefined) continue;
+      const hasOverride = style?.fillColor !== undefined || style?.fillOpacity !== undefined;
       const rowSpan = m ? m.rowSpan : 1;
       const colSpan = m ? m.colSpan : 1;
       const cellLeftPx = leftPx + colLefts[c];
       const cellRightPx = leftPx + colLefts[c + colSpan];
       const cellTopPx = topPx + rowTops[r];
       const cellBottomPx = topPx + rowTops[r + rowSpan];
-      ctx.fillStyle = hexToRgbaPrint(style.fillColor ?? box.fillColor ?? "#ffffff", style.fillOpacity ?? 1);
+      const fillColor = hasOverride ? style!.fillColor ?? box.fillColor ?? "#ffffff" : box.fillColor ?? "#ffffff";
+      const fillOpacity = hasOverride ? style!.fillOpacity ?? 1 : box.fillOpacity ?? 1;
+      ctx.fillStyle = hexToRgbaPrint(fillColor, fillOpacity);
       ctx.fillRect(cellLeftPx, cellTopPx, cellRightPx - cellLeftPx, cellBottomPx - cellTopPx);
     }
   }
