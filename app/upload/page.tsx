@@ -3666,9 +3666,15 @@ function BorderPositionPanel({
 
   function applyPreset(keys: TableBorderPositionKey[]) {
     if (keys.length === 0) {
-      // "선 없음" — 기존 글자 버튼 때와 동일하게, 선택 상태를 바꾸는 대신 바로 6개
-      // 위치 전부를 꺼요.
+      // "선 없음" — 6개 위치 전부를 끄면서(값), 아래 패널에도 그 6개 위치가 "선택된"
+      // 상태로 만들어요. 2026-11-6차, 혜민님 리포트("/ 아이콘을 누른 후에 다시 선을
+      // 수정하려고하니 패널창이 안뜨는 오류") 근본 원인 — 예전엔 값만 끄고 selected는
+      // 그대로 둬서(패널을 막 열었을 때는 보통 비어있음), 이 프리셋을 누르면 selectedKeys
+      // 가 계속 0개로 남아 아래 색·굵기·종류·켜짐 패널 전체가 "위 표 그림에서 선을
+      // 하나 이상 클릭해서 고르세요" 안내만 보이고 사라진 것처럼 됐어요. 이제 6개
+      // 위치를 selected에도 넣어서, 끄자마자 바로 그 자리에서 다시 켤 수 있어요.
       onApply(ALL_BORDER_POSITION_KEYS, null);
+      setSelected(new Set(ALL_BORDER_POSITION_KEYS));
       return;
     }
     setSelected(new Set(keys));
@@ -3724,40 +3730,49 @@ function BorderPositionPanel({
             />
             이 위치에 선 표시
           </label>
-          {enabled && (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => apply({ color: e.target.value })}
-                className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-                title="이 위치의 선 색"
-              />
-              {/* 2026-11, 혜민님 요청: 선색에도 "없음" 견본 — 클릭하면 위 "이 위치에
-                  선 표시" 체크를 그대로 끄는 것과 같아요(새 데이터 표현을 만들지 않고
-                  기존 enabled:false 상태를 재사용). */}
-              <NoneSwatchButton active={false} onClick={() => apply({ enabled: false })} title="선 없음" />
-              <input
-                type="number"
-                min={0}
-                max={8}
-                step={0.5}
-                value={width}
-                onChange={(e) => apply({ width: Math.max(0, Math.min(8, Number(e.target.value) || 0)) })}
-                className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-                title="이 위치의 선 굵기(px)"
-              />
-              <select
-                value={styleKind}
-                onChange={(e) => apply({ style: e.target.value as "solid" | "dashed" | "dotted" })}
-                className="min-w-0 flex-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-              >
-                <option value="solid">실선</option>
-                <option value="dashed">파선</option>
-                <option value="dotted">점선</option>
-              </select>
-            </div>
-          )}
+          {/* 2026-11-6차, 혜민님 리포트("/ 아이콘을 누른 후에 다시 선을 수정하려고하니
+              패널창이 안뜨는 오류") 근본 원인 — 이 색·굵기·종류 칸들이 {enabled && (...)}
+              로 감싸여 있어서, "없음"으로 끄는 순간 그 상태를 되돌릴 "없음" 스와치까지
+              같이 사라져(체크박스만 남음) 사실상 막다른 길이었어요. 이제 꺼져 있어도
+              항상 보이게 하고(옅게만 표시), 색·굵기·종류 중 아무거나 바꾸면 자동으로
+              다시 켜져요(enabled:true도 같이 보내요) — 그래서 "없음"을 누른 자리에서
+              바로 색을 고르거나 옆의 "없음" 스와치를 다시 누르면 즉시 선이 돌아와요. */}
+          <div className={`mt-1.5 flex items-center gap-1.5 ${enabled ? "" : "opacity-50"}`}>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => apply({ color: e.target.value, enabled: true })}
+              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="이 위치의 선 색"
+            />
+            {/* "없음" 스와치 — 켜짐/꺼짐을 그 자리에서 토글해요(체크박스와 같은 값을
+                공유). 꺼져 있을 때 눌러 다시 켤 수도 있어서, 체크박스를 못 찾아도 이
+                스와치 하나로 껐다 켰다 할 수 있어요. */}
+            <NoneSwatchButton
+              active={!enabled}
+              onClick={() => apply({ enabled: !enabled })}
+              title={enabled ? "선 없음" : "선 표시(다시 켜기)"}
+            />
+            <input
+              type="number"
+              min={0}
+              max={8}
+              step={0.5}
+              value={width}
+              onChange={(e) => apply({ width: Math.max(0, Math.min(8, Number(e.target.value) || 0)), enabled: true })}
+              className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+              title="이 위치의 선 굵기(px)"
+            />
+            <select
+              value={styleKind}
+              onChange={(e) => apply({ style: e.target.value as "solid" | "dashed" | "dotted", enabled: true })}
+              className="min-w-0 flex-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            >
+              <option value="solid">실선</option>
+              <option value="dashed">파선</option>
+              <option value="dotted">점선</option>
+            </select>
+          </div>
         </>
       )}
     </div>
