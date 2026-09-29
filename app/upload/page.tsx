@@ -3971,8 +3971,12 @@ function TableBoxToolbar({
               이미 되지만(네이티브 텍스트 필드), "이 칸을 통째로 복사해서 다른 칸(들)에
               그대로 적용"(내용 + 배경/여백/정렬/테두리 스타일까지)은 지원이 없었어요.
               세션 내부 버퍼(모듈 스코프 tableCellClipboard, 아래 정의)를 써서, OS
-              클립보드 권한과 무관하게 항상 안정적으로 동작해요. "붙여넣기"는 지금 고른
-              칸이 여러 개면(드래그 선택) 전부에 같은 내용을 적용해요. */}
+              클립보드 권한과 무관하게 항상 안정적으로 동작해요.
+              2026-11-6차, 혜민님 리포트("맨 처음의 문구만 반복해서 붙여넣기가 되고있어")
+              — 여러 칸을 드래그해서 "칸 복사"를 누르면 이제 그 블록 안 칸들이 각자
+              고유의 내용을 유지한 채 저장되고, "붙여넣기"도 각 칸을 상대 위치 그대로
+              되살려요(스프레드시트식 블록 복사/붙여넣기). 칸 하나만 복사했을 땐 예전처럼
+              그 값을 지금 고른 칸(들) 전부에 도장 찍듯 적용해요. */}
           <div className="mb-1.5 flex gap-1.5">
             <button
               type="button"
@@ -6888,7 +6892,14 @@ type TableBoxOverlayHandle = {
 // 바로 다른 칸에 붙여넣기"라는 요청 자체엔 세션 안에서만 유지돼도 충분해요). 표
 // 컴포넌트가 여러 개 있어도(페이지마다, 표마다) 전부 이 하나의 버퍼를 공유해서, 다른
 // 표의 칸에도 붙여넣을 수 있어요.
-let tableCellClipboard: { text: string; style: TableCellStyle | null } | null = null;
+// 2026-11-6차, 혜민님 리포트("복사 붙여넣기가 선택한 셀의 내용도 전부 복붙하고
+// 싶었던건데 맨 처음의 문구만 반복해서 선택된 셀에 붙여넣기가 되고있어") — 복사 시점에
+// 여러 칸이 선택돼 있었으면(rows/cols가 1보다 큼) 그 사각형 블록 안 "각 칸 고유의"
+// 내용+스타일을 상대 위치(dr,dc)별로 전부 저장해요(스프레드시트식 블록 복사). 칸 하나만
+// 선택했을 때(rows===1 && cols===1)는 예전처럼 "그 값을 여러 칸에 도장 찍듯" 붙여넣는
+// 동작을 그대로 유지해요 — 아래 handlePasteIntoSelectedCells 참고.
+let tableCellClipboard: { rows: number; cols: number; cells: { text: string; style: TableCellStyle | null }[] } | null =
+  null;
 
 // 지금 선택 상태(활성 칸·병합 가능 여부·칸 폭/세로폭·선택 범위)를 왼쪽 패널에 반응형으로
 // 보여주기 위한 정보예요. ref 메서드는 "지금 상태"를 읽을 수 없어서(호출만 가능) 따로
@@ -7281,35 +7292,82 @@ const TableBoxOverlay = forwardRef<
     return out;
   }
 
-  // "칸 복사" — 지금 고른 칸(activeCell, 여러 칸을 드래그했으면 그중 맨 처음 고른 칸)의
-  // 내용과 스타일을 세션 내부 클립보드에 저장해요. 병합된 칸이면 anchor 기준으로 읽어요
-  // (merge/split과 같은 anchor 규칙 — resolveAnchor).
+  // "칸 복사" — 여러 칸을 드래그로 골랐으면(selRange가 1칸보다 큼) 그 사각형 블록 안
+  // "각 칸 고유의" 내용+스타일을 전부, 상대 위치를 유지한 채 클립보드에 저장해요(예:
+  // 2x3 블록이면 6칸 각각을 따로 기억). 그 범위 안의 실제 그리드 좌표를 그대로 읽어요
+  // (anchor로 합치지 않음) — 병합된 칸의 "숨겨진" 칸은 빈 텍스트로 저장되고, 나중에
+  // 붙여넣을 때 그 상대 위치에 그대로(빈 텍스트로) 다시 쓰여요.
+  // 칸 하나만 선택했을 때는(드래그 없이 클릭만) 예전과 동일하게 그 한 칸만 저장해요 —
+  // 이땐 붙여넣기가 "그 값을 여러 칸에 도장 찍듯" 적용하는 예전 동작을 그대로 유지해요.
   function handleCopyActiveCell() {
+    if (selRange && (selRange.r1 > selRange.r0 || selRange.c1 > selRange.c0)) {
+      const { r0, c0, r1, c1 } = selRange;
+      const rows = r1 - r0 + 1;
+      const cols = c1 - c0 + 1;
+      const cells: { text: string; style: TableCellStyle | null }[] = [];
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const idx = r * box.cols + c;
+          const text = box.cells[idx] ?? "";
+          const style = box.cellStyles?.[`${r}-${c}`];
+          cells.push({ text, style: style ? { ...style } : null });
+        }
+      }
+      tableCellClipboard = { rows, cols, cells };
+      return;
+    }
     if (!activeCell) return;
     const anchor = resolveAnchor(activeCell.row, activeCell.col);
     const idx = anchor.row * box.cols + anchor.col;
     const text = box.cells[idx] ?? "";
     const style = box.cellStyles?.[`${anchor.row}-${anchor.col}`];
-    tableCellClipboard = { text, style: style ? { ...style } : null };
+    tableCellClipboard = { rows: 1, cols: 1, cells: [{ text, style: style ? { ...style } : null }] };
   }
 
-  // "붙여넣기" — 복사해둔 내용+스타일을 지금 고른 칸(들)에 그대로 적용해요. 여러 칸을
-  // 드래그로 골랐으면(selRange) 전부에 같은 내용을 붙여넣어요(간단한 블록 붙여넣기 —
-  // 원본 범위의 칸 모양을 그대로 옮기는 스프레드시트식 붙여넣기는 아니지만, "복사한 걸
-  // 여러 칸에 한 번에 적용"이라는 요청은 이걸로 충분해요).
+  // "붙여넣기" — 복사해둔 내용을 지금 고른 칸(들)에 적용해요.
+  // · 복사한 게 칸 1개(rows===1 && cols===1)면: 예전처럼 그 값을 지금 고른 칸 전부에
+  //   "도장 찍듯" 똑같이 붙여넣어요(여러 칸을 골랐어도 전부 같은 값 — 기존 동작 유지).
+  // · 복사한 게 여러 칸(블록)이면: 각 칸 고유의 내용을 상대 위치별로 되살려요. 붙여넣을
+  //   때 지금 고른 범위(selRange)가 있으면 그 범위의 맨 왼쪽 위 칸을, 없으면(칸 하나만
+  //   클릭한 상태) 그 칸을 블록의 기준점(0,0)으로 삼아 오른쪽/아래로 펼쳐요(엑셀/구글
+  //   시트에서 칸 하나를 클릭한 채 붙여넣으면 복사한 블록 크기만큼 자동으로 펼쳐지는
+  //   것과 같은 방식). 표 범위를 벗어나는 칸은 건너뛰어요(잘라내기와 같은 효과).
   function handlePasteIntoSelectedCells() {
     if (!tableCellClipboard) return;
     const clip = tableCellClipboard;
-    const targets = selRange ? selectedAnchors() : activeCell ? [resolveAnchor(activeCell.row, activeCell.col)] : [];
-    if (targets.length === 0) return;
     const nextCells = box.cells.slice();
     const nextCellStyles = box.cellStyles ? { ...box.cellStyles } : {};
-    for (const t of targets) {
-      nextCells[t.row * box.cols + t.col] = clip.text;
-      if (clip.style) {
-        nextCellStyles[`${t.row}-${t.col}`] = { ...clip.style };
+
+    if (clip.rows === 1 && clip.cols === 1) {
+      const single = clip.cells[0];
+      const targets = selRange ? selectedAnchors() : activeCell ? [resolveAnchor(activeCell.row, activeCell.col)] : [];
+      if (targets.length === 0) return;
+      for (const t of targets) {
+        nextCells[t.row * box.cols + t.col] = single.text;
+        if (single.style) {
+          nextCellStyles[`${t.row}-${t.col}`] = { ...single.style };
+        }
+      }
+    } else {
+      const anchorRow = selRange ? selRange.r0 : activeCell ? activeCell.row : null;
+      const anchorCol = selRange ? selRange.c0 : activeCell ? activeCell.col : null;
+      if (anchorRow === null || anchorCol === null) return;
+      for (let dr = 0; dr < clip.rows; dr++) {
+        for (let dc = 0; dc < clip.cols; dc++) {
+          const targetRow = anchorRow + dr;
+          const targetCol = anchorCol + dc;
+          if (targetRow >= box.rows || targetCol >= box.cols) continue;
+          const src = clip.cells[dr * clip.cols + dc];
+          nextCells[targetRow * box.cols + targetCol] = src.text;
+          if (src.style) {
+            nextCellStyles[`${targetRow}-${targetCol}`] = { ...src.style };
+          } else {
+            delete nextCellStyles[`${targetRow}-${targetCol}`];
+          }
+        }
       }
     }
+
     onChange({
       cells: nextCells,
       cellStyles: Object.keys(nextCellStyles).length ? nextCellStyles : undefined,
