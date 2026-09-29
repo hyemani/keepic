@@ -12146,6 +12146,25 @@ function UploadPageContent() {
         // 있어서, 실행취소/다시실행만 브라우저 기본값에 맡기고 나머지는 건드리지 않아요.
         return;
       }
+      // 2026-11-7차, 혜민님 요청("칸 복사 붙여넣기 ctrl+c/ctrl+v 로는 안되나요?") —
+      // 표 칸이 선택돼 있으면(activeTableBox && tableCellSel?.activeCell, "선택한 칸"
+      // 패널의 "칸 복사"/"붙여넣기" 버튼이 나오는 것과 똑같은 조건) Ctrl/Cmd+C·V를 그
+      // 버튼과 완전히 같은 함수(copyActiveCell/pasteIntoSelectedCells, 표 하나당 ref로
+      // 노출된 handle)로 연결해요. 이 분기가 위 isTypingTarget 체크 뒤에 있어서, 칸
+      // 안 글자를 직접 입력 중일 때(그 textarea가 이벤트 타깃)는 여기까지 오지 않고
+      // 브라우저 기본 텍스트 복사/붙여넣기가 그대로 동작해요 — "칸이 선택은 돼 있지만
+      // 입력 중은 아닌" 상태에서만 가로채요. 표가 전혀 선택 안 돼 있으면(activeTableBox
+      // 없음) 이 분기를 그냥 지나쳐서 아래 텍스트박스 복사/붙여넣기(Ctrl+C/V)가 예전과
+      // 똑같이 동작해요 — 페이지 전체의 Ctrl+C/V를 가로채는 게 아니에요.
+      if ((key === "c" || key === "v") && activeTableBox && tableCellSel?.activeCell) {
+        const handle = tableBoxHandlesRef.current.get(activeTableBox.boxId);
+        if (handle) {
+          e.preventDefault();
+          if (key === "c") handle.copyActiveCell();
+          else handle.pasteIntoSelectedCells();
+          return;
+        }
+      }
       if (key === "z" && e.shiftKey) {
         e.preventDefault();
         handleRedo();
@@ -12178,7 +12197,7 @@ function UploadPageContent() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTextBoxDef, activeTextBox, activeImageBox]);
+  }, [activeTextBoxDef, activeTextBox, activeImageBox, activeTableBox, tableCellSel]);
 
   async function uploadPhotoToStorage(photo: Photo): Promise<string> {
     const blob = await fetch(photo.url).then((res) => res.blob());
