@@ -6837,13 +6837,37 @@ const TableBoxOverlay = forwardRef<
   useEffect(() => {
     if (!dragSel) return;
     function handleUp() {
-      // 드래그가 끝나도 선택 범위는 남겨둬요(메뉴에서 "셀 병합" 누를 때까지) — 다만
-      // 빈 캔버스를 클릭하면 선택이 풀리도록, 박스 바깥 클릭 시엔 이 박스가 비활성화되면서
-      // 자연스럽게 이 컴포넌트가 다시 그려지진 않지만, 메뉴를 닫아 혼동을 줄여요.
+      // 드래그가 끝나도 선택 범위는 남겨둬요(메뉴에서 "셀 병합" 누를 때까지).
     }
     window.addEventListener("mouseup", handleUp);
     return () => window.removeEventListener("mouseup", handleUp);
   }, [dragSel]);
+
+  // 2026-11-3차, 혜민님 리포트("여러 칸을 드래그해 선택한 뒤 다른 곳을 클릭해도 파란
+  // 선택 표시가 남아 있다" / "표 전체를 다시 선택하거나 다른 셀을 선택했을 때 이전
+  // 칸의 선택 표시가 남는다") — 근본 원인: dragSel/activeCell이 이 컴포넌트(표 하나)
+  // 안의 로컬 state라서, 이 표가 비활성화돼도(캔버스 빈 곳 클릭 등) 저절로 안
+  // 지워졌어요. 그 결과 (a) 표 선택을 풀어도 칸의 파란 오버레이(아래 inSel)가 옛 선택
+  // 범위를 계속 보여줬고, (b) 이 표를 다시 선택하면(칸을 새로 클릭하기 전) 그 옛
+  // 드래그 범위가 그대로 되살아났어요 — 사용자 입장에선 "선택이 이상하게 남아있다"로
+  // 보였던 두 증상이 모두 이 하나의 원인이었어요. isActive가 바뀌는 순간 dragSel/
+  // activeCell을 같이 비워야 하는데, useEffect 안에서 setState를 부르면
+  // eslint(react-hooks/set-state-in-effect)가 막고, ref로 "이전 isActive"를 기억해서
+  // 렌더 중에 비교하면 eslint(react-hooks/refs, 렌더 중 ref 접근 금지)가 막아요(이
+  // 프로젝트의 React Compiler 규칙). 대신 리액트 공식 문서가 권장하는 "prop이 바뀌면
+  // 렌더 중에 state를 조정"하는 패턴을, ref가 아니라 useState로 "이전 isActive"를
+  // 기억하는 방식으로 써요 — 이건 두 규칙 모두를 지켜요(useEffect도 아니고, ref도 안
+  // 씀). 렌더 도중 setState를 호출하는 것 자체는 리액트가 공식적으로 지원하는
+  // 패턴이에요(같은 렌더에서 즉시 반영되고, 커밋 후 별도 렌더가 한 번 더 이어지는
+  // effect 방식과 달라요).
+  const [prevIsActiveForReset, setPrevIsActiveForReset] = useState(isActive);
+  if (prevIsActiveForReset !== isActive) {
+    setPrevIsActiveForReset(isActive);
+    if (!isActive && (dragSel !== null || activeCell !== null)) {
+      setDragSel(null);
+      setActiveCell(null);
+    }
+  }
 
   function handleMouseDown(e: React.MouseEvent) {
     e.stopPropagation();
@@ -7668,7 +7692,11 @@ const TableBoxOverlay = forwardRef<
         if (covering && !(covering.row === row && covering.col === col)) return null;
         const rowSpan = covering ? covering.rowSpan : 1;
         const colSpan = covering ? covering.colSpan : 1;
-        const inSel = !!selRange && row >= selRange.r0 && row <= selRange.r1 && col >= selRange.c0 && col <= selRange.c1;
+        // 2026-11-3차 — isActive가 아니면(표 선택이 풀렸으면) dragSel이 어떤 값이든
+        // 파란 선택 표시를 절대 안 보여줘요(위 useEffect가 비활성화 시 dragSel을 같이
+        // 지우지만, 혹시 같은 렌더 프레임에서 값이 아직 안 지워졌더라도 여기서 한 번 더
+        // 막아요 — 이중 안전장치).
+        const inSel = isActive && !!selRange && row >= selRange.r0 && row <= selRange.r1 && col >= selRange.c0 && col <= selRange.c1;
         // 이 칸(병합이면 anchor 기준)의 개별 설정 — 표 전체 기본값(align/valign/
         // cellPadding/fillColor)을 덮어써요(2026-09-28 혜민님 요청 "표 전체 설정과
         // 선택한 셀의 설정을 구분").
