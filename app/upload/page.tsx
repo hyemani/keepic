@@ -5055,6 +5055,68 @@ function TextBoxToolbar({
           />
         </div>
       </div>
+      {/* 2026-10(7차), 혜민님 요청("속성 패널에서도 상자 너비·높이를 확인하고 입력할
+          수 있으면 좋겠다") — 위 "가로 폭(%)"/"세로 폭(%)"은 글자 모양을 늘이는
+          scaleXPct/scaleYPct(캔버스 미리보기 전용)이고, 이건 그것과 완전히 다른 값 —
+          파란 선택 테두리·손잡이로 캔버스에서 조절하는 "박스 자신의 실제 크기"
+          (widthPct/heightPct)예요. 캔버스에서 손잡이를 끌어도 이 값이 그대로 바뀌고,
+          여기 숫자를 직접 입력해도 캔버스의 선택 테두리가 그만큼 바뀌어요 — 표지
+          제목·일반 글상자 둘 다 같은 값(widthPct/heightPct)을 쓰니 이 필드도 공통이에요. */}
+      <div>
+        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
+          박스 크기(선택 테두리, %)
+        </p>
+        <div className="grid grid-cols-2 gap-1.5">
+          <div>
+            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/50">너비</label>
+            <input
+              type="number"
+              min={6}
+              max={96}
+              step={1}
+              value={Math.round(box.widthPct)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                onChange({ widthPct: Math.max(6, Math.min(96, v)) });
+              }}
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-[10px] text-[var(--color-charcoal)]/50">높이</label>
+              <button
+                type="button"
+                onClick={() => onChange({ heightPct: box.heightPct === undefined ? 20 : undefined })}
+                title={box.heightPct === undefined ? "높이를 직접 지정해요(지금은 글자 양에 맞춰 자동)" : "다시 자동(글자 양에 맞춤)으로 되돌려요"}
+                className={`shrink-0 border px-1.5 py-0.5 text-[10px] ${
+                  box.heightPct !== undefined
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                }`}
+              >
+                {box.heightPct !== undefined ? "직접 지정" : "자동"}
+              </button>
+            </div>
+            {box.heightPct !== undefined && (
+              <input
+                type="number"
+                min={4}
+                max={96}
+                step={1}
+                value={Math.round(box.heightPct)}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (!Number.isFinite(v)) return;
+                  onChange({ heightPct: Math.max(4, Math.min(96, v)) });
+                }}
+                className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+              />
+            )}
+          </div>
+        </div>
+      </div>
       {/* 2026-09-27, 혜민님 요청: "가운데정렬, 가운데 라고만 버튼이 되어있으니 어떤것을
           의미하는지 확인이 어렵습니다. 텍스트 가운데 정렬이면 텍스트 관련된 아이콘으로
           박스영역이면 박스영역 관련된 아이콘으로" — 텍스트 문단 정렬(가로)은 글줄
@@ -7780,6 +7842,8 @@ function CoverTitleOverlay({
   xPct,
   yPct,
   widthPct,
+  heightPct,
+  verticalAlign = "top",
   fontSizeCqh,
   lineHeightEm,
   letterSpacingEm,
@@ -7792,6 +7856,7 @@ function CoverTitleOverlay({
   isActive,
   editMode,
   onMove,
+  onResizeBox,
   onSelect,
   editableBox,
   onEditableBoxChange,
@@ -7800,6 +7865,11 @@ function CoverTitleOverlay({
   xPct: number;
   yPct: number;
   widthPct: number;
+  // 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 손잡이로 크기 조절") — 일반
+  // 글상자(TextBoxDef.heightPct)와 같은 개념이에요. 없으면(undefined) 예전처럼 글자
+  // 양에 맞춰 세로가 자동으로 늘어나요.
+  heightPct?: number;
+  verticalAlign?: "top" | "middle" | "bottom";
   fontSizeCqh: number; // 실제 pt 크기를 컨테이너 높이 대비 %(cqh)로 환산한 값 — 창 크기와 무관하게 항상 같은 실물 크기로 보여요.
   lineHeightEm: number;
   letterSpacingEm: number;
@@ -7827,6 +7897,12 @@ function CoverTitleOverlay({
   // 아무것도 안 그려요.
   editMode: boolean;
   onMove: (changes: { xPct: number; yPct: number }) => void;
+  // 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 선택 테두리의 손잡이를
+  // 드래그해 크기를 조절") — 일반 글상자(TextBoxOverlay)의 handleResizeStart와 같은
+  // 방식으로, 8방향 손잡이를 끌 때 바뀌는 위치·크기를 여기로 올려보내요. 글자 크기
+  // (fontSizeCqh)는 이 값과 완전히 무관해서, 박스를 늘리거나 줄여도 글자 크기는
+  // 저절로 안 바뀌어요(일반 글상자와 동일한 보장).
+  onResizeBox: (changes: { xPct?: number; yPct?: number; widthPct?: number; heightPct?: number }) => void;
   // 제목 자리를 클릭하면 선택해요(selectCoverTitle).
   onSelect: () => void;
   // 2026-10(5차), 혜민님 요청("표지나 책등의 기존 글자는... 일반 텍스트 상자처럼 화면에서
@@ -7848,6 +7924,81 @@ function CoverTitleOverlay({
   });
   const boxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, xPct: 0, yPct: 0, cellW: 1, cellH: 1 });
+  // 2026-10(7차) — 일반 글상자(TextBoxOverlay)의 resizeStart와 완전히 같은 8방향 크기
+  // 조절 상태예요. 왼쪽/위쪽 손잡이를 끌면 반대쪽은 고정한 채 위치·크기가 같이 바뀌어요.
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeStart = useRef({
+    mouseX: 0,
+    mouseY: 0,
+    xPct: 0,
+    yPct: 0,
+    widthPct: 0,
+    heightPct: 0,
+    cellW: 1,
+    cellH: 1,
+    dir: "se" as TextBoxResizeDir,
+  });
+
+  function handleResizeStart(dir: TextBoxResizeDir, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect();
+    const cellRect = boxRef.current?.parentElement?.getBoundingClientRect();
+    const boxRect = boxRef.current?.getBoundingClientRect();
+    const cellH = cellRect?.height || 1;
+    const currentHeightPct = heightPct ?? (boxRect ? (boxRect.height / cellH) * 100 : 10);
+    resizeStart.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      xPct,
+      yPct,
+      widthPct,
+      heightPct: currentHeightPct,
+      cellW: cellRect?.width || 1,
+      cellH,
+      dir,
+    };
+    setIsResizing(true);
+  }
+
+  useEffect(() => {
+    if (!isResizing) return;
+    function handleMouseMove(e: MouseEvent) {
+      const s = resizeStart.current;
+      const dxPct = ((e.clientX - s.mouseX) / s.cellW) * 100;
+      const dyPct = ((e.clientY - s.mouseY) / s.cellH) * 100;
+      const changes: { xPct?: number; yPct?: number; widthPct?: number; heightPct?: number } = {};
+      const hasE = s.dir.includes("e");
+      const hasW = s.dir.includes("w");
+      const hasS = s.dir.includes("s");
+      const hasN = s.dir.includes("n");
+      if (hasE) {
+        changes.widthPct = Math.min(96, Math.max(6, s.widthPct + dxPct));
+      } else if (hasW) {
+        const nextWidth = Math.min(96, Math.max(6, s.widthPct - dxPct));
+        changes.widthPct = nextWidth;
+        changes.xPct = s.xPct + (s.widthPct - nextWidth);
+      }
+      if (hasS) {
+        changes.heightPct = Math.min(96, Math.max(4, s.heightPct + dyPct));
+      } else if (hasN) {
+        const nextHeight = Math.min(96, Math.max(4, s.heightPct - dyPct));
+        changes.heightPct = nextHeight;
+        changes.yPct = s.yPct + (s.heightPct - nextHeight);
+      }
+      onResizeBox(changes);
+    }
+    function handleMouseUp() {
+      setIsResizing(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isResizing]);
 
   function handleDragStart(e: React.MouseEvent) {
     e.preventDefault();
@@ -7981,7 +8132,25 @@ function CoverTitleOverlay({
       className={`group/ct absolute z-28 outline outline-1 ${SELECTION_OUTLINE_OFFSET_CLASS} transition ${selectionOutlineClassName(
         isActive && editMode ? "active" : "idle"
       )}`}
-      style={{ left: `${xPct}%`, top: `${yPct}%`, width: `${widthPct}%` }}
+      style={{
+        left: `${xPct}%`,
+        top: `${yPct}%`,
+        width: `${widthPct}%`,
+        // 2026-10(7차) — 일반 글상자(TextBoxOverlay)와 똑같이, 실제 높이(heightPct)가
+        // 있을 때만 세로 정렬(위/가운데/아래)이 보여요(없으면 글자 양만큼 자동으로 늘어나
+        // 남는 공간이 없어서 항상 위와 같아요).
+        height: heightPct !== undefined ? `${heightPct}%` : undefined,
+        display: heightPct !== undefined ? "flex" : undefined,
+        flexDirection: heightPct !== undefined ? "column" : undefined,
+        justifyContent:
+          heightPct !== undefined
+            ? verticalAlign === "middle"
+              ? "center"
+              : verticalAlign === "bottom"
+                ? "flex-end"
+                : "flex-start"
+            : undefined,
+      }}
     >
       {hasBackgroundWidthOverride && (
         <div
@@ -8067,6 +8236,10 @@ function CoverTitleOverlay({
           {title}
         </p>
       ) : null}
+      {/* 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 선택 테두리의 손잡이를
+          드래그해 크기를 조절") — 일반 글상자(TextBoxOverlay)와 똑같이 SelectionHandles를
+          재사용해요(같은 컴포넌트, 같은 8방향). */}
+      {editMode && <SelectionHandles active={isActive} onResizeStart={handleResizeStart} />}
     </div>
   );
 }
@@ -8839,7 +9012,18 @@ function UploadPageContent() {
   // 비슷한 자리예요.
   const [coverTitleXPct, setCoverTitleXPct] = useState(8);
   const [coverTitleYPct, setCoverTitleYPct] = useState(84);
-  const coverTitleWidthPct = 84;
+  // 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 선택 테두리의 손잡이를
+  // 드래그해 크기를 조절") — 예전엔 84로 고정된 상수였는데, 이제 일반 글상자
+  // (TextBoxDef.widthPct)와 똑같이 손잡이로 드래그해서 바꿀 수 있는 state예요. 기본값
+  // 84는 예전 고정값 그대로라 불러온 프로젝트도 화면이 안 바뀌어요.
+  const [coverTitleWidthPct, setCoverTitleWidthPct] = useState(84);
+  // 표지 제목의 실제 "박스 높이"예요(일반 글상자의 heightPct와 같은 개념, 2026-10(7차)
+  // 추가) — 없으면(undefined, 기존 그대로) 예전처럼 글자 양에 맞춰 세로가 자동으로
+  // 늘어나고(줄바꿈만큼), 손잡이로 위/아래를 끌면 이 값이 생기면서부터 "고정 높이
+  // 박스"가 돼요(일반 글상자가 heightPct 없음→있음으로 바뀌는 것과 동일). 글자 크기
+  // (coverTitleFontSizePt)는 이 값과 완전히 독립이라 박스 크기를 바꿔도 글자 크기는
+  // 저절로 안 바뀌어요(일반 글상자와 동일).
+  const [coverTitleHeightPct, setCoverTitleHeightPct] = useState<number | undefined>(undefined);
   // 책등 텍스트박스예요. 가로폭은 책등 폭에 항상 맞춰지도록 고정이고(따로 조절 안 해요),
   // 세로 위치·높이만 화면에서 끌어서 바꿀 수 있어요(일러스트레이터 텍스트박스처럼요).
   const [spineTitleYPct, setSpineTitleYPct] = useState<number | null>(null); // null = 아직 직접 옮기지 않음 → 기본값(위에서 25mm)을 화면에서 계산해서 보여줘요
@@ -11190,6 +11374,8 @@ function UploadPageContent() {
       coverTitleLetterSpacingEm,
       coverTitleXPct,
       coverTitleYPct,
+      coverTitleWidthPct,
+      coverTitleHeightPct,
       coverTitleFontFamily,
       coverTitleAlign,
       coverTitleColor,
@@ -11251,6 +11437,11 @@ function UploadPageContent() {
     // 이전 draft 문자열이 남아있게 됨).
     setCoverTitleXPct(s.coverTitleXPct);
     setCoverTitleYPct(s.coverTitleYPct);
+    // 2026-10(7차) — 옛날 스냅샷(이번 업데이트 전)엔 이 필드가 아예 없어요. widthPct는
+    // 없으면 예전 고정값(84)으로, heightPct는 없으면 undefined(=예전처럼 자동 높이)로
+    // 그대로 남아서 하위 호환돼요.
+    setCoverTitleWidthPct(s.coverTitleWidthPct ?? 84);
+    setCoverTitleHeightPct(s.coverTitleHeightPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
     setCoverTitleAlign(s.coverTitleAlign ?? "center");
     setCoverTitleColor(s.coverTitleColor ?? "#ffffff");
@@ -11357,6 +11548,8 @@ function UploadPageContent() {
     coverTitleLetterSpacingEm,
     coverTitleXPct,
     coverTitleYPct,
+    coverTitleWidthPct,
+    coverTitleHeightPct,
     coverTitleFontFamily,
     coverTitleAlign,
     coverTitleColor,
@@ -11606,6 +11799,8 @@ function UploadPageContent() {
       coverTitleXPct,
       coverTitleYPct,
       coverTitleWidthPct,
+      coverTitleHeightPct,
+      coverTitleVerticalAlign,
       coverTitleColor,
       coverTitleBold,
       coverTitleUnderline,
@@ -12048,6 +12243,7 @@ function UploadPageContent() {
       xPct: coverTitleXPct,
       yPct: coverTitleYPct,
       widthPct: coverTitleWidthPct,
+      heightPct: coverTitleHeightPct,
       fontFamily: coverTitleFontFamily,
       fontScale: textBoxPtToFontScale(coverTitleFontSizePt, coverTitlePanelPageWidthMm),
       color: coverTitleColor,
@@ -12073,6 +12269,11 @@ function UploadPageContent() {
       // text만 coverTitle 상태로 반영해요 — handleCoverTitleChange를 그대로 써서 책등
       // 자동 동기화(spineTitleEditedRef가 아직 false일 때) 로직도 똑같이 타요.
       if (changes.text !== undefined) handleCoverTitleChange(changes.text);
+      // 2026-10(7차) — 속성 패널의 "가로 폭(%)"/"세로 폭(%)" 입력칸(TextBoxToolbar가
+      // 이미 widthPct/heightPct로 갖고 있던 필드를 그대로 재사용)과, 캔버스에서 손잡이를
+      // 끌 때(아래 CoverTitleOverlay onResizeBox) 둘 다 이 경로로 들어와요.
+      if (changes.widthPct !== undefined) setCoverTitleWidthPct(changes.widthPct);
+      if ("heightPct" in changes) setCoverTitleHeightPct(changes.heightPct);
       if (changes.fontFamily !== undefined) handleCoverTitleFontFamilyChange(changes.fontFamily);
       if (changes.fontScale !== undefined) {
         const pt = textBoxFontScaleToPt(changes.fontScale, coverTitlePanelPageWidthMm);
@@ -13677,6 +13878,8 @@ function UploadPageContent() {
                               xPct={coverTitleXPct}
                               yPct={coverTitleYPct}
                               widthPct={coverTitleWidthPct}
+                              heightPct={coverTitleHeightPct}
+                              verticalAlign={coverTitleVerticalAlign}
                               fontSizeCqh={coverTitleFontSizeCqh}
                               lineHeightEm={coverTitleLineHeightEm}
                               letterSpacingEm={coverTitleLetterSpacingEm}
@@ -13691,6 +13894,12 @@ function UploadPageContent() {
                               onMove={({ xPct, yPct }) => {
                                 setCoverTitleXPct(xPct);
                                 setCoverTitleYPct(yPct);
+                              }}
+                              onResizeBox={(changes) => {
+                                if (changes.xPct !== undefined) setCoverTitleXPct(changes.xPct);
+                                if (changes.yPct !== undefined) setCoverTitleYPct(changes.yPct);
+                                if (changes.widthPct !== undefined) setCoverTitleWidthPct(changes.widthPct);
+                                if ("heightPct" in changes) setCoverTitleHeightPct(changes.heightPct);
                               }}
                               onSelect={selectCoverTitle}
                               editableBox={coverTitleAsTextBox}

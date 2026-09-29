@@ -1870,6 +1870,8 @@ export async function buildCoverPrintPdf({
   coverTitleXPct = 8,
   coverTitleYPct = 84,
   coverTitleWidthPct = 84,
+  coverTitleHeightPct,
+  coverTitleVerticalAlign = "top",
   coverTitleColor = "#ffffff",
   coverTitleBold = true,
   coverTitleUnderline = false,
@@ -1927,6 +1929,13 @@ export async function buildCoverPrintPdf({
   coverTitleXPct?: number;
   coverTitleYPct?: number;
   coverTitleWidthPct?: number;
+  // 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 손잡이로 크기 조절") — 화면
+  // (app/upload/page.tsx CoverTitleOverlay)과 같은 개념의 실제 박스 높이예요(제목
+  // 자리 전체를 100%로 보는 %). 없으면(undefined, 하위 호환) 예전처럼 줄 단위로만
+  // 배경을 그리고(세로 정렬 개념 자체가 없음), 있으면 일반 글상자의 fillBox와 똑같이
+  // 박스 전체 사각형 하나로 배경을 그리고 세로 정렬(coverTitleVerticalAlign)도 적용해요.
+  coverTitleHeightPct?: number;
+  coverTitleVerticalAlign?: "top" | "middle" | "bottom";
   // 2026-10-08, 혜민님 요청("표지 타이틀·글상자·책등을 같은 패널로 통일") — 표지 제목도
   // 일반 글상자처럼 글자색·굵게·밑줄·기울임을 직접 고를 수 있어요. 기본값은 예전에
   // 항상 고정이던 모습(흰색+굵게, 밑줄·기울임 없음) 그대로예요.
@@ -2240,10 +2249,33 @@ export async function buildCoverPrintPdf({
         : coverTitleAlign === "right"
           ? titleBoxLeftPx + titleBoxWidthPx
           : titleBoxLeftPx + titleBoxWidthPx / 2;
-    const titleYpx = (coverTitleYPct / 100) * frontCellHpx;
+    const titleBoxTopPx = (coverTitleYPct / 100) * frontCellHpx;
     const titleMaxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
     const titleLinePx = titlePx * coverTitleLineHeightEm;
     const titleLines = coverTitle.trim().split("\n");
+    // 2026-10(7차) — 화면(CoverTitleOverlay)과 같은 "실제 높이(heightPct)가 있을 때만
+    // 세로 정렬"이에요. 없으면(예전과 동일) 항상 맨 위부터 그려요.
+    const titleBlockHeightPx = titleLines.length * titleLinePx;
+    const titleBoxHeightPx =
+      coverTitleHeightPct !== undefined ? (coverTitleHeightPct / 100) * frontCellHpx : undefined;
+    const titleStartYOffsetPx =
+      titleBoxHeightPx !== undefined
+        ? coverTitleVerticalAlign === "middle"
+          ? Math.max(0, titleBoxHeightPx - titleBlockHeightPx) / 2
+          : coverTitleVerticalAlign === "bottom"
+            ? Math.max(0, titleBoxHeightPx - titleBlockHeightPx)
+            : 0
+        : 0;
+    const titleYpx = titleBoxTopPx + titleStartYOffsetPx;
+    // "박스 전체 배경"(fillBox) + 실제 높이가 있으면, 화면의 TextBoxOverlay와 똑같이
+    // 줄마다가 아니라 박스 전체를 덮는 사각형 하나를 글자보다 먼저 한 번만 그려요.
+    if (coverTitleBackgroundColor && coverTitleBackgroundMode === "fillBox" && titleBoxHeightPx !== undefined) {
+      ctxNN.save();
+      ctxNN.shadowBlur = 0;
+      ctxNN.fillStyle = coverTitleBackgroundColor;
+      ctxNN.fillRect(titleBoxLeftPx, titleBoxTopPx, titleBoxWidthPx, titleBoxHeightPx);
+      ctxNN.restore();
+    }
     // 밑줄(2026-10-08, 표지 제목도 일반 글상자·책등과 같은 밑줄 기능을 쓸 수 있게) — 줄마다
     // 실제 그려진 폭을 재서, 정렬(align) 기준점에 맞춰 시작 x를 다시 계산해요
     // (drawTextBoxOnCanvas의 measureLineBox와 같은 방식).
@@ -2257,8 +2289,14 @@ export async function buildCoverPrintPdf({
             ? titleXpx - lineWidth
             : titleXpx - lineWidth / 2;
       // 배경(하이라이트, 2026-10 6차) — drawTextBoxOnCanvas의 drawLineBackground와
-      // 같은 em 기준 여백 비율로, 글자를 그리기 전에 먼저 그려요.
-      if (coverTitleBackgroundColor && line.trim()) {
+      // 같은 em 기준 여백 비율로, 글자를 그리기 전에 먼저 그려요. fillBox 모드에서 실제
+      // 높이(titleBoxHeightPx)가 있으면 위에서 이미 박스 전체 사각형 하나로 다 그렸으니
+      // (2026-10 7차) 줄마다 또 그리지 않아요(중복 방지).
+      if (
+        coverTitleBackgroundColor &&
+        line.trim() &&
+        !(coverTitleBackgroundMode === "fillBox" && titleBoxHeightPx !== undefined)
+      ) {
         const padX = (titlePx * coverTitleBackgroundPaddingXPct) / 100;
         const padY = (titlePx * coverTitleBackgroundPaddingYPct) / 100;
         // "박스 전체 배경"(fillBox, 2026-10) — 화면(app/upload/page.tsx CoverTitleOverlay,
