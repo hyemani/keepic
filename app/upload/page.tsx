@@ -6918,15 +6918,28 @@ const TableBoxOverlay = forwardRef<
     null
   );
   const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+  // 2026-11-5차, 혜민님 리포트("드래그할때 드래그의 마지막 위치에서 멈추고싶은데
+  // 드래그가 계속 따라다녀") — 근본 원인: 아래 각 칸의 onMouseEnter가 "지금 실제로
+  // 마우스 버튼이 눌려있는 중인지"를 전혀 확인하지 않고, dragSel이 있기만 하면 무조건
+  // 셀 선택 범위를 넓혔어요. 그런데 dragSel은 mouseup 이후에도 일부러 안 지워지므로
+  // (바로 위 handleUp 주석 — "병합" 누를 때까지 선택 유지), 마우스 버튼을 뗀 뒤 커서를
+  // 표 위로 그냥 움직이기만 해도(클릭 없이) onMouseEnter가 계속 불려서 선택 범위가
+  // 커서를 따라 계속 바뀌었어요 — "드래그가 끝났는데도 계속 따라다닌다"는 증상 그대로.
+  // isSelectingCells를 실제 드래그 구간(칸 mousedown ~ window mouseup)에만 true로 두고,
+  // onMouseEnter는 이 값이 true일 때만 dragSel을 갱신하도록 막아요. mouseup 리스너를
+  // window에 붙여서(칸 밖에서 놓아도, 빠르게 움직여도) 항상 확실히 끝나게 해요.
+  const [isSelectingCells, setIsSelectingCells] = useState(false);
 
   useEffect(() => {
-    if (!dragSel) return;
+    if (!isSelectingCells) return;
     function handleUp() {
-      // 드래그가 끝나도 선택 범위는 남겨둬요(메뉴에서 "셀 병합" 누를 때까지).
+      // 드래그가 끝나도 선택 "범위"는 남겨둬요(메뉴에서 "셀 병합" 누를 때까지) —
+      // 여기선 오직 "지금 드래그 중" 플래그만 끄고, dragSel 자체는 안 건드려요.
+      setIsSelectingCells(false);
     }
     window.addEventListener("mouseup", handleUp);
     return () => window.removeEventListener("mouseup", handleUp);
-  }, [dragSel]);
+  }, [isSelectingCells]);
 
   // 2026-11-3차, 혜민님 리포트("여러 칸을 드래그해 선택한 뒤 다른 곳을 클릭해도 파란
   // 선택 표시가 남아 있다" / "표 전체를 다시 선택하거나 다른 셀을 선택했을 때 이전
@@ -6951,6 +6964,7 @@ const TableBoxOverlay = forwardRef<
     if (!isActive && (dragSel !== null || activeCell !== null)) {
       setDragSel(null);
       setActiveCell(null);
+      setIsSelectingCells(false);
     }
   }
 
@@ -7842,8 +7856,14 @@ const TableBoxOverlay = forwardRef<
               onSelect();
               setDragSel({ anchorRow: row, anchorCol: col, row, col });
               setActiveCell({ row, col });
+              setIsSelectingCells(true);
             }}
-            onMouseEnter={() => {
+            onMouseEnter={(e) => {
+              // 마우스 "버튼이 실제로 눌려있는 동안"(e.buttons에 왼쪽 버튼 비트가 켜져
+              // 있는 동안)만 선택 범위를 넓혀요 — isSelectingCells는 window의 mouseup에서
+              // 확실히 꺼지지만, 혹시라도 이 mouseEnter가 그 이벤트보다 먼저 그 프레임에
+              // 도착하는 경우까지 한 번 더 막는 이중 안전장치예요.
+              if (!isSelectingCells || (e.buttons & 1) === 0) return;
               setDragSel((prev) => (prev ? { ...prev, row, col } : prev));
             }}
             style={{
