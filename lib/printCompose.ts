@@ -881,14 +881,18 @@ function drawTableGridAndCells(
       const m = mergeAtPrint(r, c);
       if (m && !(m.row === r && m.col === c)) continue;
       const style = cellStyleAtPrint(r, c);
-      if (!style?.fillColor) continue;
+      // 2026-11, "없음"(채우기 없음) 스와치 지원: fillColor 없이 fillOpacity만(예: 0)
+      // 따로 준 칸도 여기서 덧칠해야 해요 — 원래는 fillColor가 있어야만 덧칠했는데,
+      // 그러면 "이 칸만 투명도 0" 같은 fillOpacity 전용 개별 설정이 무시되고 표 전체
+      // 배경(box.fillColor/fillOpacity)이 그대로 비쳐 보였어요.
+      if (style?.fillColor === undefined && style?.fillOpacity === undefined) continue;
       const rowSpan = m ? m.rowSpan : 1;
       const colSpan = m ? m.colSpan : 1;
       const cellLeftPx = leftPx + colLefts[c];
       const cellRightPx = leftPx + colLefts[c + colSpan];
       const cellTopPx = topPx + rowTops[r];
       const cellBottomPx = topPx + rowTops[r + rowSpan];
-      ctx.fillStyle = hexToRgbaPrint(style.fillColor, style.fillOpacity ?? 1);
+      ctx.fillStyle = hexToRgbaPrint(style.fillColor ?? box.fillColor ?? "#ffffff", style.fillOpacity ?? 1);
       ctx.fillRect(cellLeftPx, cellTopPx, cellRightPx - cellLeftPx, cellBottomPx - cellTopPx);
     }
   }

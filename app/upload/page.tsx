@@ -3680,7 +3680,7 @@ function BorderPositionPanel({
             이 위치에 선 표시
           </label>
           {enabled && (
-            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+            <div className="mt-1.5 flex items-center gap-1.5">
               <input
                 type="color"
                 value={color}
@@ -3688,6 +3688,10 @@ function BorderPositionPanel({
                 className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
                 title="이 위치의 선 색"
               />
+              {/* 2026-11, 혜민님 요청: 선색에도 "없음" 견본 — 클릭하면 위 "이 위치에
+                  선 표시" 체크를 그대로 끄는 것과 같아요(새 데이터 표현을 만들지 않고
+                  기존 enabled:false 상태를 재사용). */}
+              <NoneSwatchButton active={false} onClick={() => apply({ enabled: false })} title="선 없음" />
               <input
                 type="number"
                 min={0}
@@ -3695,13 +3699,13 @@ function BorderPositionPanel({
                 step={0.5}
                 value={width}
                 onChange={(e) => apply({ width: Math.max(0, Math.min(8, Number(e.target.value) || 0)) })}
-                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
                 title="이 위치의 선 굵기(px)"
               />
               <select
                 value={styleKind}
                 onChange={(e) => apply({ style: e.target.value as "solid" | "dashed" | "dotted" })}
-                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                className="min-w-0 flex-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
               >
                 <option value="solid">실선</option>
                 <option value="dashed">파선</option>
@@ -3719,6 +3723,50 @@ function BorderPositionPanel({
 // 요청: "표 면, 표 색, 라인색, 선 종류, 라운드, 표크기"). TextBoxToolbar와 같은
 // 자리(표만들기 서브탭 안, + 표 추가 버튼 바로 아래)에 나와요 — 선택된 표가 없으면
 // 아무것도 안 그려요.
+// "없음"(면 없음/선 없음/완전 투명) 선택용 사선(대각선) 스와치 버튼이에요(2026-11,
+// 혜민님 요청: 두 번째 참고 이미지처럼 사선이 그어진 "없음" 견본 — 일러스트레이터/
+// 파워포인트 색상 선택기의 흔한 관례). 체크무늬 배경 위에 빨간 사선을 그어서 "색이
+// 없다"는 걸 한눈에 알아보게 해요 — 이 사선은 이 스와치에만 나오고, 일반 색상
+// 스와치(<input type="color">)에는 절대 안 나와요. 클릭하면 onClick만 호출하고 실제
+// "없음" 의미(채우기 투명도 0, 선 안 보이기 등)는 각 호출부가 정해요 — 새 데이터
+// 필드를 만들지 않고 기존 투명도(fillOpacity/borderOpacity)·enabled 값을 재사용해요.
+function NoneSwatchButton({
+  active,
+  onClick,
+  title,
+  size = 7,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  size?: number;
+}) {
+  const px = size === 7 ? "h-7 w-7" : "h-5 w-5";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      className={`relative shrink-0 overflow-hidden border ${px} ${
+        active ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+      }`}
+      style={{
+        backgroundImage:
+          "linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)",
+        backgroundSize: "6px 6px",
+        backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
+        backgroundColor: "#ffffff",
+      }}
+    >
+      <svg viewBox="0 0 28 28" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+        <line x1="3" y1="25" x2="25" y2="3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
 function TableBoxToolbar({
   box,
   onChange,
@@ -3883,10 +3931,22 @@ function TableBoxToolbar({
                   onChange={(e) =>
                     (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
                       fillColor: e.target.value,
+                      fillOpacity: (sel.selStyle?.fillOpacity ?? 1) === 0 ? 1 : sel.selStyle?.fillOpacity,
                     })
                   }
                   className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
                   title="선택한 칸 배경색"
+                />
+                {/* 2026-11, 혜민님 요청: 선택한 칸 배경색에도 "없음" 견본 — 이 칸의
+                    fillOpacity를 0으로 둬서(새 필드 아님) 이 칸만 채우기 없이 그려요. */}
+                <NoneSwatchButton
+                  active={(sel.selStyle?.fillOpacity ?? 1) === 0}
+                  onClick={() =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      fillOpacity: (sel.selStyle?.fillOpacity ?? 1) === 0 ? 1 : 0,
+                    })
+                  }
+                  title="채우기 없음"
                 />
                 <button
                   type="button"
@@ -3993,122 +4053,14 @@ function TableBoxToolbar({
               </div>
             </div>
           </div>
-          <div className="mt-1.5">
-            <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
-              테두리 변(눌러서 숨기기/표시 — 기본은 전부 표시)
-            </p>
-            <div className="grid grid-cols-4 gap-1">
-              {(
-                [
-                  { id: "top" as const, label: "위" },
-                  { id: "right" as const, label: "오른쪽" },
-                  { id: "bottom" as const, label: "아래" },
-                  { id: "left" as const, label: "왼쪽" },
-                ]
-              ).map((opt) => {
-                const hidden = !!sel.selStyle?.hiddenSides?.[opt.id];
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() =>
-                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.toggleCellHiddenSide(
-                        opt.id
-                      )
-                    }
-                    title={hidden ? `${opt.label} 변 숨김 — 눌러서 표시` : `${opt.label} 변 표시 중 — 눌러서 숨기기`}
-                    className={`border px-1 py-1.5 text-[10px] transition ${
-                      hidden
-                        ? "border-[var(--color-hairline)] text-[var(--color-charcoal)]/30 line-through"
-                        : "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          {/* 2026-10, 혜민님 요청("칸을 선택하면 세부 테두리 설정이 사라진다 — 표
-              전체를 선택했을 때는 전체 선 설정을, 칸을 선택했을 때는 그 칸의 선
-              설정을 계속 쓸 수 있게") — 아래 "표 전체" 섹션의 "세부 테두리 설정"과
-              같은 선 종류·굵기 조작이지만, 여기서 바꾸면 표 전체가 아니라 지금 고른
-              칸(들)에 닿은 격자선에만 적용돼요(TableCellStyle.borderColor/Width/Style,
-              lib/albumTemplates.ts 주석 참고). 비워두면(기본값) 표 전체 설정을 그대로
-              따라요. */}
           <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-[10px] text-[var(--color-charcoal)]/60">선택한 칸의 선 설정</p>
-              <button
-                type="button"
-                onClick={() =>
-                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
-                    "borderColor",
-                    "borderWidth",
-                    "borderStyle",
-                    "dashLength",
-                    "dashGap",
-                  ])
-                }
-                className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
-              >
-                표 전체 설정 따르기
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">선 색</label>
-                <input
-                  type="color"
-                  value={sel.selStyle?.borderColor ?? box.borderColor ?? "#94A3B8"}
-                  onChange={(e) =>
-                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
-                      borderColor: e.target.value,
-                    })
-                  }
-                  className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-                  title="선택한 칸의 선 색"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">선 굵기(px)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={8}
-                  step={0.5}
-                  value={sel.selStyle?.borderWidth ?? box.borderWidth ?? 1}
-                  onChange={(e) =>
-                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
-                      borderWidth: Math.max(0, Math.min(8, Number(e.target.value) || 0)),
-                    })
-                  }
-                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-                />
-              </div>
-            </div>
-            <div className="mt-1.5">
-              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">선 종류</label>
-              <select
-                value={sel.selStyle?.borderStyle ?? box.borderStyle ?? "solid"}
-                onChange={(e) =>
-                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
-                    borderStyle: e.target.value as "solid" | "dashed" | "dotted",
-                  })
-                }
-                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-              >
-                <option value="solid">실선</option>
-                <option value="dashed">파선</option>
-                <option value="dotted">점선</option>
-              </select>
-            </div>
             {/* 2026-10 추가(혜민님 요청: "칸이나 여러 셀을 선택한 경우에도 선택 영역의
-                바깥쪽·안쪽 선을 같은 방식으로 지정") — 위 "선 색/굵기/종류"는 선택한
-                칸 전체에 똑같이 적용되는데(TableCellStyle.borderColor 등), 이 패널은
-                선택 범위의 "바깥쪽 변"/"안쪽 가로·세로선"을 서로 다르게(예: 바깥쪽은
-                굵은 검정, 안쪽은 얇은 회색) 지정해요 — 칸별 sideBorders로 저장돼서 위
-                설정보다 우선해요. */}
+                바깥쪽·안쪽 선을 같은 방식으로 지정") — 선택한 칸(들)의 선 설정은 이
+                패널 하나로 통일했어요(2026-11, 혜민님 요청: "위쪽 '테두리 변' 토글과
+                '선택한 칸의 선 설정'이 여기 위치 선택 도구와 중복" — 두 UI 모두 제거하고
+                이 패널만 남겼어요. 데이터는 그대로 hiddenSides/sideBorders에 쓰여요).
+                위 표 그림에서 위치를 고르고, 아래에서 색·굵기·종류 또는 "선 없음"을
+                지정해요 — 칸별 sideBorders로 저장돼서 표 전체 기본값보다 우선해요. */}
             <BorderPositionPanel
               defaultColor={sel.selStyle?.borderColor ?? box.borderColor ?? "#94A3B8"}
               defaultWidth={sel.selStyle?.borderWidth ?? box.borderWidth ?? 1}
@@ -4136,9 +4088,18 @@ function TableBoxToolbar({
             <input
               type="color"
               value={box.fillColor ?? "#ffffff"}
-              onChange={(e) => onChange({ fillColor: e.target.value })}
+              onChange={(e) => onChange({ fillColor: e.target.value, fillOpacity: (box.fillOpacity ?? 1) === 0 ? 1 : box.fillOpacity })}
               className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
               title="표 면 색"
+            />
+            {/* 2026-11, 혜민님 요청: "면색에 사선이 그어진 '없음' 견본 추가, 채우기
+                없음으로 동작" — 새 필드 없이 fillOpacity를 0으로 둬서 진짜로 안 그려요
+                (화면 backgroundColor rgba(...,0)·인쇄 hexToRgba(...,0) 둘 다 그 자체로
+                "아무것도 안 그림"과 같아요). */}
+            <NoneSwatchButton
+              active={(box.fillOpacity ?? 1) === 0}
+              onClick={() => onChange({ fillOpacity: (box.fillOpacity ?? 1) === 0 ? 1 : 0 })}
+              title="채우기 없음"
             />
             <button
               type="button"
@@ -4150,9 +4111,20 @@ function TableBoxToolbar({
           </div>
           {/* 2026-09-28, 혜민님 요청: "표 면 색상과 라인색은 투명도 있도록 해줘" —
               네이티브 color input은 hex만 지원해서(투명도 없음) 슬라이더를 따로 뒀어요. */}
-          <label className="mb-1 mt-1.5 block text-[10px] text-[var(--color-charcoal)]/60">
-            투명도 {Math.round((box.fillOpacity ?? 1) * 100)}%
-          </label>
+          <div className="mb-1 mt-1.5 flex items-center justify-between gap-1.5">
+            <label className="block text-[10px] text-[var(--color-charcoal)]/60">
+              투명도 {Math.round((box.fillOpacity ?? 1) * 100)}%
+            </label>
+            {/* 2026-11, 혜민님 요청: 투명도에도 같은 사선 스와치로 "완전 투명" 한 번에
+                고르는 선택지 — 기존 슬라이더는 그대로 두고, 0%로 바로 보내는 지름길만
+                더해요(새 데이터 필드 아님, 슬라이더가 갈 수 있는 값 중 하나). */}
+            <NoneSwatchButton
+              active={(box.fillOpacity ?? 1) === 0}
+              onClick={() => onChange({ fillOpacity: 0 })}
+              title="완전 투명"
+              size={5}
+            />
+          </div>
           <input
             type="range"
             min={0}
@@ -4169,9 +4141,21 @@ function TableBoxToolbar({
             <input
               type="color"
               value={box.borderColor ?? "#94A3B8"}
-              onChange={(e) => onChange({ borderColor: e.target.value })}
+              onChange={(e) => onChange({ borderColor: e.target.value, borderOpacity: (box.borderOpacity ?? 1) === 0 ? 1 : box.borderOpacity })}
               className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
               title="라인 색"
+            />
+            {/* 2026-11, 혜민님 요청: 선색에도 "없음" 견본 — 선 없음으로 동작.
+                borderOpacity를 0으로 둬서 진짜로 안 그려요. ⚠️ resolveGridSegmentStyle이
+                색만 위치별/칸별로 고르고 투명도(box.borderOpacity)는 항상 표 전체
+                값 하나를 그대로 쓰기 때문에(기존 동작, 이번에 안 바꿨어요), 이 스위치는
+                위치별·칸별로 다른 색을 준 선까지 포함해 표의 모든 격자선을 한 번에
+                숨겨요 — "표 전체 선을 통째로 없앨 때"용이고, 특정 위치/칸만 선 없이
+                하려면 그 위치의 BorderPositionPanel에서 "이 위치에 선 표시"를 꺼주세요. */}
+            <NoneSwatchButton
+              active={(box.borderOpacity ?? 1) === 0}
+              onClick={() => onChange({ borderOpacity: (box.borderOpacity ?? 1) === 0 ? 1 : 0 })}
+              title="선 없음"
             />
             <button
               type="button"
@@ -4181,9 +4165,17 @@ function TableBoxToolbar({
               기본값
             </button>
           </div>
-          <label className="mb-1 mt-1.5 block text-[10px] text-[var(--color-charcoal)]/60">
-            투명도 {Math.round((box.borderOpacity ?? 1) * 100)}%
-          </label>
+          <div className="mb-1 mt-1.5 flex items-center justify-between gap-1.5">
+            <label className="block text-[10px] text-[var(--color-charcoal)]/60">
+              투명도 {Math.round((box.borderOpacity ?? 1) * 100)}%
+            </label>
+            <NoneSwatchButton
+              active={(box.borderOpacity ?? 1) === 0}
+              onClick={() => onChange({ borderOpacity: 0 })}
+              title="완전 투명"
+              size={5}
+            />
+          </div>
           <input
             type="range"
             min={0}
@@ -7691,9 +7683,13 @@ const TableBoxOverlay = forwardRef<
               justifyContent: effValign === "middle" ? "center" : effValign === "bottom" ? "flex-end" : "flex-start",
               boxSizing: "border-box",
               padding: `${effPadding}px`,
-              backgroundColor: cellOverride?.fillColor
-                ? hexToRgba(cellOverride.fillColor, cellOverride.fillOpacity ?? 1)
-                : undefined,
+              // 2026-11, "없음"(채우기 없음) 스와치 지원: fillColor 없이 fillOpacity만
+              // (예: 0) 따로 준 칸도 반영해야 해요 — lib/printCompose.ts의 같은 수정과
+              // 짝을 이뤄요(둘 다 안 고치면 화면·인쇄가 서로 달라져요).
+              backgroundColor:
+                cellOverride?.fillColor !== undefined || cellOverride?.fillOpacity !== undefined
+                  ? hexToRgba(cellOverride.fillColor ?? box.fillColor ?? "#ffffff", cellOverride.fillOpacity ?? 1)
+                  : undefined,
               overflow: "hidden",
             }}
           >
