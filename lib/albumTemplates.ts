@@ -74,6 +74,12 @@ export type TextBoxDef = {
   underline?: boolean;
   // 기울임(이탤릭). 값이 없으면 기울임 없음(기존과 동일).
   italic?: boolean;
+  // 취소선(2026-10, 표지 제목/책등/일반 글상자 속성 패널 통일 작업 중 추가). 값이
+  // 없으면 취소선 없음(기존과 동일). 문자 단위 서식(runs)엔 아직 없어요 — 밑줄과
+  // 달리 박스 전체에만 적용돼요(선택 범위 일부만 취소선을 주는 기능은 이번 범위
+  // 밖이에요, applyRunAwareStyleChange를 거치지 않고 onChange로 바로 박스 전체에
+  // 적용해요).
+  strikethrough?: boolean;
   // 글자 배경색(하이라이트) — 지정 안 하면(undefined) 배경 없음(기존과 동일, 완전
   // 투명). 지정하면 텍스트 블록 뒤에 이 색으로 배경 사각형을 그려요.
   backgroundColor?: string;

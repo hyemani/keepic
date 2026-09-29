@@ -373,6 +373,20 @@ function drawTextBoxOnCanvasRuns(
           ctx.stroke();
           ctx.restore();
         }
+        // 취소선은 runs(문자 단위 서식)엔 없는 box 전체 필드라(위 drawTextBoxOnCanvas의
+        // drawLineStrikethrough와 같은 이유), 구간(run) 스타일과 무관하게 box.strikethrough
+        // 하나만 보고 모든 구간에 똑같이 그어요.
+        if (box.strikethrough) {
+          const strikeY = cursorY + seg.style.fontPx * 0.55;
+          ctx.save();
+          ctx.strokeStyle = seg.style.color;
+          ctx.lineWidth = Math.max(1, seg.style.fontPx * 0.06);
+          ctx.beginPath();
+          ctx.moveTo(cx, strikeY);
+          ctx.lineTo(cx + segWidth, strikeY);
+          ctx.stroke();
+          ctx.restore();
+        }
         cx += segWidth;
       }
       cursorY += lineHeight;
@@ -480,6 +494,23 @@ function drawTextBoxOnCanvas(
     ctx.restore();
   };
 
+  // 취소선(2026-10 6차, "일반 글상자 패널과 완전히 똑같이") — 글자 세로 가운데 즈음을
+  // 지나가요. 문자 단위 서식(runs)엔 아직 없어서(TextBoxDef.strikethrough 주석
+  // 참고) box.strikethrough 하나로 박스 전체에 같이 적용돼요.
+  const drawLineStrikethrough = (line: string, lineY: number) => {
+    if (!box.strikethrough) return;
+    const { lineStartX, lineWidth } = measureLineBox(line);
+    const strikeY = lineY + fontPx * 0.55;
+    ctx.save();
+    ctx.strokeStyle = box.color;
+    ctx.lineWidth = Math.max(1, fontPx * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(lineStartX, strikeY);
+    ctx.lineTo(lineStartX + lineWidth, strikeY);
+    ctx.stroke();
+    ctx.restore();
+  };
+
   // 높이(heightPct)가 정해져 있으면 화면과 똑같이 그 안쪽만 그리고 넘치는 줄은 잘라요
   // (일러스트레이터 텍스트박스처럼 높이를 고정한 경우예요). 세로 정렬(verticalAlign)에
   // 따라 남는 세로 공간만큼 시작 y를 아래로 밀어요 — 화면(app/upload/page.tsx)의 flex
@@ -500,6 +531,7 @@ function drawTextBoxOnCanvas(
       drawLineBackground(line, lineY);
       ctx.fillText(line, textX, lineY, w);
       drawLineUnderline(line, lineY);
+      drawLineStrikethrough(line, lineY);
     });
     ctx.restore();
     if ("letterSpacing" in ctx) {
@@ -513,6 +545,7 @@ function drawTextBoxOnCanvas(
     drawLineBackground(line, lineY);
     ctx.fillText(line, textX, lineY, w);
     drawLineUnderline(line, lineY);
+    drawLineStrikethrough(line, lineY);
   });
   // 다음에 이 ctx로 그릴 다른 글자(다른 텍스트박스·캡션 등)에 이 박스의 자간이
   // 그대로 남아 번지지 않도록 매번 원상복구해요(표지 제목과 같은 패턴).
@@ -1539,7 +1572,11 @@ function drawSpineTitleCanvas(
   align: "left" | "center" | "right" = "center",
   bold: boolean = true,
   underline: boolean = false,
-  italic: boolean = false
+  italic: boolean = false,
+  strikethrough: boolean = false,
+  backgroundColor?: string,
+  backgroundPaddingXPct: number = 40,
+  backgroundPaddingYPct: number = 25
 ): boolean {
   const trimmed = title.trim();
   if (!trimmed) return true;
@@ -1590,6 +1627,16 @@ function drawSpineTitleCanvas(
   ctx.save();
   ctx.translate(spineCenterXpx, startYpx + alignOffsetPx);
   ctx.rotate(Math.PI / 2); // 키픽 로고와 같은 방향 — 글자가 위(시작)→아래(끝)로 읽혀요
+  // 배경(하이라이트, 2026-10 6차) — 화면(SpineTitleOverlay)·표지 제목(drawCoverTitle)과
+  // 같은 em 기준 여백 비율로, 글자를 그리기 전에 먼저 그려요.
+  if (backgroundColor) {
+    const padX = (size * backgroundPaddingXPct) / 100;
+    const padY = (size * backgroundPaddingYPct) / 100;
+    ctx.save();
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(-padX / 2, -size / 2 - padY / 2, textWidthPx + padX, size + padY);
+    ctx.restore();
+  }
   ctx.fillStyle = color;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
@@ -1604,6 +1651,19 @@ function drawSpineTitleCanvas(
     ctx.beginPath();
     ctx.moveTo(0, underlineOffset);
     ctx.lineTo(textWidthPx, underlineOffset);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // 취소선(2026-10 6차) — 글자 세로 가운데(textBaseline이 "middle"이라 y=0이 글자
+  // 세로 중심) 근처를 지나가요.
+  if (strikethrough) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, size * 0.06);
+    const strikeOffset = size * 0.02;
+    ctx.beginPath();
+    ctx.moveTo(0, strikeOffset);
+    ctx.lineTo(textWidthPx, strikeOffset);
     ctx.stroke();
     ctx.restore();
   }
@@ -1689,6 +1749,10 @@ export async function buildCoverPrintPdf({
   coverTitleBold = true,
   coverTitleUnderline = false,
   coverTitleItalic = false,
+  coverTitleStrikethrough = false,
+  coverTitleBackgroundColor,
+  coverTitleBackgroundPaddingXPct = 40,
+  coverTitleBackgroundPaddingYPct = 25,
   innerPaperWeightG,
   pages,
   spineTitle,
@@ -1701,6 +1765,10 @@ export async function buildCoverPrintPdf({
   spineTitleBold = true,
   spineTitleUnderline = false,
   spineTitleItalic = false,
+  spineTitleStrikethrough = false,
+  spineTitleBackgroundColor,
+  spineTitleBackgroundPaddingXPct = 40,
+  spineTitleBackgroundPaddingYPct = 25,
   backCoverLogo = { xPct: 50, yPct: 50, scalePct: 100 },
   backCoverPhoto = null,
   backCoverBackgroundColor,
@@ -1738,6 +1806,14 @@ export async function buildCoverPrintPdf({
   coverTitleBold?: boolean;
   coverTitleUnderline?: boolean;
   coverTitleItalic?: boolean;
+  // 2026-10(6차), 혜민님 요청("일반 글상자 패널과 완전히 똑같이") — 취소선·배경
+  // (하이라이트)도 표지 제목에 반영해요(화면 app/upload/page.tsx의 coverTitleAsTextBox
+  // 어댑터·TextBoxToolbar와 같은 필드 이름). 기본값은 전부 "예전과 같은 모습"(취소선
+  // 없음, 배경 없음)이에요.
+  coverTitleStrikethrough?: boolean;
+  coverTitleBackgroundColor?: string;
+  coverTitleBackgroundPaddingXPct?: number;
+  coverTitleBackgroundPaddingYPct?: number;
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
@@ -1751,6 +1827,11 @@ export async function buildCoverPrintPdf({
   spineTitleBold?: boolean; // 기본 true(기존엔 항상 굵게 고정이었어요).
   spineTitleUnderline?: boolean;
   spineTitleItalic?: boolean;
+  // 2026-10(6차) — 표지 제목과 같은 이유로 책등에도 추가.
+  spineTitleStrikethrough?: boolean;
+  spineTitleBackgroundColor?: string;
+  spineTitleBackgroundPaddingXPct?: number;
+  spineTitleBackgroundPaddingYPct?: number;
   // 뒤표지 키픽 로고예요(2026-09, backCoverMode 토글을 대체) — null이면 로고를
   // 그리지 않고, 값이 있으면 그 위치(중심 기준 %)·크기(기본 100%=예전 고정 크기)로
   // 그려요. 사진(backCoverPhoto/backCoverImageBoxes)과는 독립된 객체라 함께 있을 수 있어요.
@@ -1957,7 +2038,11 @@ export async function buildCoverPrintPdf({
       spineTitleAlign,
       spineTitleBold,
       spineTitleUnderline,
-      spineTitleItalic
+      spineTitleItalic,
+      spineTitleStrikethrough,
+      spineTitleBackgroundColor,
+      spineTitleBackgroundPaddingXPct,
+      spineTitleBackgroundPaddingYPct
     );
   }
   if (spineLogoLayout.fits) {
@@ -2023,15 +2108,26 @@ export async function buildCoverPrintPdf({
     // (drawTextBoxOnCanvas의 measureLineBox와 같은 방식).
     titleLines.forEach((line, i) => {
       const lineY = titleYpx + i * titleLinePx;
+      const lineWidth = Math.min(ctxNN.measureText(line).width, titleMaxWidthPx);
+      const lineStartX =
+        coverTitleAlign === "left"
+          ? titleXpx
+          : coverTitleAlign === "right"
+            ? titleXpx - lineWidth
+            : titleXpx - lineWidth / 2;
+      // 배경(하이라이트, 2026-10 6차) — drawTextBoxOnCanvas의 drawLineBackground와
+      // 같은 em 기준 여백 비율로, 글자를 그리기 전에 먼저 그려요.
+      if (coverTitleBackgroundColor && line.trim()) {
+        const padX = (titlePx * coverTitleBackgroundPaddingXPct) / 100;
+        const padY = (titlePx * coverTitleBackgroundPaddingYPct) / 100;
+        ctxNN.save();
+        ctxNN.shadowBlur = 0;
+        ctxNN.fillStyle = coverTitleBackgroundColor;
+        ctxNN.fillRect(lineStartX - padX / 2, lineY - padY / 2, lineWidth + padX, titlePx + padY);
+        ctxNN.restore();
+      }
       ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
       if (coverTitleUnderline && line.trim()) {
-        const lineWidth = Math.min(ctxNN.measureText(line).width, titleMaxWidthPx);
-        const lineStartX =
-          coverTitleAlign === "left"
-            ? titleXpx
-            : coverTitleAlign === "right"
-              ? titleXpx - lineWidth
-              : titleXpx - lineWidth / 2;
         const underlineY = lineY + titlePx * 0.92;
         ctxNN.save();
         ctxNN.shadowBlur = 0;
@@ -2040,6 +2136,19 @@ export async function buildCoverPrintPdf({
         ctxNN.beginPath();
         ctxNN.moveTo(lineStartX, underlineY);
         ctxNN.lineTo(lineStartX + lineWidth, underlineY);
+        ctxNN.stroke();
+        ctxNN.restore();
+      }
+      // 취소선(2026-10 6차)
+      if (coverTitleStrikethrough && line.trim()) {
+        const strikeY = lineY + titlePx * 0.55;
+        ctxNN.save();
+        ctxNN.shadowBlur = 0;
+        ctxNN.strokeStyle = coverTitleColor;
+        ctxNN.lineWidth = Math.max(1, titlePx * 0.06);
+        ctxNN.beginPath();
+        ctxNN.moveTo(lineStartX, strikeY);
+        ctxNN.lineTo(lineStartX + lineWidth, strikeY);
         ctxNN.stroke();
         ctxNN.restore();
       }

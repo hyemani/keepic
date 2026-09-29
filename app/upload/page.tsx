@@ -2069,7 +2069,19 @@ function applyRunStyleToSpan(span: HTMLSpanElement, run: TextRun, box: TextBoxDe
   span.style.color = style.color;
   span.style.fontWeight = style.bold ? "700" : "400";
   span.style.fontStyle = style.italic ? "italic" : "normal";
-  span.style.textDecoration = style.underline ? "underline" : "none";
+  // 취소선(2026-10 6차)은 runs엔 없는 box 전체 필드예요(TextBoxDef.strikethrough
+  // 주석 참고) — 밑줄과 한 textDecoration 안에 같이 넣어야 브라우저가 둘 다 그려요
+  // (예: "underline line-through").
+  span.style.textDecoration = textDecorationValue(style.underline, box.strikethrough);
+}
+
+// 밑줄·취소선을 하나의 CSS textDecoration 문자열로 합쳐요 — 화면(위 applyRunStyleToSpan,
+// CoverTitleOverlay/SpineTitleOverlay의 textStyle)과 없으면 "none"으로 통일.
+function textDecorationValue(underline?: boolean, strikethrough?: boolean): string {
+  const parts: string[] = [];
+  if (underline) parts.push("underline");
+  if (strikethrough) parts.push("line-through");
+  return parts.length ? parts.join(" ") : "none";
 }
 
 // 이미 화면에 그려둔 span의 "최종 해석된 서식"(stylesByIdxRef에 기억해둔 값)을 다시
@@ -4060,19 +4072,22 @@ function TextBoxToolbar({
   onDelete,
   pageWidthMm,
   selectionRange,
-  hideAdvanced,
   contentValue,
   onContentChange,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
   onDelete: () => void;
-  // 2026-10-08, 혜민님 요청("표지 타이틀·글상자·책등을 같은 패널로 통일") — 표지
-  // 제목·책등처럼 배경(하이라이트)·가로세로 폭 늘이기·박스영역(세로) 정렬 개념이 아직
-  // 화면·인쇄 어디에도 없는 대상엔 이 세 구간을 아예 숨겨요(버튼을 눌러도 아무 효과가
-  // 없는 "죽은 버튼"을 보여주지 않기 위해서예요). 일반 글상자(내지·표지 자유 글상자)는
-  // 계속 기본값(false)으로 전부 보여요.
-  hideAdvanced?: boolean;
+  // 2026-10(6차), 혜민님 요청("표지 제목/책등 패널에 일반 글상자와 똑같은 항목이
+  // 다 있어야 해요") — 예전엔 hideAdvanced prop으로 표지 제목·책등 호출부에서
+  // 배경·가로세로 폭·박스영역 정렬 구간을 통째로 숨겼는데(그 값들을 담을 상태가
+  // 아직 없어서 "죽은 버튼"이 되는 걸 피하려던 조치), 이제 세 호출부(표지 제목·책등·
+  // 일반 글상자) 전부 이 컴포넌트를 정확히 같은 모양으로 보여줘요(root cause 수정).
+  // 배경·가로세로 폭은 이번에 표지 제목·책등 쪽에도 실제로 저장할 상태(coverTitle
+  // BackgroundColor 등)를 새로 만들어서 연결했고, 박스영역 정렬만 아직 표지 제목·
+  // 책등에서 화면에 눈에 보이는 효과가 없어요(위 "박스영역 정렬" 버튼 바로 위 주석
+  // 참고) — 그래도 패널 모양 자체는 항상 똑같아요. hideAdvanced prop은 이제 아무
+  // 데서도 안 써서 지웠어요.
   // 2026-10-08(3차), 혜민님 요청: "선택한 텍스트가 표지 제목이든 책등이든 일반
   // 글상자든, 오른쪽엔 항상 똑같이 생긴 속성 패널 하나만 보이게 해줘" — 예전엔 이
   // 내용 입력칸이 표지 제목/책등에서만 서로 다른 라벨("타이틀"/"책등 내용")로 조건부로
@@ -4293,7 +4308,23 @@ function TextBoxToolbar({
         >
           <LayerIcon name="italic" className="h-4 w-4" />
         </button>
-        {!hideAdvanced && (
+        {/* 2026-10(6차), 혜민님 요청("일반 글상자 패널엔 있는 취소선이 표지 제목/책등
+            패널엔 없다") — 취소선은 박스 전체에만 적용돼요(밑줄과 달리 문자 단위
+            서식 범위 밖이에요, TextBoxDef.strikethrough 주석 참고). 표지 제목·책등·
+            일반 글상자 세 호출부 모두 항상 이 버튼을 보여줘요(hideAdvanced로도 안
+            숨겨요 — 세 곳 다 같은 boolean 필드라 "죽은 버튼"이 아니에요). */}
+        <button
+          type="button"
+          title="취소선"
+          onClick={() => onChange({ strikethrough: !box.strikethrough })}
+          className={`flex h-7 w-7 items-center justify-center border ${
+            box.strikethrough
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <span className="text-sm line-through">S</span>
+        </button>
         <button
           type="button"
           title="배경"
@@ -4306,8 +4337,7 @@ function TextBoxToolbar({
         >
           <LayerIcon name="highlight" className="h-4 w-4" />
         </button>
-        )}
-        {!hideAdvanced && box.backgroundColor && (
+        {box.backgroundColor && (
           <input
             type="color"
             value={box.backgroundColor}
@@ -4317,7 +4347,7 @@ function TextBoxToolbar({
           />
         )}
       </div>
-      {!hideAdvanced && box.backgroundColor && (
+      {box.backgroundColor && (
         <div className="grid grid-cols-2 gap-1.5">
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
@@ -4404,7 +4434,6 @@ function TextBoxToolbar({
       {/* 2026-09-27, 혜민님 요청: "가로폭, 세로폭 조절이 가능한 패널이여야해요"(일러스트
           레이터 문자 패널 참고) — 글자를 가로/세로로 눌러 늘이는 비율(%)이에요. ⚠️ 화면
           미리보기 전용, 인쇄 PDF엔 아직 반영 안 돼요(이미지박스 회전과 같은 상태). */}
-      {!hideAdvanced && (
       <div className="grid grid-cols-2 gap-1.5">
         <div>
           <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
@@ -4449,7 +4478,6 @@ function TextBoxToolbar({
           />
         </div>
       </div>
-      )}
       {/* 2026-09-27, 혜민님 요청: "가운데정렬, 가운데 라고만 버튼이 되어있으니 어떤것을
           의미하는지 확인이 어렵습니다. 텍스트 가운데 정렬이면 텍스트 관련된 아이콘으로
           박스영역이면 박스영역 관련된 아이콘으로" — 텍스트 문단 정렬(가로)은 글줄
@@ -4483,7 +4511,13 @@ function TextBoxToolbar({
           ))}
         </div>
       </div>
-      {!hideAdvanced && (
+      {/* 2026-10(6차): 표지 제목·책등은 아직 "높이 고정" 개념(heightPct)이 없어서(책등은
+          있지만 이 값으로 세로 위치를 옮기는 기존 로직과 겹쳐서, 이번엔 손대지 않았어요 —
+          아래 handleCoverTitleBoxChange/handleSpineTitleBoxChange의 verticalAlign
+          처리 주석 참고) 이 버튼을 눌러도 지금 당장은 표지 제목·책등에서 화면이 안
+          바뀌어요 — 일반 글상자도 heightPct를 아직 안 정했으면(방금 만든 새 글상자)
+          똑같이 아무 효과가 없어요(기존부터 있던 동작). 버튼 자체는 세 경우 모두
+          항상 보여줘서 패널 모양은 완전히 같아요. */}
       <div>
         <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">박스영역 정렬</p>
         <div className="flex gap-1">
@@ -4510,7 +4544,6 @@ function TextBoxToolbar({
           ))}
         </div>
       </div>
-      )}
     </div>
   );
 }
@@ -7156,6 +7189,12 @@ function CoverTitleOverlay({
 
   if (!title.trim() && !editMode) return null;
 
+  // 2026-10(6차), 혜민님 요청("일반 글상자 패널과 완전히 똑같이") — 취소선·배경
+  // (하이라이트)·가로세로 폭 늘이기도 일반 글상자와 같은 모습으로 보이게, 이미
+  // 받아둔 editableBox(coverTitleAsTextBox 어댑터)에서 그대로 읽어요. editMode일
+  // 땐 이 스타일이 TextBoxRichEditor를 감싸는 바깥 div에 적용되고, 실제 글자 색상 등
+  // 세부 스타일은 TextBoxRichEditor 자신이 editableBox를 보고 다시 그려요(문자 단위
+  // 서식과 같은 방식) — 미리보기(!editMode)에서는 이 style이 아래 <p>에 그대로 쓰여요.
   const textStyle: React.CSSProperties = {
     fontSize: `${fontSizeCqh}cqh`,
     lineHeight: lineHeightEm,
@@ -7164,8 +7203,23 @@ function CoverTitleOverlay({
     textAlign: align,
     color,
     fontWeight: bold ? 600 : 400,
-    textDecoration: underline ? "underline" : "none",
+    textDecoration: textDecorationValue(underline, editableBox.strikethrough),
     fontStyle: italic ? "italic" : "normal",
+    ...(editableBox.backgroundColor
+      ? {
+          backgroundColor: editableBox.backgroundColor,
+          paddingLeft: `${(editableBox.backgroundPaddingXPct ?? 40) / 100}em`,
+          paddingRight: `${(editableBox.backgroundPaddingXPct ?? 40) / 100}em`,
+          paddingTop: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
+          paddingBottom: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
+        }
+      : {}),
+    ...((editableBox.scaleXPct ?? 100) !== 100 || (editableBox.scaleYPct ?? 100) !== 100
+      ? {
+          transform: `scaleX(${(editableBox.scaleXPct ?? 100) / 100}) scaleY(${(editableBox.scaleYPct ?? 100) / 100})`,
+          transformOrigin: align === "right" ? "top right" : align === "center" ? "top center" : "top left",
+        }
+      : {}),
   };
 
   return (
@@ -7266,6 +7320,12 @@ function SpineTitleOverlay({
   bold,
   underline,
   italic,
+  strikethrough,
+  backgroundColor,
+  backgroundPaddingXPct,
+  backgroundPaddingYPct,
+  scaleXPct,
+  scaleYPct,
   align,
   isActive,
   editMode,
@@ -7285,6 +7345,16 @@ function SpineTitleOverlay({
   bold: boolean;
   underline: boolean;
   italic: boolean;
+  // 2026-10(6차) — 표지 제목과 같은 이유로 추가(위 CoverTitleOverlay textStyle 주석
+  // 참고). 책등은 TextBoxRichEditor를 재사용하지 않아서(캔버스 위 직접 타이핑을
+  // 예전에 되돌린 이유는 최종 보고 참고) coverTitleAsTextBox 같은 어댑터가 없고, 이
+  // 값들을 표지 제목처럼 개별 prop으로 받아요.
+  strikethrough?: boolean;
+  backgroundColor?: string;
+  backgroundPaddingXPct?: number;
+  backgroundPaddingYPct?: number;
+  scaleXPct?: number;
+  scaleYPct?: number;
   align: "left" | "center" | "right"; // maps to the outer container's flex alignment
   isActive: boolean; // true when selected on the canvas -- swaps the read-only span for an editable input
   // 편집 화면(캔버스)일 때만 true — "미리보기"에선 빈 책등 안내("책등")와 인라인 입력이
@@ -7355,11 +7425,27 @@ function SpineTitleOverlay({
 
   const active = isDragging || isResizing || isActive;
   const alignClass = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
+  // 2026-10(6차) — 취소선·배경·가로세로 폭도 표지 제목과 같은 모습으로. 배경(하이라이트)·
+  // 가로세로 폭은 화면에서 실제로 시도해본 적 없는 조합(회전된 span 위)이라, 브라우저로
+  // 직접 확인하지 못한 채로 코드만 맞췄어요 — 최종 보고에 "미확인"으로 표시했어요.
   const spineTextStyle: React.CSSProperties = {
     fontWeight: bold ? 700 : 400,
-    textDecoration: underline ? "underline" : "none",
+    textDecoration: textDecorationValue(underline, strikethrough),
     fontStyle: italic ? "italic" : "normal",
+    ...(backgroundColor
+      ? {
+          backgroundColor,
+          paddingLeft: `${(backgroundPaddingXPct ?? 40) / 100}em`,
+          paddingRight: `${(backgroundPaddingXPct ?? 40) / 100}em`,
+          paddingTop: `${(backgroundPaddingYPct ?? 25) / 100}em`,
+          paddingBottom: `${(backgroundPaddingYPct ?? 25) / 100}em`,
+        }
+      : {}),
   };
+  const spineScaleTransform =
+    (scaleXPct ?? 100) !== 100 || (scaleYPct ?? 100) !== 100
+      ? ` scaleX(${(scaleXPct ?? 100) / 100}) scaleY(${(scaleYPct ?? 100) / 100})`
+      : "";
 
   return (
     <div
@@ -7390,7 +7476,7 @@ function SpineTitleOverlay({
             ...spineTextStyle,
             fontSize: `${fontSizeCqh}cqh`,
             lineHeight: 1,
-            transform: "rotate(90deg)",
+            transform: `rotate(90deg)${spineScaleTransform}`,
             fontFamily,
             color,
           }}
@@ -8011,6 +8097,21 @@ function UploadPageContent() {
   const [spineTitleBold, setSpineTitleBold] = useState(true);
   const [spineTitleUnderline, setSpineTitleUnderline] = useState(false);
   const [spineTitleItalic, setSpineTitleItalic] = useState(false);
+  // 2026-10(6차) — 표지 제목과 같은 이유로 추가된 책등 쪽 상태예요(위 coverTitle
+  // Strikethrough 주석 참고). spineTitleVerticalAlign도 마찬가지로 저장은 되지만
+  // 아직 화면에 효과가 없어요 — 책등은 이미 "align"(문단 정렬 left/center/right)이
+  // lib/printCompose.ts drawSpineTitleCanvas 안에서 책등 길이 방향(세로) 위치를
+  // 결정하는 데 쓰이고 있어서, verticalAlign을 그 위에 또 다른 세로 위치 개념으로
+  // 섣불리 얹으면 두 값이 충돌하거나 화면과 다른 인쇄 결과가 나올 위험이 있어요 —
+  // 브라우저로 직접 확인 못 하는 이번 라운드에선 그 위험을 감수하지 않기로 했어요
+  // (자세한 내용은 최종 보고 참고).
+  const [spineTitleStrikethrough, setSpineTitleStrikethrough] = useState(false);
+  const [spineTitleBackgroundColor, setSpineTitleBackgroundColor] = useState<string | undefined>(undefined);
+  const [spineTitleBackgroundPaddingXPct, setSpineTitleBackgroundPaddingXPct] = useState(40);
+  const [spineTitleBackgroundPaddingYPct, setSpineTitleBackgroundPaddingYPct] = useState(25);
+  const [spineTitleScaleXPct, setSpineTitleScaleXPct] = useState(100);
+  const [spineTitleScaleYPct, setSpineTitleScaleYPct] = useState(100);
+  const [spineTitleVerticalAlign, setSpineTitleVerticalAlign] = useState<"top" | "middle" | "bottom">("top");
   // 2026-10, 혜민님 요청: "표지 제목 자리를 클릭해 직접 입력·수정" — 지금 앞표지 제목
   // 자리(CoverTitleOverlay)가 캔버스에서 선택돼 인라인으로 편집 중인지예요.
   // spineTitleSelected·backCoverLogoSelected와 같은 역할이에요.
@@ -8026,6 +8127,24 @@ function UploadPageContent() {
   const [coverTitleBold, setCoverTitleBold] = useState(true);
   const [coverTitleUnderline, setCoverTitleUnderline] = useState(false);
   const [coverTitleItalic, setCoverTitleItalic] = useState(false);
+  // 2026-10(6차), 혜민님 요청("일반 글상자 패널과 완전히 똑같이") — 취소선·배경
+  // (하이라이트)·가로세로 폭 늘이기·박스영역 정렬은 예전엔 표지 제목·책등에 이 값을
+  // 담을 상태 자체가 없어서 패널에서 통째로 숨겼어요(hideAdvanced). 이제 일반
+  // 글상자(TextBoxDef)가 이미 갖고 있는 같은 필드 이름으로 표지 제목 전용 상태를
+  // 새로 만들어서, coverTitleAsTextBox 어댑터·handleCoverTitleBoxChange를 통해
+  // 그대로 연결해요. 박스영역 정렬(coverTitleVerticalAlign)만 예외 — 표지 제목은
+  // 아직 "높이 고정" 박스 개념이 없어서(일반 글상자가 heightPct로 하는 것처럼) 값은
+  // 저장·왕복되지만 화면에 보이는 효과는 아직 없어요(TextBoxToolbar의 "박스영역
+  // 정렬" 버튼 위 주석 참고). 가로/세로 폭(scaleX/YPct)은 일반 글상자와 마찬가지로
+  // 화면 미리보기 전용이고 인쇄 PDF엔 반영 안 해요(기존 TextBoxDef.scaleXPct 주석과
+  // 같은 이유 — 이번 라운드 범위 밖).
+  const [coverTitleStrikethrough, setCoverTitleStrikethrough] = useState(false);
+  const [coverTitleBackgroundColor, setCoverTitleBackgroundColor] = useState<string | undefined>(undefined);
+  const [coverTitleBackgroundPaddingXPct, setCoverTitleBackgroundPaddingXPct] = useState(40);
+  const [coverTitleBackgroundPaddingYPct, setCoverTitleBackgroundPaddingYPct] = useState(25);
+  const [coverTitleScaleXPct, setCoverTitleScaleXPct] = useState(100);
+  const [coverTitleScaleYPct, setCoverTitleScaleYPct] = useState(100);
+  const [coverTitleVerticalAlign, setCoverTitleVerticalAlign] = useState<"top" | "middle" | "bottom">("top");
   // 표지 제목⇄책등 제목 서체 연결 스위치예요(2026-09-25, 혜민님 요청). 기본 켜짐 — 켜진
   // 동안은 둘 중 어느 쪽 서체를 바꿔도 같이 바뀌어요(아래 handleCoverTitleFontFamilyChange/
   // handleSpineTitleFontFamilyChange 참고). 크기·위치·회전은 서로 영향 안 받고 각자 값
@@ -10300,6 +10419,13 @@ function UploadPageContent() {
       coverTitleBold,
       coverTitleUnderline,
       coverTitleItalic,
+      coverTitleStrikethrough,
+      coverTitleBackgroundColor,
+      coverTitleBackgroundPaddingXPct,
+      coverTitleBackgroundPaddingYPct,
+      coverTitleScaleXPct,
+      coverTitleScaleYPct,
+      coverTitleVerticalAlign,
       spineTitle,
       spineTitleYPct,
       spineTitleHeightPct,
@@ -10310,6 +10436,13 @@ function UploadPageContent() {
       spineTitleBold,
       spineTitleUnderline,
       spineTitleItalic,
+      spineTitleStrikethrough,
+      spineTitleBackgroundColor,
+      spineTitleBackgroundPaddingXPct,
+      spineTitleBackgroundPaddingYPct,
+      spineTitleScaleXPct,
+      spineTitleScaleYPct,
+      spineTitleVerticalAlign,
       titleFontLinked,
       backCoverLogo,
       backCoverPhoto,
@@ -10345,6 +10478,13 @@ function UploadPageContent() {
     setCoverTitleBold(s.coverTitleBold ?? true);
     setCoverTitleUnderline(s.coverTitleUnderline ?? false);
     setCoverTitleItalic(s.coverTitleItalic ?? false);
+    setCoverTitleStrikethrough(s.coverTitleStrikethrough ?? false);
+    setCoverTitleBackgroundColor(s.coverTitleBackgroundColor);
+    setCoverTitleBackgroundPaddingXPct(s.coverTitleBackgroundPaddingXPct ?? 40);
+    setCoverTitleBackgroundPaddingYPct(s.coverTitleBackgroundPaddingYPct ?? 25);
+    setCoverTitleScaleXPct(s.coverTitleScaleXPct ?? 100);
+    setCoverTitleScaleYPct(s.coverTitleScaleYPct ?? 100);
+    setCoverTitleVerticalAlign(s.coverTitleVerticalAlign ?? "top");
     // 2026-10-08, 혜민님 요청(항목6) — spineTitle이 없는(이번 업데이트 전에 만들어진)
     // 스냅샷이면, 그때는 책등이 항상 coverTitle을 그대로 썼으니(coverTitle.replace
     // (/\n/g," ")) 그 값으로 채워서 불러온 순간 화면이 예전과 똑같이 보이게 해요. 그
@@ -10368,6 +10508,13 @@ function UploadPageContent() {
     setSpineTitleBold(s.spineTitleBold ?? true);
     setSpineTitleUnderline(s.spineTitleUnderline ?? false);
     setSpineTitleItalic(s.spineTitleItalic ?? false);
+    setSpineTitleStrikethrough(s.spineTitleStrikethrough ?? false);
+    setSpineTitleBackgroundColor(s.spineTitleBackgroundColor);
+    setSpineTitleBackgroundPaddingXPct(s.spineTitleBackgroundPaddingXPct ?? 40);
+    setSpineTitleBackgroundPaddingYPct(s.spineTitleBackgroundPaddingYPct ?? 25);
+    setSpineTitleScaleXPct(s.spineTitleScaleXPct ?? 100);
+    setSpineTitleScaleYPct(s.spineTitleScaleYPct ?? 100);
+    setSpineTitleVerticalAlign(s.spineTitleVerticalAlign ?? "top");
     setTitleFontLinked(s.titleFontLinked ?? true);
     setBackCoverLogo(s.backCoverLogo !== undefined ? s.backCoverLogo : { xPct: 50, yPct: 50, scalePct: 100 });
     setBackCoverPhoto(s.backCoverPhoto);
@@ -10435,6 +10582,13 @@ function UploadPageContent() {
     coverTitleBold,
     coverTitleUnderline,
     coverTitleItalic,
+    coverTitleStrikethrough,
+    coverTitleBackgroundColor,
+    coverTitleBackgroundPaddingXPct,
+    coverTitleBackgroundPaddingYPct,
+    coverTitleScaleXPct,
+    coverTitleScaleYPct,
+    coverTitleVerticalAlign,
     spineTitle,
     spineTitleYPct,
     spineTitleHeightPct,
@@ -10445,6 +10599,13 @@ function UploadPageContent() {
     spineTitleBold,
     spineTitleUnderline,
     spineTitleItalic,
+    spineTitleStrikethrough,
+    spineTitleBackgroundColor,
+    spineTitleBackgroundPaddingXPct,
+    spineTitleBackgroundPaddingYPct,
+    spineTitleScaleXPct,
+    spineTitleScaleYPct,
+    spineTitleVerticalAlign,
     titleFontLinked,
     backCoverLogo,
     backCoverPhoto,
@@ -10666,6 +10827,10 @@ function UploadPageContent() {
       coverTitleBold,
       coverTitleUnderline,
       coverTitleItalic,
+      coverTitleStrikethrough,
+      coverTitleBackgroundColor,
+      coverTitleBackgroundPaddingXPct,
+      coverTitleBackgroundPaddingYPct,
       innerPaperWeightG: innerPaper.weightG,
       pages,
       spineTitle,
@@ -10678,6 +10843,10 @@ function UploadPageContent() {
       spineTitleBold,
       spineTitleUnderline,
       spineTitleItalic,
+      spineTitleStrikethrough,
+      spineTitleBackgroundColor,
+      spineTitleBackgroundPaddingXPct,
+      spineTitleBackgroundPaddingYPct,
       backCoverLogo,
       backCoverPhoto,
       backCoverBackgroundColor,
@@ -11101,8 +11270,15 @@ function UploadPageContent() {
       bold: coverTitleBold,
       underline: coverTitleUnderline,
       italic: coverTitleItalic,
+      strikethrough: coverTitleStrikethrough,
       lineHeight: coverTitleLineHeightEm,
       letterSpacing: coverTitleLetterSpacingEm,
+      backgroundColor: coverTitleBackgroundColor,
+      backgroundPaddingXPct: coverTitleBackgroundPaddingXPct,
+      backgroundPaddingYPct: coverTitleBackgroundPaddingYPct,
+      scaleXPct: coverTitleScaleXPct,
+      scaleYPct: coverTitleScaleYPct,
+      verticalAlign: coverTitleVerticalAlign,
     };
     function handleCoverTitleBoxChange(changes: Partial<TextBoxDef>) {
       // 2026-10(5차): 캔버스 위 TextBoxRichEditor에서 직접 타이핑하면 여기로 text(+runs)가
@@ -11126,6 +11302,13 @@ function UploadPageContent() {
         setCoverTitleLetterSpacingEm(changes.letterSpacing);
       }
       if (changes.align !== undefined) setCoverTitleAlign(changes.align);
+      if (changes.strikethrough !== undefined) setCoverTitleStrikethrough(changes.strikethrough);
+      if ("backgroundColor" in changes) setCoverTitleBackgroundColor(changes.backgroundColor);
+      if (changes.backgroundPaddingXPct !== undefined) setCoverTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
+      if (changes.backgroundPaddingYPct !== undefined) setCoverTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
+      if (changes.scaleXPct !== undefined) setCoverTitleScaleXPct(changes.scaleXPct);
+      if (changes.scaleYPct !== undefined) setCoverTitleScaleYPct(changes.scaleYPct);
+      if (changes.verticalAlign !== undefined) setCoverTitleVerticalAlign(changes.verticalAlign);
     }
 
     // 책등도 같은 방식의 어댑터예요. 책등 폭 자체는 아주 좁지만, pt↔fontScale 변환은
@@ -11145,11 +11328,18 @@ function UploadPageContent() {
       bold: spineTitleBold,
       underline: spineTitleUnderline,
       italic: spineTitleItalic,
+      strikethrough: spineTitleStrikethrough,
       // 책등은 행간·자간을 따로 안 둬요(한 줄짜리 세로쓰기 글자라 줄바꿈 개념이 없어요) —
       // 패널엔 그대로 보이지만(같은 컴포넌트라서) 바꿔도 저장할 자리가 없어 조용히
       // 무시돼요. 기본값만 채워둬요.
       lineHeight: 1.2,
       letterSpacing: 0,
+      backgroundColor: spineTitleBackgroundColor,
+      backgroundPaddingXPct: spineTitleBackgroundPaddingXPct,
+      backgroundPaddingYPct: spineTitleBackgroundPaddingYPct,
+      scaleXPct: spineTitleScaleXPct,
+      scaleYPct: spineTitleScaleYPct,
+      verticalAlign: spineTitleVerticalAlign,
     };
     function handleSpineTitleBoxChange(changes: Partial<TextBoxDef>) {
       if (changes.fontFamily !== undefined) handleSpineTitleFontFamilyChange(changes.fontFamily);
@@ -11162,6 +11352,13 @@ function UploadPageContent() {
       if (changes.underline !== undefined) setSpineTitleUnderline(changes.underline);
       if (changes.italic !== undefined) setSpineTitleItalic(changes.italic);
       if (changes.align !== undefined) setSpineTitleAlign(changes.align);
+      if (changes.strikethrough !== undefined) setSpineTitleStrikethrough(changes.strikethrough);
+      if ("backgroundColor" in changes) setSpineTitleBackgroundColor(changes.backgroundColor);
+      if (changes.backgroundPaddingXPct !== undefined) setSpineTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
+      if (changes.backgroundPaddingYPct !== undefined) setSpineTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
+      if (changes.scaleXPct !== undefined) setSpineTitleScaleXPct(changes.scaleXPct);
+      if (changes.scaleYPct !== undefined) setSpineTitleScaleYPct(changes.scaleYPct);
+      if (changes.verticalAlign !== undefined) setSpineTitleVerticalAlign(changes.verticalAlign);
     }
 
     return (
@@ -12346,7 +12543,6 @@ function UploadPageContent() {
                               onDelete={() => handleCoverTitleChange("")}
                               pageWidthMm={coverTitlePanelPageWidthMm}
                               selectionRange={null}
-                              hideAdvanced
                               contentValue={coverTitle}
                               onContentChange={handleCoverTitleChange}
                             />
@@ -12376,7 +12572,6 @@ function UploadPageContent() {
                                 onDelete={() => handleSpineTitleChange("")}
                                 pageWidthMm={coverTitlePanelPageWidthMm}
                                 selectionRange={null}
-                                hideAdvanced
                                 contentValue={spineTitle}
                                 onContentChange={handleSpineTitleChange}
                               />
@@ -12614,6 +12809,12 @@ function UploadPageContent() {
                               bold={spineTitleBold}
                               underline={spineTitleUnderline}
                               italic={spineTitleItalic}
+                              strikethrough={spineTitleStrikethrough}
+                              backgroundColor={spineTitleBackgroundColor}
+                              backgroundPaddingXPct={spineTitleBackgroundPaddingXPct}
+                              backgroundPaddingYPct={spineTitleBackgroundPaddingYPct}
+                              scaleXPct={spineTitleScaleXPct}
+                              scaleYPct={spineTitleScaleYPct}
                               align={spineTitleAlign}
                               isActive={spineTitleSelected}
                               editMode={editorMode === "edit"}
