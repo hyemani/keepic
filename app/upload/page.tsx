@@ -4157,6 +4157,11 @@ function TableBoxToolbar({
               defaultColor={sel.selStyle?.borderColor ?? box.borderColor ?? "#94A3B8"}
               defaultWidth={sel.selStyle?.borderWidth ?? box.borderWidth ?? 1}
               defaultStyle={sel.selStyle?.borderStyle ?? box.borderStyle ?? "solid"}
+              getPositionValue={(key) =>
+                (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.getSelectionBorderPositionValue(
+                  key
+                )
+              }
               onApply={(keys, patch) =>
                 (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.applySelectionBorderPosition(
                   keys,
@@ -6839,6 +6844,9 @@ type TableBoxOverlayHandle = {
     categories: ("top" | "bottom" | "left" | "right" | "innerH" | "innerV")[],
     patch: { color?: string; width?: number; style?: "solid" | "dashed" | "dotted"; dashLength?: number; dashGap?: number } | null
   ) => void;
+  getSelectionBorderPositionValue: (
+    key: TableBorderPositionKey
+  ) => { enabled?: boolean; color?: string; width?: number; style?: "solid" | "dashed" | "dotted" } | undefined;
 };
 
 // 지금 선택 상태(활성 칸·병합 가능 여부·칸 폭/세로폭·선택 범위)를 왼쪽 패널에 반응형으로
@@ -7451,15 +7459,65 @@ const TableBoxOverlay = forwardRef<
   // sideBorders 확장). 우선순위 규칙(resolveGridSegmentStyle)상 "아래쪽/오른쪽 칸이
   // 이긴다"와 똑같이, 항상 그 방향 쪽 칸(rightAnchor/bottomAnchor)에 써요 — 그 칸이 표
   // 바깥이면(선택 범위가 표 가장자리) 반대쪽(leftAnchor/topAnchor)에 써요.
+  function selectionBorderTargets(
+    category: "top" | "bottom" | "left" | "right" | "innerH" | "innerV"
+  ): { anchor: { row: number; col: number }; side: "top" | "right" | "bottom" | "left" }[] {
+    if (!selRange) return [];
+    const { r0, c0, r1, c1 } = selRange;
+    function sameAnchor(a?: { row: number; col: number }, b?: { row: number; col: number }) {
+      return !!a && !!b && a.row === b.row && a.col === b.col;
+    }
+    const targets: { anchor: { row: number; col: number }; side: "top" | "right" | "bottom" | "left" }[] = [];
+    function push(anchor: { row: number; col: number } | undefined, side: "top" | "right" | "bottom" | "left") {
+      if (anchor) targets.push({ anchor, side });
+    }
+    if (category === "left" || category === "right") {
+      const c = category === "left" ? c0 : c1 + 1;
+      for (let r = r0; r <= r1; r++) {
+        const leftAnchor = c > 0 ? resolveAnchor(r, c - 1) : undefined;
+        const rightAnchor = c < box.cols ? resolveAnchor(r, c) : undefined;
+        if (sameAnchor(leftAnchor, rightAnchor)) continue;
+        if (rightAnchor) push(rightAnchor, "left");
+        else push(leftAnchor, "right");
+      }
+    } else if (category === "top" || category === "bottom") {
+      const r = category === "top" ? r0 : r1 + 1;
+      for (let c = c0; c <= c1; c++) {
+        const topAnchor = r > 0 ? resolveAnchor(r - 1, c) : undefined;
+        const bottomAnchor = r < box.rows ? resolveAnchor(r, c) : undefined;
+        if (sameAnchor(topAnchor, bottomAnchor)) continue;
+        if (bottomAnchor) push(bottomAnchor, "top");
+        else push(topAnchor, "bottom");
+      }
+    } else if (category === "innerV") {
+      for (let c = c0 + 1; c <= c1; c++) {
+        for (let r = r0; r <= r1; r++) {
+          const leftAnchor = resolveAnchor(r, c - 1);
+          const rightAnchor = resolveAnchor(r, c);
+          if (sameAnchor(leftAnchor, rightAnchor)) continue;
+          push(rightAnchor, "left");
+        }
+      }
+    } else if (category === "innerH") {
+      for (let r = r0 + 1; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const topAnchor = resolveAnchor(r - 1, c);
+          const bottomAnchor = resolveAnchor(r, c);
+          if (sameAnchor(topAnchor, bottomAnchor)) continue;
+          push(bottomAnchor, "top");
+        }
+      }
+    }
+    return targets;
+  }
+
   function applySelectionBorderPosition(
     categories: ("top" | "bottom" | "left" | "right" | "innerH" | "innerV")[],
     patch: { color?: string; width?: number; style?: "solid" | "dashed" | "dotted"; dashLength?: number; dashGap?: number } | null
   ) {
     if (!selRange) return;
-    const { r0, c0, r1, c1 } = selRange;
     const next = { ...(box.cellStyles ?? {}) };
-    function writeSide(anchor: { row: number; col: number } | undefined, side: "top" | "right" | "bottom" | "left") {
-      if (!anchor) return;
+    function writeSide(anchor: { row: number; col: number }, side: "top" | "right" | "bottom" | "left") {
       const key = `${anchor.row}-${anchor.col}`;
       const cur = next[key] ?? {};
       if (patch === null) {
@@ -7469,49 +7527,31 @@ const TableBoxOverlay = forwardRef<
         next[key] = { ...cur, hiddenSides: hs, sideBorders: { ...cur.sideBorders, [side]: patch } };
       }
     }
-    function sameAnchor(a?: { row: number; col: number }, b?: { row: number; col: number }) {
-      return !!a && !!b && a.row === b.row && a.col === b.col;
-    }
     for (const category of categories) {
-      if (category === "left" || category === "right") {
-        const c = category === "left" ? c0 : c1 + 1;
-        for (let r = r0; r <= r1; r++) {
-          const leftAnchor = c > 0 ? resolveAnchor(r, c - 1) : undefined;
-          const rightAnchor = c < box.cols ? resolveAnchor(r, c) : undefined;
-          if (sameAnchor(leftAnchor, rightAnchor)) continue;
-          if (rightAnchor) writeSide(rightAnchor, "left");
-          else writeSide(leftAnchor, "right");
-        }
-      } else if (category === "top" || category === "bottom") {
-        const r = category === "top" ? r0 : r1 + 1;
-        for (let c = c0; c <= c1; c++) {
-          const topAnchor = r > 0 ? resolveAnchor(r - 1, c) : undefined;
-          const bottomAnchor = r < box.rows ? resolveAnchor(r, c) : undefined;
-          if (sameAnchor(topAnchor, bottomAnchor)) continue;
-          if (bottomAnchor) writeSide(bottomAnchor, "top");
-          else writeSide(topAnchor, "bottom");
-        }
-      } else if (category === "innerV") {
-        for (let c = c0 + 1; c <= c1; c++) {
-          for (let r = r0; r <= r1; r++) {
-            const leftAnchor = resolveAnchor(r, c - 1);
-            const rightAnchor = resolveAnchor(r, c);
-            if (sameAnchor(leftAnchor, rightAnchor)) continue;
-            writeSide(rightAnchor, "left");
-          }
-        }
-      } else if (category === "innerH") {
-        for (let r = r0 + 1; r <= r1; r++) {
-          for (let c = c0; c <= c1; c++) {
-            const topAnchor = resolveAnchor(r - 1, c);
-            const bottomAnchor = resolveAnchor(r, c);
-            if (sameAnchor(topAnchor, bottomAnchor)) continue;
-            writeSide(bottomAnchor, "top");
-          }
-        }
+      for (const { anchor, side } of selectionBorderTargets(category)) {
+        writeSide(anchor, side);
       }
     }
     onChange({ cellStyles: next });
+  }
+
+  function getSelectionBorderPositionValue(
+    key: TableBorderPositionKey
+  ): { enabled?: boolean; color?: string; width?: number; style?: "solid" | "dashed" | "dotted" } | undefined {
+    const targets = selectionBorderTargets(key);
+    if (targets.length === 0) return undefined;
+    const { anchor, side } = targets[0];
+    const style = box.cellStyles?.[`${anchor.row}-${anchor.col}`];
+    if (!style) return undefined;
+    const sideBorder = style.sideBorders?.[side];
+    const hidden = style.hiddenSides?.[side] ?? false;
+    if (!sideBorder && !hidden) return undefined;
+    return {
+      enabled: !hidden,
+      color: sideBorder?.color,
+      width: sideBorder?.width,
+      style: sideBorder?.style,
+    };
   }
 
   // 왼쪽 "표만들기" 패널의 버튼들이 이 표(선택된 칸 기준)에 직접 동작하도록 노출해요
@@ -7533,6 +7573,7 @@ const TableBoxOverlay = forwardRef<
     resetCellStyleFields,
     toggleCellHiddenSide,
     applySelectionBorderPosition,
+    getSelectionBorderPositionValue,
   }));
 
   // 지금 선택 상태를 왼쪽 패널이 반응형으로 보여줄 수 있게 올려줘요(버튼 활성/비활성,
