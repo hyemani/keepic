@@ -938,23 +938,35 @@ function drawTableGridAndCells(
   // (2026-09-28), 병합된 칸 안쪽을 지나는 격자선 구간은 건너뛰어요. borderScope(전체/
   // 바깥쪽/안쪽)와 칸별 hiddenSides(개별 변)도 화면(TableBoxOverlay)과 완전히 같은
   // 규칙으로 반영해요.
-  ctx.save();
-  ctx.strokeStyle = hexToRgbaPrint(box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
-  const lineWidthPx = Math.max(0.1, box.borderWidth ?? 1) * (PRINT_DPI / 96);
-  ctx.lineWidth = lineWidthPx;
-  if (box.borderStyle === "dashed" || box.borderStyle === "dotted") {
-    const dashLenPx =
-      (box.dashLength ?? (box.borderStyle === "dotted" ? (box.borderWidth ?? 1) : (box.borderWidth ?? 1) * 3)) *
-      (PRINT_DPI / 96);
-    const dashGapPx =
-      (box.dashGap ?? (box.borderStyle === "dotted" ? (box.borderWidth ?? 1) * 1.5 : (box.borderWidth ?? 1) * 2)) *
-      (PRINT_DPI / 96);
-    ctx.setLineDash([dashLenPx, dashGapPx]);
-  } else {
-    ctx.setLineDash([]);
+  // 칸별 개별 선 스타일(cellStyles의 borderColor/Width/Style, 2026-10) — 한 선이 두
+  // 칸 사이에 걸쳐 있으면 아래쪽/오른쪽 칸 값을 우선하고, 없으면 위쪽/왼쪽 칸 값을,
+  // 둘 다 없으면 표 전체 기본값을 써요. 화면(app/upload/page.tsx TableBoxOverlay의
+  // resolveGridSegmentStyle)과 완전히 같은 규칙이에요.
+  function resolveGridSegmentStylePrint(anchorA?: { row: number; col: number }, anchorB?: { row: number; col: number }) {
+    const styleB = anchorB ? box.cellStyles?.[`${anchorB.row}-${anchorB.col}`] : undefined;
+    const styleA = anchorA ? box.cellStyles?.[`${anchorA.row}-${anchorA.col}`] : undefined;
+    const src = (styleB?.borderColor ?? styleB?.borderWidth ?? styleB?.borderStyle) !== undefined ? styleB : styleA;
+    const color = hexToRgbaPrint(src?.borderColor ?? box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
+    const widthPxLine = Math.max(0.1, src?.borderWidth ?? box.borderWidth ?? 1) * (PRINT_DPI / 96);
+    const styleKind = src?.borderStyle ?? box.borderStyle ?? "solid";
+    const dashed = styleKind !== "solid";
+    const baseWidth = src?.borderWidth ?? box.borderWidth ?? 1;
+    const dashLenPx = (src?.dashLength ?? box.dashLength ?? (styleKind === "dotted" ? baseWidth : baseWidth * 3)) * (PRINT_DPI / 96);
+    const dashGapPx = (src?.dashGap ?? box.dashGap ?? (styleKind === "dotted" ? baseWidth * 1.5 : baseWidth * 2)) * (PRINT_DPI / 96);
+    return { color, widthPxLine, dashed, dashLenPx, dashGapPx };
   }
   const borderScope = box.borderScope ?? "all";
-  ctx.beginPath();
+  const gridSegmentsPrint: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: string;
+    widthPxLine: number;
+    dashed: boolean;
+    dashLenPx: number;
+    dashGapPx: number;
+  }[] = [];
   for (let c = 0; c <= cols; c++) {
     const x = leftPx + colLefts[c];
     const isOuter = c === 0 || c === cols;
@@ -966,8 +978,15 @@ function drawTableGridAndCells(
       const hiddenLeft = c > 0 && sideHiddenAtPrint(r, c - 1, "right");
       const hiddenRight = c < cols && sideHiddenAtPrint(r, c, "left");
       if (hiddenLeft || hiddenRight) continue;
-      ctx.moveTo(x, topPx + rowTops[r]);
-      ctx.lineTo(x, topPx + rowTops[r + 1]);
+      const leftAnchor = c > 0 ? resolveAnchorPrint(r, c - 1) : undefined;
+      const rightAnchor = c < cols ? resolveAnchorPrint(r, c) : undefined;
+      gridSegmentsPrint.push({
+        x1: x,
+        y1: topPx + rowTops[r],
+        x2: x,
+        y2: topPx + rowTops[r + 1],
+        ...resolveGridSegmentStylePrint(leftAnchor, rightAnchor),
+      });
     }
   }
   for (let r = 0; r <= rows; r++) {
@@ -981,11 +1000,27 @@ function drawTableGridAndCells(
       const hiddenTop = r > 0 && sideHiddenAtPrint(r - 1, c, "bottom");
       const hiddenBottom = r < rows && sideHiddenAtPrint(r, c, "top");
       if (hiddenTop || hiddenBottom) continue;
-      ctx.moveTo(leftPx + colLefts[c], y);
-      ctx.lineTo(leftPx + colLefts[c + 1], y);
+      const topAnchor = r > 0 ? resolveAnchorPrint(r - 1, c) : undefined;
+      const bottomAnchor = r < rows ? resolveAnchorPrint(r, c) : undefined;
+      gridSegmentsPrint.push({
+        x1: leftPx + colLefts[c],
+        y1: y,
+        x2: leftPx + colLefts[c + 1],
+        y2: y,
+        ...resolveGridSegmentStylePrint(topAnchor, bottomAnchor),
+      });
     }
   }
-  ctx.stroke();
+  ctx.save();
+  for (const seg of gridSegmentsPrint) {
+    ctx.strokeStyle = seg.color;
+    ctx.lineWidth = seg.widthPxLine;
+    ctx.setLineDash(seg.dashed ? [seg.dashLenPx, seg.dashGapPx] : []);
+    ctx.beginPath();
+    ctx.moveTo(seg.x1, seg.y1);
+    ctx.lineTo(seg.x2, seg.y2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 // 자유 배치 표박스를 이 낱장(페이지)에 그려요 — drawImageBoxOnCanvas와 완전히 같은

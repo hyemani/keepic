@@ -3726,6 +3726,81 @@ function TableBoxToolbar({
               })}
             </div>
           </div>
+          {/* 2026-10, 혜민님 요청("칸을 선택하면 세부 테두리 설정이 사라진다 — 표
+              전체를 선택했을 때는 전체 선 설정을, 칸을 선택했을 때는 그 칸의 선
+              설정을 계속 쓸 수 있게") — 아래 "표 전체" 섹션의 "세부 테두리 설정"과
+              같은 선 종류·굵기 조작이지만, 여기서 바꾸면 표 전체가 아니라 지금 고른
+              칸(들)에 닿은 격자선에만 적용돼요(TableCellStyle.borderColor/Width/Style,
+              lib/albumTemplates.ts 주석 참고). 비워두면(기본값) 표 전체 설정을 그대로
+              따라요. */}
+          <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
+            <div className="mb-1 flex items-center justify-between">
+              <p className="text-[10px] text-[var(--color-charcoal)]/60">선택한 칸의 선 설정</p>
+              <button
+                type="button"
+                onClick={() =>
+                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
+                    "borderColor",
+                    "borderWidth",
+                    "borderStyle",
+                    "dashLength",
+                    "dashGap",
+                  ])
+                }
+                className="text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+              >
+                표 전체 설정 따르기
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">선 색</label>
+                <input
+                  type="color"
+                  value={sel.selStyle?.borderColor ?? box.borderColor ?? "#94A3B8"}
+                  onChange={(e) =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      borderColor: e.target.value,
+                    })
+                  }
+                  className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+                  title="선택한 칸의 선 색"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">선 굵기(px)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={8}
+                  step={0.5}
+                  value={sel.selStyle?.borderWidth ?? box.borderWidth ?? 1}
+                  onChange={(e) =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      borderWidth: Math.max(0, Math.min(8, Number(e.target.value) || 0)),
+                    })
+                  }
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                />
+              </div>
+            </div>
+            <div className="mt-1.5">
+              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">선 종류</label>
+              <select
+                value={sel.selStyle?.borderStyle ?? box.borderStyle ?? "solid"}
+                onChange={(e) =>
+                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                    borderStyle: e.target.value as "solid" | "dashed" | "dotted",
+                  })
+                }
+                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+              >
+                <option value="solid">실선</option>
+                <option value="dashed">파선</option>
+                <option value="dotted">점선</option>
+              </select>
+            </div>
+          </div>
         </div>
       )}
       {/* 2026-09-28 개편(혜민님 요청: "표만들기 탭 도구가 너무 많고 중복") — 표
@@ -6826,12 +6901,10 @@ const TableBoxOverlay = forwardRef<
   const rowTotalWeight = rowWeights.reduce((a, b) => a + b, 0) || box.rows;
   const rowBoundariesPct: number[] = [0];
   for (let r = 0; r < box.rows; r++) rowBoundariesPct.push(rowBoundariesPct[r] + (rowWeights[r] / rowTotalWeight) * 100);
+  // 표 전체 기본 선 스타일(굵기/종류) — 칸별 개별 선 스타일(cellStyles의
+  // borderColor/Width/Style, 아래 resolveGridSegmentStyle)이 없을 때 이 값으로 대신해요.
   const gridBorderStyle = box.borderStyle ?? "solid";
   const gridBorderWidthPx = box.borderWidth ?? 1;
-  const gridBorderColor = hexToRgba(box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
-  const gridDashed = gridBorderStyle !== "solid";
-  const gridDashLength = box.dashLength ?? (gridBorderStyle === "dotted" ? gridBorderWidthPx : gridBorderWidthPx * 3);
-  const gridDashGap = box.dashGap ?? (gridBorderStyle === "dotted" ? gridBorderWidthPx * 1.5 : gridBorderWidthPx * 2);
   const gridMerges = box.merges ?? [];
   const gridBorderScope = box.borderScope ?? "all";
   const gridCellStyles = box.cellStyles;
@@ -6843,7 +6916,34 @@ const TableBoxOverlay = forwardRef<
     const key = a ? `${a.row}-${a.col}` : `${row}-${col}`;
     return !!gridCellStyles?.[key]?.hiddenSides?.[side];
   }
-  const gridLineSegments: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  // 한 격자선이 두 칸(위/아래 또는 왼/오) 사이에 걸쳐 있을 때, "선택한 칸" 패널에서
+  // 준 칸별 선 스타일(borderColor/Width/Style, 2026-10) 중 무엇을 쓸지 정해요 —
+  // 아래쪽/오른쪽 칸에 값이 있으면 그걸 우선하고, 없으면 위쪽/왼쪽 칸 값을, 둘 다
+  // 없으면 표 전체 기본값을 써요(lib/printCompose.ts의 같은 이름 함수와 완전히 같은
+  // 규칙). anchorA/anchorB에 undefined를 넘기면(표 바깥 경계) 그 칸은 없는 걸로 쳐요.
+  function resolveGridSegmentStyle(anchorA?: { row: number; col: number }, anchorB?: { row: number; col: number }) {
+    const styleB = anchorB ? gridCellStyles?.[`${anchorB.row}-${anchorB.col}`] : undefined;
+    const styleA = anchorA ? gridCellStyles?.[`${anchorA.row}-${anchorA.col}`] : undefined;
+    const src = (styleB?.borderColor ?? styleB?.borderWidth ?? styleB?.borderStyle) !== undefined ? styleB : styleA;
+    const color = hexToRgba(src?.borderColor ?? box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
+    const width = src?.borderWidth ?? gridBorderWidthPx;
+    const styleKind = src?.borderStyle ?? gridBorderStyle;
+    const dashed = styleKind !== "solid";
+    const dashLength = src?.dashLength ?? (styleKind === "dotted" ? width : width * 3);
+    const dashGap = src?.dashGap ?? (styleKind === "dotted" ? width * 1.5 : width * 2);
+    return { color, width, dashed, dashLength, dashGap };
+  }
+  const gridLineSegments: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: string;
+    width: number;
+    dashed: boolean;
+    dashLength: number;
+    dashGap: number;
+  }[] = [];
   for (let c = 0; c <= box.cols; c++) {
     const x = colBoundariesPct[c];
     const isOuter = c === 0 || c === box.cols;
@@ -6855,7 +6955,10 @@ const TableBoxOverlay = forwardRef<
       const hiddenLeft = c > 0 && sideHiddenAt(r, c - 1, "right");
       const hiddenRight = c < box.cols && sideHiddenAt(r, c, "left");
       if (hiddenLeft || hiddenRight) continue;
-      gridLineSegments.push({ x1: x, y1: rowBoundariesPct[r], x2: x, y2: rowBoundariesPct[r + 1] });
+      const leftAnchor = c > 0 ? resolveAnchor(r, c - 1) : undefined;
+      const rightAnchor = c < box.cols ? resolveAnchor(r, c) : undefined;
+      const style = resolveGridSegmentStyle(leftAnchor, rightAnchor);
+      gridLineSegments.push({ x1: x, y1: rowBoundariesPct[r], x2: x, y2: rowBoundariesPct[r + 1], ...style });
     }
   }
   for (let r = 0; r <= box.rows; r++) {
@@ -6869,7 +6972,10 @@ const TableBoxOverlay = forwardRef<
       const hiddenTop = r > 0 && sideHiddenAt(r - 1, c, "bottom");
       const hiddenBottom = r < box.rows && sideHiddenAt(r, c, "top");
       if (hiddenTop || hiddenBottom) continue;
-      gridLineSegments.push({ x1: colBoundariesPct[c], y1: y, x2: colBoundariesPct[c + 1], y2: y });
+      const topAnchor = r > 0 ? resolveAnchor(r - 1, c) : undefined;
+      const bottomAnchor = r < box.rows ? resolveAnchor(r, c) : undefined;
+      const style = resolveGridSegmentStyle(topAnchor, bottomAnchor);
+      gridLineSegments.push({ x1: colBoundariesPct[c], y1: y, x2: colBoundariesPct[c + 1], y2: y, ...style });
     }
   }
 
@@ -7024,10 +7130,10 @@ const TableBoxOverlay = forwardRef<
             y1={seg.y1}
             x2={seg.x2}
             y2={seg.y2}
-            stroke={gridBorderColor}
-            strokeWidth={gridBorderWidthPx}
-            strokeDasharray={gridDashed ? `${gridDashLength} ${gridDashGap}` : undefined}
-            strokeLinecap={gridDashed ? "butt" : "square"}
+            stroke={seg.color}
+            strokeWidth={seg.width}
+            strokeDasharray={seg.dashed ? `${seg.dashLength} ${seg.dashGap}` : undefined}
+            strokeLinecap={seg.dashed ? "butt" : "square"}
             vectorEffect="non-scaling-stroke"
           />
         ))}

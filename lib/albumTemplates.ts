@@ -211,6 +211,22 @@ export type TableCellStyle = {
   fillOpacity?: number;
   padding?: number; // px
   hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
+  // 이 칸(anchor)에 닿은 격자선의 선 색·굵기·종류·점선 세부값을 표 전체 기본값과
+  // 다르게 줘요(2026-10, 혜민님 요청: "표 전체를 선택했을 때는 전체 선 설정을, 셀을
+  // 선택했을 때는 해당 칸의 선 설정을 쓸 수 있게"). hiddenSides처럼 변(상/우/하/좌)
+  // 하나하나가 아니라 이 칸에 닿은 모든 변에 한 번에 적용돼요(hiddenSides만 변별로
+  // 숨기고, 선 스타일은 칸 단위예요 — "선택한 칸" 패널의 다른 필드(배경색·여백·정렬)와
+  // 같은 단위). 한 선이 두 칸 사이에 걸쳐 있으면(칸마다 다른 값을 줬으면) 화면·인쇄
+  // 둘 다 "아래쪽/오른쪽 칸의 값을 우선하고, 없으면 위쪽/왼쪽 칸의 값을 쓴다"는 같은
+  // 규칙으로 골라요(app/upload/page.tsx TableBoxOverlay의 resolveGridSegmentStyle,
+  // lib/printCompose.ts의 같은 이름 함수 참고). 값이 없으면(비워두면) 표 전체
+  // borderColor/borderWidth/borderStyle을 그대로 따라요 — 기존 표는 전부 이 상태라
+  // 하위 호환이에요.
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: "solid" | "dashed" | "dotted";
+  dashLength?: number;
+  dashGap?: number;
 };
 
 export type TableBoxDef = {
