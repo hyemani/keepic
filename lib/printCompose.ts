@@ -314,6 +314,16 @@ function drawTextBoxOnCanvasRuns(
 
   const align = box.align;
   const textXBase = align === "left" ? x : align === "right" ? x + w : x + w / 2;
+  // "박스 전체 배경"(fillBox) — drawTextBoxOnCanvas(runs 없는 버전)와 완전히 같은
+  // 이유·같은 방식이에요. 위 주석 참고.
+  const isFillBox = box.backgroundColor !== undefined && box.backgroundMode === "fillBox";
+  function drawFillBoxBackground(boxH: number) {
+    if (!isFillBox || !box.backgroundColor) return;
+    ctx.save();
+    ctx.fillStyle = box.backgroundColor;
+    ctx.fillRect(x, y, w, boxH);
+    ctx.restore();
+  }
 
   function measureLineWidth(line: WrappedLine): number {
     let total = 0;
@@ -341,7 +351,7 @@ function drawTextBoxOnCanvasRuns(
       // 글자 배경(하이라이트)은 box 전체 설정(box.backgroundColor)이라 구간과 무관하게
       // 줄 하나 전체에 한 번만 그려요 — 원래 drawLineBackground와 같은 비율(em 기준
       // 가로/세로 여백)이지만, em 기준을 그 줄에서 제일 큰 글자(maxFontPx)로 맞췄어요.
-      if (box.backgroundColor) {
+      if (box.backgroundColor && !isFillBox) {
         const padX = (maxFontPx * (box.backgroundPaddingXPct ?? 40)) / 100;
         const padY = (maxFontPx * (box.backgroundPaddingYPct ?? 25)) / 100;
         // 배경 띠 너비를 직접 지정했으면(backgroundWidthPct, 2026-10) 글자 폭+여백
@@ -410,9 +420,11 @@ function drawTextBoxOnCanvasRuns(
     const h = (box.heightPct / 100) * pageH;
     const extraSpace = Math.max(0, h - textBlockHeight);
     const startYOffset = box.verticalAlign === "middle" ? extraSpace / 2 : box.verticalAlign === "bottom" ? extraSpace : 0;
+    drawFillBoxBackground(h);
     drawLines(y + startYOffset, { x, y, w, h });
     return;
   }
+  drawFillBoxBackground(textBlockHeight);
   drawLines(y);
 }
 
@@ -476,8 +488,25 @@ function drawTextBoxOnCanvas(
   // 글자 배경(하이라이트)을 지정했으면 글자를 그리기 전에 먼저 그려요(글자가 배경 위에
   // 올라오도록) — 화면(TextBoxOverlay)의 backgroundColor + em 단위 패딩과 같은 비율로
   // 맞췄어요(기본값 가로 40%·세로 25%, box.backgroundPaddingXPct/YPct로 조절).
+  // "박스 전체 배경"(fillBox, 2026-10, 혜민님 요청: "배경이 텍스트 상자의 가로·세로
+  // 크기에 맞게 채워지고") — 줄마다 따로 그리는 drawLineBackground(글자 주변 hug 방식)
+  // 대신, 박스 자신의 실제 크기(widthPct·heightPct가 화면과 똑같이 계산한 x/y/w/h)
+  // 그대로 사각형 하나만 한 번에 그려요. 화면(app/upload/page.tsx TextBoxOverlay의
+  // fillBoxBackground div, position:absolute inset-0)과 완전히 같은 사각형이에요 —
+  // 화면은 CSS 박스(outer div)의 실제 렌더 크기를, 여기는 그 크기를 만드는 같은 수식
+  // (xPct/yPct/widthPct/heightPct → px)을 그대로 써서 항상 일치해요. heightPct가 없는
+  // (아직 고정 높이가 없는) 박스는 화면과 마찬가지로 글자 블록 높이(textBlockHeight)로
+  // 자동 대체해요.
+  const isFillBox = box.backgroundColor !== undefined && box.backgroundMode === "fillBox";
+  const drawFillBoxBackground = (boxH: number) => {
+    if (!isFillBox || !box.backgroundColor) return;
+    ctx.save();
+    ctx.fillStyle = box.backgroundColor;
+    ctx.fillRect(x, y, w, boxH);
+    ctx.restore();
+  };
   const drawLineBackground = (line: string, lineY: number) => {
-    if (!box.backgroundColor) return;
+    if (!box.backgroundColor || isFillBox) return;
     const { lineStartX, lineWidth } = measureLineBox(line);
     const padX = (fontPx * (box.backgroundPaddingXPct ?? 40)) / 100;
     const padY = (fontPx * (box.backgroundPaddingYPct ?? 25)) / 100;
@@ -537,6 +566,7 @@ function drawTextBoxOnCanvas(
     const extraSpace = Math.max(0, h - textBlockHeight);
     const startYOffset =
       box.verticalAlign === "middle" ? extraSpace / 2 : box.verticalAlign === "bottom" ? extraSpace : 0;
+    drawFillBoxBackground(h);
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
@@ -556,6 +586,7 @@ function drawTextBoxOnCanvas(
     return;
   }
 
+  drawFillBoxBackground(lines.length * lineHeight);
   lines.forEach((line, i) => {
     const lineY = y + i * lineHeight;
     drawLineBackground(line, lineY);
@@ -1848,6 +1879,7 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundPaddingXPct = 40,
   coverTitleBackgroundPaddingYPct = 25,
   coverTitleBackgroundWidthPct,
+  coverTitleBackgroundMode,
   innerPaperWeightG,
   pages,
   spineTitle,
@@ -1913,6 +1945,12 @@ export async function buildCoverPrintPdf({
   // 배경 띠 전체 너비를 직접 지정해요(%, 앞표지 칸 전체 기준 — coverTitleWidthPct와
   // 같은 좌표계, 2026-10). 없으면 예전처럼 글자 폭+여백으로 자동 계산돼요.
   coverTitleBackgroundWidthPct?: number;
+  // "박스 전체 배경"(fillBox, 2026-10) — 표지 제목은 아직 실제 heightPct(고정 높이)
+  // 개념이 없어서(coverTitleAsTextBox 어댑터 주석 참고), "fillBox"면 배경 띠 너비를
+  // coverTitleBackgroundWidthPct 대신 항상 100%(제목 자리 폭 전체)로 그려요 — 세로는
+  // 예전처럼 글자에 맞춰 자동이에요(화면 CoverTitleOverlay와 같은 인터림 범위).
+  // 없으면(undefined) "hugText"와 동일(기존과 완전히 동일, 하위 호환).
+  coverTitleBackgroundMode?: "hugText" | "fillBox";
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
@@ -2223,16 +2261,25 @@ export async function buildCoverPrintPdf({
       if (coverTitleBackgroundColor && line.trim()) {
         const padX = (titlePx * coverTitleBackgroundPaddingXPct) / 100;
         const padY = (titlePx * coverTitleBackgroundPaddingYPct) / 100;
-        // backgroundWidthPct(2026-10)가 있으면 앞표지 칸(frontCellWpx) 기준으로 띠
-        // 너비를 직접 정하고, 글자 가로 중심을 기준으로 좌우 대칭으로 넓혀요.
+        // "박스 전체 배경"(fillBox, 2026-10) — 화면(app/upload/page.tsx CoverTitleOverlay,
+        // isFillBoxMode)과 똑같이 띠가 항상 제목 자리(titleBoxLeftPx~+titleBoxWidthPx)
+        // 전체 폭을 그대로 채워요(정렬·글자 폭과 무관 — align이 left/center/right 무엇이든
+        // width 100%로 두면 화면에서도 결과가 항상 박스 왼쪽 끝~오른쪽 끝으로 같아요).
+        // backgroundWidthPct(2026-10, hugText 모드에서만)가 있으면 그 값을 앞표지 칸
+        // (frontCellWpx) 기준으로 대신 쓰고, 글자 가로 중심을 기준으로 좌우 대칭으로
+        // 넓혀요.
         const stripWidth =
-          coverTitleBackgroundWidthPct !== undefined
-            ? (coverTitleBackgroundWidthPct / 100) * frontCellWpx
-            : lineWidth + padX;
+          coverTitleBackgroundMode === "fillBox"
+            ? titleBoxWidthPx
+            : coverTitleBackgroundWidthPct !== undefined
+              ? (coverTitleBackgroundWidthPct / 100) * frontCellWpx
+              : lineWidth + padX;
         const stripX =
-          coverTitleBackgroundWidthPct !== undefined
-            ? lineStartX + lineWidth / 2 - stripWidth / 2
-            : lineStartX - padX / 2;
+          coverTitleBackgroundMode === "fillBox"
+            ? titleBoxLeftPx
+            : coverTitleBackgroundWidthPct !== undefined
+              ? lineStartX + lineWidth / 2 - stripWidth / 2
+              : lineStartX - padX / 2;
         ctxNN.save();
         ctxNN.shadowBlur = 0;
         ctxNN.fillStyle = coverTitleBackgroundColor;

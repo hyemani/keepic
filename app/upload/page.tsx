@@ -2271,12 +2271,18 @@ function TextBoxRichEditor({
   }, [box.id]);
 
   const isEmpty = !box.text;
+  // "박스 전체 배경"(fillBox, 2026-10) 모드일 땐 배경을 이 컴포넌트가 아니라 부모
+  // (TextBoxOverlay)가 박스 자신의 실제 크기(widthPct/heightPct) 그대로 그려요 — 그래야
+  // 손잡이로 박스 크기를 조절할 때 배경도 정확히 같이 늘어나요. 여기서는 그 경우 배경
+  // 관련 스타일을 전부 건너뛰어요(중복으로 두 번 그리지 않도록).
+  const isFillBoxMode = box.backgroundColor !== undefined && box.backgroundMode === "fillBox";
   // 배경 띠 너비를 직접 지정했으면(backgroundWidthPct, 2026-10) 아래 contentEditable
   // 자신엔 배경색·가로 여백을 안 주고(글자 폭을 안 건드리려고), 대신 이 바깥
   // 컨테이너(박스 자신의 너비=box.widthPct%) 안에 별도의 절대배치 띠를 글자 뒤에
   // 깔아요. 띠 너비는 이 박스가 속한 페이지 전체를 100%로 보는 backgroundWidthPct를
   // "박스 자신의 너비" 기준 퍼센트로 환산해요(box.widthPct가 0이면 나눗셈을 피해요).
-  const hasBackgroundWidthOverride = box.backgroundColor !== undefined && box.backgroundWidthPct !== undefined;
+  const hasBackgroundWidthOverride =
+    !isFillBoxMode && box.backgroundColor !== undefined && box.backgroundWidthPct !== undefined;
   const backgroundStripPctOfBox =
     hasBackgroundWidthOverride && box.widthPct > 0 ? (box.backgroundWidthPct! / box.widthPct) * 100 : 0;
 
@@ -2329,22 +2335,26 @@ function TextBoxRichEditor({
           fontFamily: box.fontFamily,
           fontSize: `${0.85 * box.fontScale}rem`,
           ...(box.backgroundColor
-            ? hasBackgroundWidthOverride
-              ? {
-                  // 띠는 위 별도 div가 그려요 — 글자 쪽엔 배경색·가로 여백을 안 줘서
-                  // (텍스트 폭이 안 바뀌도록) 세로 여백만 그대로 유지해요.
-                  paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                  paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                }
-              : {
-                  backgroundColor: box.backgroundColor,
-                  paddingLeft: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
-                  paddingRight: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
-                  paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                  paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
-                  boxDecorationBreak: "clone",
-                  WebkitBoxDecorationBreak: "clone",
-                }
+            ? isFillBoxMode
+              ? // fillBox 모드는 부모(TextBoxOverlay)가 박스 전체 크기로 배경을 따로
+                // 그려서(아래 fillBoxBackground) 여기서는 배경색·여백을 전혀 안 줘요.
+                {}
+              : hasBackgroundWidthOverride
+                ? {
+                    // 띠는 위 별도 div가 그려요 — 글자 쪽엔 배경색·가로 여백을 안 줘서
+                    // (텍스트 폭이 안 바뀌도록) 세로 여백만 그대로 유지해요.
+                    paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                    paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                  }
+                : {
+                    backgroundColor: box.backgroundColor,
+                    paddingLeft: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                    paddingRight: `${(box.backgroundPaddingXPct ?? 40) / 100}em`,
+                    paddingTop: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                    paddingBottom: `${(box.backgroundPaddingYPct ?? 25) / 100}em`,
+                    boxDecorationBreak: "clone",
+                    WebkitBoxDecorationBreak: "clone",
+                  }
             : {}),
           ...(box.lineHeight !== undefined ? { lineHeight: box.lineHeight } : {}),
           ...(box.letterSpacing !== undefined ? { letterSpacing: `${box.letterSpacing}em` } : {}),
@@ -2648,6 +2658,15 @@ function TextBoxOverlay({
           누르게 됐었어요. 테두리가 그려지는 여백만큼(8px, 여유 있게) 투명한 히트 영역을
           덧대서, 그 경계선 위/근처를 눌러도 항상 이 텍스트박스가 반응하도록 함. */}
       <div className="absolute -inset-2" onMouseDown={handleMouseDown} />
+      {/* "박스 전체 배경"(fillBox, 2026-10, 혜민님 요청: "박스 전체 채우기") — 배경이
+          글자가 아니라 이 박스 자신의 실제 크기(=이 outer div의 width/height, 손잡이로
+          조절하는 바로 그 사각형)에 정확히 맞춰져요. TextBoxRichEditor 안쪽(글자 주변
+          hug 방식)과 달리 여기서 그려서, 박스를 늘리거나 줄이면 배경도 항상 똑같이
+          늘어나거나 줄어들어요(같은 style 객체, 같은 렌더 사이클이라 어긋날 일이
+          없어요). 글자보다 먼저(= 아래에) 그려서 글자가 항상 배경 위에 보여요. */}
+      {box.backgroundColor !== undefined && box.backgroundMode === "fillBox" && (
+        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundColor: box.backgroundColor }} />
+      )}
       {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
         <>
           {snapGuide.xPct !== null && (
@@ -4351,6 +4370,7 @@ function TextBoxToolbar({
   selectionRange,
   contentValue,
   onContentChange,
+  allowFillBoxBackground = true,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -4380,6 +4400,13 @@ function TextBoxToolbar({
   // 박스 것이고 collapsed가 아니면) 그 범위에만, 없으면 박스 전체에 적용해요
   // (lib/textRuns.ts의 applyRunAwareStyleChange).
   selectionRange: { boxId: string; start: number; end: number } | null;
+  // "박스 전체 배경"(fillBox, 2026-10) 모드 토글을 보여줄지예요. 책등(스핀)은 배경이
+  // 90도 회전된 상태로 그려져서(spineTextStyle) 이 박스 크기 기준 채우기가 아직 실제
+  // 화면에서 검증되지 않았고(이전 라운드부터 있던 회전 관련 위험), 이번 범위에서도
+  // 안전하게 빼기로 해서 — 책등 호출부(SpineTitleOverlay용)만 false를 넘겨서 기존
+  // "글자 주변 배경"만 보이게 해요(기존과 완전히 동일). 나머지(일반 글상자·표지 제목)는
+  // 기본값 true로 두 모드 다 보여요.
+  allowFillBoxBackground?: boolean;
   // 지금 고르고 있는 게 앞표지/뒤표지/내지 중 어떤 텍스트박스인지 — 혼동하지 않도록
   // 항상 보여줘요(2026-09-23 요청).
   scopeLabel?: string;
@@ -4624,7 +4651,50 @@ function TextBoxToolbar({
           />
         )}
       </div>
-      {box.backgroundColor && (
+      {/* "글자 주변 배경" vs "박스 전체 배경"(2026-10, 혜민님 요청: "박스 전체 채우기
+          방식을 추가... 기존처럼 글자 주변에만 배경을 넣는 방식도 필요하므로 구분해
+          선택할 수 있게") — 모드 하나만 고르면 그 모드에만 해당하는 세부 설정만
+          아래 보여요(중복되는 "배경 띠 너비"는 fillBox에선 항상 "박스 폭과 같음"이라
+          아예 안 보여요). */}
+      {box.backgroundColor && allowFillBoxBackground && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">배경 방식</label>
+          <div className="grid grid-cols-2 gap-1">
+            {(
+              [
+                { id: "hugText" as const, label: "글자 주변 배경" },
+                { id: "fillBox" as const, label: "박스 전체 배경" },
+              ]
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  if (opt.id === "fillBox" && box.heightPct === undefined) {
+                    // fillBox는 "박스 자신의 실제 세로 크기"가 있어야 의미가 있어요 — 아직
+                    // 고정 높이가 없는(글자 양에 맞춰 자동으로 늘어나는) 박스라면, 지금
+                    // 화면에 보이는 정도의 합리적인 기본 높이를 같이 지정해요(2026-10,
+                    // 혜민님 요청 "박스 전체 채우기... 상자 크기를 조절하면 배경도 늘어나야").
+                    // 높이가 없으면 배경은 자동으로 "폭은 박스 그대로, 높이는 글자에 맞춤"
+                    // (아래 fillBoxBackground div가 자동으로 그렇게 동작해요)으로 남아요.
+                    onChange({ backgroundMode: opt.id, heightPct: 20 });
+                  } else {
+                    onChange({ backgroundMode: opt.id });
+                  }
+                }}
+                className={`border px-2 py-1.5 text-xs transition ${
+                  (box.backgroundMode ?? "hugText") === opt.id
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {box.backgroundColor && (box.backgroundMode ?? "hugText") === "hugText" && (
         <div className="grid grid-cols-2 gap-1.5">
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
@@ -4664,7 +4734,7 @@ function TextBoxToolbar({
           </div>
         </div>
       )}
-      {box.backgroundColor && (
+      {box.backgroundColor && (box.backgroundMode ?? "hugText") === "hugText" && (
         <div>
           <div className="mb-1 flex items-center justify-between">
             <label className="block text-sm font-medium text-[var(--color-charcoal)]/70">
@@ -4674,7 +4744,9 @@ function TextBoxToolbar({
                 너비예요 — 서로 다른 설정이라는 걸 라벨과 이 토글 버튼으로 분명히
                 구분해요(2026-10, 혜민님 요청: "노란 배경 띠 가로길이를 글자와 별개로
                 조절하고 싶다"). 꺼두면(자동) 글자 폭+위 여백으로 예전처럼 자동
-                계산되고, 켜면 그 값을 무시하고 이 너비로 고정돼요. */}
+                계산되고, 켜면 그 값을 무시하고 이 너비로 고정돼요. "박스 전체 배경"
+                모드에선 배경 폭이 항상 박스 폭과 같아서 이 설정 자체가 없어요(위 배경
+                방식 토글로 구분). */}
             <button
               type="button"
               onClick={() =>
@@ -4712,6 +4784,13 @@ function TextBoxToolbar({
             설정이에요.
           </p>
         </div>
+      )}
+      {box.backgroundColor && (box.backgroundMode ?? "hugText") === "fillBox" && (
+        <p className="text-xs text-[var(--color-charcoal)]/50">
+          배경이 이 박스의 실제 가로·세로 크기와 항상 같아요 — 캔버스에서 박스 손잡이로
+          크기를 조절하면 배경도 같이 늘어나거나 줄어들어요. 박스 안 글자 위치는 아래
+          “문단 정렬”과 “박스영역 정렬”을 따라요.
+        </p>
       )}
       <div className="grid grid-cols-2 gap-1.5">
         <div>
@@ -7674,8 +7753,16 @@ function CoverTitleOverlay({
   // 배경색·가로 여백을 안 줘요 — 아래에서 별도의 절대배치 띠(coverTitleBackgroundStrip)를
   // 따로 그려서 TextBoxRichEditor(app/upload/page.tsx의 같은 패턴)와 동일하게 맞춰요.
   // 세로 여백은 그대로 둬요(글자 위아래 공간은 예전과 같아요).
+  // "박스 전체 배경"(fillBox, 2026-10, 혜민님 요청) — 표지 제목은 아직 실제 heightPct
+  // (고정 높이) 개념이 없어서(위 handleCoverTitleBoxChange 주석 참고), 여기서는 "가로
+  // 폭만 제목 자리(widthPct) 전체로 채우고 세로는 글자에 맞춰 자동"으로 범위를
+  // 한정한 인터림 구현이에요(app/upload/page.tsx TextBoxOverlay의 완전한 fillBox와
+  // 다름 — 최종 보고에 이 스코프 축소를 명시했어요). 아래에서 hasBackgroundWidthOverride와
+  // 같은 "띠를 별도 div로 그리는" 코드 경로를 그대로 타되, 띠 너비를 backgroundWidthPct
+  // 대신 항상 100%(박스 전체 폭)로 고정해요.
+  const isFillBoxMode = editableBox.backgroundColor !== undefined && editableBox.backgroundMode === "fillBox";
   const hasBackgroundWidthOverride =
-    editableBox.backgroundColor !== undefined && editableBox.backgroundWidthPct !== undefined;
+    isFillBoxMode || (editableBox.backgroundColor !== undefined && editableBox.backgroundWidthPct !== undefined);
   const textStyle: React.CSSProperties = {
     fontSize: `${fontSizeCqh}cqh`,
     lineHeight: lineHeightEm,
@@ -7710,8 +7797,11 @@ function CoverTitleOverlay({
   // 띠 너비는 backgroundWidthPct(앞표지 칸 전체 기준 %)를 "이 제목 박스 자신의 너비
   // (widthPct)" 기준 퍼센트로 환산해요 — boxRef 컨테이너 자체가 widthPct%로 이미
   // 자리잡고 있어서, 그 안에서의 상대 퍼센트로 다시 계산해야 해요.
-  const backgroundStripPctOfBox =
-    hasBackgroundWidthOverride && widthPct > 0 ? (editableBox.backgroundWidthPct! / widthPct) * 100 : 0;
+  const backgroundStripPctOfBox = isFillBoxMode
+    ? 100
+    : hasBackgroundWidthOverride && widthPct > 0
+      ? (editableBox.backgroundWidthPct! / widthPct) * 100
+      : 0;
 
   return (
     <div
@@ -8649,6 +8739,14 @@ function UploadPageContent() {
   // 배경 띠 전체 너비 직접 지정(backgroundWidthPct, 2026-10) — 지정 안 하면(undefined,
   // 기본) 예전처럼 글자 폭+위 여백으로 자동 계산돼요.
   const [coverTitleBackgroundWidthPct, setCoverTitleBackgroundWidthPct] = useState<number | undefined>(undefined);
+  // "박스 전체 배경"(fillBox) 모드(2026-10, 혜민님 요청) — 표지 제목은 아직 실제
+  // heightPct(고정 높이) 개념이 없어서(위 coverTitleVerticalAlign 주석과 같은 이유),
+  // 여기서는 "가로 폭만 박스(제목 자리) 전체로 채우고 세로는 글자에 맞춰 자동"이라는
+  // 범위로 한정해요(app/upload/page.tsx CoverTitleOverlay 참고). 값이 없으면(undefined,
+  // 기존과 동일) "hugText"(글자 주변)예요.
+  const [coverTitleBackgroundMode, setCoverTitleBackgroundMode] = useState<"hugText" | "fillBox" | undefined>(
+    undefined
+  );
   const [coverTitleScaleXPct, setCoverTitleScaleXPct] = useState(100);
   const [coverTitleScaleYPct, setCoverTitleScaleYPct] = useState(100);
   const [coverTitleVerticalAlign, setCoverTitleVerticalAlign] = useState<"top" | "middle" | "bottom">("top");
@@ -10931,6 +11029,7 @@ function UploadPageContent() {
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
       coverTitleBackgroundWidthPct,
+      coverTitleBackgroundMode,
       coverTitleScaleXPct,
       coverTitleScaleYPct,
       coverTitleVerticalAlign,
@@ -10991,6 +11090,7 @@ function UploadPageContent() {
     setCoverTitleBackgroundPaddingXPct(s.coverTitleBackgroundPaddingXPct ?? 40);
     setCoverTitleBackgroundPaddingYPct(s.coverTitleBackgroundPaddingYPct ?? 25);
     setCoverTitleBackgroundWidthPct(s.coverTitleBackgroundWidthPct);
+    setCoverTitleBackgroundMode(s.coverTitleBackgroundMode);
     setCoverTitleScaleXPct(s.coverTitleScaleXPct ?? 100);
     setCoverTitleScaleYPct(s.coverTitleScaleYPct ?? 100);
     setCoverTitleVerticalAlign(s.coverTitleVerticalAlign ?? "top");
@@ -11096,6 +11196,7 @@ function UploadPageContent() {
     coverTitleBackgroundPaddingXPct,
     coverTitleBackgroundPaddingYPct,
     coverTitleBackgroundWidthPct,
+    coverTitleBackgroundMode,
     coverTitleScaleXPct,
     coverTitleScaleYPct,
     coverTitleVerticalAlign,
@@ -11342,6 +11443,7 @@ function UploadPageContent() {
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
       coverTitleBackgroundWidthPct,
+      coverTitleBackgroundMode,
       innerPaperWeightG: innerPaper.weightG,
       pages,
       spineTitle,
@@ -11788,6 +11890,7 @@ function UploadPageContent() {
       backgroundPaddingXPct: coverTitleBackgroundPaddingXPct,
       backgroundPaddingYPct: coverTitleBackgroundPaddingYPct,
       backgroundWidthPct: coverTitleBackgroundWidthPct,
+      backgroundMode: coverTitleBackgroundMode,
       scaleXPct: coverTitleScaleXPct,
       scaleYPct: coverTitleScaleYPct,
       verticalAlign: coverTitleVerticalAlign,
@@ -11819,6 +11922,7 @@ function UploadPageContent() {
       if (changes.backgroundPaddingXPct !== undefined) setCoverTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setCoverTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
       if ("backgroundWidthPct" in changes) setCoverTitleBackgroundWidthPct(changes.backgroundWidthPct);
+      if (changes.backgroundMode !== undefined) setCoverTitleBackgroundMode(changes.backgroundMode);
       if (changes.scaleXPct !== undefined) setCoverTitleScaleXPct(changes.scaleXPct);
       if (changes.scaleYPct !== undefined) setCoverTitleScaleYPct(changes.scaleYPct);
       if (changes.verticalAlign !== undefined) setCoverTitleVerticalAlign(changes.verticalAlign);
@@ -13087,6 +13191,7 @@ function UploadPageContent() {
                                 selectionRange={null}
                                 contentValue={spineTitle}
                                 onContentChange={handleSpineTitleChange}
+                                allowFillBoxBackground={false}
                               />
                             </div>
                           )}

@@ -99,6 +99,17 @@ export type TextBoxDef = {
   // 있으면 그 너비로 배경 띠를 그리고, 글자는 원래 자리(정렬 기준)에서 전혀 안
   // 움직여요 — 띠만 글자를 기준으로 좌우 대칭으로 넓어지거나 좁아져요.
   backgroundWidthPct?: number;
+  // 배경(하이라이트) 동작 방식(2026-10, 혜민님 요청: "박스 전체 채우기 방식을
+  // 추가") — "hugText"(기본값, 하위 호환)는 위 backgroundPaddingXPct/YPct·
+  // backgroundWidthPct로 글자 주변에만 배경을 둬요(기존과 동일). "fillBox"는 배경이
+  // 이 박스 자신의 실제 크기(widthPct·heightPct)에 정확히 맞춰지고, 캔버스에서
+  // 손잡이로 박스 크기를 조절하면 배경도 함께 늘어나거나 줄어들어요 — 이때
+  // backgroundWidthPct/backgroundPaddingXPct는(가로 폭이 이미 박스 폭과 같아서)
+  // 무시돼요(패널에서도 안 보여요). 값이 없으면(undefined) "hugText"와 동일해요
+  // (기존 텍스트박스는 전부 이 상태, 하위 호환). heightPct가 없는 텍스트박스에서
+  // "fillBox"를 고르면 화면(TextBoxOverlay)이 처음 고를 때 합리적인 기본
+  // heightPct를 같이 지정해요(실제 높이 개념이 있어야 "박스 전체"가 의미 있어서).
+  backgroundMode?: "hugText" | "fillBox";
   // 문자 단위(글자 일부만) 서식(2026-10-06 추가, "일부 글자만 다른 서체/크기/색/
   // 굵게/기울임/밑줄" 요청) — 드래그로 고른 범위에만 다른 서식을 줄 수 있어요. 값이
   // 없으면(undefined, 기존 텍스트박스 전부 이 상태) 예전처럼 박스 전체가 위 필드들
