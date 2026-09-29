@@ -3534,9 +3534,27 @@ function BorderPositionPicker({
   onToggle: (key: TableBorderPositionKey) => void;
   onPreset: (keys: TableBorderPositionKey[]) => void;
 }) {
+  // 2026-11-3차 개편(혜민님 리포트: "아이콘이 6개/4개로 어색하게 나뉘어 있다 — 동일한
+  // 크기·간격의 가로 한 줄로 정렬해 달라") — 예전엔 위치 아이콘 6개(grid-cols-6)와
+  // 프리셋 아이콘 4개(grid-cols-4)가 서로 다른 크기(8x8 vs 25x25px)로 두 줄에 나뉘어
+  // 있었는데, 지금은 전부 h-8 w-8(32px)로 크기를 통일해서 하나의 가로 줄(flex)에
+  // 나란히 놓고, 두 그룹 사이엔 시각적 구분을 위한 세로 구분선만 하나 둬요. 패널
+  // 너비가 좁을 때는 이 줄만 가로 스크롤되게(overflow-x-auto) 하고, 패널 전체 너비엔
+  // 전혀 영향이 없어요(바깥 div가 아니라 이 줄 하나에만 overflow를 줌).
+  const presetActiveId = (() => {
+    for (const p of BORDER_POSITION_PRESETS) {
+      if (p.keys.length === 0) continue; // "선 없음"은 즉시 실행형이라 "선택됨" 표시가 없어요
+      if (p.keys.length === selected.size && p.keys.every((k) => selected.has(k))) return p.id;
+    }
+    return null;
+  })();
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-6 gap-1" role="group" aria-label="테두리 위치 선택 — 위/아래/왼쪽/오른쪽/안쪽 가로/안쪽 세로">
+      <div
+        className="flex items-center gap-1 overflow-x-auto pb-0.5"
+        role="group"
+        aria-label="테두리 위치 선택 — 위/아래/왼쪽/오른쪽/안쪽 가로/안쪽 세로 및 자주 쓰는 프리셋"
+      >
         {BORDER_POSITION_ICON_ORDER.map((key) => {
           const isSelected = selected.has(key);
           return (
@@ -3547,7 +3565,7 @@ function BorderPositionPicker({
               title={`${BORDER_POSITION_LABELS[key]}${isSelected ? " (선택됨)" : ""} — 눌러서 ${isSelected ? "선택 해제" : "선택"}`}
               aria-label={BORDER_POSITION_LABELS[key]}
               aria-pressed={isSelected}
-              className={`flex h-8 w-8 items-center justify-center border transition ${
+              className={`flex h-8 w-8 shrink-0 items-center justify-center border transition ${
                 isSelected
                   ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
                   : "border-[var(--color-hairline)] hover:bg-[var(--color-ivory)]"
@@ -3557,16 +3575,22 @@ function BorderPositionPicker({
             </button>
           );
         })}
-      </div>
-      <div className="grid grid-cols-4 gap-0.5">
-        {BORDER_POSITION_PRESETS.map((p) => (
+        <div className="mx-0.5 h-6 w-px shrink-0 bg-[var(--color-hairline)]" aria-hidden="true" />
+        {BORDER_POSITION_PRESETS.map((p) => {
+          const isActive = presetActiveId === p.id;
+          return (
           <button
             key={p.id}
             type="button"
             onClick={() => onPreset(p.keys)}
             title={p.label}
             aria-label={p.label}
-            className="flex h-[25px] w-[25px] items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
+            aria-pressed={isActive}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center border transition ${
+              isActive
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
+            }`}
           >
             <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true">
               {p.id === "allOuter" && (
@@ -3593,7 +3617,8 @@ function BorderPositionPicker({
               )}
             </svg>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -3975,6 +4000,38 @@ function TableBoxToolbar({
                 >
                   기본값
                 </button>
+              </div>
+              {/* 2026-11-3차 추가, 혜민님 요청: "배경색의 '없음'은 지금처럼 '채우기
+                  없음'으로 유지하고, 별도로 선택한 셀의 배경색 투명도(0~100%) 조절
+                  메뉴를 추가해 주세요 — 빨간 배경 50% 투명도면 뒤 사진이 비치고, 글자와
+                  표 선은 흐려지면 안 됩니다." — 왼쪽의 "없음" 견본은 fillOpacity를
+                  정확히 0으로 두는 이진(on/off) 스위치 그대로 두고(안 건드림), 이
+                  슬라이더는 fillOpacity를 0~100% 사이 아무 값으로나 연속적으로 조절해요
+                  — 즉 "없음"(0%, 진짜 아무것도 안 칠함)과 "빨간 배경 50%"(색+중간
+                  투명도)는 여전히 서로 다른 상태예요(fillOpacity 값 자체가 다름). 이
+                  칸의 배경 채우기(위 style.backgroundColor 한 곳)에만 알파를 줘서
+                  칠하고, 칸 안의 글자(textarea, 항상 불투명)와 표 격자선(별도의 svg
+                  레이어, 항상 불투명)은 전혀 다른 렌더 경로라 흐려지지 않아요 — 인쇄
+                  (lib/printCompose.ts drawTableGridAndCells)도 배경 fillRect과 글자·선
+                  그리기가 서로 다른 호출이라 화면과 똑같이 동작해요. */}
+              <div className="mt-1.5">
+                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
+                  배경 투명도 {Math.round(((sel.selStyle?.fillOpacity ?? box.fillOpacity ?? 1)) * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round(((sel.selStyle?.fillOpacity ?? box.fillOpacity ?? 1)) * 100)}
+                  onChange={(e) =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      fillOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100,
+                    })
+                  }
+                  className="w-full"
+                  title="선택한 칸 배경색의 투명도(0~100%) — 채우기 색은 그대로 두고 진하기만 조절해요"
+                />
               </div>
             </div>
             <div>
