@@ -14,6 +14,7 @@ import {
   ImageBoxDef,
   TableBoxDef,
   TableCellStyle,
+  TableBorderPositionKey,
   AI_AUTO_LAYOUT_TEMPLATE_ID,
   generateEmptyFreeformSpreads,
   findAutoPhotoSlotPosition,
@@ -3412,6 +3413,142 @@ function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => 
   );
 }
 
+// 2026-10 추가(혜민님 요청: "표 선을 인디자인처럼 위치별로 선택해서 설정") — 버튼
+// 하나가 표(또는 선택 영역)의 여러 위치(TableBorderPositionKey)를 한꺼번에 가리켜요.
+// "바깥쪽 전체"는 표(선택 영역)의 4변, "안쪽 전체"는 안쪽 가로+세로선 전부예요.
+// "선 없음"은 이 목록에 없고 아래 컴포넌트가 별도 버튼으로 둬요(항상 전체 6개 위치를
+// 한 번에 꺼요).
+const BORDER_POSITION_GROUPS: { id: string; label: string; keys: TableBorderPositionKey[] }[] = [
+  { id: "allOuter", label: "바깥쪽 전체", keys: ["top", "bottom", "left", "right"] },
+  { id: "allInner", label: "안쪽 전체", keys: ["innerH", "innerV"] },
+  { id: "innerH", label: "안쪽 가로선", keys: ["innerH"] },
+  { id: "innerV", label: "안쪽 세로선", keys: ["innerV"] },
+  { id: "top", label: "위쪽", keys: ["top"] },
+  { id: "bottom", label: "아래쪽", keys: ["bottom"] },
+  { id: "left", label: "왼쪽", keys: ["left"] },
+  { id: "right", label: "오른쪽", keys: ["right"] },
+  { id: "all", label: "모든 선", keys: ["top", "bottom", "left", "right", "innerH", "innerV"] },
+];
+
+type BorderPositionPatch = {
+  color?: string;
+  width?: number;
+  style?: "solid" | "dashed" | "dotted";
+  dashLength?: number;
+  dashGap?: number;
+};
+
+// 인디자인 stroke 패널처럼 "위치"를 고른 뒤 그 위치의 선 색·굵기·종류·켜짐/꺼짐을
+// 설정하는 공용 UI예요 — 표 전체를 선택했을 때(TableBoxDef.borderPositions로 저장,
+// getPositionValue로 지금 값을 미리 보여줌)와 칸/여러 칸을 선택했을 때(선택 영역의
+// 칸별 sideBorders로 저장, 칸마다 값이 다를 수 있어 미리보기는 생략) 둘 다에서 같은
+// 모양으로 재사용해요(2026-10, 혜민님 요청: "칸을 선택한 경우에도 선택 영역의 바깥쪽·
+// 안쪽 선을 같은 방식으로 지정").
+function BorderPositionPanel({
+  defaultColor,
+  defaultWidth,
+  defaultStyle,
+  getPositionValue,
+  onApply,
+}: {
+  defaultColor: string;
+  defaultWidth: number;
+  defaultStyle: "solid" | "dashed" | "dotted";
+  getPositionValue?: (key: TableBorderPositionKey) => { enabled?: boolean; color?: string; width?: number; style?: "solid" | "dashed" | "dotted" } | undefined;
+  onApply: (keys: TableBorderPositionKey[], patch: BorderPositionPatch | null) => void;
+}) {
+  const [activeGroupId, setActiveGroupId] = useState("allOuter");
+  const group = BORDER_POSITION_GROUPS.find((g) => g.id === activeGroupId) ?? BORDER_POSITION_GROUPS[0];
+  const current = getPositionValue?.(group.keys[0]);
+  const enabled = current?.enabled ?? true;
+  const color = current?.color ?? defaultColor;
+  const width = current?.width ?? defaultWidth;
+  const styleKind = current?.style ?? defaultStyle;
+
+  function apply(patch: { color?: string; width?: number; style?: "solid" | "dashed" | "dotted"; enabled?: boolean }) {
+    const nextEnabled = patch.enabled ?? enabled;
+    if (!nextEnabled) {
+      onApply(group.keys, null);
+      return;
+    }
+    onApply(group.keys, {
+      color: patch.color ?? color,
+      width: patch.width ?? width,
+      style: patch.style ?? styleKind,
+    });
+  }
+
+  return (
+    <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
+      <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
+        테두리 위치(인디자인 스타일 — 위치를 고르고 아래에서 선을 꾸며요)
+      </p>
+      <div className="grid grid-cols-3 gap-1">
+        {BORDER_POSITION_GROUPS.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            onClick={() => setActiveGroupId(g.id)}
+            className={`border px-1 py-1 text-[10px] transition ${
+              activeGroupId === g.id
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => onApply(BORDER_POSITION_GROUPS.find((g) => g.id === "all")!.keys, null)}
+          className="border border-[var(--color-hairline)] px-1 py-1 text-[10px] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
+        >
+          선 없음
+        </button>
+      </div>
+      <label className="mt-1.5 flex items-center gap-1.5 text-[10px] text-[var(--color-charcoal)]/60">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => apply({ enabled: e.target.checked })}
+          className="h-3.5 w-3.5"
+        />
+        이 위치({group.label})에 선 표시
+      </label>
+      {enabled && (
+        <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => apply({ color: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="이 위치의 선 색"
+          />
+          <input
+            type="number"
+            min={0}
+            max={8}
+            step={0.5}
+            value={width}
+            onChange={(e) => apply({ width: Math.max(0, Math.min(8, Number(e.target.value) || 0)) })}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            title="이 위치의 선 굵기(px)"
+          />
+          <select
+            value={styleKind}
+            onChange={(e) => apply({ style: e.target.value as "solid" | "dashed" | "dotted" })}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          >
+            <option value="solid">실선</option>
+            <option value="dashed">파선</option>
+            <option value="dotted">점선</option>
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 표(테이블) 박스 하나가 선택돼 있을 때 나오는 꾸미기 툴바예요(2026-09-28 혜민님
 // 요청: "표 면, 표 색, 라인색, 선 종류, 라운드, 표크기"). TextBoxToolbar와 같은
 // 자리(표만들기 서브탭 안, + 표 추가 버튼 바로 아래)에 나와요 — 선택된 표가 없으면
@@ -3800,6 +3937,23 @@ function TableBoxToolbar({
                 <option value="dotted">점선</option>
               </select>
             </div>
+            {/* 2026-10 추가(혜민님 요청: "칸이나 여러 셀을 선택한 경우에도 선택 영역의
+                바깥쪽·안쪽 선을 같은 방식으로 지정") — 위 "선 색/굵기/종류"는 선택한
+                칸 전체에 똑같이 적용되는데(TableCellStyle.borderColor 등), 이 패널은
+                선택 범위의 "바깥쪽 변"/"안쪽 가로·세로선"을 서로 다르게(예: 바깥쪽은
+                굵은 검정, 안쪽은 얇은 회색) 지정해요 — 칸별 sideBorders로 저장돼서 위
+                설정보다 우선해요. */}
+            <BorderPositionPanel
+              defaultColor={sel.selStyle?.borderColor ?? box.borderColor ?? "#94A3B8"}
+              defaultWidth={sel.selStyle?.borderWidth ?? box.borderWidth ?? 1}
+              defaultStyle={sel.selStyle?.borderStyle ?? box.borderStyle ?? "solid"}
+              onApply={(keys, patch) =>
+                (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.applySelectionBorderPosition(
+                  keys,
+                  patch
+                )
+              }
+            />
           </div>
         </div>
       )}
@@ -3974,6 +4128,26 @@ function TableBoxToolbar({
           </div>
         </div>
       )}
+      {/* 2026-10 추가(혜민님 요청: "표 선을 인디자인처럼 위치별로 선택해서 설정... 표
+          전체를 선택했을 때 선 적용 위치를 다음과 같이 제공") — 위 "라인색"·"선 종류/
+          굵기"는 표 전체에 똑같이 적용되는 단일 기본값이고, 이 패널은 위치(바깥쪽/
+          안쪽/가로/세로/상하좌우)마다 다르게 지정해요(TableBoxDef.borderPositions) —
+          예: "바깥쪽은 굵은 검정, 안쪽은 얇은 회색". 칸별로 개별 선 설정(cellStyles)을
+          준 칸이 있으면 그 칸은 이 표 전체 위치별 설정보다 항상 우선해요.
+      */}
+      <BorderPositionPanel
+        defaultColor={box.borderColor ?? "#94A3B8"}
+        defaultWidth={box.borderWidth ?? 1}
+        defaultStyle={box.borderStyle ?? "solid"}
+        getPositionValue={(key) => box.borderPositions?.[key]}
+        onApply={(keys, patch) => {
+          const next = { ...(box.borderPositions ?? {}) };
+          for (const k of keys) {
+            next[k] = patch === null ? { ...next[k], enabled: false } : { ...next[k], ...patch, enabled: true };
+          }
+          onChange({ borderPositions: next });
+        }}
+      />
           </div>
         )}
       </div>
@@ -6260,6 +6434,14 @@ type TableBoxOverlayHandle = {
   setCellStyle: (patch: Partial<TableCellStyle>) => void;
   resetCellStyleFields: (fields: (keyof TableCellStyle)[]) => void;
   toggleCellHiddenSide: (side: "top" | "right" | "bottom" | "left") => void;
+  // 2026-10 추가 — 지금 고른 범위(선택한 칸/여러 칸)의 "바깥쪽 그 변" 또는 "안쪽 가로/
+  // 세로선"에 인디자인 stroke 패널처럼 위치별 선 색·굵기·종류를 한 번에 적용해요.
+  // patch가 null이면 그 위치의 선을 숨겨요(TableBoxToolbar의 선택 영역 테두리 위치
+  // 패널이 호출해요).
+  applySelectionBorderPosition: (
+    categories: ("top" | "bottom" | "left" | "right" | "innerH" | "innerV")[],
+    patch: { color?: string; width?: number; style?: "solid" | "dashed" | "dotted"; dashLength?: number; dashGap?: number } | null
+  ) => void;
 };
 
 // 지금 선택 상태(활성 칸·병합 가능 여부·칸 폭/세로폭·선택 범위)를 왼쪽 패널에 반응형으로
@@ -6840,6 +7022,77 @@ const TableBoxOverlay = forwardRef<
     onChange({ cellStyles: next });
   }
 
+  // 2026-10 추가(혜민님 요청: "칸이나 여러 셀을 선택한 경우에도 선택 영역의 바깥쪽·
+  // 안쪽 선을 같은 방식으로 지정") — 지금 고른 범위(selRange)의 "바깥쪽 그 변" 또는
+  // "안쪽 가로/세로선"에, 표 전체 위치별 설정(TableBoxToolbar의 borderPositions)과
+  // 같은 개념을 칸 단위로 적용해요. patch가 null이면 "선 없음"(hiddenSides로 숨김),
+  // 아니면 그 위치의 칸(들) sideBorders에 색·굵기·종류를 써요(2026-10, TableCellStyle.
+  // sideBorders 확장). 우선순위 규칙(resolveGridSegmentStyle)상 "아래쪽/오른쪽 칸이
+  // 이긴다"와 똑같이, 항상 그 방향 쪽 칸(rightAnchor/bottomAnchor)에 써요 — 그 칸이 표
+  // 바깥이면(선택 범위가 표 가장자리) 반대쪽(leftAnchor/topAnchor)에 써요.
+  function applySelectionBorderPosition(
+    categories: ("top" | "bottom" | "left" | "right" | "innerH" | "innerV")[],
+    patch: { color?: string; width?: number; style?: "solid" | "dashed" | "dotted"; dashLength?: number; dashGap?: number } | null
+  ) {
+    if (!selRange) return;
+    const { r0, c0, r1, c1 } = selRange;
+    const next = { ...(box.cellStyles ?? {}) };
+    function writeSide(anchor: { row: number; col: number } | undefined, side: "top" | "right" | "bottom" | "left") {
+      if (!anchor) return;
+      const key = `${anchor.row}-${anchor.col}`;
+      const cur = next[key] ?? {};
+      if (patch === null) {
+        next[key] = { ...cur, hiddenSides: { ...cur.hiddenSides, [side]: true } };
+      } else {
+        const hs = cur.hiddenSides?.[side] ? { ...cur.hiddenSides, [side]: false } : cur.hiddenSides;
+        next[key] = { ...cur, hiddenSides: hs, sideBorders: { ...cur.sideBorders, [side]: patch } };
+      }
+    }
+    function sameAnchor(a?: { row: number; col: number }, b?: { row: number; col: number }) {
+      return !!a && !!b && a.row === b.row && a.col === b.col;
+    }
+    for (const category of categories) {
+      if (category === "left" || category === "right") {
+        const c = category === "left" ? c0 : c1 + 1;
+        for (let r = r0; r <= r1; r++) {
+          const leftAnchor = c > 0 ? resolveAnchor(r, c - 1) : undefined;
+          const rightAnchor = c < box.cols ? resolveAnchor(r, c) : undefined;
+          if (sameAnchor(leftAnchor, rightAnchor)) continue;
+          if (rightAnchor) writeSide(rightAnchor, "left");
+          else writeSide(leftAnchor, "right");
+        }
+      } else if (category === "top" || category === "bottom") {
+        const r = category === "top" ? r0 : r1 + 1;
+        for (let c = c0; c <= c1; c++) {
+          const topAnchor = r > 0 ? resolveAnchor(r - 1, c) : undefined;
+          const bottomAnchor = r < box.rows ? resolveAnchor(r, c) : undefined;
+          if (sameAnchor(topAnchor, bottomAnchor)) continue;
+          if (bottomAnchor) writeSide(bottomAnchor, "top");
+          else writeSide(topAnchor, "bottom");
+        }
+      } else if (category === "innerV") {
+        for (let c = c0 + 1; c <= c1; c++) {
+          for (let r = r0; r <= r1; r++) {
+            const leftAnchor = resolveAnchor(r, c - 1);
+            const rightAnchor = resolveAnchor(r, c);
+            if (sameAnchor(leftAnchor, rightAnchor)) continue;
+            writeSide(rightAnchor, "left");
+          }
+        }
+      } else if (category === "innerH") {
+        for (let r = r0 + 1; r <= r1; r++) {
+          for (let c = c0; c <= c1; c++) {
+            const topAnchor = resolveAnchor(r - 1, c);
+            const bottomAnchor = resolveAnchor(r, c);
+            if (sameAnchor(topAnchor, bottomAnchor)) continue;
+            writeSide(bottomAnchor, "top");
+          }
+        }
+      }
+    }
+    onChange({ cellStyles: next });
+  }
+
   // 왼쪽 "표만들기" 패널의 버튼들이 이 표(선택된 칸 기준)에 직접 동작하도록 노출해요
   // (ImageBoxOverlay의 zoomIn/zoomOut과 같은 패턴).
   useImperativeHandle(ref, () => ({
@@ -6858,6 +7111,7 @@ const TableBoxOverlay = forwardRef<
     setCellStyle,
     resetCellStyleFields,
     toggleCellHiddenSide,
+    applySelectionBorderPosition,
   }));
 
   // 지금 선택 상태를 왼쪽 패널이 반응형으로 보여줄 수 있게 올려줘요(버튼 활성/비활성,
@@ -6916,21 +7170,55 @@ const TableBoxOverlay = forwardRef<
     const key = a ? `${a.row}-${a.col}` : `${row}-${col}`;
     return !!gridCellStyles?.[key]?.hiddenSides?.[side];
   }
-  // 한 격자선이 두 칸(위/아래 또는 왼/오) 사이에 걸쳐 있을 때, "선택한 칸" 패널에서
-  // 준 칸별 선 스타일(borderColor/Width/Style, 2026-10) 중 무엇을 쓸지 정해요 —
-  // 아래쪽/오른쪽 칸에 값이 있으면 그걸 우선하고, 없으면 위쪽/왼쪽 칸 값을, 둘 다
-  // 없으면 표 전체 기본값을 써요(lib/printCompose.ts의 같은 이름 함수와 완전히 같은
-  // 규칙). anchorA/anchorB에 undefined를 넘기면(표 바깥 경계) 그 칸은 없는 걸로 쳐요.
-  function resolveGridSegmentStyle(anchorA?: { row: number; col: number }, anchorB?: { row: number; col: number }) {
-    const styleB = anchorB ? gridCellStyles?.[`${anchorB.row}-${anchorB.col}`] : undefined;
-    const styleA = anchorA ? gridCellStyles?.[`${anchorA.row}-${anchorA.col}`] : undefined;
-    const src = (styleB?.borderColor ?? styleB?.borderWidth ?? styleB?.borderStyle) !== undefined ? styleB : styleA;
-    const color = hexToRgba(src?.borderColor ?? box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
-    const width = src?.borderWidth ?? gridBorderWidthPx;
-    const styleKind = src?.borderStyle ?? gridBorderStyle;
+  // 칸(anchor)의 한쪽 변(top/right/bottom/left)에 대한 "그 칸만의" 선 스타일을 읽어요
+  // (2026-10, 인디자인 스타일 "위치별" 테두리 설정 — 혜민님 요청: "칸이나 여러 셀을
+  // 선택한 경우에도 선택 영역의 바깥쪽·안쪽 선을 같은 방식으로 지정"). 칸의
+  // sideBorders[side]가 있으면 그걸(칸 공통 borderColor/Width/Style 위에 그 변만 덮어씀),
+  // 없으면 칸 공통 borderColor/Width/Style을(있으면), 아무것도 없으면 undefined를
+  // 돌려줘요 — 이 함수가 undefined를 돌려주면 이 칸엔 "이 변에 대한 개별 설정이 아예
+  // 없다"는 뜻이라, 아래 resolveGridSegmentStyle이 표 전체 위치별 설정(borderPositions)
+  // → 표 전체 기본값 순서로 더 내려가요.
+  function cellSideStyle(row: number, col: number, side: "top" | "right" | "bottom" | "left") {
+    const a = mergeAt(row, col);
+    const key = a ? `${a.row}-${a.col}` : `${row}-${col}`;
+    const style = gridCellStyles?.[key];
+    if (!style) return undefined;
+    const uniform =
+      (style.borderColor ?? style.borderWidth ?? style.borderStyle ?? style.dashLength ?? style.dashGap) !==
+      undefined
+        ? { color: style.borderColor, width: style.borderWidth, style: style.borderStyle, dashLength: style.dashLength, dashGap: style.dashGap }
+        : undefined;
+    const perSide = style.sideBorders?.[side];
+    if (!uniform && !perSide) return undefined;
+    return { ...uniform, ...perSide };
+  }
+  // 한 격자선이 두 칸(위/아래 또는 왼/오) 사이에 걸쳐 있을 때 무엇을 쓸지 정해요 —
+  // 우선순위(가장 구체적인 게 이김, lib/albumTemplates.ts TableBoxDef.borderPositions
+  // 주석 참고): ① 아래쪽/오른쪽 칸의 그 변 개별 설정(cellSideStyle) → 없으면 위쪽/왼쪽
+  // 칸의 그 변 개별 설정 → ② 표 전체 위치별 설정(box.borderPositions[category],
+  // enabled:false면 이 칸에 개별 설정이 없는 한 아예 안 그림) → ③ 표 전체 단일 기본값
+  // (box.borderColor 등). lib/printCompose.ts의 같은 이름 함수와 완전히 같은 규칙이에요.
+  // anchorA/anchorB에 undefined를 넘기면(표 바깥 경계) 그 칸은 없는 걸로 쳐요. null을
+  // 돌려주면(표 전체 위치별 설정이 "선 없음"이고 칸 개별 설정도 없음) 이 선은 안 그려요.
+  function resolveGridSegmentStyle(
+    anchorA: { row: number; col: number } | undefined,
+    sideOnA: "top" | "right" | "bottom" | "left",
+    anchorB: { row: number; col: number } | undefined,
+    sideOnB: "top" | "right" | "bottom" | "left",
+    category: TableBorderPositionKey
+  ) {
+    const bSide = anchorB ? cellSideStyle(anchorB.row, anchorB.col, sideOnB) : undefined;
+    const aSide = anchorA ? cellSideStyle(anchorA.row, anchorA.col, sideOnA) : undefined;
+    const cellSrc = bSide ?? aSide;
+    const posStyle = box.borderPositions?.[category];
+    if (!cellSrc && posStyle?.enabled === false) return null;
+    const width = cellSrc?.width ?? posStyle?.width ?? gridBorderWidthPx;
+    const styleKind = cellSrc?.style ?? posStyle?.style ?? gridBorderStyle;
+    const colorHex = cellSrc?.color ?? posStyle?.color ?? box.borderColor ?? "#94A3B8";
+    const color = hexToRgba(colorHex, box.borderOpacity ?? 1);
     const dashed = styleKind !== "solid";
-    const dashLength = src?.dashLength ?? (styleKind === "dotted" ? width : width * 3);
-    const dashGap = src?.dashGap ?? (styleKind === "dotted" ? width * 1.5 : width * 2);
+    const dashLength = cellSrc?.dashLength ?? posStyle?.dashLength ?? (styleKind === "dotted" ? width : width * 3);
+    const dashGap = cellSrc?.dashGap ?? posStyle?.dashGap ?? (styleKind === "dotted" ? width * 1.5 : width * 2);
     return { color, width, dashed, dashLength, dashGap };
   }
   const gridLineSegments: {
@@ -6949,6 +7237,7 @@ const TableBoxOverlay = forwardRef<
     const isOuter = c === 0 || c === box.cols;
     if (gridBorderScope === "outer" && !isOuter) continue;
     if (gridBorderScope === "inner" && isOuter) continue;
+    const category: TableBorderPositionKey = c === 0 ? "left" : c === box.cols ? "right" : "innerV";
     for (let r = 0; r < box.rows; r++) {
       const covered = gridMerges.some((m) => c > m.col && c < m.col + m.colSpan && r >= m.row && r < m.row + m.rowSpan);
       if (covered) continue;
@@ -6957,7 +7246,8 @@ const TableBoxOverlay = forwardRef<
       if (hiddenLeft || hiddenRight) continue;
       const leftAnchor = c > 0 ? resolveAnchor(r, c - 1) : undefined;
       const rightAnchor = c < box.cols ? resolveAnchor(r, c) : undefined;
-      const style = resolveGridSegmentStyle(leftAnchor, rightAnchor);
+      const style = resolveGridSegmentStyle(leftAnchor, "right", rightAnchor, "left", category);
+      if (!style) continue;
       gridLineSegments.push({ x1: x, y1: rowBoundariesPct[r], x2: x, y2: rowBoundariesPct[r + 1], ...style });
     }
   }
@@ -6966,6 +7256,7 @@ const TableBoxOverlay = forwardRef<
     const isOuter = r === 0 || r === box.rows;
     if (gridBorderScope === "outer" && !isOuter) continue;
     if (gridBorderScope === "inner" && isOuter) continue;
+    const category: TableBorderPositionKey = r === 0 ? "top" : r === box.rows ? "bottom" : "innerH";
     for (let c = 0; c < box.cols; c++) {
       const covered = gridMerges.some((m) => r > m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan);
       if (covered) continue;
@@ -6974,7 +7265,8 @@ const TableBoxOverlay = forwardRef<
       if (hiddenTop || hiddenBottom) continue;
       const topAnchor = r > 0 ? resolveAnchor(r - 1, c) : undefined;
       const bottomAnchor = r < box.rows ? resolveAnchor(r, c) : undefined;
-      const style = resolveGridSegmentStyle(topAnchor, bottomAnchor);
+      const style = resolveGridSegmentStyle(topAnchor, "bottom", bottomAnchor, "top", category);
+      if (!style) continue;
       gridLineSegments.push({ x1: colBoundariesPct[c], y1: y, x2: colBoundariesPct[c + 1], y2: y, ...style });
     }
   }

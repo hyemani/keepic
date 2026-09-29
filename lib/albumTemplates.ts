@@ -227,6 +227,45 @@ export type TableCellStyle = {
   borderStyle?: "solid" | "dashed" | "dotted";
   dashLength?: number;
   dashGap?: number;
+  // 2026-10 추가(혜민님 요청: "표 선을 인디자인처럼 위치별로 선택해서 설정"의 "칸/여러
+  // 칸을 선택한 경우" 부분) — 위 borderColor/Width/Style/dashLength/dashGap이 이 칸의
+  // "닿은 모든 변" 기본값이라면, sideBorders는 그중 한쪽 변(상/우/하/좌)만 따로 덮어써요.
+  // "선택 영역의 바깥쪽 선/안쪽 선을 다르게" 같은 위치별 일괄 적용(아래 TableBoxDef의
+  // borderPositions와 같은 개념이지만 칸 단위로 직접 저장)을 할 때 이 필드에 써요. 값이
+  // 없는 변은 위 칸 공통 필드 → borderPositions → 표 전체 기본값 순으로 내려가요(자세한
+  // 우선순위는 app/upload/page.tsx TableBoxOverlay의 resolveGridSegmentStyle,
+  // lib/printCompose.ts의 같은 이름 함수 주석 참고). 비워두면(기본, 기존 표는 전부 이
+  // 상태) 하위 호환이에요.
+  sideBorders?: Partial<
+    Record<
+      "top" | "right" | "bottom" | "left",
+      {
+        color?: string;
+        width?: number;
+        style?: "solid" | "dashed" | "dotted";
+        dashLength?: number;
+        dashGap?: number;
+      }
+    >
+  >;
+};
+
+// 2026-10 추가(혜민님 요청: "표 전체를 선택했을 때" 인디자인 stroke 패널처럼 "위치"를
+// 골라 선 색·굵기·종류·켜짐/꺼짐을 지정) — top/bottom/left/right는 표 자신의 바깥쪽 그
+// 변, innerH/innerV는 안쪽 칸 구분선(가로/세로)이에요. "바깥쪽 전체"·"안쪽 전체"·"모든
+// 선"·"선 없음" 버튼은 이 6개 키 중 여러 개에 한꺼번에 같은 값을 쓰는 UI 동작일 뿐,
+// 따로 저장하지 않아요(app/upload/page.tsx의 BORDER_POSITION_GROUPS 참고).
+export type TableBorderPositionKey = "top" | "bottom" | "left" | "right" | "innerH" | "innerV";
+export type TableBorderPositionStyle = {
+  // false면 이 위치의 선을 표 전체에서 숨겨요(칸별 sideBorders가 있으면 그게 우선해서
+  // 계속 보여요). 비워두면(undefined) 이 위치에 표 전체 기본값(borderColor 등)을 그대로
+  // 쓰는, 즉 "아직 이 위치를 따로 안 정함" 상태예요 — true와 동일하게 "보임"이에요.
+  enabled?: boolean;
+  color?: string;
+  width?: number;
+  style?: "solid" | "dashed" | "dotted";
+  dashLength?: number;
+  dashGap?: number;
 };
 
 export type TableBoxDef = {
@@ -286,6 +325,16 @@ export type TableBoxDef = {
   borderScope?: "all" | "outer" | "inner";
   // 칸별 개별 설정(배경색/여백/정렬/변별 테두리 숨김) — 키는 `"${row}-${col}"`.
   cellStyles?: Record<string, TableCellStyle>;
+  // 2026-10 추가(혜민님 요청: "표 전체를 선택했을 때" 인디자인처럼 위치별(바깥쪽/안쪽/
+  // 가로/세로/상하좌우) 선 색·굵기·종류·켜짐을 따로 지정) — 표 전체에 적용되고,
+  // cellStyles의 borderColor/Width/Style/sideBorders(칸별 개별 설정)가 있으면 그게
+  // 항상 우선해요. 우선순위(가장 구체적인 것이 이김): ① 칸(또는 선택 영역)의
+  // sideBorders/borderColor 등 개별 설정 → ② 이 borderPositions(표 전체, 위치별) →
+  // ③ 표 전체 단일 기본값(borderColor/borderWidth/borderStyle). 화면
+  // (app/upload/page.tsx TableBoxOverlay의 resolveGridSegmentStyle)과 인쇄
+  // (lib/printCompose.ts의 같은 이름 함수) 둘 다 이 순서를 완전히 같게 따라요. 값이
+  // 없으면(비워두면) 기존 표와 동일하게 동작해요(하위 호환).
+  borderPositions?: Partial<Record<TableBorderPositionKey, TableBorderPositionStyle>>;
 };
 
 export type SpreadDef = {

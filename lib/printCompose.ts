@@ -11,7 +11,7 @@
 // 다시 생성해주세요.
 
 import { jsPDF } from "jspdf";
-import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, pageTemplates, sortStackedBoxes } from "@/lib/albumTemplates";
+import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import {
   resolveRunStyle,
@@ -938,21 +938,50 @@ function drawTableGridAndCells(
   // (2026-09-28), 병합된 칸 안쪽을 지나는 격자선 구간은 건너뛰어요. borderScope(전체/
   // 바깥쪽/안쪽)와 칸별 hiddenSides(개별 변)도 화면(TableBoxOverlay)과 완전히 같은
   // 규칙으로 반영해요.
-  // 칸별 개별 선 스타일(cellStyles의 borderColor/Width/Style, 2026-10) — 한 선이 두
-  // 칸 사이에 걸쳐 있으면 아래쪽/오른쪽 칸 값을 우선하고, 없으면 위쪽/왼쪽 칸 값을,
-  // 둘 다 없으면 표 전체 기본값을 써요. 화면(app/upload/page.tsx TableBoxOverlay의
-  // resolveGridSegmentStyle)과 완전히 같은 규칙이에요.
-  function resolveGridSegmentStylePrint(anchorA?: { row: number; col: number }, anchorB?: { row: number; col: number }) {
-    const styleB = anchorB ? box.cellStyles?.[`${anchorB.row}-${anchorB.col}`] : undefined;
-    const styleA = anchorA ? box.cellStyles?.[`${anchorA.row}-${anchorA.col}`] : undefined;
-    const src = (styleB?.borderColor ?? styleB?.borderWidth ?? styleB?.borderStyle) !== undefined ? styleB : styleA;
-    const color = hexToRgbaPrint(src?.borderColor ?? box.borderColor ?? "#94A3B8", box.borderOpacity ?? 1);
-    const widthPxLine = Math.max(0.1, src?.borderWidth ?? box.borderWidth ?? 1) * (PRINT_DPI / 96);
-    const styleKind = src?.borderStyle ?? box.borderStyle ?? "solid";
+  // 칸(anchor)의 한쪽 변에 대한 "그 칸만의" 선 스타일을 읽어요 — 화면(app/upload/
+  // page.tsx TableBoxOverlay의 cellSideStyle)과 완전히 같은 규칙이에요.
+  function cellSideStylePrint(row: number, col: number, side: "top" | "right" | "bottom" | "left") {
+    const a = resolveAnchorPrint(row, col);
+    const style = box.cellStyles?.[`${a.row}-${a.col}`];
+    if (!style) return undefined;
+    const uniform =
+      (style.borderColor ?? style.borderWidth ?? style.borderStyle ?? style.dashLength ?? style.dashGap) !==
+      undefined
+        ? { color: style.borderColor, width: style.borderWidth, style: style.borderStyle, dashLength: style.dashLength, dashGap: style.dashGap }
+        : undefined;
+    const perSide = style.sideBorders?.[side];
+    if (!uniform && !perSide) return undefined;
+    return { ...uniform, ...perSide };
+  }
+  // 한 선이 두 칸 사이에 걸쳐 있을 때 무엇을 쓸지 정해요 — 화면(app/upload/page.tsx
+  // TableBoxOverlay의 resolveGridSegmentStyle)과 완전히 같은 우선순위 규칙이에요: ①
+  // 아래쪽/오른쪽 칸의 그 변 개별 설정 → 없으면 위쪽/왼쪽 칸의 그 변 개별 설정 → ②
+  // 표 전체 위치별 설정(box.borderPositions[category]) → ③ 표 전체 단일 기본값. null을
+  // 돌려주면(표 전체 위치별 설정이 "선 없음"이고 칸 개별 설정도 없음) 이 선은 안 그려요.
+  function resolveGridSegmentStylePrint(
+    anchorA: { row: number; col: number } | undefined,
+    sideOnA: "top" | "right" | "bottom" | "left",
+    anchorB: { row: number; col: number } | undefined,
+    sideOnB: "top" | "right" | "bottom" | "left",
+    category: TableBorderPositionKey
+  ) {
+    const bSide = anchorB ? cellSideStylePrint(anchorB.row, anchorB.col, sideOnB) : undefined;
+    const aSide = anchorA ? cellSideStylePrint(anchorA.row, anchorA.col, sideOnA) : undefined;
+    const cellSrc = bSide ?? aSide;
+    const posStyle = box.borderPositions?.[category];
+    if (!cellSrc && posStyle?.enabled === false) return null;
+    const baseWidth = cellSrc?.width ?? posStyle?.width ?? box.borderWidth ?? 1;
+    const colorHex = cellSrc?.color ?? posStyle?.color ?? box.borderColor ?? "#94A3B8";
+    const color = hexToRgbaPrint(colorHex, box.borderOpacity ?? 1);
+    const widthPxLine = Math.max(0.1, baseWidth) * (PRINT_DPI / 96);
+    const styleKind = cellSrc?.style ?? posStyle?.style ?? box.borderStyle ?? "solid";
     const dashed = styleKind !== "solid";
-    const baseWidth = src?.borderWidth ?? box.borderWidth ?? 1;
-    const dashLenPx = (src?.dashLength ?? box.dashLength ?? (styleKind === "dotted" ? baseWidth : baseWidth * 3)) * (PRINT_DPI / 96);
-    const dashGapPx = (src?.dashGap ?? box.dashGap ?? (styleKind === "dotted" ? baseWidth * 1.5 : baseWidth * 2)) * (PRINT_DPI / 96);
+    const dashLenPx =
+      (cellSrc?.dashLength ?? posStyle?.dashLength ?? box.dashLength ?? (styleKind === "dotted" ? baseWidth : baseWidth * 3)) *
+      (PRINT_DPI / 96);
+    const dashGapPx =
+      (cellSrc?.dashGap ?? posStyle?.dashGap ?? box.dashGap ?? (styleKind === "dotted" ? baseWidth * 1.5 : baseWidth * 2)) *
+      (PRINT_DPI / 96);
     return { color, widthPxLine, dashed, dashLenPx, dashGapPx };
   }
   const borderScope = box.borderScope ?? "all";
@@ -972,6 +1001,7 @@ function drawTableGridAndCells(
     const isOuter = c === 0 || c === cols;
     if (borderScope === "outer" && !isOuter) continue;
     if (borderScope === "inner" && isOuter) continue;
+    const category: TableBorderPositionKey = c === 0 ? "left" : c === cols ? "right" : "innerV";
     for (let r = 0; r < rows; r++) {
       const covered = merges.some((m) => c > m.col && c < m.col + m.colSpan && r >= m.row && r < m.row + m.rowSpan);
       if (covered) continue;
@@ -980,12 +1010,14 @@ function drawTableGridAndCells(
       if (hiddenLeft || hiddenRight) continue;
       const leftAnchor = c > 0 ? resolveAnchorPrint(r, c - 1) : undefined;
       const rightAnchor = c < cols ? resolveAnchorPrint(r, c) : undefined;
+      const style = resolveGridSegmentStylePrint(leftAnchor, "right", rightAnchor, "left", category);
+      if (!style) continue;
       gridSegmentsPrint.push({
         x1: x,
         y1: topPx + rowTops[r],
         x2: x,
         y2: topPx + rowTops[r + 1],
-        ...resolveGridSegmentStylePrint(leftAnchor, rightAnchor),
+        ...style,
       });
     }
   }
@@ -994,6 +1026,7 @@ function drawTableGridAndCells(
     const isOuter = r === 0 || r === rows;
     if (borderScope === "outer" && !isOuter) continue;
     if (borderScope === "inner" && isOuter) continue;
+    const category: TableBorderPositionKey = r === 0 ? "top" : r === rows ? "bottom" : "innerH";
     for (let c = 0; c < cols; c++) {
       const covered = merges.some((m) => r > m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan);
       if (covered) continue;
@@ -1002,12 +1035,14 @@ function drawTableGridAndCells(
       if (hiddenTop || hiddenBottom) continue;
       const topAnchor = r > 0 ? resolveAnchorPrint(r - 1, c) : undefined;
       const bottomAnchor = r < rows ? resolveAnchorPrint(r, c) : undefined;
+      const style = resolveGridSegmentStylePrint(topAnchor, "bottom", bottomAnchor, "top", category);
+      if (!style) continue;
       gridSegmentsPrint.push({
         x1: leftPx + colLefts[c],
         y1: y,
         x2: leftPx + colLefts[c + 1],
         y2: y,
-        ...resolveGridSegmentStylePrint(topAnchor, bottomAnchor),
+        ...style,
       });
     }
   }
