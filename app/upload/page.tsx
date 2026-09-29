@@ -3703,7 +3703,7 @@ function BorderPositionPanel({
   return (
     <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
       <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
-        테두리 위치(인디자인 스타일 — 아래 표 그림에서 선을 클릭해 고르고, 그 아래에서 꾸며요)
+        표 스타일
       </p>
       <BorderPositionPicker selected={selected} onToggle={toggleKey} onPreset={applyPreset} />
       {selectedKeys.length === 0 ? (
