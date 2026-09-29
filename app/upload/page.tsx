@@ -3966,6 +3966,33 @@ function TableBoxToolbar({
           <p className="mb-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70">
             선택한 칸{sel.cellCount > 1 ? ` ${sel.cellCount}개` : ""}
           </p>
+          {/* 2026-11-5차, 혜민님 요청("표안의 내용을 복사하고 그대로 붙여넣고싶어 적용될수
+              있도록") — 칸 안 글자는 브라우저 기본 textarea라 한 칸 안에서 Cmd/Ctrl+C·V는
+              이미 되지만(네이티브 텍스트 필드), "이 칸을 통째로 복사해서 다른 칸(들)에
+              그대로 적용"(내용 + 배경/여백/정렬/테두리 스타일까지)은 지원이 없었어요.
+              세션 내부 버퍼(모듈 스코프 tableCellClipboard, 아래 정의)를 써서, OS
+              클립보드 권한과 무관하게 항상 안정적으로 동작해요. "붙여넣기"는 지금 고른
+              칸이 여러 개면(드래그 선택) 전부에 같은 내용을 적용해요. */}
+          <div className="mb-1.5 flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.copyActiveCell()}
+              className="rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
+              title="이 칸의 내용과 스타일을 복사해요"
+            >
+              칸 복사
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.pasteIntoSelectedCells()
+              }
+              className="rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
+              title="복사해둔 칸의 내용과 스타일을 지금 고른 칸(들)에 붙여넣어요"
+            >
+              붙여넣기
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-1.5">
             <div>
               <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경색</label>
@@ -6847,7 +6874,21 @@ type TableBoxOverlayHandle = {
   getSelectionBorderPositionValue: (
     key: TableBorderPositionKey
   ) => { enabled?: boolean; color?: string; width?: number; style?: "solid" | "dashed" | "dotted" } | undefined;
+  // 2026-11-5차, 혜민님 요청("표안의 내용을 복사하고 그대로 붙여넣고싶어") — 지금 고른
+  // 칸(activeCell) 하나의 내용+스타일을 세션 내부 클립보드(tableCellClipboard, 모듈
+  // 스코프)에 저장/적용해요. 표 하나 안에서든 표끼리든(모듈 스코프라 표가 달라도 같은
+  // 버퍼를 씀) 모두 동작해요.
+  copyActiveCell: () => void;
+  pasteIntoSelectedCells: () => void;
 };
+
+// 표 칸 복사/붙여넣기용 세션 내부 클립보드예요(2026-11-5차) — OS 클립보드
+// (navigator.clipboard)는 브라우저 권한/보안 컨텍스트에 따라 막힐 수 있어서, 이 앱
+// 안에서만 쓰는 간단한 모듈 스코프 변수로 대신해요(리로드하면 비워지지만, "복사 →
+// 바로 다른 칸에 붙여넣기"라는 요청 자체엔 세션 안에서만 유지돼도 충분해요). 표
+// 컴포넌트가 여러 개 있어도(페이지마다, 표마다) 전부 이 하나의 버퍼를 공유해서, 다른
+// 표의 칸에도 붙여넣을 수 있어요.
+let tableCellClipboard: { text: string; style: TableCellStyle | null } | null = null;
 
 // 지금 선택 상태(활성 칸·병합 가능 여부·칸 폭/세로폭·선택 범위)를 왼쪽 패널에 반응형으로
 // 보여주기 위한 정보예요. ref 메서드는 "지금 상태"를 읽을 수 없어서(호출만 가능) 따로
@@ -7240,6 +7281,41 @@ const TableBoxOverlay = forwardRef<
     return out;
   }
 
+  // "칸 복사" — 지금 고른 칸(activeCell, 여러 칸을 드래그했으면 그중 맨 처음 고른 칸)의
+  // 내용과 스타일을 세션 내부 클립보드에 저장해요. 병합된 칸이면 anchor 기준으로 읽어요
+  // (merge/split과 같은 anchor 규칙 — resolveAnchor).
+  function handleCopyActiveCell() {
+    if (!activeCell) return;
+    const anchor = resolveAnchor(activeCell.row, activeCell.col);
+    const idx = anchor.row * box.cols + anchor.col;
+    const text = box.cells[idx] ?? "";
+    const style = box.cellStyles?.[`${anchor.row}-${anchor.col}`];
+    tableCellClipboard = { text, style: style ? { ...style } : null };
+  }
+
+  // "붙여넣기" — 복사해둔 내용+스타일을 지금 고른 칸(들)에 그대로 적용해요. 여러 칸을
+  // 드래그로 골랐으면(selRange) 전부에 같은 내용을 붙여넣어요(간단한 블록 붙여넣기 —
+  // 원본 범위의 칸 모양을 그대로 옮기는 스프레드시트식 붙여넣기는 아니지만, "복사한 걸
+  // 여러 칸에 한 번에 적용"이라는 요청은 이걸로 충분해요).
+  function handlePasteIntoSelectedCells() {
+    if (!tableCellClipboard) return;
+    const clip = tableCellClipboard;
+    const targets = selRange ? selectedAnchors() : activeCell ? [resolveAnchor(activeCell.row, activeCell.col)] : [];
+    if (targets.length === 0) return;
+    const nextCells = box.cells.slice();
+    const nextCellStyles = box.cellStyles ? { ...box.cellStyles } : {};
+    for (const t of targets) {
+      nextCells[t.row * box.cols + t.col] = clip.text;
+      if (clip.style) {
+        nextCellStyles[`${t.row}-${t.col}`] = { ...clip.style };
+      }
+    }
+    onChange({
+      cells: nextCells,
+      cellStyles: Object.keys(nextCellStyles).length ? nextCellStyles : undefined,
+    });
+  }
+
   // "셀 병합" — 드래그로 고른 사각형 범위를 칸 하나로 합쳐요. 범위 안의 글자는 순서대로
   // 이어붙이고(빈 칸은 건너뜀), 그 범위와 겹치던 예전 병합은 새 병합이 대신해요.
   function handleMergeCells() {
@@ -7588,6 +7664,8 @@ const TableBoxOverlay = forwardRef<
     toggleCellHiddenSide,
     applySelectionBorderPosition,
     getSelectionBorderPositionValue,
+    copyActiveCell: handleCopyActiveCell,
+    pasteIntoSelectedCells: handlePasteIntoSelectedCells,
   }));
 
   // 지금 선택 상태를 왼쪽 패널이 반응형으로 보여줄 수 있게 올려줘요(버튼 활성/비활성,
