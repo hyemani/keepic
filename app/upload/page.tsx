@@ -2773,10 +2773,15 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         </svg>
       );
     case "front":
+      // "맨 앞으로" — 두 사각형 중 앞(오른쪽 위)이 항상 진하게 채워져서 "이게 맨 앞으로
+      // 온다"는 뜻이에요. 2026-10(7차), 혜민님 요청("작은 툴바에서도 서로 다른 기능으로
+      // 읽히게") — 어두운 툴바 배경에서도 두 사각형이 뚜렷이 구분되도록 채움 진하기
+      // (fillOpacity)를 높였어요(0.15→0.55, 선 굵기·크기는 다른 3개 아이콘과 그대로
+      // 통일). 방향 화살표가 없는 게 forward와의 유일한 차이예요(맨 끝 vs 한 칸).
       return (
         <svg {...common}>
-          <rect x="4" y="9" width="9" height="9" rx="1" opacity="0.4" />
-          <rect x="11" y="6" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
+          <rect x="4" y="9" width="9" height="9" rx="1" opacity="0.45" />
+          <rect x="11" y="6" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.55" />
         </svg>
       );
     // 2026-09-28(2차), 혜민님 요청("맨뒤/맨앞" 말고 "앞으로/뒤로" 한 칸씩 이동도):
@@ -2786,23 +2791,25 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
     case "forward":
       return (
         <svg {...common}>
-          <rect x="4" y="9" width="9" height="9" rx="1" opacity="0.4" />
-          <rect x="11" y="6" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
+          <rect x="4" y="9" width="9" height="9" rx="1" opacity="0.45" />
+          <rect x="11" y="6" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.55" />
           <path d="M15.5 3v3.5M14 5l1.5-1.5L17 5" />
         </svg>
       );
     case "back":
+      // "맨 뒤로" — front와 정반대로, 뒤(왼쪽 아래) 사각형이 진하게 채워져요. computeZOrderUpdates의
+      // "back" 액션(order[idx].z를 0으로, 나머지를 +1)과 방향이 일치함을 확인했어요.
       return (
         <svg {...common}>
-          <rect x="11" y="6" width="9" height="9" rx="1" opacity="0.4" />
-          <rect x="4" y="9" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
+          <rect x="11" y="6" width="9" height="9" rx="1" opacity="0.45" />
+          <rect x="4" y="9" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.55" />
         </svg>
       );
     case "backward":
       return (
         <svg {...common}>
-          <rect x="11" y="6" width="9" height="9" rx="1" opacity="0.4" />
-          <rect x="4" y="9" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.15" />
+          <rect x="11" y="6" width="9" height="9" rx="1" opacity="0.45" />
+          <rect x="4" y="9" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.55" />
           <path d="M8.5 18v3.5M7 20.5l1.5 1.5L10 20.5" />
         </svg>
       );
