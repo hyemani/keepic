@@ -221,6 +221,11 @@ export type TableCellStyle = {
   fillColor?: string;
   fillOpacity?: number;
   padding?: number; // px
+  // 2026-11-8차, 혜민님 요청("표안에 폰트 수정할수있게 구현해주세요") — 표 전체
+  // 기본 글꼴(TableBoxDef.fontFamily)과 다르게, 이 칸(들)만 따로 글꼴을 줘요(위
+  // fillColor/padding과 같은 "표 전체 기본값을 이 칸만 덮어쓴다" 패턴). 값이 없으면
+  // (기본, 기존 표는 전부 이 상태) 표 전체 기본값을 그대로 따라가서 하위 호환이에요.
+  fontFamily?: string;
   hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
   // 이 칸(anchor)에 닿은 격자선의 선 색·굵기·종류·점선 세부값을 표 전체 기본값과
   // 다르게 줘요(2026-10, 혜민님 요청: "표 전체를 선택했을 때는 전체 선 설정을, 셀을

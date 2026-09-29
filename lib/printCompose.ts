@@ -928,6 +928,14 @@ function drawTableGridAndCells(
       const effAlign = style?.align ?? box.align ?? "center";
       const effValign = style?.valign ?? box.valign ?? "middle";
       const effPad = (style?.padding ?? box.cellPadding ?? 6) * (PRINT_DPI / 96);
+      // 2026-11-8차, 혜민님 요청("표안에 폰트 수정할수있게 구현해주세요") — 화면
+      // (app/upload/page.tsx의 textarea style.fontFamily: cellOverride?.fontFamily ??
+      // box.fontFamily)과 똑같이, 이 칸에 개별 글꼴(cellStyles[...].fontFamily)이
+      // 있으면 표 전체 기본 글꼴 대신 그걸 써요. ctx.font를 표 전체용으로 한 번만
+      // 설정하던 걸(위 914번째 줄) 칸마다 다시 설정하도록 바꿨어요 — 칸마다 다를 수
+      // 있으니까요(정렬/여백을 칸마다 다시 계산하는 것과 같은 이유, 바로 위 주석 참고).
+      const effFontFamily = style?.fontFamily ?? fontFamily;
+      ctx.font = `${fontStyle}${fontWeight}${fontPx}px ${effFontFamily}`;
       const cellLeftPx = leftPx + colLefts[c];
       const cellRightPx = leftPx + colLefts[c + colSpan];
       const cellW = cellRightPx - cellLeftPx;

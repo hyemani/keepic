@@ -39,6 +39,17 @@ import {
 import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
+  readTableStylePresets,
+  saveTableStylePreset,
+  deleteTableStylePreset,
+  readTextStylePresets,
+  saveTextStylePreset,
+  deleteTextStylePreset,
+  type TableStylePreset,
+  type TextStylePreset,
+  type NamedStylePreset,
+} from "@/lib/stylePresets";
+import {
   applyRunAwareStyleChange,
   getEffectiveRuns,
   mergeAdjacentRuns,
@@ -3790,6 +3801,95 @@ function BorderPositionPanel({
 // 스와치(<input type="color">)에는 절대 안 나와요. 클릭하면 onClick만 호출하고 실제
 // "없음" 의미(채우기 투명도 0, 선 안 보이기 등)는 각 호출부가 정해요 — 새 데이터
 // 필드를 만들지 않고 기존 투명도(fillOpacity/borderOpacity)·enabled 값을 재사용해요.
+// 2026-11-8차, 혜민님 요청("표스타일/텍스트스타일을 저장해서 뒷페이지나 추후에도
+// 다시 사용할수있게") — "표 스타일" 패널(TableBoxToolbar)과 "텍스트 스타일" 패널
+// (TextBoxToolbar) 둘 다 모양이 똑같아서(이름 붙여 저장 → 목록에서 골라 적용/삭제)
+// 이 컴포넌트 하나를 공유해요. 실제 값 읽기/쓰기(localStorage)는 lib/stylePresets.ts가
+// 하고, 여기는 순수 UI(이름 입력 prompt·드롭다운·적용/삭제 버튼)만 맡아요.
+function StylePresetSection<T>({
+  label,
+  presets,
+  onSave,
+  onApply,
+  onDelete,
+}: {
+  label: string;
+  presets: NamedStylePreset<T>[];
+  onSave: (name: string) => void;
+  onApply: (preset: NamedStylePreset<T>) => void;
+  onDelete: (id: string) => void;
+}) {
+  // 2026-11-8차: presets가 바뀔 때(저장/삭제) selectedId를 useEffect로 다시 맞추는
+  // 대신(react-hooks/set-state-in-effect 린트 경고 대상), 아래 selected 계산 자체가
+  // "지금 목록에 없는 id면 자동으로 null"이 되도록 순수 계산으로만 처리해요(삭제
+  // 버튼을 누를 때는 그 클릭 핸들러 안에서 바로 setSelectedId("")를 불러요 — 이벤트
+  // 핸들러 안 setState는 이 린트 규칙 대상이 아니에요).
+  const [selectedId, setSelectedId] = useState("");
+  const selected = presets.find((p) => p.id === selectedId) ?? null;
+
+  return (
+    <div className="border border-[var(--color-hairline)] bg-white p-1.5">
+      <div className="mb-1.5 flex items-center justify-between">
+        <p className="text-[11px] font-medium text-[var(--color-charcoal)]/70">{label}</p>
+        <button
+          type="button"
+          onClick={() => {
+            const name = window.prompt(`지금 스타일을 어떤 이름으로 저장할까요?`, "");
+            const trimmed = name?.trim();
+            if (!trimmed) return;
+            onSave(trimmed);
+          }}
+          className="rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
+        >
+          지금 스타일로 저장
+        </button>
+      </div>
+      {presets.length === 0 ? (
+        <p className="text-[10px] text-[var(--color-charcoal)]/45 break-keep">
+          아직 저장한 {label}이 없어요. 위 버튼으로 지금 스타일을 저장해두면, 다른 페이지나
+          다음에 또 골라서 바로 적용할 수 있어요.
+        </p>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          >
+            <option value="">저장된 {label} 선택…</option>
+            {presets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={!selected}
+            onClick={() => selected && onApply(selected)}
+            className="shrink-0 rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            적용
+          </button>
+          <button
+            type="button"
+            disabled={!selected}
+            onClick={() => {
+              if (!selected) return;
+              if (!window.confirm(`"${selected.name}" 스타일을 삭제할까요?`)) return;
+              onDelete(selected.id);
+              setSelectedId("");
+            }}
+            className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            삭제
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NoneSwatchButton({
   active,
   onClick,
@@ -3856,6 +3956,13 @@ function TableBoxToolbar({
   const [ptDraft, setPtDraft] = useState("");
   const [showBorderDetail, setShowBorderDetail] = useState(false);
   const lastSyncedBoxIdRef = useRef<string | undefined>(undefined);
+  // 2026-11-8차, 혜민님 요청("표스타일을 저장해서 뒷페이지나 추후에도 다시 사용할수있게")
+  // — 저장된 표 스타일 목록. 이 컴포넌트가 처음 뜰 때 한 번 localStorage에서 읽어오고,
+  // 저장/삭제할 때마다 그 결과(최신 배열)로 다시 맞춰요(다른 탭/창은 실시간 동기화까지는
+  // 안 하지만, "저장 → 바로 목록에 보임"은 이걸로 충분해요).
+  const [tableStylePresets, setTableStylePresets] = useState<NamedStylePreset<TableStylePreset>[]>(() =>
+    readTableStylePresets()
+  );
 
   useEffect(() => {
     if (!box) {
@@ -3868,6 +3975,30 @@ function TableBoxToolbar({
   }, [box, pageWidthMm]);
 
   if (!box) return null;
+
+  // 지금 표의 "꾸밈" 값만 뽑아요(내용·칸 구성·칸별 개별 설정은 빼고) — 저장할 때 씀.
+  function captureTableStyle(b: TableBoxDef): TableStylePreset {
+    return {
+      fillColor: b.fillColor,
+      fillOpacity: b.fillOpacity,
+      borderColor: b.borderColor,
+      borderWidth: b.borderWidth,
+      borderStyle: b.borderStyle,
+      dashLength: b.dashLength,
+      dashGap: b.dashGap,
+      borderPositions: b.borderPositions,
+      fontFamily: b.fontFamily,
+      fontScale: b.fontScale,
+      color: b.color,
+      bold: b.bold,
+      italic: b.italic,
+      underline: b.underline,
+      lineHeight: b.lineHeight,
+      align: b.align,
+      valign: b.valign,
+      cellPadding: b.cellPadding,
+    };
+  }
   return (
     <div
       className="mt-2 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-2"
@@ -3883,17 +4014,35 @@ function TableBoxToolbar({
           표 삭제
         </button>
       </div>
+      {/* 2026-11-8차, 혜민님 요청("표스타일을 저장해서 뒷페이지나 추후에도 다시
+          사용할수있게") — 지금 이 표의 선/배경색/글꼴 등 "꾸밈" 값만 이름 붙여
+          저장했다가, 다른 표(다른 페이지의 표 포함)에 그대로 적용해요. 칸 구성(행·열
+          수)·내용·칸별 개별 설정(cellStyles)은 저장/적용 어느 쪽도 건드리지 않아요. */}
+      <StylePresetSection<TableStylePreset>
+        label="표 스타일"
+        presets={tableStylePresets}
+        onSave={(name) => setTableStylePresets(saveTableStylePreset(name, captureTableStyle(box)))}
+        onApply={(preset) => onChange(preset.style)}
+        onDelete={(id) => setTableStylePresets(deleteTableStylePreset(id))}
+      />
       <div className="border border-[var(--color-hairline)] bg-white p-1.5">
-        <p className="mb-1.5 text-[11px] font-medium text-[var(--color-charcoal)]/70">표 구조</p>
-        <p className="mb-1.5 text-[10px] text-[var(--color-charcoal)]/50 break-keep">
-          칸을 눌러서(드래그하면 여러 칸) 고른 뒤 아래 버튼을 눌러주세요.
-        </p>
-        <div className="grid grid-cols-2 gap-1">
+        <div className="mb-1 flex items-center justify-between">
+          <p className="text-[11px] font-medium text-[var(--color-charcoal)]/70">표 구조</p>
+          <p className="text-[9px] text-[var(--color-charcoal)]/45 break-keep">
+            칸을 눌러서(드래그하면 여러 칸) 고른 뒤 버튼을 눌러주세요
+          </p>
+        </div>
+        {/* 2026-11-8차, 혜민님 요청("표 구조 패널이 자리를 너무 차지해요") — 버튼
+            6개를 2열×3행(세로로 김) 대신 3열×2행으로 배치하고(px/py를 줄여 버튼 자체도
+            더 납작하게), 가로폭·세로폭 슬라이더 2개를 세로로 나란히 쌓지 않고 한 줄에
+            나란히 놓아요. 기능은 하나도 안 줄이고(버튼 6개·슬라이더 2개 전부 그대로,
+            클릭 수도 그대로) 차지하는 세로 높이만 줄여요. */}
+        <div className="grid grid-cols-3 gap-1">
           <button
             type="button"
             disabled={!sel?.canMerge}
             onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.mergeCells()}
-            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+            className="border border-[var(--color-hairline)] px-1 py-1 text-[10.5px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
           >
             셀 병합
           </button>
@@ -3901,7 +4050,7 @@ function TableBoxToolbar({
             type="button"
             disabled={!sel?.activeCell}
             onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.splitRow()}
-            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+            className="border border-[var(--color-hairline)] px-1 py-1 text-[10.5px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
           >
             행 분할
           </button>
@@ -3909,14 +4058,14 @@ function TableBoxToolbar({
             type="button"
             disabled={!sel?.activeCell}
             onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.splitCol()}
-            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+            className="border border-[var(--color-hairline)] px-1 py-1 text-[10.5px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
           >
             열 분할
           </button>
           <button
             type="button"
             onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.fitWidth()}
-            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)]"
+            className="border border-[var(--color-hairline)] px-1 py-1 text-[10.5px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)]"
           >
             너비 맞춤
           </button>
@@ -3924,7 +4073,7 @@ function TableBoxToolbar({
             type="button"
             disabled={!sel?.activeCell || box.rows <= 1}
             onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.deleteActiveRow()}
-            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+            className="border border-[var(--color-hairline)] px-1 py-1 text-[10.5px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
           >
             행 삭제
           </button>
@@ -3932,43 +4081,47 @@ function TableBoxToolbar({
             type="button"
             disabled={!sel?.activeCell || box.cols <= 1}
             onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.deleteActiveCol()}
-            className="border border-[var(--color-hairline)] px-1.5 py-1.5 text-[11px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
+            className="border border-[var(--color-hairline)] px-1 py-1 text-[10.5px] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-30"
           >
             열 삭제
           </button>
         </div>
         {sel?.activeCell && (
-          <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
-            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">
-              칸 가로폭 {Math.round(sel.colWidth * 100)}%
-            </label>
-            <input
-              type="range"
-              min={0.3}
-              max={3}
-              step={0.05}
-              value={sel.colWidth}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveColWidth(v);
-              }}
-              className="w-full"
-            />
-            <label className="mb-1 mt-2 block text-[10px] text-[var(--color-charcoal)]/60">
-              칸 세로폭 {Math.round(sel.rowHeight * 100)}%
-            </label>
-            <input
-              type="range"
-              min={0.3}
-              max={3}
-              step={0.05}
-              value={sel.rowHeight}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveRowHeight(v);
-              }}
-              className="w-full"
-            />
+          <div className="mt-1 grid grid-cols-2 gap-2 border-t border-[var(--color-hairline)] pt-1">
+            <div>
+              <label className="mb-0.5 block text-[9.5px] text-[var(--color-charcoal)]/60">
+                가로폭 {Math.round(sel.colWidth * 100)}%
+              </label>
+              <input
+                type="range"
+                min={0.3}
+                max={3}
+                step={0.05}
+                value={sel.colWidth}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveColWidth(v);
+                }}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[9.5px] text-[var(--color-charcoal)]/60">
+                세로폭 {Math.round(sel.rowHeight * 100)}%
+              </label>
+              <input
+                type="range"
+                min={0.3}
+                max={3}
+                step={0.05}
+                value={sel.rowHeight}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveRowHeight(v);
+                }}
+                className="w-full"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -4189,6 +4342,45 @@ function TableBoxToolbar({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+          <div className="mt-1.5">
+            {/* 2026-11-8차, 혜민님 요청("표안에 폰트 수정할수있게 구현해주세요") — 표
+                전체 기본 글꼴(box.fontFamily)은 칸을 하나도 안 골랐을 때만 보이는 아래
+                "표 꾸미기" 섹션에만 있었어요(칸을 고르면 그 섹션 자체가 숨어서, 칸을
+                고른 채로는 글꼴을 바꿀 방법이 없었어요). 위 배경색·안쪽 여백과 똑같은
+                패턴(setCellStyle로 이 칸(들)만 덮어쓰고, "기본값"을 누르면
+                resetCellStyleFields로 다시 표 전체 기본값을 따르게)으로 선택한 칸(들)의
+                글꼴을 따로 줘요. 여러 칸을 선택한 채로 바꾸면 그 칸들 전부 같은 값으로
+                덮어써요(다른 selStyle 필드와 동일). */}
+            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">글꼴</label>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={sel.selStyle?.fontFamily ?? box.fontFamily ?? fontOptions[0].id}
+                onChange={(e) =>
+                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                    fontFamily: e.target.value,
+                  })
+                }
+                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+              >
+                {fontOptions.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() =>
+                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
+                    "fontFamily",
+                  ])
+                }
+                className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+              >
+                기본값
+              </button>
             </div>
           </div>
           <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
@@ -4729,7 +4921,41 @@ function TextBoxToolbar({
     setScaleYDraft(String(box.scaleYPct ?? 100));
   }, [box, pageWidthMm]);
 
+  // 2026-11-8차, 혜민님 요청("텍스트스타일도 저장해서 뒷페이지나 추후에도 다시
+  // 사용할수있게") — TableBoxToolbar의 표 스타일 저장과 같은 패턴. 이 컴포넌트 하나를
+  // 일반 글상자·표지 제목·책등이 전부 같이 써서(위 주석 "선택한 텍스트가 표지
+  // 제목이든 책등이든 일반 글상자든 항상 똑같은 패널" 참고), 세 경우 모두 자동으로
+  // 저장/적용이 돼요.
+  const [textStylePresets, setTextStylePresets] = useState<NamedStylePreset<TextStylePreset>[]>(() =>
+    readTextStylePresets()
+  );
+
   if (!box) return null;
+
+  // 지금 텍스트박스의 "꾸밈" 값만 뽑아요(내용(text)·문자 단위 서식(runs)은 빼고) —
+  // 저장할 때 씀.
+  function captureTextStyle(b: TextBoxDef): TextStylePreset {
+    return {
+      fontFamily: b.fontFamily,
+      fontScale: b.fontScale,
+      color: b.color,
+      align: b.align,
+      bold: b.bold,
+      italic: b.italic,
+      underline: b.underline,
+      strikethrough: b.strikethrough,
+      lineHeight: b.lineHeight,
+      letterSpacing: b.letterSpacing,
+      scaleXPct: b.scaleXPct,
+      scaleYPct: b.scaleYPct,
+      verticalAlign: b.verticalAlign,
+      backgroundColor: b.backgroundColor,
+      backgroundPaddingXPct: b.backgroundPaddingXPct,
+      backgroundPaddingYPct: b.backgroundPaddingYPct,
+      backgroundWidthPct: b.backgroundWidthPct,
+      backgroundMode: b.backgroundMode,
+    };
+  }
 
   return (
     // onMouseDown을 여기서 막아야, 이 패널 안의 select·버튼·color input을 누를 때
@@ -4773,6 +4999,18 @@ function TextBoxToolbar({
           삭제
         </button>
       </div>
+      {/* 2026-11-8차, 혜민님 요청("텍스트스타일도 저장해서 뒷페이지나 추후에도 다시
+          사용할수있게") — 지금 이 텍스트박스의 글꼴/크기/색/굵게·기울임·밑줄·취소선/
+          정렬/배경 등 "꾸밈" 값만 이름 붙여 저장했다가, 다른 텍스트박스(표지 제목·
+          책등·일반 글상자 어디든, 다른 페이지 포함)에 그대로 적용해요. 내용(text)은
+          저장/적용 어느 쪽도 건드리지 않아요. */}
+      <StylePresetSection<TextStylePreset>
+        label="텍스트 스타일"
+        presets={textStylePresets}
+        onSave={(name) => setTextStylePresets(saveTextStylePreset(name, captureTextStyle(box)))}
+        onApply={(preset) => onChange(preset.style)}
+        onDelete={(id) => setTextStylePresets(deleteTextStylePreset(id))}
+      />
       <div>
         <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
           내용
@@ -8127,7 +8365,7 @@ const TableBoxOverlay = forwardRef<
               rows={textBoxRowCount(cellText)}
               style={{
                 fontSize: `${0.78 * (box.fontScale ?? 1)}rem`,
-                fontFamily: box.fontFamily ?? "Pretendard, sans-serif",
+                fontFamily: cellOverride?.fontFamily ?? box.fontFamily ?? "Pretendard, sans-serif",
                 color: box.color ?? "#1F2937",
                 fontWeight: box.bold ? 700 : 400,
                 fontStyle: box.italic ? "italic" : "normal",
@@ -12141,6 +12379,34 @@ function UploadPageContent() {
       // 충족하고, Ctrl+Alt+Shift+드래그의 가로 고정은 dragStart.current.axisLockX로
       // 처리해요(위 handleMouseDown/handleMouseMove).
       if (!meta) return;
+      // 2026-11-8차, 혜민님 리포트("한 칸 선택 → Ctrl/Cmd+C·V는 되는데 여러 칸
+      // 선택했을 때는 적용이 안 돼요") — 근본 원인: 여러 칸을 드래그로 선택해도 맨 처음
+      // 누른 칸의 textarea 포커스는 그대로 남아있어요(드래그 중엔 포커스를 옮기지
+      // 않으므로). 그 상태에서 Ctrl+C/V를 누르면 바로 아래 isTypingTarget 체크에 걸려
+      // "칸 복사/붙여넣기" 분기까지 오지도 못하고 브라우저 기본 텍스트 복사/붙여넣기로
+      // 새 버렸었어요. "선택한 칸" 패널의 버튼은 버튼을 누르는 순간 그 textarea
+      // 포커스가 자동으로 빠지니까 이 문제가 없었던 거예요(그래서 버튼은 항상 됐어요).
+      // 여러 칸이 선택돼 있을 때(tableCellSel.cellCount > 1)는 지금 포커스가 어디
+      // 있든(칸 textarea든 아니든) 상관없이 먼저 칸 복사/붙여넣기로 가로채요 — 여러
+      // 칸이 선택된 상태에서 브라우저 기본 텍스트 복사/붙여넣기는 애초에 의미가 없으니
+      // (한 textarea 안 글자만 복사될 뿐, "여러 칸"을 복사하는 게 아님) 안전해요. 칸
+      // 하나만 선택돼 있을 때(cellCount === 1)는 예전 그대로 아래 isTypingTarget 체크를
+      // 거쳐요 — 그 칸 글자를 실제로 입력/선택 중이면 브라우저 기본 복사/붙여넣기를
+      // 그대로 존중해요.
+      if (
+        (key === "c" || key === "v") &&
+        activeTableBox &&
+        tableCellSel?.activeCell &&
+        tableCellSel.cellCount > 1
+      ) {
+        const handle = tableBoxHandlesRef.current.get(activeTableBox.boxId);
+        if (handle) {
+          e.preventDefault();
+          if (key === "c") handle.copyActiveCell();
+          else handle.pasteIntoSelectedCells();
+          return;
+        }
+      }
       if (isTypingTarget(e.target)) {
         // 텍스트박스 안에서도 "붙여넣기"는 박스 자체를 복제하는 우리 기능과 헷갈릴 수
         // 있어서, 실행취소/다시실행만 브라우저 기본값에 맡기고 나머지는 건드리지 않아요.
