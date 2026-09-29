@@ -3435,18 +3435,24 @@ function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => 
 // 2026-10 추가(혜민님 요청: "표 선을 인디자인처럼 위치별로 선택해서 설정") — 버튼
 // 하나가 표(또는 선택 영역)의 여러 위치(TableBorderPositionKey)를 한꺼번에 가리켜요.
 // "바깥쪽 전체"는 표(선택 영역)의 4변, "안쪽 전체"는 안쪽 가로+세로선 전부예요.
-// "선 없음"은 이 목록에 없고 아래 컴포넌트가 별도 버튼으로 둬요(항상 전체 6개 위치를
-// 한 번에 꺼요).
-const BORDER_POSITION_GROUPS: { id: string; label: string; keys: TableBorderPositionKey[] }[] = [
+const ALL_BORDER_POSITION_KEYS: TableBorderPositionKey[] = ["top", "bottom", "left", "right", "innerH", "innerV"];
+const BORDER_POSITION_LABELS: Record<TableBorderPositionKey, string> = {
+  top: "위쪽 선",
+  bottom: "아래쪽 선",
+  left: "왼쪽 선",
+  right: "오른쪽 선",
+  innerH: "안쪽 가로선",
+  innerV: "안쪽 세로선",
+};
+// 2026-10 개편(혜민님 요청: "글자 버튼 목록 대신 인디자인처럼 표 그림에서 선을 직접
+// 클릭해서 고를 수 있게") — 아래 4개는 미리보기의 선택 상태를 한 번에 바꿔주는
+// 빠른 선택 아이콘 버튼이에요. "선 없음"만 예외로, 선택만 바꾸는 게 아니라 바로
+// 6개 위치 전부를 꺼요(기존 텍스트 버튼 때와 같은 동작 — 되돌릴 필요 없이 즉시 끔).
+const BORDER_POSITION_PRESETS: { id: string; label: string; keys: TableBorderPositionKey[] }[] = [
   { id: "allOuter", label: "바깥쪽 전체", keys: ["top", "bottom", "left", "right"] },
   { id: "allInner", label: "안쪽 전체", keys: ["innerH", "innerV"] },
-  { id: "innerH", label: "안쪽 가로선", keys: ["innerH"] },
-  { id: "innerV", label: "안쪽 세로선", keys: ["innerV"] },
-  { id: "top", label: "위쪽", keys: ["top"] },
-  { id: "bottom", label: "아래쪽", keys: ["bottom"] },
-  { id: "left", label: "왼쪽", keys: ["left"] },
-  { id: "right", label: "오른쪽", keys: ["right"] },
-  { id: "all", label: "모든 선", keys: ["top", "bottom", "left", "right", "innerH", "innerV"] },
+  { id: "all", label: "모든 선", keys: ALL_BORDER_POSITION_KEYS },
+  { id: "none", label: "선 없음", keys: [] },
 ];
 
 type BorderPositionPatch = {
@@ -3457,12 +3463,123 @@ type BorderPositionPatch = {
   dashGap?: number;
 };
 
-// 인디자인 stroke 패널처럼 "위치"를 고른 뒤 그 위치의 선 색·굵기·종류·켜짐/꺼짐을
-// 설정하는 공용 UI예요 — 표 전체를 선택했을 때(TableBoxDef.borderPositions로 저장,
-// getPositionValue로 지금 값을 미리 보여줌)와 칸/여러 칸을 선택했을 때(선택 영역의
-// 칸별 sideBorders로 저장, 칸마다 값이 다를 수 있어 미리보기는 생략) 둘 다에서 같은
-// 모양으로 재사용해요(2026-10, 혜민님 요청: "칸을 선택한 경우에도 선택 영역의 바깥쪽·
-// 안쪽 선을 같은 방식으로 지정").
+// 미리보기 SVG에 그릴 선 하나(=클릭 영역 하나)예요. 실제 표의 칸 수와 상관없이
+// 인디자인처럼 3x3 정도의 "대표 칸" 모양으로 고정해서 보여줘요 — innerH/innerV
+// 위치는 표에 안쪽 가로선/세로선이 여러 줄 있어도 전부 "같은 카테고리"라서, 미리보기
+// 안에서도 안쪽 줄 2개가 항상 같은 key(innerH 또는 innerV)를 함께 가리켜요.
+const BORDER_PREVIEW_SEGMENTS: { key: TableBorderPositionKey; reactKey: string; x1: number; y1: number; x2: number; y2: number }[] = [
+  { key: "top", reactKey: "top", x1: 15, y1: 10, x2: 105, y2: 10 },
+  { key: "bottom", reactKey: "bottom", x1: 15, y1: 70, x2: 105, y2: 70 },
+  { key: "left", reactKey: "left", x1: 15, y1: 10, x2: 15, y2: 70 },
+  { key: "right", reactKey: "right", x1: 105, y1: 10, x2: 105, y2: 70 },
+  { key: "innerH", reactKey: "innerH-1", x1: 15, y1: 30, x2: 105, y2: 30 },
+  { key: "innerH", reactKey: "innerH-2", x1: 15, y1: 50, x2: 105, y2: 50 },
+  { key: "innerV", reactKey: "innerV-1", x1: 45, y1: 10, x2: 45, y2: 70 },
+  { key: "innerV", reactKey: "innerV-2", x1: 75, y1: 10, x2: 75, y2: 70 },
+];
+
+// 인디자인 stroke/Cell Options 패널처럼 작은 표 그림에서 선을 직접 클릭해 고르는
+// 미리보기+선택 UI예요(2026-10, 혜민님 요청: "글자 버튼 목록 대신 표 그림에서 선을
+// 직접 클릭"). 클릭할 때마다 그 위치가 켜짐/꺼짐 토글되고, 여러 위치를 동시에 고를
+// 수 있어요(예: 위쪽+왼쪽만 같이 선택). 선택된 선은 파란색+굵게(색만이 아니라 굵기도
+// 달라지게 해서 색맹 등에서도 구분되게) 표시해요. 실제로 클릭 가능한 영역은 화면에
+// 보이는 얇은 선보다 훨씬 넓게(투명한 두꺼운 선을 겹쳐서) 잡아 작은 화면에서도 쉽게
+// 클릭하게 했어요.
+function BorderPositionPicker({
+  selected,
+  onToggle,
+  onPreset,
+}: {
+  selected: Set<TableBorderPositionKey>;
+  onToggle: (key: TableBorderPositionKey) => void;
+  onPreset: (keys: TableBorderPositionKey[]) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-center border border-[var(--color-hairline)] bg-white py-1.5">
+        <svg viewBox="0 0 120 80" width={140} height={94} role="group" aria-label="테두리 위치 미리보기 — 선을 클릭해서 고르세요">
+          {BORDER_PREVIEW_SEGMENTS.map((seg) => {
+            const isSelected = selected.has(seg.key);
+            return (
+              <g key={seg.reactKey}>
+                {/* 실제 클릭 영역(화면에는 안 보이지만 훨씬 두꺼움) */}
+                <line
+                  x1={seg.x1}
+                  y1={seg.y1}
+                  x2={seg.x2}
+                  y2={seg.y2}
+                  stroke="transparent"
+                  strokeWidth={14}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => onToggle(seg.key)}
+                >
+                  <title>{`${BORDER_POSITION_LABELS[seg.key]}${isSelected ? " (선택됨)" : ""} — 클릭해서 ${isSelected ? "선택 해제" : "선택"}`}</title>
+                </line>
+                {/* 화면에 실제로 보이는 선 — 선택되면 파란색+굵게 둘 다 바뀌어요 */}
+                <line
+                  x1={seg.x1}
+                  y1={seg.y1}
+                  x2={seg.x2}
+                  y2={seg.y2}
+                  stroke={isSelected ? "var(--color-sky)" : "#CBD5E1"}
+                  strokeWidth={isSelected ? 4 : 1.5}
+                  strokeLinecap="round"
+                  style={{ cursor: "pointer", pointerEvents: "none" }}
+                />
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="mt-1 grid grid-cols-4 gap-1">
+        {BORDER_POSITION_PRESETS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onPreset(p.keys)}
+            title={p.label}
+            aria-label={p.label}
+            className="flex flex-col items-center gap-0.5 border border-[var(--color-hairline)] px-1 py-1 text-[9px] leading-tight text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
+          >
+            <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true">
+              {p.id === "allOuter" && (
+                <rect x={2} y={2} width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.6} />
+              )}
+              {p.id === "allInner" && (
+                <>
+                  <line x1={2} y1={8} x2={14} y2={8} stroke="currentColor" strokeWidth={1.4} />
+                  <line x1={8} y1={2} x2={8} y2={14} stroke="currentColor" strokeWidth={1.4} />
+                </>
+              )}
+              {p.id === "all" && (
+                <>
+                  <rect x={2} y={2} width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.6} />
+                  <line x1={2} y1={8} x2={14} y2={8} stroke="currentColor" strokeWidth={1.2} />
+                  <line x1={8} y1={2} x2={8} y2={14} stroke="currentColor" strokeWidth={1.2} />
+                </>
+              )}
+              {p.id === "none" && (
+                <>
+                  <rect x={2} y={2} width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.2} strokeDasharray="2 2" />
+                  <line x1={2} y1={2} x2={14} y2={14} stroke="currentColor" strokeWidth={1.4} />
+                </>
+              )}
+            </svg>
+            {p.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 인디자인 stroke 패널처럼 미리보기에서 위치를 고른 뒤 그 위치의 선 색·굵기·종류·
+// 켜짐/꺼짐을 설정하는 공용 UI예요 — 표 전체를 선택했을 때(TableBoxDef.borderPositions로
+// 저장, getPositionValue로 지금 값을 미리 보여줌)와 칸/여러 칸을 선택했을 때(선택
+// 영역의 칸별 sideBorders로 저장, 칸마다 값이 다를 수 있어 미리보기는 생략) 둘 다에서
+// 같은 모양으로 재사용해요(2026-10, 혜민님 요청: "칸을 선택한 경우에도 선택 영역의
+// 바깥쪽·안쪽 선을 같은 방식으로 지정"). 실제로 값을 쓰는 곳(onApply)은 그대로 두고
+// "위치를 고르는 방법"만 글자 버튼 목록 → 표 그림 클릭으로 바꿨어요.
 function BorderPositionPanel({
   defaultColor,
   defaultWidth,
@@ -3476,21 +3593,51 @@ function BorderPositionPanel({
   getPositionValue?: (key: TableBorderPositionKey) => { enabled?: boolean; color?: string; width?: number; style?: "solid" | "dashed" | "dotted" } | undefined;
   onApply: (keys: TableBorderPositionKey[], patch: BorderPositionPatch | null) => void;
 }) {
-  const [activeGroupId, setActiveGroupId] = useState("allOuter");
-  const group = BORDER_POSITION_GROUPS.find((g) => g.id === activeGroupId) ?? BORDER_POSITION_GROUPS[0];
-  const current = getPositionValue?.(group.keys[0]);
+  // 선택된 위치들 — 미리보기에서 클릭할 때마다 여기 담기고 빠져요(여러 개 동시 선택
+  // 가능). 패널을 열 때마다 빈 상태로 시작해요(이미 저장된 위치별 값은 각 선을 클릭해
+  // 골랐을 때 아래 색·굵기·종류 칸에 바로 나타나므로, 시작부터 하나를 미리 골라두면
+  // 오히려 "왜 이 선이 골라져 있지" 하고 헷갈릴 수 있어요).
+  const [selected, setSelected] = useState<Set<TableBorderPositionKey>>(() => new Set());
+
+  function toggleKey(key: TableBorderPositionKey) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function applyPreset(keys: TableBorderPositionKey[]) {
+    if (keys.length === 0) {
+      // "선 없음" — 기존 글자 버튼 때와 동일하게, 선택 상태를 바꾸는 대신 바로 6개
+      // 위치 전부를 꺼요.
+      onApply(ALL_BORDER_POSITION_KEYS, null);
+      return;
+    }
+    setSelected(new Set(keys));
+  }
+
+  const selectedKeys = ALL_BORDER_POSITION_KEYS.filter((k) => selected.has(k));
+  // 여러 위치를 동시에 골랐을 때 색·굵기·종류 칸에 보여줄 "대표 값"이에요 — 맨 처음
+  // 고른 위치(고정 순서상 가장 앞선 것)의 기존 값을 보여주고, 여기서 바꾸면 선택된
+  // 위치 전부에 똑같이 적용돼요(여러 선택에 서로 다른 값이 있어도 한 번에 통일하는
+  // 흔한 다중 선택 UI 방식이에요).
+  const primaryKey = selectedKeys[0];
+  const current = primaryKey ? getPositionValue?.(primaryKey) : undefined;
   const enabled = current?.enabled ?? true;
   const color = current?.color ?? defaultColor;
   const width = current?.width ?? defaultWidth;
   const styleKind = current?.style ?? defaultStyle;
 
   function apply(patch: { color?: string; width?: number; style?: "solid" | "dashed" | "dotted"; enabled?: boolean }) {
+    if (selectedKeys.length === 0) return;
     const nextEnabled = patch.enabled ?? enabled;
     if (!nextEnabled) {
-      onApply(group.keys, null);
+      onApply(selectedKeys, null);
       return;
     }
-    onApply(group.keys, {
+    onApply(selectedKeys, {
       color: patch.color ?? color,
       width: patch.width ?? width,
       style: patch.style ?? styleKind,
@@ -3500,69 +3647,58 @@ function BorderPositionPanel({
   return (
     <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
       <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
-        테두리 위치(인디자인 스타일 — 위치를 고르고 아래에서 선을 꾸며요)
+        테두리 위치(인디자인 스타일 — 아래 표 그림에서 선을 클릭해 고르고, 그 아래에서 꾸며요)
       </p>
-      <div className="grid grid-cols-3 gap-1">
-        {BORDER_POSITION_GROUPS.map((g) => (
-          <button
-            key={g.id}
-            type="button"
-            onClick={() => setActiveGroupId(g.id)}
-            className={`border px-1 py-1 text-[10px] transition ${
-              activeGroupId === g.id
-                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-            }`}
-          >
-            {g.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => onApply(BORDER_POSITION_GROUPS.find((g) => g.id === "all")!.keys, null)}
-          className="border border-[var(--color-hairline)] px-1 py-1 text-[10px] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
-        >
-          선 없음
-        </button>
-      </div>
-      <label className="mt-1.5 flex items-center gap-1.5 text-[10px] text-[var(--color-charcoal)]/60">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => apply({ enabled: e.target.checked })}
-          className="h-3.5 w-3.5"
-        />
-        이 위치({group.label})에 선 표시
-      </label>
-      {enabled && (
-        <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => apply({ color: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="이 위치의 선 색"
-          />
-          <input
-            type="number"
-            min={0}
-            max={8}
-            step={0.5}
-            value={width}
-            onChange={(e) => apply({ width: Math.max(0, Math.min(8, Number(e.target.value) || 0)) })}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-            title="이 위치의 선 굵기(px)"
-          />
-          <select
-            value={styleKind}
-            onChange={(e) => apply({ style: e.target.value as "solid" | "dashed" | "dotted" })}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-          >
-            <option value="solid">실선</option>
-            <option value="dashed">파선</option>
-            <option value="dotted">점선</option>
-          </select>
-        </div>
+      <BorderPositionPicker selected={selected} onToggle={toggleKey} onPreset={applyPreset} />
+      {selectedKeys.length === 0 ? (
+        <p className="mt-1.5 text-[10px] text-[var(--color-charcoal)]/40">
+          위 표 그림에서 선을 하나 이상 클릭해서 고르세요.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1.5 text-[10px] text-[var(--color-charcoal)]/60">
+            선택한 위치: {selectedKeys.map((k) => BORDER_POSITION_LABELS[k]).join(", ")}
+          </p>
+          <label className="mt-1 flex items-center gap-1.5 text-[10px] text-[var(--color-charcoal)]/60">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => apply({ enabled: e.target.checked })}
+              className="h-3.5 w-3.5"
+            />
+            이 위치에 선 표시
+          </label>
+          {enabled && (
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => apply({ color: e.target.value })}
+                className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+                title="이 위치의 선 색"
+              />
+              <input
+                type="number"
+                min={0}
+                max={8}
+                step={0.5}
+                value={width}
+                onChange={(e) => apply({ width: Math.max(0, Math.min(8, Number(e.target.value) || 0)) })}
+                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                title="이 위치의 선 굵기(px)"
+              />
+              <select
+                value={styleKind}
+                onChange={(e) => apply({ style: e.target.value as "solid" | "dashed" | "dotted" })}
+                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+              >
+                <option value="solid">실선</option>
+                <option value="dashed">파선</option>
+                <option value="dotted">점선</option>
+              </select>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
