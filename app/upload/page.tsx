@@ -7654,15 +7654,42 @@ const TableBoxOverlay = forwardRef<
   // 바깥이면(선택 범위가 표 가장자리) 반대쪽(leftAnchor/topAnchor)에 써요.
   function selectionBorderTargets(
     category: "top" | "bottom" | "left" | "right" | "innerH" | "innerV"
-  ): { anchor: { row: number; col: number }; side: "top" | "right" | "bottom" | "left" }[] {
+  ): {
+    anchor: { row: number; col: number };
+    side: "top" | "right" | "bottom" | "left";
+    // 2026-11-7차, 혜민님 리포트("선택한 셀의 맨 왼쪽 선만 수정이 되고 하단의 다른
+    // 선은 수정이 안됩니다") 근본 원인 수정 — 이 세그먼트(격자선 한 칸)의 "반대쪽"
+    // 칸+변이에요(예: bottom 카테고리가 보통 아래쪽 칸의 top을 쓰면, counterpart는
+    // 위쪽 칸의 bottom). 렌더링(resolveGridSegmentStyle 근처 hiddenTop/hiddenBottom)은
+    // 두 칸 중 아무 쪽이나 "숨김"이면 그 선을 안 그리는데(OR 조건), 예전엔 여기서 "이긴
+    // 쪽" 칸의 hiddenSides만 껐어요. 그래서 다른 칸(개별 변 숨기기 등으로 반대쪽에
+    // 남아있던 낡은 숨김 표시가 있는 칸)이 있으면 색·굵기를 새로 줘도 화면엔 여전히 안
+    // 보였어요 — "왼쪽 칸엔 그 낡은 숨김이 없어서 보이고, 오른쪽 칸들엔 남아있어서 안
+    // 보인다"는 게 정확히 리포트된 증상이었어요. 이제 켤 때(patch!==null) counterpart
+    // 쪽의 숨김도 같이 꺼요.
+    counterpart?: { anchor: { row: number; col: number }; side: "top" | "right" | "bottom" | "left" };
+  }[] {
     if (!selRange) return [];
     const { r0, c0, r1, c1 } = selRange;
     function sameAnchor(a?: { row: number; col: number }, b?: { row: number; col: number }) {
       return !!a && !!b && a.row === b.row && a.col === b.col;
     }
-    const targets: { anchor: { row: number; col: number }; side: "top" | "right" | "bottom" | "left" }[] = [];
-    function push(anchor: { row: number; col: number } | undefined, side: "top" | "right" | "bottom" | "left") {
-      if (anchor) targets.push({ anchor, side });
+    const targets: {
+      anchor: { row: number; col: number };
+      side: "top" | "right" | "bottom" | "left";
+      counterpart?: { anchor: { row: number; col: number }; side: "top" | "right" | "bottom" | "left" };
+    }[] = [];
+    function push(
+      anchor: { row: number; col: number } | undefined,
+      side: "top" | "right" | "bottom" | "left",
+      counterpart?: { anchor: { row: number; col: number } | undefined; side: "top" | "right" | "bottom" | "left" }
+    ) {
+      if (!anchor) return;
+      targets.push({
+        anchor,
+        side,
+        counterpart: counterpart?.anchor ? { anchor: counterpart.anchor, side: counterpart.side } : undefined,
+      });
     }
     if (category === "left" || category === "right") {
       const c = category === "left" ? c0 : c1 + 1;
@@ -7670,8 +7697,8 @@ const TableBoxOverlay = forwardRef<
         const leftAnchor = c > 0 ? resolveAnchor(r, c - 1) : undefined;
         const rightAnchor = c < box.cols ? resolveAnchor(r, c) : undefined;
         if (sameAnchor(leftAnchor, rightAnchor)) continue;
-        if (rightAnchor) push(rightAnchor, "left");
-        else push(leftAnchor, "right");
+        if (rightAnchor) push(rightAnchor, "left", { anchor: leftAnchor, side: "right" });
+        else push(leftAnchor, "right", { anchor: rightAnchor, side: "left" });
       }
     } else if (category === "top" || category === "bottom") {
       const r = category === "top" ? r0 : r1 + 1;
@@ -7679,8 +7706,8 @@ const TableBoxOverlay = forwardRef<
         const topAnchor = r > 0 ? resolveAnchor(r - 1, c) : undefined;
         const bottomAnchor = r < box.rows ? resolveAnchor(r, c) : undefined;
         if (sameAnchor(topAnchor, bottomAnchor)) continue;
-        if (bottomAnchor) push(bottomAnchor, "top");
-        else push(topAnchor, "bottom");
+        if (bottomAnchor) push(bottomAnchor, "top", { anchor: topAnchor, side: "bottom" });
+        else push(topAnchor, "bottom", { anchor: bottomAnchor, side: "top" });
       }
     } else if (category === "innerV") {
       for (let c = c0 + 1; c <= c1; c++) {
@@ -7688,7 +7715,7 @@ const TableBoxOverlay = forwardRef<
           const leftAnchor = resolveAnchor(r, c - 1);
           const rightAnchor = resolveAnchor(r, c);
           if (sameAnchor(leftAnchor, rightAnchor)) continue;
-          push(rightAnchor, "left");
+          push(rightAnchor, "left", { anchor: leftAnchor, side: "right" });
         }
       }
     } else if (category === "innerH") {
@@ -7697,7 +7724,7 @@ const TableBoxOverlay = forwardRef<
           const topAnchor = resolveAnchor(r - 1, c);
           const bottomAnchor = resolveAnchor(r, c);
           if (sameAnchor(topAnchor, bottomAnchor)) continue;
-          push(bottomAnchor, "top");
+          push(bottomAnchor, "top", { anchor: topAnchor, side: "bottom" });
         }
       }
     }
@@ -7710,7 +7737,17 @@ const TableBoxOverlay = forwardRef<
   ) {
     if (!selRange) return;
     const next = { ...(box.cellStyles ?? {}) };
-    function writeSide(anchor: { row: number; col: number }, side: "top" | "right" | "bottom" | "left") {
+    function clearHidden(anchor: { row: number; col: number }, side: "top" | "right" | "bottom" | "left") {
+      const key = `${anchor.row}-${anchor.col}`;
+      const cur = next[key] ?? {};
+      if (!cur.hiddenSides?.[side]) return;
+      next[key] = { ...cur, hiddenSides: { ...cur.hiddenSides, [side]: false } };
+    }
+    function writeSide(
+      anchor: { row: number; col: number },
+      side: "top" | "right" | "bottom" | "left",
+      counterpart?: { anchor: { row: number; col: number }; side: "top" | "right" | "bottom" | "left" }
+    ) {
       const key = `${anchor.row}-${anchor.col}`;
       const cur = next[key] ?? {};
       if (patch === null) {
@@ -7718,11 +7755,14 @@ const TableBoxOverlay = forwardRef<
       } else {
         const hs = cur.hiddenSides?.[side] ? { ...cur.hiddenSides, [side]: false } : cur.hiddenSides;
         next[key] = { ...cur, hiddenSides: hs, sideBorders: { ...cur.sideBorders, [side]: patch } };
+        // 반대쪽 칸에 남아있는 낡은 개별 숨김(hiddenSides)도 같이 꺼요 — 안 그러면
+        // 방금 켠 선이 그 낡은 숨김 때문에 여전히 안 보이는 칸이 생겨요(위 주석 참고).
+        if (counterpart) clearHidden(counterpart.anchor, counterpart.side);
       }
     }
     for (const category of categories) {
-      for (const { anchor, side } of selectionBorderTargets(category)) {
-        writeSide(anchor, side);
+      for (const { anchor, side, counterpart } of selectionBorderTargets(category)) {
+        writeSide(anchor, side, counterpart);
       }
     }
     onChange({ cellStyles: next });
