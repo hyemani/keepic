@@ -3470,28 +3470,61 @@ type BorderPositionPatch = {
   dashGap?: number;
 };
 
-// 미리보기 SVG에 그릴 선 하나(=클릭 영역 하나)예요. 실제 표의 칸 수와 상관없이
-// 인디자인처럼 3x3 정도의 "대표 칸" 모양으로 고정해서 보여줘요 — innerH/innerV
-// 위치는 표에 안쪽 가로선/세로선이 여러 줄 있어도 전부 "같은 카테고리"라서, 미리보기
-// 안에서도 안쪽 줄 2개가 항상 같은 key(innerH 또는 innerV)를 함께 가리켜요.
-const BORDER_PREVIEW_SEGMENTS: { key: TableBorderPositionKey; reactKey: string; x1: number; y1: number; x2: number; y2: number }[] = [
-  { key: "top", reactKey: "top", x1: 15, y1: 10, x2: 105, y2: 10 },
-  { key: "bottom", reactKey: "bottom", x1: 15, y1: 70, x2: 105, y2: 70 },
-  { key: "left", reactKey: "left", x1: 15, y1: 10, x2: 15, y2: 70 },
-  { key: "right", reactKey: "right", x1: 105, y1: 10, x2: 105, y2: 70 },
-  { key: "innerH", reactKey: "innerH-1", x1: 15, y1: 30, x2: 105, y2: 30 },
-  { key: "innerH", reactKey: "innerH-2", x1: 15, y1: 50, x2: 105, y2: 50 },
-  { key: "innerV", reactKey: "innerV-1", x1: 45, y1: 10, x2: 45, y2: 70 },
-  { key: "innerV", reactKey: "innerV-2", x1: 75, y1: 10, x2: 75, y2: 70 },
-];
+// 위치 아이콘 6개 순서 — top/bottom/left/right/innerH/innerV 각각 한 줄짜리 그림
+// 하나로 보여줘요.
+const BORDER_POSITION_ICON_ORDER: TableBorderPositionKey[] = ["top", "bottom", "left", "right", "innerH", "innerV"];
 
-// 인디자인 stroke/Cell Options 패널처럼 작은 표 그림에서 선을 직접 클릭해 고르는
-// 미리보기+선택 UI예요(2026-10, 혜민님 요청: "글자 버튼 목록 대신 표 그림에서 선을
-// 직접 클릭"). 클릭할 때마다 그 위치가 켜짐/꺼짐 토글되고, 여러 위치를 동시에 고를
-// 수 있어요(예: 위쪽+왼쪽만 같이 선택). 선택된 선은 파란색+굵게(색만이 아니라 굵기도
-// 달라지게 해서 색맹 등에서도 구분되게) 표시해요. 실제로 클릭 가능한 영역은 화면에
-// 보이는 얇은 선보다 훨씬 넓게(투명한 두꺼운 선을 겹쳐서) 잡아 작은 화면에서도 쉽게
-// 클릭하게 했어요.
+// 위치 하나(top/bottom/left/right/innerH/innerV)를 나타내는 작은 그림이에요 — 옅은
+// 회색 사각형(맥락용, 강조 없음) 위에 "이 위치"에 해당하는 선 하나만 진하게 그려요.
+// 안쪽 가로(innerH)/세로(innerV)는 혜민님 요청대로 옅은 "+" 모양 중 해당 방향의 획만
+// 강조해서, 방향이 한눈에 보이게 했어요.
+function BorderPositionIcon({ posKey, active }: { posKey: TableBorderPositionKey; active: boolean }) {
+  const stroke = active ? "var(--color-sky)" : "#94A3B8";
+  const strokeWidth = active ? 2.6 : 1.6;
+  const faint = "#E2E8F0";
+  return (
+    <svg viewBox="0 0 20 20" width={18} height={18} aria-hidden="true">
+      <rect x={3} y={3} width={14} height={14} fill="none" stroke={faint} strokeWidth={1} />
+      {posKey === "top" && (
+        <line x1={3} y1={3} x2={17} y2={3} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      )}
+      {posKey === "bottom" && (
+        <line x1={3} y1={17} x2={17} y2={17} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      )}
+      {posKey === "left" && (
+        <line x1={3} y1={3} x2={3} y2={17} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      )}
+      {posKey === "right" && (
+        <line x1={17} y1={3} x2={17} y2={17} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      )}
+      {posKey === "innerH" && (
+        <>
+          <line x1={10} y1={3} x2={10} y2={17} stroke={faint} strokeWidth={1} />
+          <line x1={3} y1={10} x2={17} y2={10} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </>
+      )}
+      {posKey === "innerV" && (
+        <>
+          <line x1={3} y1={10} x2={17} y2={10} stroke={faint} strokeWidth={1} />
+          <line x1={10} y1={3} x2={10} y2={17} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+// 2026-11-2차 개편(혜민님 리포트: "3x3 표 그림에 선이 너무 많아서 안쪽 가로만/세로만
+// 같은 선택이 헷갈리고 실수로 다른 선까지 같이 바뀐다") — 예전엔 3x3 표 그림 안에서
+// 8개 선분(위/아래/왼쪽/오른쪽 + 안쪽 가로 2줄 + 안쪽 세로 2줄)을 각각 클릭했는데,
+// 안쪽 가로/세로가 여러 선분으로 나뉘어 있어서 "이 중 어디를 눌러야 안쪽 가로 전체가
+// 선택되는지" 헷갈리기 쉬웠어요. 지금은 위치별로 하나씩, 딱 6개의 독립된 버튼
+// (위/아래/왼쪽/오른쪽/안쪽 가로/안쪽 세로)만 두고, 각 버튼 안에 그 위치 "하나만"
+// 나타내는 단순한 선 그림을 넣었어요 — "안쪽 가로만 선택"은 버튼 하나를 누르는 것과
+// 완전히 같아서 다른 위치와 헷갈릴 여지가 없어요. 여러 버튼을 동시에 눌러 다중
+// 선택하는 것도 그대로 가능해요(아래 onToggle이 Set을 토글 — fd90876에서 만든
+// 것과 같은 방식). 실제 데이터를 쓰는 곳(applySelectionBorderPosition/
+// box.borderPositions, BorderPositionPanel의 onApply)은 전혀 안 바꿨고, "위치를
+// 고르는 방법"만 표 그림 클릭 → 6개 아이콘 버튼 클릭으로 바꿨어요.
 function BorderPositionPicker({
   selected,
   onToggle,
@@ -3502,48 +3535,30 @@ function BorderPositionPicker({
   onPreset: (keys: TableBorderPositionKey[]) => void;
 }) {
   return (
-    // 2026-10 축소(혜민님 요청: "인디자인처럼 작고 간결하게, 큰 표 그림과 글자 버튼
-    // 중복 없이") — 미리보기(80x54, InDesign stroke 패널 수준의 작은 크기)와 자주 쓰는
-    // 4개 프리셋을 아이콘만으로 한 줄에 나란히 배치해요. 프리셋 버튼에는 더 이상
-    // 글자 라벨을 화면에 띄우지 않고(아이콘만 보이는 InDesign 방식), title/aria-label로
-    // 이름을 알려줘요 — 같은 기능을 그림과 글자 버튼 두 번 보여주던 것을 없앴어요.
-    <div className="flex items-start gap-1.5">
-      <div className="flex shrink-0 items-center justify-center border border-[var(--color-hairline)] bg-white p-1">
-        <svg viewBox="0 0 120 80" width={80} height={54} role="group" aria-label="테두리 위치 미리보기 — 선을 클릭해서 고르세요">
-          {BORDER_PREVIEW_SEGMENTS.map((seg) => {
-            const isSelected = selected.has(seg.key);
-            return (
-              <g key={seg.reactKey}>
-                {/* 실제 클릭 영역(화면에는 안 보이지만 훨씬 두꺼움) */}
-                <line
-                  x1={seg.x1}
-                  y1={seg.y1}
-                  x2={seg.x2}
-                  y2={seg.y2}
-                  stroke="transparent"
-                  strokeWidth={14}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => onToggle(seg.key)}
-                >
-                  <title>{`${BORDER_POSITION_LABELS[seg.key]}${isSelected ? " (선택됨)" : ""} — 클릭해서 ${isSelected ? "선택 해제" : "선택"}`}</title>
-                </line>
-                {/* 화면에 실제로 보이는 선 — 선택되면 파란색+굵게 둘 다 바뀌어요 */}
-                <line
-                  x1={seg.x1}
-                  y1={seg.y1}
-                  x2={seg.x2}
-                  y2={seg.y2}
-                  stroke={isSelected ? "var(--color-sky)" : "#CBD5E1"}
-                  strokeWidth={isSelected ? 4 : 1.5}
-                  strokeLinecap="round"
-                  style={{ cursor: "pointer", pointerEvents: "none" }}
-                />
-              </g>
-            );
-          })}
-        </svg>
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-6 gap-1" role="group" aria-label="테두리 위치 선택 — 위/아래/왼쪽/오른쪽/안쪽 가로/안쪽 세로">
+        {BORDER_POSITION_ICON_ORDER.map((key) => {
+          const isSelected = selected.has(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onToggle(key)}
+              title={`${BORDER_POSITION_LABELS[key]}${isSelected ? " (선택됨)" : ""} — 눌러서 ${isSelected ? "선택 해제" : "선택"}`}
+              aria-label={BORDER_POSITION_LABELS[key]}
+              aria-pressed={isSelected}
+              className={`flex h-8 w-8 items-center justify-center border transition ${
+                isSelected
+                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
+                  : "border-[var(--color-hairline)] hover:bg-[var(--color-ivory)]"
+              }`}
+            >
+              <BorderPositionIcon posKey={key} active={isSelected} />
+            </button>
+          );
+        })}
       </div>
-      <div className="grid grid-cols-2 gap-0.5">
+      <div className="grid grid-cols-4 gap-0.5">
         {BORDER_POSITION_PRESETS.map((p) => (
           <button
             key={p.id}
