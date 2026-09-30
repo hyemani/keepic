@@ -303,6 +303,13 @@ function drawTextBoxOnCanvasRuns(
   const x = offsetX + (box.xPct / 100) * pageW;
   const y = offsetY + (box.yPct / 100) * pageH;
   const w = (box.widthPct / 100) * pageW;
+  // 텍스트선·그림자 굵기/번짐/이동(em)의 기준 폰트 크기예요 — 화면(TextBoxRichEditor
+  // 컨테이너의 -webkit-text-stroke/text-shadow, em이 "이 컨테이너 자신의 font-size"
+  // 기준으로 한 번 계산된 뒤 상속되고, 구간(span)마다 font-size가 달라도 그 계산된
+  // px 값은 안 바뀜)와 똑같이 "박스 전체 기준 크기"(box.fontScale) 하나로 고정해요 —
+  // seg.style.fontPx(구간별 실제 크기, fontScale이 구간마다 다르면 서로 다름)를 쓰면
+  // 화면과 달리 구간마다 선 굵기가 달라지는 어긋남이 생겨요.
+  const strokeShadowBasePx = Math.max(8, Math.round(pageW * TEXT_BOX_FONT_SCALE_BASE_RATIO * box.fontScale));
 
   const wrapped = wrapRunsForCanvas(ctx, runs, box, pageW, w);
   const lineInfos = wrapped.map((line) => {
@@ -386,14 +393,14 @@ function drawTextBoxOnCanvasRuns(
         }
         if (hasShadow) {
           ctx.shadowColor = box.shadowColor!;
-          ctx.shadowBlur = seg.style.fontPx * (box.shadowBlur ?? 0);
-          ctx.shadowOffsetX = seg.style.fontPx * (box.shadowOffsetX ?? 0);
-          ctx.shadowOffsetY = seg.style.fontPx * (box.shadowOffsetY ?? 0);
+          ctx.shadowBlur = strokeShadowBasePx * (box.shadowBlur ?? 0);
+          ctx.shadowOffsetX = strokeShadowBasePx * (box.shadowOffsetX ?? 0);
+          ctx.shadowOffsetY = strokeShadowBasePx * (box.shadowOffsetY ?? 0);
         }
         if (hasStroke) {
           ctx.save();
           ctx.strokeStyle = box.strokeColor!;
-          ctx.lineWidth = seg.style.fontPx * box.strokeWidth!;
+          ctx.lineWidth = strokeShadowBasePx * box.strokeWidth!;
           ctx.lineJoin = "round";
           ctx.strokeText(seg.text, cx, cursorY);
           ctx.restore();
