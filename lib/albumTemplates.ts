@@ -260,6 +260,20 @@ export type TableCellStyle = {
   strikethrough?: boolean; // 표 전체엔 이 필드가 없어서(취소선 자체가 표엔 없던 기능) 항상 이 칸 자신의 값(없으면 false)만 써요.
   letterSpacing?: number; // em 단위. 표 전체엔 이 필드가 없어서 항상 이 칸 자신의 값(없으면 0)만 써요.
   lineHeight?: number; // 줄 간격 배수. 표 전체 기본값(TableBoxDef.lineHeight) 대신 이 칸만 다른 값.
+  // 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("일반 텍스트박스 패널엔 있는 가로%/
+  // 세로%(글자 늘이기)·외곽선이 표 칸 패널엔 없다") — 일반 글상자(TextBoxDef)의
+  // scaleXPct/scaleYPct·strokeColor/strokeWidth와 같은 이름·같은 단위로 칸 전용
+  // 필드를 둬요. 표 전체엔 이 필드들이 없어서 letterSpacing/strikethrough와 같은
+  // 이유로 항상 이 칸 자신의 값만 써요(값이 없으면 기본, 기존 표는 전부 이
+  // 상태라 하위 호환). scaleXPct/scaleYPct는 일반 글상자와 똑같이 화면
+  // 미리보기 전용이에요(TextBoxDef.scaleXPct 주석과 같은 이유 — 인쇄 PDF엔 아직
+  // 반영 안 됨, 이번 라운드 범위 밖). strokeColor/strokeWidth는 일반 글상자와
+  // 똑같이 화면(다중 그림자 링, combinedTextShadow)·인쇄(strokeText를 fillText
+  // 앞에 같은 좌표로) 양쪽 다 반영돼요.
+  scaleXPct?: number;
+  scaleYPct?: number;
+  strokeColor?: string;
+  strokeWidth?: number; // em 단위(글자 크기 대비 비율). 0.08 = 8%.
   hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
   // 이 칸(anchor)에 닿은 격자선의 선 색·굵기·종류·점선 세부값을 표 전체 기본값과
   // 다르게 줘요(2026-10, 혜민님 요청: "표 전체를 선택했을 때는 전체 선 설정을, 셀을

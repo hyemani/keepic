@@ -4193,35 +4193,43 @@ function TableBoxToolbar({
               <label className="mb-0.5 block text-[9.5px] text-[var(--color-charcoal)]/60">
                 가로폭 {Math.round(sel.colWidth * 100)}%
               </label>
-              <input
-                type="range"
-                min={0.3}
-                max={3}
-                step={0.05}
-                value={sel.colWidth}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveColWidth(v);
-                }}
-                className="w-full"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={30}
+                  max={300}
+                  step={1}
+                  value={Math.round(sel.colWidth * 100)}
+                  onChange={(e) => {
+                    const pct = Math.max(30, Math.min(300, Number(e.target.value) || 100));
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveColWidth(pct / 100);
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="칸 가로폭을 숫자로 직접 입력(30~300%)"
+                />
+                <span className="shrink-0 text-[9.5px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
             </div>
             <div>
               <label className="mb-0.5 block text-[9.5px] text-[var(--color-charcoal)]/60">
                 세로폭 {Math.round(sel.rowHeight * 100)}%
               </label>
-              <input
-                type="range"
-                min={0.3}
-                max={3}
-                step={0.05}
-                value={sel.rowHeight}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveRowHeight(v);
-                }}
-                className="w-full"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={30}
+                  max={300}
+                  step={1}
+                  value={Math.round(sel.rowHeight * 100)}
+                  onChange={(e) => {
+                    const pct = Math.max(30, Math.min(300, Number(e.target.value) || 100));
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setActiveRowHeight(pct / 100);
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="칸 세로폭을 숫자로 직접 입력(30~300%)"
+                />
+                <span className="shrink-0 text-[9.5px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
             </div>
           </div>
         )}
@@ -4323,20 +4331,6 @@ function TableBoxToolbar({
                 <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 투명도</label>
                 <div className="flex items-center gap-1.5">
                   <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={Math.round(((sel.selStyle?.fillOpacity ?? box.fillOpacity ?? 1)) * 100)}
-                    onChange={(e) =>
-                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
-                        fillOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100,
-                      })
-                    }
-                    className="w-full"
-                    title="선택한 칸 배경색의 투명도(0~100%) — 채우기 색은 그대로 두고 진하기만 조절해요"
-                  />
-                  <input
                     type="number"
                     min={0}
                     max={100}
@@ -4347,7 +4341,7 @@ function TableBoxToolbar({
                         fillOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100,
                       })
                     }
-                    className="w-12 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                    className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
                     title="선택한 칸 배경색의 투명도를 숫자로 직접 입력(0~100)"
                   />
                   <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
@@ -4555,36 +4549,115 @@ function TableBoxToolbar({
               </div>
             </div>
           </div>
-          <div className="mt-1.5">
-            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">자간</label>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number"
-                min={-0.1}
-                max={0.5}
-                step={0.01}
-                value={sel.selStyle?.letterSpacing ?? 0}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  if (Number.isFinite(v)) {
-                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
-                      letterSpacing: Math.max(-0.1, Math.min(0.5, v)),
-                    });
+          {/* 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("자간박스 왤케커?") — 근본
+              원인: 이 필드만 위 글자 크기(pt)/줄 간격처럼 grid-cols-2 짝 없이 혼자
+              "mt-1.5" 한 칸(줄 전체 폭)을 차지하고 있어서 옆 칸(글자 크기(pt))보다
+              훨씬 넓어 보였어요. grid-cols-2 안에 넣어 폭을 맞추고, 동시에 혜민님이
+              같은 리포트에서 요청한 "가로%/세로%(글자 늘이기)도 없다"를 옆 칸에 채워
+              넣었어요(일반 텍스트박스 패널의 "가로 폭(%)/세로 폭(%)"과 같은 이름·같은
+              범위(50~200%)·같은 화면 미리보기 전용 필드 — TextBoxDef.scaleXPct/
+              scaleYPct 주석과 같은 이유로 인쇄 PDF엔 아직 반영 안 돼요, 일반
+              글상자와 동일한 기존 범위 밖 한계). */}
+          <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <div>
+              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">자간</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={-0.1}
+                  max={0.5}
+                  step={0.01}
+                  value={sel.selStyle?.letterSpacing ?? 0}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) {
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                        letterSpacing: Math.max(-0.1, Math.min(0.5, v)),
+                      });
+                    }
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
+                      "letterSpacing",
+                    ])
                   }
-                }}
-                className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
-                    "letterSpacing",
-                  ])
-                }
-                className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
-              >
-                기본값
-              </button>
+                  className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+                >
+                  기본값
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">가로 폭(%)</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={50}
+                  max={200}
+                  step={1}
+                  value={sel.selStyle?.scaleXPct ?? 100}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) {
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                        scaleXPct: Math.max(50, Math.min(200, v)),
+                      });
+                    }
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="글자를 가로로 늘이는 비율(화면 미리보기 전용)"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
+                      "scaleXPct",
+                    ])
+                  }
+                  className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+                >
+                  기본값
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <div>
+              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">세로 폭(%)</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={50}
+                  max={200}
+                  step={1}
+                  value={sel.selStyle?.scaleYPct ?? 100}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) {
+                      (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                        scaleYPct: Math.max(50, Math.min(200, v)),
+                      });
+                    }
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="글자를 세로로 늘이는 비율(화면 미리보기 전용)"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields([
+                      "scaleYPct",
+                    ])
+                  }
+                  className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
+                >
+                  기본값
+                </button>
+              </div>
             </div>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
@@ -4678,6 +4751,69 @@ function TableBoxToolbar({
             >
               기본값
             </button>
+          </div>
+          {/* 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("외곽선도없고!") — 일반
+              텍스트박스 패널의 "텍스트선(외곽선)"과 같은 이름·같은 단위(em, 글자
+              크기 대비 %)·같은 켜는 방식(누르면 즉시 기본값 검정 8%로 켜지는 토글
+              버튼)으로 칸 전용 외곽선을 둬요. 화면 렌더링은 같은 다중 그림자 링
+              기법(strokeRingShadowList/combinedTextShadow, c595a7e 참고)을 그대로
+              재사용하고(칸 textarea 컨테이너에 textShadow로 적용, 아래 참고), 인쇄는
+              lib/printCompose.ts drawTableGridAndCells에서 일반 텍스트박스와 같은
+              strokeText-먼저-fillText-나중 패턴을 그대로 재사용해요. 위 항목 1의
+              "슬라이더 없이 숫자만" 규칙을 처음부터 지켜서 슬라이더는 아예 안 만들어요. */}
+          <div className="mt-1.5">
+            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">외곽선</label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                title={sel.selStyle?.strokeColor ? "외곽선 끄기" : "외곽선 켜기(검정, 굵기는 마지막에 쓰던 값)"}
+                aria-pressed={!!sel.selStyle?.strokeColor}
+                onClick={() =>
+                  (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle(
+                    sel.selStyle?.strokeColor
+                      ? { strokeColor: undefined }
+                      : { strokeColor: "#000000", strokeWidth: sel.selStyle?.strokeWidth ?? 0.08 }
+                  )
+                }
+                className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
+                  sel.selStyle?.strokeColor
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                }`}
+              >
+                <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
+              </button>
+              {sel.selStyle?.strokeColor && (
+                <input
+                  type="color"
+                  value={sel.selStyle.strokeColor}
+                  onChange={(e) =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      strokeColor: e.target.value,
+                    })
+                  }
+                  className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+                  title="외곽선 색"
+                />
+              )}
+              {sel.selStyle?.strokeColor && (
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round((sel.selStyle?.strokeWidth ?? 0.08) * 100)}
+                  onChange={(e) =>
+                    (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle({
+                      strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100,
+                    })
+                  }
+                  className="w-16 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="외곽선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
+                />
+              )}
+              {sel.selStyle?.strokeColor && <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>}
+            </div>
           </div>
           <div className="mt-1.5 border-t border-[var(--color-hairline)] pt-1.5">
             {/* 2026-10 추가(혜민님 요청: "칸이나 여러 셀을 선택한 경우에도 선택 영역의
@@ -5141,6 +5277,8 @@ function TextBoxToolbar({
   contentValue,
   onContentChange,
   allowFillBoxBackground = true,
+  onCopyBox,
+  onPasteBox,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -5177,6 +5315,19 @@ function TextBoxToolbar({
   // "글자 주변 배경"만 보이게 해요(기존과 완전히 동일). 나머지(일반 글상자·표지 제목)는
   // 기본값 true로 두 모드 다 보여요.
   allowFillBoxBackground?: boolean;
+  // 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("복사해서 붙여넣기했는데 텍스트효과나
+  // 글꼴은 복사가 안되네") — 근본 원인: Ctrl/Cmd+C·V 전역 단축키(아래
+  // handleCopyActiveTextBox/handlePasteTextBox)가 텍스트박스 안에 커서가 있는 동안은
+  // isTypingTarget(e.target) 체크에 걸려 아예 호출되지 않고, 브라우저 기본 복사/
+  // 붙여넣기(글자만, 서식 없이)로 새 버려요 — 스타일을 막 적용한 직후엔 커서가 항상
+  // 그 박스 안에 있으니 매번 이 문제를 겪은 거예요. 표 칸의 "칸 복사"/"붙여넣기"
+  // 버튼과 똑같은 이유(버튼을 누르는 순간 그 포커스가 자동으로 빠짐)로, 여기도
+  // 버튼을 두면 포커스 상태와 무관하게 항상 박스 전체(글꼴·텍스트선·그림자 포함)를
+  // 복사해요. 표지 제목·책등(coverTitleAsTextBox/spineTitleAsTextBox)은 이 복사
+  // 기능 자체가 없어서(별도 상태라 activeTextBoxDef 대상이 아님) 이 prop을 안 넘겨서
+  // 버튼 자체가 안 보여요 — 기존 범위 밖.
+  onCopyBox?: () => void;
+  onPasteBox?: () => void;
   // 지금 고르고 있는 게 앞표지/뒤표지/내지 중 어떤 텍스트박스인지 — 혼동하지 않도록
   // 항상 보여줘요(2026-09-23 요청).
   scopeLabel?: string;
@@ -5309,7 +5460,36 @@ function TextBoxToolbar({
           둬요. scopeLabel prop 자체는 지우지 않았어요(호출하는 쪽 3곳— 표지/뒤표지/내지
           — 이 다르게 넘겨주고 있는데, 당장은 화면에 안 쓰지만 나중에 다시 필요할 수
           있어서 prop만 남겨둠). */}
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {/* 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("복사해서 붙여넣기했는데
+            텍스트효과나 글꼴은 복사가 안되네") — 위 onCopyBox/onPasteBox prop 주석
+            참고. 버튼을 누르면 브라우저가 그 순간 텍스트박스 안 커서 포커스를 자동으로
+            빼주니(표 칸 "칸 복사"/"붙여넣기" 버튼과 같은 이유), Ctrl/Cmd+C·V 단축키가
+            포커스 상태에 따라 간헐적으로 막히던 문제와 상관없이 항상 박스 전체(글꼴·
+            텍스트선·그림자·스타일 전부)를 확실하게 복제해요. 표지 제목·책등 호출부는
+            onCopyBox/onPasteBox를 안 넘겨서(그 두 자리는 복사 대상 자체가 아직 없음)
+            버튼이 안 보여요.
+        */}
+        {onCopyBox && (
+          <button
+            type="button"
+            onClick={onCopyBox}
+            title="이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
+            className="text-sm text-[var(--color-charcoal)]/60 underline underline-offset-2 hover:text-[var(--color-charcoal)]"
+          >
+            박스 복사
+          </button>
+        )}
+        {onPasteBox && (
+          <button
+            type="button"
+            onClick={onPasteBox}
+            title="복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
+            className="text-sm text-[var(--color-charcoal)]/60 underline underline-offset-2 hover:text-[var(--color-charcoal)]"
+          >
+            붙여넣기
+          </button>
+        )}
         <button
           type="button"
           onClick={onDelete}
@@ -5709,30 +5889,16 @@ function TextBoxToolbar({
           )}
           {box.strokeColor && (
             <input
-              type="range"
-              min={2}
-              max={30}
-              step={1}
-              value={Math.round((box.strokeWidth ?? 0.08) * 100)}
-              onChange={(e) =>
-                onChange({ strokeWidth: Math.max(2, Math.min(30, Number(e.target.value) || 0)) / 100 })
-              }
-              className="w-full"
-              title="텍스트선 굵기(글자 크기 대비 %)"
-            />
-          )}
-          {box.strokeColor && (
-            <input
               type="number"
-              min={2}
-              max={30}
+              min={0}
+              max={100}
               step={1}
               value={Math.round((box.strokeWidth ?? 0.08) * 100)}
               onChange={(e) =>
-                onChange({ strokeWidth: Math.max(2, Math.min(30, Number(e.target.value) || 0)) / 100 })
+                onChange({ strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
               }
-              className="w-12 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-              title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 2~30%)"
+              className="w-16 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+              title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
             />
           )}
           {box.strokeColor && <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>}
@@ -5787,28 +5953,16 @@ function TextBoxToolbar({
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">번짐</label>
               <div className="flex items-center gap-1">
                 <input
-                  type="range"
-                  min={0}
-                  max={50}
-                  step={1}
-                  value={Math.round((box.shadowBlur ?? 0.15) * 100)}
-                  onChange={(e) =>
-                    onChange({ shadowBlur: Math.max(0, Math.min(50, Number(e.target.value) || 0)) / 100 })
-                  }
-                  className="w-full"
-                  title="그림자 번짐(글자 크기 대비 %)"
-                />
-                <input
                   type="number"
                   min={0}
-                  max={50}
+                  max={100}
                   step={1}
                   value={Math.round((box.shadowBlur ?? 0.15) * 100)}
                   onChange={(e) =>
-                    onChange({ shadowBlur: Math.max(0, Math.min(50, Number(e.target.value) || 0)) / 100 })
+                    onChange({ shadowBlur: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
                   }
-                  className="w-10 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                  title="그림자 번짐을 숫자로 직접 입력(0~50%)"
+                  className="w-16 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 번짐을 숫자로 직접 입력(0~100%)"
                 />
               </div>
             </div>
@@ -5816,28 +5970,16 @@ function TextBoxToolbar({
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">가로 이동</label>
               <div className="flex items-center gap-1">
                 <input
-                  type="range"
-                  min={-30}
-                  max={30}
-                  step={1}
-                  value={Math.round((box.shadowOffsetX ?? 0.05) * 100)}
-                  onChange={(e) =>
-                    onChange({ shadowOffsetX: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
-                  }
-                  className="w-full"
-                  title="그림자 가로 이동(글자 크기 대비 %)"
-                />
-                <input
                   type="number"
-                  min={-30}
-                  max={30}
+                  min={-100}
+                  max={100}
                   step={1}
                   value={Math.round((box.shadowOffsetX ?? 0.05) * 100)}
                   onChange={(e) =>
-                    onChange({ shadowOffsetX: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
+                    onChange({ shadowOffsetX: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
                   }
-                  className="w-10 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                  title="그림자 가로 이동을 숫자로 직접 입력(-30~30%)"
+                  className="w-16 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 가로 이동을 숫자로 직접 입력(-100~100%)"
                 />
               </div>
             </div>
@@ -5845,28 +5987,16 @@ function TextBoxToolbar({
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">세로 이동</label>
               <div className="flex items-center gap-1">
                 <input
-                  type="range"
-                  min={-30}
-                  max={30}
-                  step={1}
-                  value={Math.round((box.shadowOffsetY ?? 0.05) * 100)}
-                  onChange={(e) =>
-                    onChange({ shadowOffsetY: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
-                  }
-                  className="w-full"
-                  title="그림자 세로 이동(글자 크기 대비 %)"
-                />
-                <input
                   type="number"
-                  min={-30}
-                  max={30}
+                  min={-100}
+                  max={100}
                   step={1}
                   value={Math.round((box.shadowOffsetY ?? 0.05) * 100)}
                   onChange={(e) =>
-                    onChange({ shadowOffsetY: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
+                    onChange({ shadowOffsetY: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
                   }
-                  className="w-10 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                  title="그림자 세로 이동을 숫자로 직접 입력(-30~30%)"
+                  className="w-16 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 세로 이동을 숫자로 직접 입력(-100~100%)"
                 />
               </div>
             </div>
@@ -8914,6 +9044,28 @@ const TableBoxOverlay = forwardRef<
                 textAlign: effAlign,
                 border: "none",
                 flexShrink: 0,
+                // 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("가로% 세로%도없네??") —
+                // 일반 텍스트박스(TextBoxDef.scaleXPct/scaleYPct)와 똑같은 CSS
+                // transform 방식·화면 미리보기 전용 한계까지 그대로예요(기존
+                // TextBoxDef 주석 참고).
+                ...((cellOverride?.scaleXPct ?? 100) !== 100 || (cellOverride?.scaleYPct ?? 100) !== 100
+                  ? {
+                      transform: `scaleX(${(cellOverride?.scaleXPct ?? 100) / 100}) scaleY(${(cellOverride?.scaleYPct ?? 100) / 100})`,
+                      transformOrigin: effAlign === "left" ? "left center" : effAlign === "right" ? "right center" : "center",
+                    }
+                  : {}),
+                // 외곽선("외곽선도없고!") — 일반 텍스트박스와 같은 다중 그림자 링
+                // 기법(strokeRingShadowList/combinedTextShadow, c595a7e 참고)을 그대로
+                // 재사용해요. 칸엔 그림자(드롭섀도) 필드가 없어서 뒤 네 인자는 항상
+                // undefined예요.
+                textShadow: combinedTextShadow(
+                  cellOverride?.strokeColor,
+                  cellOverride?.strokeWidth,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined
+                ),
               }}
               className="relative z-10 max-h-full w-full resize-none overflow-hidden bg-transparent p-0 outline-none"
             />
@@ -14899,6 +15051,8 @@ function UploadPageContent() {
                               selectionRange={activeTextSelectionRange}
                               contentValue={activeTextBoxDef?.text ?? ""}
                               onContentChange={handleActiveTextBoxContentChange}
+                              onCopyBox={handleCopyActiveTextBox}
+                              onPasteBox={handlePasteTextBox}
                             />
                           )}
                           {/* 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가
@@ -15596,6 +15750,8 @@ function UploadPageContent() {
                                 selectionRange={activeTextSelectionRange}
                                 contentValue={activeTextBoxDef?.text ?? ""}
                                 onContentChange={handleActiveTextBoxContentChange}
+                                onCopyBox={handleCopyActiveTextBox}
+                                onPasteBox={handlePasteTextBox}
                               />
                             )}
                             <div>

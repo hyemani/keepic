@@ -1024,6 +1024,15 @@ function drawTableGridAndCells(
       const effColor = style?.color ?? box.color ?? "#1F2937";
       const effUnderline = style?.underline ?? box.underline;
       const effStrikethrough = style?.strikethrough ?? false; // 표 전체엔 취소선 필드가 없어요(TableCellStyle.strikethrough 주석 참고).
+      // 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("외곽선도없고!") — 표 전체엔
+      // 외곽선 필드가 없어서(칸에 새로 생긴 기능) 위 letterSpacing과 같은 이유로
+      // 항상 이 칸 자신의 값만 써요. 일반 텍스트박스(drawTextBoxOnCanvas의
+      // drawLineStrokeAndFill)와 같은 strokeText-먼저-fillText-나중 패턴이라 화면의
+      // 다중 그림자 링과 같은 "바깥쪽만 보임" 결과가 나와요(위 drawTextBoxOnCanvas
+      // 주석 참고, 코드 변경 없이도 인쇄가 이미 맞던 것과 같은 이유).
+      const effStrokeColor = style?.strokeColor;
+      const effStrokeWidth = style?.strokeWidth;
+      const hasStroke = !!effStrokeColor && !!effStrokeWidth && effStrokeWidth > 0;
       ctx.font = `${effFontStyle}${effFontWeight}${effFontPx}px ${effFontFamily}`;
       ctx.fillStyle = effColor;
       if ("letterSpacing" in ctx) {
@@ -1060,6 +1069,14 @@ function drawTableGridAndCells(
       ctx.clip();
       lines.forEach((line, i) => {
         const lineY = startY + i * lineHeight;
+        if (hasStroke) {
+          ctx.save();
+          ctx.strokeStyle = effStrokeColor!;
+          ctx.lineWidth = effFontPx * effStrokeWidth!;
+          ctx.lineJoin = "round";
+          ctx.strokeText(line, lineX, lineY, maxTextWidth);
+          ctx.restore();
+        }
         ctx.fillText(line, lineX, lineY, maxTextWidth);
         if (effUnderline || effStrikethrough) {
           const textWidth = Math.min(maxTextWidth, ctx.measureText(line).width);
