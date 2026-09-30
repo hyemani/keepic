@@ -4581,44 +4581,23 @@ function TextStyleFieldsPanel({
               title="배경 색"
             />
             <span
-              title="배경이 이 박스의 실제 크기와 항상 같아요. '박스 전체 배경'일 땐 캔버스에서 손잡이로 박스 크기를 조절하면 배경도 같이 늘어나거나 줄어들어요."
+              title="박스 크기에 맞춰 배경이 늘어나거나 줄어들어요."
               className="cursor-help select-none text-[10px] leading-none text-[var(--color-charcoal)]/40"
             >
               ⓘ
             </span>
           </div>
-          {background.allowFillBoxBackground && (
-            <div className="mt-1.5">
-              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 방식</label>
-              <div className="grid grid-cols-2 gap-1">
-                {(
-                  [
-                    { id: "hugText" as const, label: "글자 주변 배경" },
-                    { id: "fillBox" as const, label: "박스 전체 배경" },
-                  ]
-                ).map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      if (opt.id === "fillBox" && background.heightPct === undefined) {
-                        onBackgroundChange?.({ backgroundMode: opt.id, heightPct: 20 });
-                      } else {
-                        onBackgroundChange?.({ backgroundMode: opt.id });
-                      }
-                    }}
-                    className={`border px-2 py-1.5 text-xs transition ${
-                      (background.backgroundMode ?? "hugText") === opt.id
-                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* 2026-11(7번째 라운드), 혜민님 요청("글자 주변배경, 박스 주변배경 메뉴는
+              없어도돼 그냥 박스 주변배경이 기본값으로") — "배경 방식"(hugText/fillBox)
+              고르는 버튼 두 개를 없앴어요. 새로 배경을 켜는 순간(아래 토글 아이콘,
+              allowFillBoxBackground가 true일 때)은 이제 항상 backgroundMode: "fillBox"로
+              저장돼요(hugText는 더 이상 선택 불가) — 그 분기는 이 컴포넌트 밖
+              토글 버튼(텍스트 배경 켜기/끄기)에 이미 있어서 손 안 댔어요. 예전에
+              backgroundMode: "hugText"로 저장된 옛 문서는 이 UI가 없어져도 값 자체는
+              그대로 남아있어서(아래 여백·띠 너비 칸도 hugText일 때만 그대로 보여요),
+              화면·인쇄 모두 예전과 똑같이 "글자 주변" 배경으로 계속 그려져요 — 렌더링
+              코드(TextBoxRichEditor의 isFillBoxMode, lib/printCompose.ts의 isFillBox)는
+              전혀 안 건드렸어요. */}
           {background.backgroundColor && (background.backgroundMode ?? "hugText") === "hugText" && (
             <div className="mt-1.5 grid grid-cols-2 gap-1.5">
               <div>
