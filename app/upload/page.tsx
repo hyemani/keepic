@@ -2096,6 +2096,58 @@ function textDecorationValue(underline?: boolean, strikethrough?: boolean): stri
   return parts.length ? parts.join(" ") : "none";
 }
 
+// 텍스트선(외곽선, 2026-11-9차 3번째 라운드, 혜민님 버그 리포트("텍스트 외곽선이
+// 바깥으로 뻗어야하는데 안쪽까지 뻗어서 외곽선 크기를 늘리면 글자가 묻혀버려")) —
+// -webkit-text-stroke는 글자의 벡터 윤곽선(outline path) 정중앙에 선을 그려요. 두꺼운
+// 알파벳은 안쪽으로 파고드는 절반이 이미 칠해진 잉크 영역 안에 묻혀 안 보이지만, "안"
+// "안녕" 같은 한글의 ㅇ처럼 속이 빈(counter) 가늘고 좁은 글자는 안쪽으로 파고드는 절반이
+// 바로 그 "빈 구멍" 안으로 들어가요 — 그 구멍은 애초에 글자 채우기(fill)가 칠하지 않는
+// 자리라 아무것도 덮어주지 못하고, 그대로 다 보여서 구멍이 메워지고 획이 뭉개져
+// 보여요(페인트 순서 문제가 아니라 "중앙 정렬 스트로크"라는 기하학적 특성 자체의
+// 한계라 순서를 바꿔도 못 고쳐요). 그래서 순수 CSS로 "바깥으로만" 뻗는 윤곽선을 만드는
+// 표준 방법인 "다중 그림자(multi text-shadow) 링" 기법으로 바꿔요: 흐림(blur) 없는
+// 같은 색 text-shadow를 원 둘레(N개 각도)에 강도(굵기)만큼 떨어뜨려 여러 겹 쌓으면,
+// 그 그림자들의 합집합이 글자 전체 실루엣을 사방으로 밀어낸(팽창시킨) 모양이 되고 —
+// 원본 글자(오프셋 0)의 진짜 채우기가 항상 그 위에 그대로 그려지니 구멍(counter) 크기는
+// 전혀 안 줄어들고, 바깥 테두리만 두꺼워져요. text-shadow는 항상 글자 내용(진짜
+// 채우기) "뒤"에 그려지는 것도 이 기법이 성립하는 이유예요(스펙상 보장됨).
+const STROKE_RING_STEPS = 16;
+
+function strokeRingShadowList(color: string, widthEm: number): string[] {
+  if (widthEm <= 0) return [];
+  const shadows: string[] = [];
+  for (let i = 0; i < STROKE_RING_STEPS; i++) {
+    const angle = (i / STROKE_RING_STEPS) * Math.PI * 2;
+    const x = Math.cos(angle) * widthEm;
+    const y = Math.sin(angle) * widthEm;
+    shadows.push(`${x.toFixed(4)}em ${y.toFixed(4)}em 0 ${color}`);
+  }
+  return shadows;
+}
+
+// 텍스트선(링)·그림자(드롭섀도) 둘 다 CSS text-shadow 속성 하나를 같이 써야 해서(각각
+// 따로 style 객체에 넣으면 뒤에 오는 쪽이 통째로 덮어써버려요) 한 문자열로 합쳐요.
+// 순서: 링(윤곽선) 항목들을 먼저, 드롭섀도를 맨 뒤에 — text-shadow 목록은 "먼저 적은
+// 게 위(앞)"로 그려지므로, 드롭섀도가 링보다 더 뒤(바닥)에 깔려요(요청하신 시각적
+// 우선순위와 동일).
+function combinedTextShadow(
+  strokeColor: string | undefined,
+  strokeWidthEm: number | undefined,
+  shadowColor: string | undefined,
+  shadowBlurEm: number | undefined,
+  shadowOffsetXEm: number | undefined,
+  shadowOffsetYEm: number | undefined
+): string | undefined {
+  const parts: string[] = [];
+  if (strokeColor && strokeWidthEm) {
+    parts.push(...strokeRingShadowList(strokeColor, strokeWidthEm));
+  }
+  if (shadowColor) {
+    parts.push(`${shadowOffsetXEm ?? 0}em ${shadowOffsetYEm ?? 0}em ${shadowBlurEm ?? 0}em ${shadowColor}`);
+  }
+  return parts.length ? parts.join(", ") : undefined;
+}
+
 // 이미 화면에 그려둔 span의 "최종 해석된 서식"(stylesByIdxRef에 기억해둔 값)을 다시
 // TextRun(있으면 override, 없으면 undefined=상속)으로 되돌려요 — 타이핑/삭제
 // 후 DOM을 읽어서 runs를 다시 만들 때 써요.
@@ -2375,23 +2427,25 @@ function TextBoxRichEditor({
                 transformOrigin: box.align === "right" ? "top right" : box.align === "center" ? "top center" : "top left",
               }
             : {}),
-          // 텍스트선(2026-11-9차) — -webkit-text-stroke는 상속되는 속성이라 이
-          // 컨테이너에 한 번만 주면 안쪽 span들(각 글자, applyRunStyleToSpan)에 그대로
-          // 물려받아요. 채우기 색(span.style.color, 문자 단위로 다를 수 있음)은 건드리지
-          // 않고 그 바깥에 테두리만 둘러요.
-          ...(box.strokeColor && box.strokeWidth
-            ? {
-                WebkitTextStrokeWidth: `${box.strokeWidth}em`,
-                WebkitTextStrokeColor: box.strokeColor,
-              }
-            : {}),
-          // 그림자(2026-11-9차) — text-shadow도 상속되는 속성이라 컨테이너 한 번으로
-          // 안쪽 글자 전체에 적용돼요.
-          ...(box.shadowColor
-            ? {
-                textShadow: `${(box.shadowOffsetX ?? 0)}em ${(box.shadowOffsetY ?? 0)}em ${(box.shadowBlur ?? 0)}em ${box.shadowColor}`,
-              }
-            : {}),
+          // 텍스트선·그림자(2026-11-9차 3번째 라운드) — 둘 다 상속되는 text-shadow
+          // 속성 하나로 합쳐서(combinedTextShadow) 이 컨테이너에 한 번만 주면 안쪽
+          // span들(각 글자, applyRunStyleToSpan)에 그대로 물려받아요. 예전
+          // -webkit-text-stroke는 얇은 한글 획의 속(counter)을 메워버리는 문제가 있어서
+          // "다중 그림자 링" 기법으로 바꿨어요(위 strokeRingShadowList 주석 참고) —
+          // 채우기 색(span.style.color, 문자 단위로 다를 수 있음)은 이 컨테이너
+          // text-shadow 뒤(스펙상 항상 콘텐츠가 그림자보다 위)에 그대로 그려지니 안
+          // 건드려요.
+          ...(() => {
+            const ts = combinedTextShadow(
+              box.strokeColor,
+              box.strokeWidth,
+              box.shadowColor,
+              box.shadowBlur,
+              box.shadowOffsetX,
+              box.shadowOffsetY
+            );
+            return ts ? { textShadow: ts } : {};
+          })(),
         }}
         className={`relative w-full cursor-text border-none bg-transparent leading-snug outline-none ${
  box.heightPct !== undefined
@@ -2778,7 +2832,9 @@ type LayerIconName =
   | "check"
   | "underline"
   | "italic"
-  | "highlight";
+  | "highlight"
+  | "textStrokeToggle"
+  | "textShadowToggle";
 
 function LayerIcon({ name, className }: { name: LayerIconName; className?: string }) {
   const common = {
@@ -3018,6 +3074,29 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         <svg {...common}>
           <rect x="4" y="9" width="16" height="7" rx="1" fill="currentColor" fillOpacity="0.2" />
           <path d="M6 6h12" />
+        </svg>
+      );
+    // 2026-11-9차 3번째 라운드, 혜민님 요청("아이콘도 예쁘게 디자인적으로... 너무
+    // 심플하고 간단해서 초보같아") — 예전엔 "가" 글자 하나에 -webkit-text-stroke/
+    // text-shadow CSS를 직접 걸어 흉내냈는데, 작은 크기(28px)에선 획이 뭉개지기 쉽고
+    // 다른 LayerIcon들과 그림 방식(전부 벡터 path, stroke=currentColor)이 달라 붕
+    // 떠 보였어요. 대신 "T" 모양을 두 겹의 path로(굵고 옅은 바깥 겹 + 가늘고 진한 안쪽
+    // 겹) 그려서 "글자 + 둘레 테두리"를 벡터로 직접 표현 — 다른 아이콘들과 같은 24x24
+    // viewBox·strokeLinecap="round" 스타일이라 툴바에서 자연스럽게 어울려요.
+    case "textStrokeToggle":
+      return (
+        <svg {...common}>
+          <path d="M6 6.6h12M12 6.6v11.2" strokeWidth={4.4} opacity={0.28} />
+          <path d="M6 6.6h12M12 6.6v11.2" strokeWidth={1.8} />
+        </svg>
+      );
+    // 그림자 토글 — 같은 "T" 모양을 살짝 오른쪽 아래로 어긋나게 한 벌 더(옅게) 깔아
+    // "그림자가 진 글자"를 직관적으로 보여줘요.
+    case "textShadowToggle":
+      return (
+        <svg {...common}>
+          <path d="M7.1 7.7h12M13.1 7.7v11.2" strokeWidth={1.8} opacity={0.32} />
+          <path d="M6 6.6h12M12 6.6v11.2" strokeWidth={1.8} />
         </svg>
       );
   }
@@ -5588,16 +5667,15 @@ function TextBoxToolbar({
       )}
       {/* 2026-11-9차, 혜민님 요청("텍스트선도 필요할것같아요... 자막스타일처럼
           만들어놓고싶거든요") — 자막(캡션)에서 흔한 "글자 채우기 + 테두리" 조합이에요.
-          2026-11-9차 2번째 라운드, 혜민님 버그 리포트("텍스트외곽선이 안보여") — 원인:
-          처음 버전은 켜는 방법이 "없음" 견본(끄기 전용) 옆의 네이티브 <input
-          type=color> 딱 하나뿐이었어요. 배경색 등 다른 on/off 항목은 전부 "누르면 바로
-          기본값으로 켜지는" 버튼(아래 "배경" 버튼과 같은 패턴)이 있는데, 텍스트선·
-          그림자만 그 버튼이 없어서 색 피커를 열고 실제로 다른 색을 "확정"해야만(브라우저
-          네이티브 색 피커는 단순히 열었다 닫기만 하면 onChange가 아예 안 일어나요) 켜지는
-          구조였어요 — 그래서 "설정했는데 안 보인다"가 아니라 "켜는 동작 자체가 한 번도
-          성공한 적이 없었다"일 가능성이 높아요. 이제 배경과 똑같이, 누르면 즉시 기본값
-          (검정, 기존에 쓰던 굵기가 있으면 그 값)으로 켜지는 토글 버튼 하나로 통일하고,
-          색 피커/슬라이더는 이미 켜진 뒤 "세부 조정"에만 써요. */}
+          2026-11-9차 2번째 라운드, 혜민님 버그 리포트("텍스트외곽선이 안보여") — 켜는
+          방법을 "배경"과 같은, 누르면 즉시 기본값으로 켜지는 토글 버튼으로 통일.
+          2026-11-9차 3번째 라운드, 혜민님 버그 리포트("외곽선이 안쪽까지 뻗어서 글자가
+          묻혀버려")+요청("퍼센트 입력..." "아이콘도 예쁘게") — 렌더링은 다중 그림자 링
+          기법으로 바꿨고(위 strokeRingShadowList 주석 참고), 여기 UI는 (1) 굵기를
+          슬라이더뿐 아니라 숫자(%)로도 직접 입력할 수 있게(테이블 칸 "배경 투명도"와
+          같은 슬라이더+숫자input+% 패턴, 위 TableBoxToolbar 참고) (2) 토글 버튼 아이콘을
+          벡터 LayerIcon(textStrokeToggle)으로 바꿨어요. 슬라이더 범위(0.02~0.3em)가
+          "글자 크기 대비 2~30%"라 값*100을 그대로 %로 보여줘요. */}
       <div>
         <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
           텍스트선(외곽선)
@@ -5618,16 +5696,7 @@ function TextBoxToolbar({
                 : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
             }`}
           >
-            <span
-              className="text-sm font-bold"
-              style={{
-                WebkitTextStrokeWidth: "1.1px",
-                WebkitTextStrokeColor: "currentColor",
-                color: box.strokeColor ? "currentColor" : "transparent",
-              }}
-            >
-              가
-            </span>
+            <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
           </button>
           {box.strokeColor && (
             <input
@@ -5641,19 +5710,40 @@ function TextBoxToolbar({
           {box.strokeColor && (
             <input
               type="range"
-              min={0.02}
-              max={0.3}
-              step={0.01}
-              value={box.strokeWidth ?? 0.08}
-              onChange={(e) => onChange({ strokeWidth: Number(e.target.value) })}
+              min={2}
+              max={30}
+              step={1}
+              value={Math.round((box.strokeWidth ?? 0.08) * 100)}
+              onChange={(e) =>
+                onChange({ strokeWidth: Math.max(2, Math.min(30, Number(e.target.value) || 0)) / 100 })
+              }
               className="w-full"
-              title="텍스트선 굵기"
+              title="텍스트선 굵기(글자 크기 대비 %)"
             />
           )}
+          {box.strokeColor && (
+            <input
+              type="number"
+              min={2}
+              max={30}
+              step={1}
+              value={Math.round((box.strokeWidth ?? 0.08) * 100)}
+              onChange={(e) =>
+                onChange({ strokeWidth: Math.max(2, Math.min(30, Number(e.target.value) || 0)) / 100 })
+              }
+              className="w-12 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+              title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 2~30%)"
+            />
+          )}
+          {box.strokeColor && <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>}
         </div>
       </div>
       {/* 그림자 효과(2026-11-9차, 혜민님 요청: "그림자효과도 넣을수있어야하고요") — 위
-          텍스트선과 같은 이유로 같은 토글 버튼 패턴을 써요. */}
+          텍스트선과 같은 이유로 같은 토글 버튼 패턴을 써요. 2026-11-9차 3번째 라운드,
+          혜민님 요청("퍼센트 입력하면 수정할수있게" + "아이콘도 예쁘게") — 번짐·가로
+          이동·세로 이동 세 슬라이더 모두 숫자(%) 입력을 같이 두고(위 텍스트선 굵기와
+          같은 패턴), 토글 버튼 아이콘을 벡터 LayerIcon(textShadowToggle)으로 바꿨어요.
+          번짐은 0~50%(0~0.5em), 이동은 -30~30%(-0.3~0.3em) 범위를 그대로 %로 보여줘요. */}
       <div>
         <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
           그림자
@@ -5679,12 +5769,7 @@ function TextBoxToolbar({
                 : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
             }`}
           >
-            <span
-              className="text-sm font-bold text-[var(--color-charcoal)]"
-              style={box.shadowColor ? { textShadow: "1.5px 1.5px 0 currentColor" } : undefined}
-            >
-              가
-            </span>
+            <LayerIcon name="textShadowToggle" className="h-4 w-4" />
           </button>
           {box.shadowColor && (
             <input
@@ -5700,42 +5785,90 @@ function TextBoxToolbar({
           <div className="mt-1.5 grid grid-cols-3 gap-1.5">
             <div>
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">번짐</label>
-              <input
-                type="range"
-                min={0}
-                max={0.5}
-                step={0.01}
-                value={box.shadowBlur ?? 0.15}
-                onChange={(e) => onChange({ shadowBlur: Number(e.target.value) })}
-                className="w-full"
-                title="그림자 번짐"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="range"
+                  min={0}
+                  max={50}
+                  step={1}
+                  value={Math.round((box.shadowBlur ?? 0.15) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowBlur: Math.max(0, Math.min(50, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full"
+                  title="그림자 번짐(글자 크기 대비 %)"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  step={1}
+                  value={Math.round((box.shadowBlur ?? 0.15) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowBlur: Math.max(0, Math.min(50, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-10 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 번짐을 숫자로 직접 입력(0~50%)"
+                />
+              </div>
             </div>
             <div>
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">가로 이동</label>
-              <input
-                type="range"
-                min={-0.3}
-                max={0.3}
-                step={0.01}
-                value={box.shadowOffsetX ?? 0.05}
-                onChange={(e) => onChange({ shadowOffsetX: Number(e.target.value) })}
-                className="w-full"
-                title="그림자 가로 이동"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="range"
+                  min={-30}
+                  max={30}
+                  step={1}
+                  value={Math.round((box.shadowOffsetX ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetX: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full"
+                  title="그림자 가로 이동(글자 크기 대비 %)"
+                />
+                <input
+                  type="number"
+                  min={-30}
+                  max={30}
+                  step={1}
+                  value={Math.round((box.shadowOffsetX ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetX: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-10 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 가로 이동을 숫자로 직접 입력(-30~30%)"
+                />
+              </div>
             </div>
             <div>
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">세로 이동</label>
-              <input
-                type="range"
-                min={-0.3}
-                max={0.3}
-                step={0.01}
-                value={box.shadowOffsetY ?? 0.05}
-                onChange={(e) => onChange({ shadowOffsetY: Number(e.target.value) })}
-                className="w-full"
-                title="그림자 세로 이동"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="range"
+                  min={-30}
+                  max={30}
+                  step={1}
+                  value={Math.round((box.shadowOffsetY ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetY: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full"
+                  title="그림자 세로 이동(글자 크기 대비 %)"
+                />
+                <input
+                  type="number"
+                  min={-30}
+                  max={30}
+                  step={1}
+                  value={Math.round((box.shadowOffsetY ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetY: Math.max(-30, Math.min(30, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-10 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 세로 이동을 숫자로 직접 입력(-30~30%)"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -9183,19 +9316,19 @@ function CoverTitleOverlay({
           transformOrigin: align === "right" ? "top right" : align === "center" ? "top center" : "top left",
         }
       : {}),
-    // 텍스트선·그림자(2026-11-9차) — 일반 글상자(TextBoxRichEditor 컨테이너)와 같은
-    // 방식(em 단위, -webkit-text-stroke/text-shadow는 상속되는 속성).
-    ...(editableBox.strokeColor && editableBox.strokeWidth
-      ? {
-          WebkitTextStrokeWidth: `${editableBox.strokeWidth}em`,
-          WebkitTextStrokeColor: editableBox.strokeColor,
-        }
-      : {}),
-    ...(editableBox.shadowColor
-      ? {
-          textShadow: `${(editableBox.shadowOffsetX ?? 0)}em ${(editableBox.shadowOffsetY ?? 0)}em ${(editableBox.shadowBlur ?? 0)}em ${editableBox.shadowColor}`,
-        }
-      : {}),
+    // 텍스트선·그림자(2026-11-9차 3번째 라운드) — 일반 글상자(TextBoxRichEditor
+    // 컨테이너)와 같은 combinedTextShadow(다중 그림자 링) 방식으로 통일.
+    ...(() => {
+      const ts = combinedTextShadow(
+        editableBox.strokeColor,
+        editableBox.strokeWidth,
+        editableBox.shadowColor,
+        editableBox.shadowBlur,
+        editableBox.shadowOffsetX,
+        editableBox.shadowOffsetY
+      );
+      return ts ? { textShadow: ts } : {};
+    })(),
   };
   // 띠 너비는 backgroundWidthPct(앞표지 칸 전체 기준 %)를 "이 제목 박스 자신의 너비
   // (widthPct)" 기준 퍼센트로 환산해요 — boxRef 컨테이너 자체가 widthPct%로 이미
@@ -9474,12 +9607,12 @@ function SpineTitleOverlay({
           paddingBottom: `${(backgroundPaddingYPct ?? 25) / 100}em`,
         }
       : {}),
-    ...(strokeColor && strokeWidth
-      ? { WebkitTextStrokeWidth: `${strokeWidth}em`, WebkitTextStrokeColor: strokeColor }
-      : {}),
-    ...(shadowColor
-      ? { textShadow: `${shadowOffsetX ?? 0}em ${shadowOffsetY ?? 0}em ${shadowBlur ?? 0}em ${shadowColor}` }
-      : {}),
+    // 텍스트선·그림자(2026-11-9차 3번째 라운드) — 위 CoverTitleOverlay/
+    // TextBoxRichEditor와 같은 combinedTextShadow(다중 그림자 링) 방식.
+    ...(() => {
+      const ts = combinedTextShadow(strokeColor, strokeWidth, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
+      return ts ? { textShadow: ts } : {};
+    })(),
   };
   const spineScaleTransform =
     (scaleXPct ?? 100) !== 100 || (scaleYPct ?? 100) !== 100
