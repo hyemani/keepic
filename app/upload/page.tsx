@@ -2085,6 +2085,18 @@ function applyRunStyleToSpan(span: HTMLSpanElement, run: TextRun, box: TextBoxDe
   // 주석 참고) — 밑줄과 한 textDecoration 안에 같이 넣어야 브라우저가 둘 다 그려요
   // (예: "underline line-through").
   span.style.textDecoration = textDecorationValue(style.underline, box.strikethrough);
+  const decorationColor = textDecorationColorValue(
+    style.underline,
+    box.underlineColor,
+    box.strikethrough,
+    box.strikethroughColor,
+    style.color
+  );
+  if (decorationColor) {
+    span.style.textDecorationColor = decorationColor;
+  } else {
+    span.style.removeProperty("text-decoration-color");
+  }
 }
 
 // 밑줄·취소선을 하나의 CSS textDecoration 문자열로 합쳐요 — 화면(위 applyRunStyleToSpan,
@@ -2094,6 +2106,25 @@ function textDecorationValue(underline?: boolean, strikethrough?: boolean): stri
   if (underline) parts.push("underline");
   if (strikethrough) parts.push("line-through");
   return parts.length ? parts.join(" ") : "none";
+}
+
+// 밑줄·취소선 색(2026-11-9차 10번째 라운드) — CSS의 text-decoration-color는
+// "그 요소에 그려지는 모든 줄(밑줄+취소선)"에 딱 하나만 적용돼요, 그래서 밑줄·
+// 취소선이 동시에 켜져 있고 색이 서로 다르면 화면(하나의 <span>)에선 정확히 두
+// 색을 동시에 못 그려요(인쇄 lib/printCompose.ts는 각자 따로 그리는 캔버스라 항상
+// 정확해요 — 이 차이는 작업 보고에 명시했어요). 화면 미리보기에선 그 드문 충돌
+// 상황에만 밑줄 색을 우선해서 보여주고(둘 중 하나만 켜져 있으면 항상 정확해요),
+// 둘 다 색을 안 골랐으면(기존 문서 전부 이 상태) 예전처럼 글자 색 그대로예요.
+function textDecorationColorValue(
+  underline: boolean | undefined,
+  underlineColor: string | undefined,
+  strikethrough: boolean | undefined,
+  strikethroughColor: string | undefined,
+  fallbackColor: string
+): string | undefined {
+  if (underline) return underlineColor ?? fallbackColor;
+  if (strikethrough) return strikethroughColor ?? fallbackColor;
+  return undefined;
 }
 
 // 텍스트선(외곽선, 2026-11-9차 3번째 라운드, 혜민님 버그 리포트("텍스트 외곽선이
@@ -4069,7 +4100,9 @@ type TextStyleFields = {
   bold: boolean;
   italic: boolean;
   underline: boolean;
+  underlineColor?: string;
   strikethrough: boolean;
+  strikethroughColor?: string;
   color: string;
   strokeColor?: string;
   strokeWidth?: number;
@@ -4150,17 +4183,53 @@ function TextStyleFieldsPanel({
     <>
       <div>
         <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">서체</label>
-        <select
-          value={value.fontFamily}
-          onChange={(e) => onChange({ fontFamily: e.target.value })}
-          className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-        >
-          {fontOptions.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.label}
-            </option>
-          ))}
-        </select>
+        {/* 2026-11-9차 10번째 라운드, 혜민님 요청("텍스트선을 상단의 서체 오른쪽에
+            넣어주세요") — 텍스트선(outline) 토글·색 스와치를 서체 드롭다운과 같은
+            줄로 옮겼어요(반대로 굵게(B)는 아래 "텍스트 효과" 줄로 내려갔어요, 그
+            변경은 아래 주석 참고). 서체 select는 flex-1로 남은 공간을 다 차지하고,
+            토글·스와치는 h-7 w-7 고정 크기로 오른쪽에 붙어서 드롭다운만 줄어들 뿐
+            줄바꿈은 안 돼요. */}
+        <div className="flex items-center gap-1">
+          <select
+            value={value.fontFamily}
+            onChange={(e) => onChange({ fontFamily: e.target.value })}
+            className="min-w-0 flex-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          >
+            {fontOptions.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기(검정, 굵기는 마지막에 쓰던 값)"}
+            aria-pressed={!!value.strokeColor}
+            onClick={() =>
+              onChange(
+                value.strokeColor
+                  ? { strokeColor: undefined }
+                  : { strokeColor: "#000000", strokeWidth: value.strokeWidth ?? 0.08 }
+              )
+            }
+            className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
+              value.strokeColor
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+            }`}
+          >
+            <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
+          </button>
+          {value.strokeColor && (
+            <input
+              type="color"
+              value={value.strokeColor}
+              onChange={(e) => onChange({ strokeColor: e.target.value })}
+              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="텍스트선 색"
+            />
+          )}
+        </div>
       </div>
       {/* 2026-11-9차 7번째 라운드, 혜민님 요청("문자 설정을 2열×3행으로 정리해주세요:
           1행 글자크기|행간, 2행 세로폭|가로폭, 3행 커닝|자간. 세로·가로 폭은 글자
@@ -4300,6 +4369,28 @@ function TextStyleFieldsPanel({
           />
         </div>
       </div>
+      {/* 2026-11-9차 10번째 라운드, 혜민님 요청("볼드아이콘을 하단의 기울기
+          왼쪽에 넣고 텍스트선을 상단의 서체 오른쪽에 넣어주세요") — 텍스트선은 위
+          "서체" 줄로 옮겨갔고(위 주석 참고), 이 줄엔 굵게(B)·기울임·밑줄·취소선·
+          그림자·텍스트배경이 남아요. 굵게는 원래도 이 줄 맨 앞이라 자리는 그대로고,
+          글자색 스와치만 굵게 바로 옆으로 붙여서(둘 다 "글자 자체가 어떻게
+          보이는지"를 다루는 짝이라는 판단 — 자세한 근거는 작업 보고 참고) 텍스트선이
+          위로 옮겨가며 남긴 빈자리를 채웠어요.
+          2026-11-9차 10번째 라운드, 혜민님 요청("기울기, 밑줄, 가운데줄, 텍스트선,
+          텍스트그림자, 텍스트박스배경 아이콘 오른쪽에 색상 아이콘을... 색상 넣을때는
+          하단에 따로 색상표가 생성되지않고 그 자리에서 확인되도록") — 밑줄·취소선에
+          새로 생긴 underlineColor/strikethroughColor(둘 다 없으면 글자색을 그대로
+          따라가요, 기존 문서는 전부 이 상태라 회귀 없음)를 이 자리에서 바로 고를 수
+          있는 <input type="color">를 붙였어요(토글이 켜져 있을 때만 보여요 — 텍스트선·
+          그림자·배경과 같은 "켜졌을 때만 스와치" 규칙). <input type="color">는 이
+          브라우저(OS) 자체 팝업이라 "하단에 별도 색상표가 생기는" 문제 자체가 원래도
+          없었어요(이 앱엔 그런 자체 팝업 컴포넌트가 없어요, ⓘ 참고) — 브라우저가
+          그 위에 직접 띄우는 네이티브 오버레이라 페이지 레이아웃을 안 밀어내요.
+          기울임(이탤릭)은 선·면이 아니라 "글자 자체가 기울어지는" 폰트 스타일이라
+          색이라는 개념 자체가 없어요 — 가짜로 글자색과 묶어 스와치를 붙이면 "새
+          기능"이 아니라 이미 있는 글자색 스와치를 하나 더 만드는 것뿐이라, 커닝
+          (위 "커닝" ⓘ 참고)처럼 비활성 회색 칸 + ⓘ 설명으로 "해당 없음"을 정직하게
+          보여줘요. */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
@@ -4313,6 +4404,13 @@ function TextStyleFieldsPanel({
         >
           B
         </button>
+        <input
+          type="color"
+          value={value.color}
+          onChange={(e) => onChange({ color: e.target.value })}
+          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+          title="글자 색"
+        />
         <button
           type="button"
           title="기울임"
@@ -4325,6 +4423,13 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="italic" className="h-4 w-4" />
         </button>
+        <span
+          title="기울임(이탤릭)은 글자 모양을 기울이는 스타일일 뿐, 선·면처럼 색을 가질 요소가 없어서 별도 색상 스와치가 없어요."
+          aria-hidden="true"
+          className="flex h-7 w-7 shrink-0 cursor-help items-center justify-center border border-dashed border-[var(--color-hairline)] bg-[var(--color-hairline)]/10 text-[9px] leading-none text-[var(--color-charcoal)]/30"
+        >
+          ⓘ
+        </span>
         <button
           type="button"
           title="밑줄"
@@ -4337,6 +4442,15 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="underline" className="h-4 w-4" />
         </button>
+        {value.underline && (
+          <input
+            type="color"
+            value={value.underlineColor ?? value.color}
+            onChange={(e) => onChange({ underlineColor: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="밑줄 색(안 고르면 글자 색을 그대로 따라가요)"
+          />
+        )}
         <button
           type="button"
           title="취소선"
@@ -4349,47 +4463,15 @@ function TextStyleFieldsPanel({
         >
           <span className="text-sm line-through">S</span>
         </button>
-        <input
-          type="color"
-          value={value.color}
-          onChange={(e) => onChange({ color: e.target.value })}
-          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-          title="글자 색"
-        />
-        {/* 2026-11-9차 8번째 라운드, 혜민님 요청("텍스트선·그림자·텍스트배경을 각자
-            큰 구역으로 두지 말고, 기존 폰트 효과(B/I/U/S+색) 줄에 같은 크기·간격으로
-            나란히 배치해서 하나의 '텍스트 효과' 그룹으로 보이게") — 텍스트선(outline)·
-            그림자·텍스트배경 세 토글을 위 B/I/U/S/색과 같은 h-7 w-7 크기·같은
-            gap-1.5로 이 한 줄에 이어 붙였어요. 얇은 구분선(세로 막대) 하나만 둬서
-            "글자 모양 버튼들"과 "텍스트 효과 버튼들"을 시각적으로만 살짝 나눴어요
-            (별도 제목·구분선 섹션은 없앴어요). 패널 폭이 224px가 최대(왼쪽 속성
-            패널, 위 line 14546 clamp(160px,22cqw,224px) 참고)라 이 8개 아이콘이
-            전부 한 줄엔 안 들어가요 — flex-wrap으로 넘치면 다음 줄로 자연스럽게
-            줄바꿈되게 해서(잘리거나 겹치지 않음) 폭이 좁아도 항상 온전히 다 보이게
-            했어요. 각 토글을 켰을 때의 세부 설정은 바로 아래(다른 효과 설정과 안
-            섞이게, 토글 켠 순서와 무관하게 텍스트선→그림자→텍스트배경 고정 순서로)
-            그 효과만의 작은 블록으로 떠요 — 꺼져 있으면 그 블록 자체가 없어서
-            패널이 짧게 유지돼요. */}
-        <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--color-hairline)]" aria-hidden="true" />
-        <button
-          type="button"
-          title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기(검정, 굵기는 마지막에 쓰던 값)"}
-          aria-pressed={!!value.strokeColor}
-          onClick={() =>
-            onChange(
-              value.strokeColor
-                ? { strokeColor: undefined }
-                : { strokeColor: "#000000", strokeWidth: value.strokeWidth ?? 0.08 }
-            )
-          }
-          className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
-            value.strokeColor
-              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-          }`}
-        >
-          <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
-        </button>
+        {value.strikethrough && (
+          <input
+            type="color"
+            value={value.strikethroughColor ?? value.color}
+            onChange={(e) => onChange({ strikethroughColor: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="가운데줄(취소선) 색(안 고르면 글자 색을 그대로 따라가요)"
+          />
+        )}
         <button
           type="button"
           title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 투명도·번짐·이동은 마지막에 쓰던 값)"}
@@ -4415,6 +4497,15 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="textShadowToggle" className="h-4 w-4" />
         </button>
+        {value.shadowColor && (
+          <input
+            type="color"
+            value={value.shadowColor}
+            onChange={(e) => onChange({ shadowColor: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="그림자 색"
+          />
+        )}
         {background && (
           <button
             type="button"
@@ -4444,19 +4535,22 @@ function TextStyleFieldsPanel({
             <LayerIcon name="highlight" className="h-4 w-4" />
           </button>
         )}
-      </div>
-      {/* 텍스트선 세부 설정 — 켜졌을 때만, 토글 바로 아래(위 주석 참고). 필드·값·
-          단위는 예전과 완전히 같아요, 헤더(제목+구분선)만 없앴어요. */}
-      {value.strokeColor && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선</label>
+        {background?.backgroundColor && (
           <input
             type="color"
-            value={value.strokeColor}
-            onChange={(e) => onChange({ strokeColor: e.target.value })}
+            value={background.backgroundColor}
+            onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
             className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="텍스트선 색"
+            title="텍스트 배경 색"
           />
+        )}
+      </div>
+      {/* 텍스트선 세부 설정 — 켜졌을 때만, 토글 바로 아래(위 서체 줄 참고). 색
+          스와치는 2026-11-9차 10번째 라운드부터 위 서체 줄의 토글 옆으로 옮겨가서
+          (혜민님 요청, 위 주석 참고) 여기엔 굵기 입력칸만 남아요. */}
+      {value.strokeColor && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선 굵기</label>
           <input
             type="number"
             min={0}
@@ -4477,14 +4571,7 @@ function TextStyleFieldsPanel({
       {value.shadowColor && (
         <div className="mt-1.5">
           <div className="flex items-center gap-1.5">
-            <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자</label>
-            <input
-              type="color"
-              value={value.shadowColor}
-              onChange={(e) => onChange({ shadowColor: e.target.value })}
-              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-              title="그림자 색"
-            />
+            <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자 세부 설정</label>
           </div>
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             <div>
@@ -4572,14 +4659,7 @@ function TextStyleFieldsPanel({
       {background?.backgroundColor && (
         <div className="mt-1.5">
           <div className="flex items-center gap-1">
-            <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트 배경</label>
-            <input
-              type="color"
-              value={background.backgroundColor}
-              onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
-              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-              title="배경 색"
-            />
+            <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트 배경 세부 설정</label>
             <span
               title="배경이 이 박스의 실제 크기와 항상 같아요. '박스 전체 배경'일 땐 캔버스에서 손잡이로 박스 크기를 조절하면 배경도 같이 늘어나거나 줄어들어요."
               className="cursor-help select-none text-[10px] leading-none text-[var(--color-charcoal)]/40"
@@ -5140,7 +5220,9 @@ function TableBoxToolbar({
               bold: !!(sel.selStyle?.bold ?? box.bold),
               italic: !!(sel.selStyle?.italic ?? box.italic),
               underline: !!(sel.selStyle?.underline ?? box.underline),
+              underlineColor: sel.selStyle?.underlineColor,
               strikethrough: !!sel.selStyle?.strikethrough,
+              strikethroughColor: sel.selStyle?.strikethroughColor,
               color: sel.selStyle?.color ?? box.color ?? "#1F2937",
               strokeColor: sel.selStyle?.strokeColor,
               strokeWidth: sel.selStyle?.strokeWidth,
@@ -5717,7 +5799,9 @@ function TextBoxToolbar({
       bold: effective?.bold ?? b.bold,
       italic: effective?.italic ?? b.italic,
       underline: effective?.underline ?? b.underline,
+      underlineColor: b.underlineColor,
       strikethrough: b.strikethrough,
+      strikethroughColor: b.strikethroughColor,
       lineHeight: b.lineHeight,
       letterSpacing: b.letterSpacing,
       scaleXPct: b.scaleXPct,
@@ -5866,7 +5950,9 @@ function TextBoxToolbar({
           bold: box.bold,
           italic: !!box.italic,
           underline: !!box.underline,
+          underlineColor: box.underlineColor,
           strikethrough: !!box.strikethrough,
+          strikethroughColor: box.strikethroughColor,
           color: box.color,
           strokeColor: box.strokeColor,
           strokeWidth: box.strokeWidth,
@@ -8844,6 +8930,13 @@ const TableBoxOverlay = forwardRef<
                 fontWeight: (cellOverride?.bold ?? box.bold) ? 700 : 400,
                 fontStyle: (cellOverride?.italic ?? box.italic) ? "italic" : "normal",
                 textDecoration: textDecorationValue(cellOverride?.underline ?? box.underline, cellOverride?.strikethrough),
+                textDecorationColor: textDecorationColorValue(
+                  cellOverride?.underline ?? box.underline,
+                  cellOverride?.underlineColor,
+                  cellOverride?.strikethrough,
+                  cellOverride?.strikethroughColor,
+                  cellOverride?.color ?? box.color ?? "#1F2937"
+                ),
                 letterSpacing: `${cellOverride?.letterSpacing ?? 0}em`,
                 lineHeight: cellOverride?.lineHeight ?? box.lineHeight ?? 1.375,
                 textAlign: effAlign,
@@ -9254,6 +9347,13 @@ function CoverTitleOverlay({
     color,
     fontWeight: bold ? 600 : 400,
     textDecoration: textDecorationValue(underline, editableBox.strikethrough),
+    textDecorationColor: textDecorationColorValue(
+      underline,
+      editableBox.underlineColor,
+      editableBox.strikethrough,
+      editableBox.strikethroughColor,
+      color
+    ),
     fontStyle: italic ? "italic" : "normal",
     ...(editableBox.backgroundColor
       ? hasBackgroundWidthOverride
@@ -9431,8 +9531,10 @@ function SpineTitleOverlay({
   color,
   bold,
   underline,
+  underlineColor,
   italic,
   strikethrough,
+  strikethroughColor,
   strokeColor,
   strokeWidth,
   shadowColor,
@@ -9463,12 +9565,14 @@ function SpineTitleOverlay({
   // 고정이었는데, 이제 일반 글상자·표지 제목처럼 직접 고를 수 있어요.
   bold: boolean;
   underline: boolean;
+  underlineColor?: string;
   italic: boolean;
   // 2026-10(6차) — 표지 제목과 같은 이유로 추가(위 CoverTitleOverlay textStyle 주석
   // 참고). 책등은 TextBoxRichEditor를 재사용하지 않아서(캔버스 위 직접 타이핑을
   // 예전에 되돌린 이유는 최종 보고 참고) coverTitleAsTextBox 같은 어댑터가 없고, 이
   // 값들을 표지 제목처럼 개별 prop으로 받아요.
   strikethrough?: boolean;
+  strikethroughColor?: string;
   // 텍스트선·그림자(2026-11-9차) — 위 strikethrough와 같은 이유·같은 단위(em)로
   // prop을 받아요.
   strokeColor?: string;
@@ -9559,6 +9663,7 @@ function SpineTitleOverlay({
   const spineTextStyle: React.CSSProperties = {
     fontWeight: bold ? 700 : 400,
     textDecoration: textDecorationValue(underline, strikethrough),
+    textDecorationColor: textDecorationColorValue(underline, underlineColor, strikethrough, strikethroughColor, color),
     fontStyle: italic ? "italic" : "normal",
     ...(backgroundColor
       ? {
@@ -10260,6 +10365,11 @@ function UploadPageContent() {
   // 브라우저로 직접 확인 못 하는 이번 라운드에선 그 위험을 감수하지 않기로 했어요
   // (자세한 내용은 최종 보고 참고).
   const [spineTitleStrikethrough, setSpineTitleStrikethrough] = useState(false);
+  // 밑줄·취소선 색(2026-11-9차 10번째 라운드) — 일반 글상자(TextBoxDef.underlineColor/
+  // strikethroughColor)와 같은 이름의 책등 전용 상태예요. undefined면 예전처럼
+  // spineTitleColor를 그대로 따라가요(하위 호환).
+  const [spineTitleUnderlineColor, setSpineTitleUnderlineColor] = useState<string | undefined>(undefined);
+  const [spineTitleStrikethroughColor, setSpineTitleStrikethroughColor] = useState<string | undefined>(undefined);
   // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — 일반 글상자
   // (TextBoxDef.strokeColor 등)와 같은 이름·같은 단위(em)로 책등 전용 상태를 둬요.
   const [spineTitleStrokeColor, setSpineTitleStrokeColor] = useState<string | undefined>(undefined);
@@ -10302,6 +10412,11 @@ function UploadPageContent() {
   // 화면 미리보기 전용이고 인쇄 PDF엔 반영 안 해요(기존 TextBoxDef.scaleXPct 주석과
   // 같은 이유 — 이번 라운드 범위 밖).
   const [coverTitleStrikethrough, setCoverTitleStrikethrough] = useState(false);
+  // 밑줄·취소선 색(2026-11-9차 10번째 라운드) — 위 spineTitleUnderlineColor/
+  // StrikethroughColor와 같은 이유·같은 하위 호환 규칙(undefined면 coverTitleColor를
+  // 그대로 따라감)으로 표지 제목 전용 상태를 둬요.
+  const [coverTitleUnderlineColor, setCoverTitleUnderlineColor] = useState<string | undefined>(undefined);
+  const [coverTitleStrikethroughColor, setCoverTitleStrikethroughColor] = useState<string | undefined>(undefined);
   // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — 위 spineTitleStroke*
   // 와 같은 이유·같은 단위(em)로 표지 제목 전용 상태를 둬요.
   const [coverTitleStrokeColor, setCoverTitleStrokeColor] = useState<string | undefined>(undefined);
@@ -12612,8 +12727,10 @@ function UploadPageContent() {
       coverTitleColor,
       coverTitleBold,
       coverTitleUnderline,
+      coverTitleUnderlineColor,
       coverTitleItalic,
       coverTitleStrikethrough,
+      coverTitleStrikethroughColor,
       coverTitleStrokeColor,
       coverTitleStrokeWidth,
       coverTitleShadowColor,
@@ -12638,8 +12755,10 @@ function UploadPageContent() {
       spineTitleAlign,
       spineTitleBold,
       spineTitleUnderline,
+      spineTitleUnderlineColor,
       spineTitleItalic,
       spineTitleStrikethrough,
+      spineTitleStrikethroughColor,
       spineTitleStrokeColor,
       spineTitleStrokeWidth,
       spineTitleShadowColor,
@@ -12692,8 +12811,10 @@ function UploadPageContent() {
     setCoverTitleColor(s.coverTitleColor ?? "#ffffff");
     setCoverTitleBold(s.coverTitleBold ?? true);
     setCoverTitleUnderline(s.coverTitleUnderline ?? false);
+    setCoverTitleUnderlineColor(s.coverTitleUnderlineColor);
     setCoverTitleItalic(s.coverTitleItalic ?? false);
     setCoverTitleStrikethrough(s.coverTitleStrikethrough ?? false);
+    setCoverTitleStrikethroughColor(s.coverTitleStrikethroughColor);
     setCoverTitleStrokeColor(s.coverTitleStrokeColor);
     setCoverTitleStrokeWidth(s.coverTitleStrokeWidth);
     setCoverTitleShadowColor(s.coverTitleShadowColor);
@@ -12731,8 +12852,10 @@ function UploadPageContent() {
     setSpineTitleAlign(s.spineTitleAlign ?? "center");
     setSpineTitleBold(s.spineTitleBold ?? true);
     setSpineTitleUnderline(s.spineTitleUnderline ?? false);
+    setSpineTitleUnderlineColor(s.spineTitleUnderlineColor);
     setSpineTitleItalic(s.spineTitleItalic ?? false);
     setSpineTitleStrikethrough(s.spineTitleStrikethrough ?? false);
+    setSpineTitleStrikethroughColor(s.spineTitleStrikethroughColor);
     setSpineTitleStrokeColor(s.spineTitleStrokeColor);
     setSpineTitleStrokeWidth(s.spineTitleStrokeWidth);
     setSpineTitleShadowColor(s.spineTitleShadowColor);
@@ -12814,8 +12937,10 @@ function UploadPageContent() {
     coverTitleColor,
     coverTitleBold,
     coverTitleUnderline,
+    coverTitleUnderlineColor,
     coverTitleItalic,
     coverTitleStrikethrough,
+    coverTitleStrikethroughColor,
     coverTitleStrokeColor,
     coverTitleStrokeWidth,
     coverTitleShadowColor,
@@ -12840,8 +12965,10 @@ function UploadPageContent() {
     spineTitleAlign,
     spineTitleBold,
     spineTitleUnderline,
+    spineTitleUnderlineColor,
     spineTitleItalic,
     spineTitleStrikethrough,
+    spineTitleStrikethroughColor,
     spineTitleStrokeColor,
     spineTitleStrokeWidth,
     spineTitleShadowColor,
@@ -13124,8 +13251,10 @@ function UploadPageContent() {
       coverTitleColor,
       coverTitleBold,
       coverTitleUnderline,
+      coverTitleUnderlineColor,
       coverTitleItalic,
       coverTitleStrikethrough,
+      coverTitleStrikethroughColor,
       coverTitleStrokeColor,
       coverTitleStrokeWidth,
       coverTitleShadowColor,
@@ -13149,8 +13278,10 @@ function UploadPageContent() {
       spineTitleAlign,
       spineTitleBold,
       spineTitleUnderline,
+      spineTitleUnderlineColor,
       spineTitleItalic,
       spineTitleStrikethrough,
+      spineTitleStrikethroughColor,
       spineTitleStrokeColor,
       spineTitleStrokeWidth,
       spineTitleShadowColor,
@@ -13584,8 +13715,10 @@ function UploadPageContent() {
       align: coverTitleAlign,
       bold: coverTitleBold,
       underline: coverTitleUnderline,
+      underlineColor: coverTitleUnderlineColor,
       italic: coverTitleItalic,
       strikethrough: coverTitleStrikethrough,
+      strikethroughColor: coverTitleStrikethroughColor,
       strokeColor: coverTitleStrokeColor,
       strokeWidth: coverTitleStrokeWidth,
       shadowColor: coverTitleShadowColor,
@@ -13631,7 +13764,9 @@ function UploadPageContent() {
         setCoverTitleLetterSpacingEm(changes.letterSpacing);
       }
       if (changes.align !== undefined) setCoverTitleAlign(changes.align);
+      if ("underlineColor" in changes) setCoverTitleUnderlineColor(changes.underlineColor);
       if (changes.strikethrough !== undefined) setCoverTitleStrikethrough(changes.strikethrough);
+      if ("strikethroughColor" in changes) setCoverTitleStrikethroughColor(changes.strikethroughColor);
       if ("strokeColor" in changes) setCoverTitleStrokeColor(changes.strokeColor);
       if ("strokeWidth" in changes) setCoverTitleStrokeWidth(changes.strokeWidth);
       if ("shadowColor" in changes) setCoverTitleShadowColor(changes.shadowColor);
@@ -13665,8 +13800,10 @@ function UploadPageContent() {
       align: spineTitleAlign,
       bold: spineTitleBold,
       underline: spineTitleUnderline,
+      underlineColor: spineTitleUnderlineColor,
       italic: spineTitleItalic,
       strikethrough: spineTitleStrikethrough,
+      strikethroughColor: spineTitleStrikethroughColor,
       strokeColor: spineTitleStrokeColor,
       strokeWidth: spineTitleStrokeWidth,
       shadowColor: spineTitleShadowColor,
@@ -13697,7 +13834,9 @@ function UploadPageContent() {
       if (changes.underline !== undefined) setSpineTitleUnderline(changes.underline);
       if (changes.italic !== undefined) setSpineTitleItalic(changes.italic);
       if (changes.align !== undefined) setSpineTitleAlign(changes.align);
+      if ("underlineColor" in changes) setSpineTitleUnderlineColor(changes.underlineColor);
       if (changes.strikethrough !== undefined) setSpineTitleStrikethrough(changes.strikethrough);
+      if ("strikethroughColor" in changes) setSpineTitleStrikethroughColor(changes.strikethroughColor);
       if ("strokeColor" in changes) setSpineTitleStrokeColor(changes.strokeColor);
       if ("strokeWidth" in changes) setSpineTitleStrokeWidth(changes.strokeWidth);
       if ("shadowColor" in changes) setSpineTitleShadowColor(changes.shadowColor);
@@ -15163,8 +15302,10 @@ function UploadPageContent() {
                               color={spineTitleColor}
                               bold={spineTitleBold}
                               underline={spineTitleUnderline}
+                              underlineColor={spineTitleUnderlineColor}
                               italic={spineTitleItalic}
                               strikethrough={spineTitleStrikethrough}
+                              strikethroughColor={spineTitleStrikethroughColor}
                               strokeColor={spineTitleStrokeColor}
                               strokeWidth={spineTitleStrokeWidth}
                               shadowColor={spineTitleShadowColor}

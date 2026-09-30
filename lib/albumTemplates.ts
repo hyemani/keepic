@@ -80,6 +80,14 @@ export type TextBoxDef = {
   // 밖이에요, applyRunAwareStyleChange를 거치지 않고 onChange로 바로 박스 전체에
   // 적용해요).
   strikethrough?: boolean;
+  // 밑줄·취소선 색(2026-11-9차 10번째 라운드, 혜민님 요청: "기울기, 밑줄, 가운데줄...
+  // 아이콘 오른쪽에 색상 아이콘을 넣어주세요") — strokeColor/shadowColor와 같은
+  // "박스 전체" 필드예요(문자 단위 서식(runs)엔 없음). 값이 없으면(undefined, 기존
+  // 문서 전부 이 상태) 예전처럼 글자 색(color)을 그대로 따라가요(하위 호환, 화면·
+  // 인쇄 모두 지금까지와 완전히 같게 보여요) — 지정했을 때만 글자 색과 다른 밑줄/
+  // 취소선 색이 그려져요.
+  underlineColor?: string;
+  strikethroughColor?: string;
   // 글자 배경색(하이라이트) — 지정 안 하면(undefined) 배경 없음(기존과 동일, 완전
   // 투명). 지정하면 텍스트 블록 뒤에 이 색으로 배경 사각형을 그려요.
   backgroundColor?: string;
@@ -264,6 +272,12 @@ export type TableCellStyle = {
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean; // 표 전체엔 이 필드가 없어서(취소선 자체가 표엔 없던 기능) 항상 이 칸 자신의 값(없으면 false)만 써요.
+  // 밑줄·취소선 색(2026-11-9차 10번째 라운드) — 일반 글상자(TextBoxDef)의
+  // underlineColor/strikethroughColor와 같은 이름·같은 하위 호환 규칙(없으면 이
+  // 칸의 글자색(color)을 그대로 따라감). 표 전체엔 이 필드가 없어서 strikethrough와
+  // 같은 이유로 항상 이 칸 자신의 값만 써요.
+  underlineColor?: string;
+  strikethroughColor?: string;
   letterSpacing?: number; // em 단위. 표 전체엔 이 필드가 없어서 항상 이 칸 자신의 값(없으면 0)만 써요.
   lineHeight?: number; // 줄 간격 배수. 표 전체 기본값(TableBoxDef.lineHeight) 대신 이 칸만 다른 값.
   // 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("일반 텍스트박스 패널엔 있는 가로%/

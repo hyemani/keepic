@@ -146,7 +146,9 @@ export type TextStylePreset = {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  underlineColor?: string;
   strikethrough?: boolean;
+  strikethroughColor?: string;
   lineHeight?: number;
   letterSpacing?: number;
   scaleXPct?: number;

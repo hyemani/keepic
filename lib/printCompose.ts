@@ -419,10 +419,13 @@ function drawTextBoxOnCanvasRuns(
           ctx.shadowOffsetY = 0;
         }
         const segWidth = ctx.measureText(seg.text).width;
+        // 밑줄·취소선 색(2026-11-9차 10번째 라운드) — box.underlineColor/
+        // strikethroughColor가 있으면 그 색을, 없으면(기존 문서 전부 이 상태) 예전처럼
+        // 그 구간(run) 글자 색을 그대로 따라가요(하위 호환, 회귀 없음).
         if (seg.style.underline) {
           const underlineY = cursorY + seg.style.fontPx * 0.92;
           ctx.save();
-          ctx.strokeStyle = seg.style.color;
+          ctx.strokeStyle = box.underlineColor ?? seg.style.color;
           ctx.lineWidth = Math.max(1, seg.style.fontPx * 0.06);
           ctx.beginPath();
           ctx.moveTo(cx, underlineY);
@@ -436,7 +439,7 @@ function drawTextBoxOnCanvasRuns(
         if (box.strikethrough) {
           const strikeY = cursorY + seg.style.fontPx * 0.55;
           ctx.save();
-          ctx.strokeStyle = seg.style.color;
+          ctx.strokeStyle = box.strikethroughColor ?? seg.style.color;
           ctx.lineWidth = Math.max(1, seg.style.fontPx * 0.06);
           ctx.beginPath();
           ctx.moveTo(cx, strikeY);
@@ -607,7 +610,7 @@ function drawTextBoxOnCanvas(
     const { lineStartX, lineWidth } = measureLineBox(line);
     const underlineY = lineY + fontPx * 0.92;
     ctx.save();
-    ctx.strokeStyle = box.color;
+    ctx.strokeStyle = box.underlineColor ?? box.color;
     ctx.lineWidth = Math.max(1, fontPx * 0.06);
     ctx.beginPath();
     ctx.moveTo(lineStartX, underlineY);
@@ -624,7 +627,7 @@ function drawTextBoxOnCanvas(
     const { lineStartX, lineWidth } = measureLineBox(line);
     const strikeY = lineY + fontPx * 0.55;
     ctx.save();
-    ctx.strokeStyle = box.color;
+    ctx.strokeStyle = box.strikethroughColor ?? box.color;
     ctx.lineWidth = Math.max(1, fontPx * 0.06);
     ctx.beginPath();
     ctx.moveTo(lineStartX, strikeY);
@@ -1023,7 +1026,9 @@ function drawTableGridAndCells(
       const effFontStyle = effItalic ? "italic " : "";
       const effColor = style?.color ?? box.color ?? "#1F2937";
       const effUnderline = style?.underline ?? box.underline;
+      const effUnderlineColor = style?.underlineColor; // 표 전체엔 이 필드가 없어서 항상 이 칸 자신의 값만 써요(없으면 effColor를 따라감, 아래 사용부 참고).
       const effStrikethrough = style?.strikethrough ?? false; // 표 전체엔 취소선 필드가 없어요(TableCellStyle.strikethrough 주석 참고).
+      const effStrikethroughColor = style?.strikethroughColor;
       // 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("외곽선도없고!") — 표 전체엔
       // 외곽선 필드가 없어서(칸에 새로 생긴 기능) 위 letterSpacing과 같은 이유로
       // 항상 이 칸 자신의 값만 써요. 일반 텍스트박스(drawTextBoxOnCanvas의
@@ -1112,10 +1117,13 @@ function drawTableGridAndCells(
           const underlineStartX =
             effAlign === "left" ? lineX : effAlign === "right" ? lineX - textWidth : lineX - textWidth / 2;
           ctx.save();
-          ctx.strokeStyle = effColor;
           ctx.lineWidth = Math.max(1, effFontPx * 0.06);
           ctx.setLineDash([]);
+          // 밑줄·취소선 색(2026-11-9차 10번째 라운드) — 칸별 underlineColor/
+          // strikethroughColor가 있으면 그 색, 없으면(기존 칸 전부 이 상태) 예전처럼
+          // 이 칸의 글자 색(effColor)을 그대로 따라가요(하위 호환).
           if (effUnderline) {
+            ctx.strokeStyle = effUnderlineColor ?? effColor;
             const underlineY = lineY + effFontPx * 0.38;
             ctx.beginPath();
             ctx.moveTo(underlineStartX, underlineY);
@@ -1123,6 +1131,7 @@ function drawTableGridAndCells(
             ctx.stroke();
           }
           if (effStrikethrough) {
+            ctx.strokeStyle = effStrikethroughColor ?? effColor;
             const strikeY = lineY - effFontPx * 0.2;
             ctx.beginPath();
             ctx.moveTo(underlineStartX, strikeY);
@@ -1865,8 +1874,10 @@ function drawSpineTitleCanvas(
   align: "left" | "center" | "right" = "center",
   bold: boolean = true,
   underline: boolean = false,
+  underlineColor?: string,
   italic: boolean = false,
   strikethrough: boolean = false,
+  strikethroughColor?: string,
   strokeColor?: string,
   strokeWidth?: number,
   shadowColor?: string,
@@ -1987,7 +1998,7 @@ function drawSpineTitleCanvas(
   // 좌표계 안에서 글자 baseline 바로 아래(글자 진행 방향으로) 한 줄 그어요.
   if (underline) {
     ctx.save();
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = underlineColor ?? color;
     ctx.lineWidth = Math.max(1, size * 0.06);
     const underlineOffset = size * 0.38;
     ctx.beginPath();
@@ -2000,7 +2011,7 @@ function drawSpineTitleCanvas(
   // 세로 중심) 근처를 지나가요.
   if (strikethrough) {
     ctx.save();
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = strikethroughColor ?? color;
     ctx.lineWidth = Math.max(1, size * 0.06);
     const strikeOffset = size * 0.02;
     ctx.beginPath();
@@ -2092,8 +2103,10 @@ export async function buildCoverPrintPdf({
   coverTitleColor = "#ffffff",
   coverTitleBold = true,
   coverTitleUnderline = false,
+  coverTitleUnderlineColor,
   coverTitleItalic = false,
   coverTitleStrikethrough = false,
+  coverTitleStrikethroughColor,
   coverTitleStrokeColor,
   coverTitleStrokeWidth,
   coverTitleShadowColor,
@@ -2117,8 +2130,10 @@ export async function buildCoverPrintPdf({
   spineTitleAlign = "center",
   spineTitleBold = true,
   spineTitleUnderline = false,
+  spineTitleUnderlineColor,
   spineTitleItalic = false,
   spineTitleStrikethrough = false,
+  spineTitleStrikethroughColor,
   spineTitleStrokeColor,
   spineTitleStrokeWidth,
   spineTitleShadowColor,
@@ -2173,12 +2188,14 @@ export async function buildCoverPrintPdf({
   coverTitleColor?: string;
   coverTitleBold?: boolean;
   coverTitleUnderline?: boolean;
+  coverTitleUnderlineColor?: string;
   coverTitleItalic?: boolean;
   // 2026-10(6차), 혜민님 요청("일반 글상자 패널과 완전히 똑같이") — 취소선·배경
   // (하이라이트)도 표지 제목에 반영해요(화면 app/upload/page.tsx의 coverTitleAsTextBox
   // 어댑터·TextBoxToolbar와 같은 필드 이름). 기본값은 전부 "예전과 같은 모습"(취소선
   // 없음, 배경 없음)이에요.
   coverTitleStrikethrough?: boolean;
+  coverTitleStrikethroughColor?: string;
   // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — em 단위(폰트 크기
   // 기준), 화면(coverTitleAsTextBox 어댑터)과 같은 필드 이름.
   coverTitleStrokeColor?: string;
@@ -2214,9 +2231,11 @@ export async function buildCoverPrintPdf({
   spineTitleAlign?: "left" | "center" | "right"; // 책등 길이 방향 정렬. 기본 "center"는 위쪽 정렬(기존 동작)과 다르게 가운데예요 — 화면 편집기 기본값과 맞춰요.
   spineTitleBold?: boolean; // 기본 true(기존엔 항상 굵게 고정이었어요).
   spineTitleUnderline?: boolean;
+  spineTitleUnderlineColor?: string;
   spineTitleItalic?: boolean;
   // 2026-10(6차) — 표지 제목과 같은 이유로 책등에도 추가.
   spineTitleStrikethrough?: boolean;
+  spineTitleStrikethroughColor?: string;
   spineTitleStrokeColor?: string;
   spineTitleStrokeWidth?: number;
   spineTitleShadowColor?: string;
@@ -2436,8 +2455,10 @@ export async function buildCoverPrintPdf({
       spineTitleAlign,
       spineTitleBold,
       spineTitleUnderline,
+      spineTitleUnderlineColor,
       spineTitleItalic,
       spineTitleStrikethrough,
+      spineTitleStrikethroughColor,
       spineTitleStrokeColor,
       spineTitleStrokeWidth,
       spineTitleShadowColor,
@@ -2618,7 +2639,7 @@ export async function buildCoverPrintPdf({
         const underlineY = lineY + titlePx * 0.92;
         ctxNN.save();
         ctxNN.shadowBlur = 0;
-        ctxNN.strokeStyle = coverTitleColor;
+        ctxNN.strokeStyle = coverTitleUnderlineColor ?? coverTitleColor;
         ctxNN.lineWidth = Math.max(1, titlePx * 0.06);
         ctxNN.beginPath();
         ctxNN.moveTo(lineStartX, underlineY);
@@ -2631,7 +2652,7 @@ export async function buildCoverPrintPdf({
         const strikeY = lineY + titlePx * 0.55;
         ctxNN.save();
         ctxNN.shadowBlur = 0;
-        ctxNN.strokeStyle = coverTitleColor;
+        ctxNN.strokeStyle = coverTitleStrikethroughColor ?? coverTitleColor;
         ctxNN.lineWidth = Math.max(1, titlePx * 0.06);
         ctxNN.beginPath();
         ctxNN.moveTo(lineStartX, strikeY);
