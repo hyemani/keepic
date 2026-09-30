@@ -14,7 +14,7 @@
 // 필드 모양이 다른 두 프리셋 종류를 하나의 배열에 억지로 합치지 않으면서도 코드
 // 중복은 피해요.
 
-import type { TableBorderPositionKey, TableBorderPositionStyle } from "./albumTemplates";
+import type { TableBorderPositionKey, TableBorderPositionStyle, TableCellStyle } from "./albumTemplates";
 
 export type NamedStylePreset<T> = {
   id: string;
@@ -107,6 +107,15 @@ export type TableStylePreset = {
   align?: "left" | "center" | "right";
   valign?: "top" | "middle" | "bottom";
   cellPadding?: number;
+  // 2026-11-9차, 혜민님 버그 리포트("표스타일 적용이안되네요") — 헤더 행·강조
+  // 열처럼 표에서 눈에 보이는 색은 대부분 표 전체 기본값이 아니라 칸별 개별 설정
+  // (cellStyles, "선택한 칸" 패널에서 칸을 골라 배경색 등을 따로 줌)으로 돼 있어서,
+  // cellStyles를 빼고 저장/적용하면(예전 동작) 실제로 눈에 보이는 배색이 거의 안
+  // 바뀌어 "적용해도 아무 효과가 없다"로 보였어요. 이제 cellStyles도 그대로 담아서
+  // 적용 시 대상 표의 cellStyles를 통째로 덮어써요 — 키가 "${row}-${col}" 위치
+  // 기준이라 대상 표의 행/열 수가 원본과 달라도 안전해요(범위 밖 키는 화면/인쇄
+  // 렌더링에서 그냥 안 쓰이고 무시돼요).
+  cellStyles?: Record<string, TableCellStyle>;
 };
 
 const TABLE_STYLE_STORAGE_KEY = "keepic_table_style_presets";
@@ -148,6 +157,15 @@ export type TextStylePreset = {
   backgroundPaddingYPct?: number;
   backgroundWidthPct?: number;
   backgroundMode?: "hugText" | "fillBox";
+  // 2026-11-9차, 혜민님 요청("자막스타일처럼 만들어놓고싶거든요") — 텍스트선(외곽선)·
+  // 그림자도 "꾸밈" 값이라 저장/적용 대상에 포함해요(TextBoxDef의 같은 이름 필드와
+  // 1:1로 대응).
+  strokeColor?: string;
+  strokeWidth?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
 };
 
 const TEXT_STYLE_STORAGE_KEY = "keepic_text_style_presets";

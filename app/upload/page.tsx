@@ -2375,6 +2375,23 @@ function TextBoxRichEditor({
                 transformOrigin: box.align === "right" ? "top right" : box.align === "center" ? "top center" : "top left",
               }
             : {}),
+          // 텍스트선(2026-11-9차) — -webkit-text-stroke는 상속되는 속성이라 이
+          // 컨테이너에 한 번만 주면 안쪽 span들(각 글자, applyRunStyleToSpan)에 그대로
+          // 물려받아요. 채우기 색(span.style.color, 문자 단위로 다를 수 있음)은 건드리지
+          // 않고 그 바깥에 테두리만 둘러요.
+          ...(box.strokeColor && box.strokeWidth
+            ? {
+                WebkitTextStrokeWidth: `${box.strokeWidth}em`,
+                WebkitTextStrokeColor: box.strokeColor,
+              }
+            : {}),
+          // 그림자(2026-11-9차) — text-shadow도 상속되는 속성이라 컨테이너 한 번으로
+          // 안쪽 글자 전체에 적용돼요.
+          ...(box.shadowColor
+            ? {
+                textShadow: `${(box.shadowOffsetX ?? 0)}em ${(box.shadowOffsetY ?? 0)}em ${(box.shadowBlur ?? 0)}em ${box.shadowColor}`,
+              }
+            : {}),
         }}
         className={`relative w-full cursor-text border-none bg-transparent leading-snug outline-none ${
  box.heightPct !== undefined
@@ -3997,6 +4014,11 @@ function TableBoxToolbar({
       align: b.align,
       valign: b.valign,
       cellPadding: b.cellPadding,
+      // 2026-11-9차, 혜민님 버그 리포트("표스타일 적용이안되네요") — 헤더 행/강조 열처럼
+      // 실제로 눈에 보이는 표 색은 대부분 표 전체 기본값이 아니라 칸별 개별 설정
+      // (cellStyles)에 있어서, 이걸 빼고 캡처하면 "적용"해도 시각적으로 거의 아무 효과가
+      // 없었어요(원인). cellStyles도 같이 담아요.
+      cellStyles: b.cellStyles,
     };
   }
   return (
@@ -4932,17 +4954,34 @@ function TextBoxToolbar({
 
   if (!box) return null;
 
-  // 지금 텍스트박스의 "꾸밈" 값만 뽑아요(내용(text)·문자 단위 서식(runs)은 빼고) —
-  // 저장할 때 씀.
+  // 지금 텍스트박스의 "꾸밈" 값만 뽑아요(내용(text)·문자 단위 서식(runs) 자체는
+  // 빼고) — 저장할 때 씀.
+  // 2026-11-9차, 혜민님 버그 리포트("텍스트스타일 적용이 폰트자체는 적용이 안되고
+  // 배경색상만 적용됐어요") — 원인: 글자를 드래그로 선택한 채(전체 선택 포함) 서체·
+  // 크기·색·굵게·기울임·밑줄을 바꾸면(applyRunAwareStyleChange의 "범위 선택" 분기)
+  // box.runs에만 새 값이 들어가고 box.fontFamily 등 박스 자신의 필드는 그대로
+  // 예전 값에 머물러요(반영: lib/textRuns.ts applyRunAwareStyleChange가 범위
+  // 선택일 땐 runs만 돌려주고 ...changes를 안 섞어요 — 부분 선택 서식이 박스 전체
+  // 필드를 덮어쓰면 안 되니 의도된 동작). 그래서 b.fontFamily/b.color 등을 그대로
+  // 읽으면 화면에 실제로 보이는 서체·색이 아니라 "박스가 마지막으로 안 건드린 값"을
+  // 캡처했었어요(배경색만 성공했던 이유: backgroundColor는 runs에 없는 순수 박스
+  // 필드라 항상 box 자신에 바로 쓰여서 영향이 없었음). getEffectiveRuns로 실제
+  // 렌더링에 쓰이는 첫 구간의 "최종 해석된 서식"(resolveRunStyle, 위 서체 드롭다운·
+  // TextBoxRichEditor가 화면에 그릴 때 쓰는 것과 완전히 같은 함수)을 읽어서, 지금
+  // 실제로 보이는 모습을 그대로 캡처해요. runs가 없는(예전과 같은, 표지 제목·책등
+  // 어댑터도 항상 이 경우) 보통 박스는 getEffectiveRuns가 박스 자신의 값을 그대로
+  // 상속하는 구간 하나를 돌려주므로 이전과 동일하게 동작해요(회귀 없음).
   function captureTextStyle(b: TextBoxDef): TextStylePreset {
+    const effectiveRuns = getEffectiveRuns(b);
+    const effective = effectiveRuns.length > 0 ? resolveRunStyle(b, effectiveRuns[0]) : null;
     return {
-      fontFamily: b.fontFamily,
-      fontScale: b.fontScale,
-      color: b.color,
+      fontFamily: effective?.fontFamily ?? b.fontFamily,
+      fontScale: effective?.fontScale ?? b.fontScale,
+      color: effective?.color ?? b.color,
       align: b.align,
-      bold: b.bold,
-      italic: b.italic,
-      underline: b.underline,
+      bold: effective?.bold ?? b.bold,
+      italic: effective?.italic ?? b.italic,
+      underline: effective?.underline ?? b.underline,
       strikethrough: b.strikethrough,
       lineHeight: b.lineHeight,
       letterSpacing: b.letterSpacing,
@@ -4954,6 +4993,12 @@ function TextBoxToolbar({
       backgroundPaddingYPct: b.backgroundPaddingYPct,
       backgroundWidthPct: b.backgroundWidthPct,
       backgroundMode: b.backgroundMode,
+      strokeColor: b.strokeColor,
+      strokeWidth: b.strokeWidth,
+      shadowColor: b.shadowColor,
+      shadowBlur: b.shadowBlur,
+      shadowOffsetX: b.shadowOffsetX,
+      shadowOffsetY: b.shadowOffsetY,
     };
   }
 
@@ -5008,7 +5053,16 @@ function TextBoxToolbar({
         label="텍스트 스타일"
         presets={textStylePresets}
         onSave={(name) => setTextStylePresets(saveTextStylePreset(name, captureTextStyle(box)))}
-        onApply={(preset) => onChange(preset.style)}
+        // 2026-11-9차, 혜민님 버그 리포트("텍스트스타일 적용이 폰트자체는 적용이
+        // 안되고 배경색상만 적용됐어요") — 대상 박스에 이미 문자 단위 서식(runs)이
+        // 남아있으면(예: 예전에 일부 글자만 따로 서식을 준 적이 있으면) runs의 구간별
+        // 값이 지금 이 preset.style(박스 전체 필드)보다 우선해서, 서체·크기·색·굵게·
+        // 기울임·밑줄이 눈에는 하나도 안 바뀐 것처럼 보일 수 있어요. "스타일 적용"은
+        // 이 박스 전체를 저장된 모습 그대로 통일하는 동작이라는 기대에 맞게, 적용
+        // 시엔 runs를 같이 비워서(runs: undefined) 그 아래 깔려있던 박스 전체 필드가
+        // 확실히 그대로 보이게 해요(runs가 원래 없던 보통 박스는 이 필드가 이미
+        // undefined라 변화 없음).
+        onApply={(preset) => onChange({ ...preset.style, runs: undefined })}
         onDelete={(id) => setTextStylePresets(deleteTextStylePreset(id))}
       />
       <div>
@@ -5337,6 +5391,114 @@ function TextBoxToolbar({
           “문단 정렬”과 “박스영역 정렬”을 따라요.
         </p>
       )}
+      {/* 2026-11-9차, 혜민님 요청("텍스트선도 필요할것같아요... 자막스타일처럼
+          만들어놓고싶거든요") — 자막(캡션)에서 흔한 "글자 채우기 + 테두리" 조합이에요.
+          "없음" 스와치(2026-11-2차부터 쓰던 사선 표시 패턴)를 누르면 선을 꺼요(굵기는
+          기억해뒀다가 다시 켜면 마지막 값 그대로 돌아와요 — 위 "배경" on/off와 같은
+          방식). */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
+          텍스트선(외곽선)
+        </label>
+        <div className="flex items-center gap-1.5">
+          <NoneSwatchButton
+            active={!box.strokeColor}
+            onClick={() => onChange({ strokeColor: undefined })}
+            title="텍스트선 없음"
+            size={5}
+          />
+          <input
+            type="color"
+            value={box.strokeColor ?? "#000000"}
+            onChange={(e) => onChange({ strokeColor: e.target.value, strokeWidth: box.strokeWidth ?? 0.08 })}
+            className="h-5 w-5 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="텍스트선 색"
+          />
+          {box.strokeColor && (
+            <input
+              type="range"
+              min={0.02}
+              max={0.3}
+              step={0.01}
+              value={box.strokeWidth ?? 0.08}
+              onChange={(e) => onChange({ strokeWidth: Number(e.target.value) })}
+              className="w-full"
+              title="텍스트선 굵기"
+            />
+          )}
+        </div>
+      </div>
+      {/* 그림자 효과(2026-11-9차, 혜민님 요청: "그림자효과도 넣을수있어야하고요") */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
+          그림자
+        </label>
+        <div className="flex items-center gap-1.5">
+          <NoneSwatchButton
+            active={!box.shadowColor}
+            onClick={() => onChange({ shadowColor: undefined })}
+            title="그림자 없음"
+            size={5}
+          />
+          <input
+            type="color"
+            value={box.shadowColor ?? "#000000"}
+            onChange={(e) =>
+              onChange({
+                shadowColor: e.target.value,
+                shadowBlur: box.shadowBlur ?? 0.15,
+                shadowOffsetX: box.shadowOffsetX ?? 0.05,
+                shadowOffsetY: box.shadowOffsetY ?? 0.05,
+              })
+            }
+            className="h-5 w-5 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="그림자 색"
+          />
+        </div>
+        {box.shadowColor && (
+          <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+            <div>
+              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">번짐</label>
+              <input
+                type="range"
+                min={0}
+                max={0.5}
+                step={0.01}
+                value={box.shadowBlur ?? 0.15}
+                onChange={(e) => onChange({ shadowBlur: Number(e.target.value) })}
+                className="w-full"
+                title="그림자 번짐"
+              />
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">가로 이동</label>
+              <input
+                type="range"
+                min={-0.3}
+                max={0.3}
+                step={0.01}
+                value={box.shadowOffsetX ?? 0.05}
+                onChange={(e) => onChange({ shadowOffsetX: Number(e.target.value) })}
+                className="w-full"
+                title="그림자 가로 이동"
+              />
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">세로 이동</label>
+              <input
+                type="range"
+                min={-0.3}
+                max={0.3}
+                step={0.01}
+                value={box.shadowOffsetY ?? 0.05}
+                onChange={(e) => onChange({ shadowOffsetY: Number(e.target.value) })}
+                className="w-full"
+                title="그림자 세로 이동"
+              />
+            </div>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-1.5">
         <div>
           <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
@@ -8776,6 +8938,19 @@ function CoverTitleOverlay({
           transformOrigin: align === "right" ? "top right" : align === "center" ? "top center" : "top left",
         }
       : {}),
+    // 텍스트선·그림자(2026-11-9차) — 일반 글상자(TextBoxRichEditor 컨테이너)와 같은
+    // 방식(em 단위, -webkit-text-stroke/text-shadow는 상속되는 속성).
+    ...(editableBox.strokeColor && editableBox.strokeWidth
+      ? {
+          WebkitTextStrokeWidth: `${editableBox.strokeWidth}em`,
+          WebkitTextStrokeColor: editableBox.strokeColor,
+        }
+      : {}),
+    ...(editableBox.shadowColor
+      ? {
+          textShadow: `${(editableBox.shadowOffsetX ?? 0)}em ${(editableBox.shadowOffsetY ?? 0)}em ${(editableBox.shadowBlur ?? 0)}em ${editableBox.shadowColor}`,
+        }
+      : {}),
   };
   // 띠 너비는 backgroundWidthPct(앞표지 칸 전체 기준 %)를 "이 제목 박스 자신의 너비
   // (widthPct)" 기준 퍼센트로 환산해요 — boxRef 컨테이너 자체가 widthPct%로 이미
@@ -8920,6 +9095,12 @@ function SpineTitleOverlay({
   underline,
   italic,
   strikethrough,
+  strokeColor,
+  strokeWidth,
+  shadowColor,
+  shadowBlur,
+  shadowOffsetX,
+  shadowOffsetY,
   backgroundColor,
   backgroundPaddingXPct,
   backgroundPaddingYPct,
@@ -8949,6 +9130,14 @@ function SpineTitleOverlay({
   // 예전에 되돌린 이유는 최종 보고 참고) coverTitleAsTextBox 같은 어댑터가 없고, 이
   // 값들을 표지 제목처럼 개별 prop으로 받아요.
   strikethrough?: boolean;
+  // 텍스트선·그림자(2026-11-9차) — 위 strikethrough와 같은 이유·같은 단위(em)로
+  // prop을 받아요.
+  strokeColor?: string;
+  strokeWidth?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
   backgroundColor?: string;
   backgroundPaddingXPct?: number;
   backgroundPaddingYPct?: number;
@@ -9039,6 +9228,12 @@ function SpineTitleOverlay({
           paddingTop: `${(backgroundPaddingYPct ?? 25) / 100}em`,
           paddingBottom: `${(backgroundPaddingYPct ?? 25) / 100}em`,
         }
+      : {}),
+    ...(strokeColor && strokeWidth
+      ? { WebkitTextStrokeWidth: `${strokeWidth}em`, WebkitTextStrokeColor: strokeColor }
+      : {}),
+    ...(shadowColor
+      ? { textShadow: `${shadowOffsetX ?? 0}em ${shadowOffsetY ?? 0}em ${shadowBlur ?? 0}em ${shadowColor}` }
       : {}),
   };
   const spineScaleTransform =
@@ -9725,6 +9920,14 @@ function UploadPageContent() {
   // 브라우저로 직접 확인 못 하는 이번 라운드에선 그 위험을 감수하지 않기로 했어요
   // (자세한 내용은 최종 보고 참고).
   const [spineTitleStrikethrough, setSpineTitleStrikethrough] = useState(false);
+  // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — 일반 글상자
+  // (TextBoxDef.strokeColor 등)와 같은 이름·같은 단위(em)로 책등 전용 상태를 둬요.
+  const [spineTitleStrokeColor, setSpineTitleStrokeColor] = useState<string | undefined>(undefined);
+  const [spineTitleStrokeWidth, setSpineTitleStrokeWidth] = useState<number | undefined>(undefined);
+  const [spineTitleShadowColor, setSpineTitleShadowColor] = useState<string | undefined>(undefined);
+  const [spineTitleShadowBlur, setSpineTitleShadowBlur] = useState<number | undefined>(undefined);
+  const [spineTitleShadowOffsetX, setSpineTitleShadowOffsetX] = useState<number | undefined>(undefined);
+  const [spineTitleShadowOffsetY, setSpineTitleShadowOffsetY] = useState<number | undefined>(undefined);
   const [spineTitleBackgroundColor, setSpineTitleBackgroundColor] = useState<string | undefined>(undefined);
   const [spineTitleBackgroundPaddingXPct, setSpineTitleBackgroundPaddingXPct] = useState(40);
   const [spineTitleBackgroundPaddingYPct, setSpineTitleBackgroundPaddingYPct] = useState(25);
@@ -9758,6 +9961,14 @@ function UploadPageContent() {
   // 화면 미리보기 전용이고 인쇄 PDF엔 반영 안 해요(기존 TextBoxDef.scaleXPct 주석과
   // 같은 이유 — 이번 라운드 범위 밖).
   const [coverTitleStrikethrough, setCoverTitleStrikethrough] = useState(false);
+  // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — 위 spineTitleStroke*
+  // 와 같은 이유·같은 단위(em)로 표지 제목 전용 상태를 둬요.
+  const [coverTitleStrokeColor, setCoverTitleStrokeColor] = useState<string | undefined>(undefined);
+  const [coverTitleStrokeWidth, setCoverTitleStrokeWidth] = useState<number | undefined>(undefined);
+  const [coverTitleShadowColor, setCoverTitleShadowColor] = useState<string | undefined>(undefined);
+  const [coverTitleShadowBlur, setCoverTitleShadowBlur] = useState<number | undefined>(undefined);
+  const [coverTitleShadowOffsetX, setCoverTitleShadowOffsetX] = useState<number | undefined>(undefined);
+  const [coverTitleShadowOffsetY, setCoverTitleShadowOffsetY] = useState<number | undefined>(undefined);
   const [coverTitleBackgroundColor, setCoverTitleBackgroundColor] = useState<string | undefined>(undefined);
   const [coverTitleBackgroundPaddingXPct, setCoverTitleBackgroundPaddingXPct] = useState(40);
   const [coverTitleBackgroundPaddingYPct, setCoverTitleBackgroundPaddingYPct] = useState(25);
@@ -12052,6 +12263,12 @@ function UploadPageContent() {
       coverTitleUnderline,
       coverTitleItalic,
       coverTitleStrikethrough,
+      coverTitleStrokeColor,
+      coverTitleStrokeWidth,
+      coverTitleShadowColor,
+      coverTitleShadowBlur,
+      coverTitleShadowOffsetX,
+      coverTitleShadowOffsetY,
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
@@ -12071,6 +12288,12 @@ function UploadPageContent() {
       spineTitleUnderline,
       spineTitleItalic,
       spineTitleStrikethrough,
+      spineTitleStrokeColor,
+      spineTitleStrokeWidth,
+      spineTitleShadowColor,
+      spineTitleShadowBlur,
+      spineTitleShadowOffsetX,
+      spineTitleShadowOffsetY,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -12118,6 +12341,12 @@ function UploadPageContent() {
     setCoverTitleUnderline(s.coverTitleUnderline ?? false);
     setCoverTitleItalic(s.coverTitleItalic ?? false);
     setCoverTitleStrikethrough(s.coverTitleStrikethrough ?? false);
+    setCoverTitleStrokeColor(s.coverTitleStrokeColor);
+    setCoverTitleStrokeWidth(s.coverTitleStrokeWidth);
+    setCoverTitleShadowColor(s.coverTitleShadowColor);
+    setCoverTitleShadowBlur(s.coverTitleShadowBlur);
+    setCoverTitleShadowOffsetX(s.coverTitleShadowOffsetX);
+    setCoverTitleShadowOffsetY(s.coverTitleShadowOffsetY);
     setCoverTitleBackgroundColor(s.coverTitleBackgroundColor);
     setCoverTitleBackgroundPaddingXPct(s.coverTitleBackgroundPaddingXPct ?? 40);
     setCoverTitleBackgroundPaddingYPct(s.coverTitleBackgroundPaddingYPct ?? 25);
@@ -12150,6 +12379,12 @@ function UploadPageContent() {
     setSpineTitleUnderline(s.spineTitleUnderline ?? false);
     setSpineTitleItalic(s.spineTitleItalic ?? false);
     setSpineTitleStrikethrough(s.spineTitleStrikethrough ?? false);
+    setSpineTitleStrokeColor(s.spineTitleStrokeColor);
+    setSpineTitleStrokeWidth(s.spineTitleStrokeWidth);
+    setSpineTitleShadowColor(s.spineTitleShadowColor);
+    setSpineTitleShadowBlur(s.spineTitleShadowBlur);
+    setSpineTitleShadowOffsetX(s.spineTitleShadowOffsetX);
+    setSpineTitleShadowOffsetY(s.spineTitleShadowOffsetY);
     setSpineTitleBackgroundColor(s.spineTitleBackgroundColor);
     setSpineTitleBackgroundPaddingXPct(s.spineTitleBackgroundPaddingXPct ?? 40);
     setSpineTitleBackgroundPaddingYPct(s.spineTitleBackgroundPaddingYPct ?? 25);
@@ -12226,6 +12461,12 @@ function UploadPageContent() {
     coverTitleUnderline,
     coverTitleItalic,
     coverTitleStrikethrough,
+    coverTitleStrokeColor,
+    coverTitleStrokeWidth,
+    coverTitleShadowColor,
+    coverTitleShadowBlur,
+    coverTitleShadowOffsetX,
+    coverTitleShadowOffsetY,
     coverTitleBackgroundColor,
     coverTitleBackgroundPaddingXPct,
     coverTitleBackgroundPaddingYPct,
@@ -12245,6 +12486,12 @@ function UploadPageContent() {
     spineTitleUnderline,
     spineTitleItalic,
     spineTitleStrikethrough,
+    spineTitleStrokeColor,
+    spineTitleStrokeWidth,
+    spineTitleShadowColor,
+    spineTitleShadowBlur,
+    spineTitleShadowOffsetX,
+    spineTitleShadowOffsetY,
     spineTitleBackgroundColor,
     spineTitleBackgroundPaddingXPct,
     spineTitleBackgroundPaddingYPct,
@@ -12522,6 +12769,12 @@ function UploadPageContent() {
       coverTitleUnderline,
       coverTitleItalic,
       coverTitleStrikethrough,
+      coverTitleStrokeColor,
+      coverTitleStrokeWidth,
+      coverTitleShadowColor,
+      coverTitleShadowBlur,
+      coverTitleShadowOffsetX,
+      coverTitleShadowOffsetY,
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
@@ -12540,6 +12793,12 @@ function UploadPageContent() {
       spineTitleUnderline,
       spineTitleItalic,
       spineTitleStrikethrough,
+      spineTitleStrokeColor,
+      spineTitleStrokeWidth,
+      spineTitleShadowColor,
+      spineTitleShadowBlur,
+      spineTitleShadowOffsetX,
+      spineTitleShadowOffsetY,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -12968,6 +13227,12 @@ function UploadPageContent() {
       underline: coverTitleUnderline,
       italic: coverTitleItalic,
       strikethrough: coverTitleStrikethrough,
+      strokeColor: coverTitleStrokeColor,
+      strokeWidth: coverTitleStrokeWidth,
+      shadowColor: coverTitleShadowColor,
+      shadowBlur: coverTitleShadowBlur,
+      shadowOffsetX: coverTitleShadowOffsetX,
+      shadowOffsetY: coverTitleShadowOffsetY,
       lineHeight: coverTitleLineHeightEm,
       letterSpacing: coverTitleLetterSpacingEm,
       backgroundColor: coverTitleBackgroundColor,
@@ -13007,6 +13272,12 @@ function UploadPageContent() {
       }
       if (changes.align !== undefined) setCoverTitleAlign(changes.align);
       if (changes.strikethrough !== undefined) setCoverTitleStrikethrough(changes.strikethrough);
+      if ("strokeColor" in changes) setCoverTitleStrokeColor(changes.strokeColor);
+      if ("strokeWidth" in changes) setCoverTitleStrokeWidth(changes.strokeWidth);
+      if ("shadowColor" in changes) setCoverTitleShadowColor(changes.shadowColor);
+      if ("shadowBlur" in changes) setCoverTitleShadowBlur(changes.shadowBlur);
+      if ("shadowOffsetX" in changes) setCoverTitleShadowOffsetX(changes.shadowOffsetX);
+      if ("shadowOffsetY" in changes) setCoverTitleShadowOffsetY(changes.shadowOffsetY);
       if ("backgroundColor" in changes) setCoverTitleBackgroundColor(changes.backgroundColor);
       if (changes.backgroundPaddingXPct !== undefined) setCoverTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setCoverTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
@@ -13035,6 +13306,12 @@ function UploadPageContent() {
       underline: spineTitleUnderline,
       italic: spineTitleItalic,
       strikethrough: spineTitleStrikethrough,
+      strokeColor: spineTitleStrokeColor,
+      strokeWidth: spineTitleStrokeWidth,
+      shadowColor: spineTitleShadowColor,
+      shadowBlur: spineTitleShadowBlur,
+      shadowOffsetX: spineTitleShadowOffsetX,
+      shadowOffsetY: spineTitleShadowOffsetY,
       // 책등은 행간·자간을 따로 안 둬요(한 줄짜리 세로쓰기 글자라 줄바꿈 개념이 없어요) —
       // 패널엔 그대로 보이지만(같은 컴포넌트라서) 바꿔도 저장할 자리가 없어 조용히
       // 무시돼요. 기본값만 채워둬요.
@@ -13059,6 +13336,12 @@ function UploadPageContent() {
       if (changes.italic !== undefined) setSpineTitleItalic(changes.italic);
       if (changes.align !== undefined) setSpineTitleAlign(changes.align);
       if (changes.strikethrough !== undefined) setSpineTitleStrikethrough(changes.strikethrough);
+      if ("strokeColor" in changes) setSpineTitleStrokeColor(changes.strokeColor);
+      if ("strokeWidth" in changes) setSpineTitleStrokeWidth(changes.strokeWidth);
+      if ("shadowColor" in changes) setSpineTitleShadowColor(changes.shadowColor);
+      if ("shadowBlur" in changes) setSpineTitleShadowBlur(changes.shadowBlur);
+      if ("shadowOffsetX" in changes) setSpineTitleShadowOffsetX(changes.shadowOffsetX);
+      if ("shadowOffsetY" in changes) setSpineTitleShadowOffsetY(changes.shadowOffsetY);
       if ("backgroundColor" in changes) setSpineTitleBackgroundColor(changes.backgroundColor);
       if (changes.backgroundPaddingXPct !== undefined) setSpineTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setSpineTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
@@ -14517,6 +14800,12 @@ function UploadPageContent() {
                               underline={spineTitleUnderline}
                               italic={spineTitleItalic}
                               strikethrough={spineTitleStrikethrough}
+                              strokeColor={spineTitleStrokeColor}
+                              strokeWidth={spineTitleStrokeWidth}
+                              shadowColor={spineTitleShadowColor}
+                              shadowBlur={spineTitleShadowBlur}
+                              shadowOffsetX={spineTitleShadowOffsetX}
+                              shadowOffsetY={spineTitleShadowOffsetY}
                               backgroundColor={spineTitleBackgroundColor}
                               backgroundPaddingXPct={spineTitleBackgroundPaddingXPct}
                               backgroundPaddingYPct={spineTitleBackgroundPaddingYPct}

@@ -371,6 +371,11 @@ function drawTextBoxOnCanvasRuns(
 
       ctx.textAlign = "left";
       let cx = lineStartX;
+      // 텍스트선·그림자(2026-11-9차) — box 전체 필드라 구간(run) 색과 무관하게 모든
+      // 구간에 똑같이 적용돼요(drawTextBoxOnCanvas의 drawLineStrokeAndFill과 같은
+      // 이유·같은 순서).
+      const hasStroke = !!box.strokeColor && !!box.strokeWidth && box.strokeWidth > 0;
+      const hasShadow = !!box.shadowColor;
       for (const seg of line) {
         setCtxFontForRunStyle(ctx, seg.style);
         ctx.fillStyle = seg.style.color;
@@ -379,7 +384,33 @@ function drawTextBoxOnCanvasRuns(
             ? `${seg.style.fontPx * box.letterSpacing}px`
             : "0px";
         }
+        if (hasShadow) {
+          ctx.shadowColor = box.shadowColor!;
+          ctx.shadowBlur = seg.style.fontPx * (box.shadowBlur ?? 0);
+          ctx.shadowOffsetX = seg.style.fontPx * (box.shadowOffsetX ?? 0);
+          ctx.shadowOffsetY = seg.style.fontPx * (box.shadowOffsetY ?? 0);
+        }
+        if (hasStroke) {
+          ctx.save();
+          ctx.strokeStyle = box.strokeColor!;
+          ctx.lineWidth = seg.style.fontPx * box.strokeWidth!;
+          ctx.lineJoin = "round";
+          ctx.strokeText(seg.text, cx, cursorY);
+          ctx.restore();
+          if (hasShadow) {
+            ctx.shadowColor = "transparent";
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+          }
+        }
         ctx.fillText(seg.text, cx, cursorY);
+        if (hasShadow && !hasStroke) {
+          ctx.shadowColor = "transparent";
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
         const segWidth = ctx.measureText(seg.text).width;
         if (seg.style.underline) {
           const underlineY = cursorY + seg.style.fontPx * 0.92;
@@ -523,6 +554,45 @@ function drawTextBoxOnCanvas(
     ctx.restore();
   };
 
+  // 텍스트선·그림자(2026-11-9차, 혜민님 요청: "텍스트선도 필요할것같아요... 그림자
+  // 효과도 넣을수있어야하고요") — box 전체 필드(strikethrough와 같은 성격, 문자 단위
+  // 서식(runs)엔 없음)예요. 그림자는 stroke가 있으면 strokeText에만 적용하고(그
+  // 아래로 fillText는 그림자를 꺼서 두 번 겹쳐 그리지 않아요), stroke가 없으면
+  // fillText에 직접 적용해요 — 화면(TextBoxRichEditor 컨테이너의 -webkit-text-stroke/
+  // text-shadow, 둘 다 상속 속성이라 컨테이너 한 번으로 모든 줄에 적용)과 같은 시각
+  // 결과가 나와요.
+  const hasStroke = !!box.strokeColor && !!box.strokeWidth && box.strokeWidth > 0;
+  const hasShadow = !!box.shadowColor;
+  const drawLineStrokeAndFill = (line: string, lineY: number) => {
+    if (hasShadow) {
+      ctx.shadowColor = box.shadowColor!;
+      ctx.shadowBlur = fontPx * (box.shadowBlur ?? 0);
+      ctx.shadowOffsetX = fontPx * (box.shadowOffsetX ?? 0);
+      ctx.shadowOffsetY = fontPx * (box.shadowOffsetY ?? 0);
+    }
+    if (hasStroke) {
+      ctx.save();
+      ctx.strokeStyle = box.strokeColor!;
+      ctx.lineWidth = fontPx * box.strokeWidth!;
+      ctx.lineJoin = "round";
+      ctx.strokeText(line, textX, lineY, w);
+      ctx.restore();
+      if (hasShadow) {
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+    }
+    ctx.fillText(line, textX, lineY, w);
+    if (hasShadow && !hasStroke) {
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+  };
+
   // 밑줄은 글자를 그린 "다음"에 그려요(글자 위에 선이 깔끔히 보이도록) — 베이스라인
   // 근처(글자 높이의 약 92% 지점)에 글자 색과 같은 색, 글자 크기에 비례한 두께로 그어요.
   const drawLineUnderline = (line: string, lineY: number) => {
@@ -575,7 +645,7 @@ function drawTextBoxOnCanvas(
       const lineY = y + startYOffset + i * lineHeight;
       if (lineY - y > h) return;
       drawLineBackground(line, lineY);
-      ctx.fillText(line, textX, lineY, w);
+      drawLineStrokeAndFill(line, lineY);
       drawLineUnderline(line, lineY);
       drawLineStrikethrough(line, lineY);
     });
@@ -590,7 +660,7 @@ function drawTextBoxOnCanvas(
   lines.forEach((line, i) => {
     const lineY = y + i * lineHeight;
     drawLineBackground(line, lineY);
-    ctx.fillText(line, textX, lineY, w);
+    drawLineStrokeAndFill(line, lineY);
     drawLineUnderline(line, lineY);
     drawLineStrikethrough(line, lineY);
   });
@@ -1713,6 +1783,12 @@ function drawSpineTitleCanvas(
   underline: boolean = false,
   italic: boolean = false,
   strikethrough: boolean = false,
+  strokeColor?: string,
+  strokeWidth?: number,
+  shadowColor?: string,
+  shadowBlur?: number,
+  shadowOffsetX?: number,
+  shadowOffsetY?: number,
   backgroundColor?: string,
   backgroundPaddingXPct: number = 40,
   backgroundPaddingYPct: number = 25,
@@ -1784,10 +1860,44 @@ function drawSpineTitleCanvas(
     ctx.fillRect(stripX, -size / 2 - padY / 2, stripWidth, size + padY);
     ctx.restore();
   }
-  ctx.fillStyle = color;
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
+  // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — 화면(SpineTitleOverlay
+  // 의 -webkit-text-stroke/text-shadow)과 같은 순서·비율(em=size px 기준)로 그려요.
+  // 그림자는 stroke가 있으면 stroke에만(그 아래 깔린 채우기까지 이미 감싸져서 한 번만
+  // 필요), stroke가 없으면 채우기(fillText)에 직접 줘요 — 캔버스 shadow는 "다음에
+  // 그리는 것"에 계속 남아 번지므로(lib/printCompose.ts 다른 shadow 사용부와 같은 이유),
+  // 쓴 다음 바로 꺼요.
+  const hasStroke = !!strokeColor && !!strokeWidth && strokeWidth > 0;
+  const hasShadow = !!shadowColor;
+  if (hasShadow) {
+    ctx.shadowColor = shadowColor!;
+    ctx.shadowBlur = size * (shadowBlur ?? 0);
+    ctx.shadowOffsetX = size * (shadowOffsetX ?? 0);
+    ctx.shadowOffsetY = size * (shadowOffsetY ?? 0);
+  }
+  if (hasStroke) {
+    ctx.save();
+    ctx.strokeStyle = strokeColor!;
+    ctx.lineWidth = size * strokeWidth!;
+    ctx.lineJoin = "round";
+    ctx.strokeText(trimmed, 0, 0);
+    ctx.restore();
+    if (hasShadow) {
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+  }
+  ctx.fillStyle = color;
   ctx.fillText(trimmed, 0, 0);
+  if (hasShadow && !hasStroke) {
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
   // 밑줄(2026-10-08, 표지 제목·일반 글상자와 같은 밑줄 기능을 책등에도) — 회전된
   // 좌표계 안에서 글자 baseline 바로 아래(글자 진행 방향으로) 한 줄 그어요.
   if (underline) {
@@ -1899,6 +2009,12 @@ export async function buildCoverPrintPdf({
   coverTitleUnderline = false,
   coverTitleItalic = false,
   coverTitleStrikethrough = false,
+  coverTitleStrokeColor,
+  coverTitleStrokeWidth,
+  coverTitleShadowColor,
+  coverTitleShadowBlur,
+  coverTitleShadowOffsetX,
+  coverTitleShadowOffsetY,
   coverTitleBackgroundColor,
   coverTitleBackgroundPaddingXPct = 40,
   coverTitleBackgroundPaddingYPct = 25,
@@ -1917,6 +2033,12 @@ export async function buildCoverPrintPdf({
   spineTitleUnderline = false,
   spineTitleItalic = false,
   spineTitleStrikethrough = false,
+  spineTitleStrokeColor,
+  spineTitleStrokeWidth,
+  spineTitleShadowColor,
+  spineTitleShadowBlur,
+  spineTitleShadowOffsetX,
+  spineTitleShadowOffsetY,
   spineTitleBackgroundColor,
   spineTitleBackgroundPaddingXPct = 40,
   spineTitleBackgroundPaddingYPct = 25,
@@ -1970,6 +2092,14 @@ export async function buildCoverPrintPdf({
   // 어댑터·TextBoxToolbar와 같은 필드 이름). 기본값은 전부 "예전과 같은 모습"(취소선
   // 없음, 배경 없음)이에요.
   coverTitleStrikethrough?: boolean;
+  // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — em 단위(폰트 크기
+  // 기준), 화면(coverTitleAsTextBox 어댑터)과 같은 필드 이름.
+  coverTitleStrokeColor?: string;
+  coverTitleStrokeWidth?: number;
+  coverTitleShadowColor?: string;
+  coverTitleShadowBlur?: number;
+  coverTitleShadowOffsetX?: number;
+  coverTitleShadowOffsetY?: number;
   coverTitleBackgroundColor?: string;
   coverTitleBackgroundPaddingXPct?: number;
   coverTitleBackgroundPaddingYPct?: number;
@@ -1997,6 +2127,12 @@ export async function buildCoverPrintPdf({
   spineTitleItalic?: boolean;
   // 2026-10(6차) — 표지 제목과 같은 이유로 책등에도 추가.
   spineTitleStrikethrough?: boolean;
+  spineTitleStrokeColor?: string;
+  spineTitleStrokeWidth?: number;
+  spineTitleShadowColor?: string;
+  spineTitleShadowBlur?: number;
+  spineTitleShadowOffsetX?: number;
+  spineTitleShadowOffsetY?: number;
   spineTitleBackgroundColor?: string;
   spineTitleBackgroundPaddingXPct?: number;
   spineTitleBackgroundPaddingYPct?: number;
@@ -2211,6 +2347,12 @@ export async function buildCoverPrintPdf({
       spineTitleUnderline,
       spineTitleItalic,
       spineTitleStrikethrough,
+      spineTitleStrokeColor,
+      spineTitleStrokeWidth,
+      spineTitleShadowColor,
+      spineTitleShadowBlur,
+      spineTitleShadowOffsetX,
+      spineTitleShadowOffsetY,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -2258,8 +2400,23 @@ export async function buildCoverPrintPdf({
     ctxNN.fillStyle = coverTitleColor;
     ctxNN.textAlign = coverTitleAlign;
     ctxNN.textBaseline = "top";
-    ctxNN.shadowColor = "rgba(0,0,0,0.45)";
-    ctxNN.shadowBlur = titlePx * 0.4;
+    // 그림자(2026-11-9차, 혜민님 요청 "그림자효과도 넣을수있어야하고요") — 사용자가
+    // "텍스트 스타일" 패널에서 그림자를 직접 지정했으면(coverTitleShadowColor) 그
+    // 값을 쓰고, 지정 안 했으면(undefined, 기존 표지 전부 이 상태) 예전부터 항상 있던
+    // "사진 위에서도 글자가 잘 보이도록"의 고정 그림자(불투명도 0.45 검정, 흐림
+    // titlePx*0.4, 이동 없음)를 그대로 써요 — 하위 호환, 기존 표지는 렌더링이 전혀
+    // 안 바뀌어요.
+    const hasCustomTitleShadow = !!coverTitleShadowColor;
+    const titleShadowColor = hasCustomTitleShadow ? coverTitleShadowColor! : "rgba(0,0,0,0.45)";
+    const titleShadowBlur = hasCustomTitleShadow ? titlePx * (coverTitleShadowBlur ?? 0) : titlePx * 0.4;
+    const titleShadowOffsetX = hasCustomTitleShadow ? titlePx * (coverTitleShadowOffsetX ?? 0) : 0;
+    const titleShadowOffsetY = hasCustomTitleShadow ? titlePx * (coverTitleShadowOffsetY ?? 0) : 0;
+    ctxNN.shadowColor = titleShadowColor;
+    ctxNN.shadowBlur = titleShadowBlur;
+    ctxNN.shadowOffsetX = titleShadowOffsetX;
+    ctxNN.shadowOffsetY = titleShadowOffsetY;
+    // 텍스트선(2026-11-9차, 혜민님 요청 "텍스트선도 필요할것같아요")
+    const hasTitleStroke = !!coverTitleStrokeColor && !!coverTitleStrokeWidth && coverTitleStrokeWidth > 0;
     if ("letterSpacing" in ctxNN) {
       (ctxNN as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${titlePx * coverTitleLetterSpacingEm}px`;
     }
@@ -2346,7 +2503,23 @@ export async function buildCoverPrintPdf({
         ctxNN.fillRect(stripX, lineY - padY / 2, stripWidth, titlePx + padY);
         ctxNN.restore();
       }
-      ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
+      if (hasTitleStroke) {
+        // strokeText를 먼저(그림자는 이 stroke 위에만 한 번 — 아래 fillText는 그림자를
+        // 잠깐 꺼서 겹쳐 그리지 않아요, lib/printCompose.ts의 다른 stroke+shadow 조합
+        // (drawSpineTitleCanvas·drawTextBoxOnCanvas)과 같은 순서예요).
+        ctxNN.save();
+        ctxNN.strokeStyle = coverTitleStrokeColor!;
+        ctxNN.lineWidth = titlePx * coverTitleStrokeWidth!;
+        ctxNN.lineJoin = "round";
+        ctxNN.strokeText(line, titleXpx, lineY, titleMaxWidthPx);
+        ctxNN.restore();
+        ctxNN.save();
+        ctxNN.shadowBlur = 0;
+        ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
+        ctxNN.restore();
+      } else {
+        ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
+      }
       if (coverTitleUnderline && line.trim()) {
         const underlineY = lineY + titlePx * 0.92;
         ctxNN.save();
@@ -2376,7 +2549,10 @@ export async function buildCoverPrintPdf({
     if ("letterSpacing" in ctxNN) {
       (ctxNN as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
     }
+    ctxNN.shadowColor = "transparent";
     ctxNN.shadowBlur = 0;
+    ctxNN.shadowOffsetX = 0;
+    ctxNN.shadowOffsetY = 0;
   }
 
   if (coverImageBoxes && coverImageBoxes.length > 0) {

@@ -120,6 +120,26 @@ export type TextBoxDef = {
   // 최신 전체 글자가 나오도록) — lib/textRuns.ts의 getEffectiveRuns/runsPlainText
   // 등이 이 두 필드를 같이 맞춰줘요.
   runs?: TextRun[];
+  // 텍스트선(외곽선/스트로크, 2026-11-9차 — 혜민님 요청: "텍스트선도 필요할것같아요...
+  // 자막스타일처럼 만들어놓고싶거든요") — 글자 채우기 색(color) 바깥에 테두리를
+  // 둘러요(자막·캡션에서 흔한 "흰 글자 + 검은 테두리" 같은 조합에 씀). strikethrough와
+  // 같은 성격의 "박스 전체" 필드예요(문자 단위 서식(runs)엔 없음, 부분 선택 적용은
+  // 이번 범위 밖). 값이 없으면(strokeColor 또는 strokeWidth가 undefined거나
+  // strokeWidth가 0이면) 기존처럼 선 없음(하위 호환).
+  strokeColor?: string;
+  // 선 굵기 — em 단위(글자 크기에 비례, letterSpacing과 같은 단위 기준)예요. 지정 안
+  // 하면(undefined) 선 없음으로 취급해요.
+  strokeWidth?: number;
+  // 그림자 효과(2026-11-9차, 혜민님 요청: "그림자효과도 넣을수있어야하고요") — 역시
+  // strikethrough·strokeColor와 같은 "박스 전체" 필드예요. shadowColor가 없으면
+  // (undefined) 기존처럼 그림자 없음(하위 호환).
+  shadowColor?: string;
+  // 아래 3개 전부 em 단위(글자 크기 기준)예요 — 지정 안 하면 0으로 취급해요(그림자
+  // 색만 있고 번짐·이동이 없으면 사실상 살짝 진한 색 복제본처럼 보여요, 그래도
+  // shadowColor가 있으면 그림자를 "켠" 것으로 취급해요).
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
 };
 
 // 자유 배치 이미지박스 하나예요(내지 스프레드·표지 앞면 공통으로 써요). 텍스트박스와
