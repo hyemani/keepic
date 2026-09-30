@@ -456,8 +456,11 @@ export default function Home() {
 
       <SiteFooter />
 
-      {/* 모바일 전용: 스크롤해도 따라다니는 하단 고정 CTA */}
-      <StickyOrderBar label="추억을 담을 방법 고르기" />
+      {/* 모바일: 화면 폭 전체를 채우는 하단 고정 CTA.
+          PC: 코워커웹처럼(스크롤 중에도 우측 하단에 작은 pill 버튼이 계속 떠 있는
+          방식) 헤더의 "만들기 시작" 버튼과 별도로, 화면 어디를 보고 있어도 바로
+          누를 수 있는 보조 주문 버튼을 하나 더 띄워둬요. */}
+      <StickyOrderBar label="추억을 담을 방법 고르기" desktopFloating />
     </main>
   );
 }
