@@ -1011,8 +1011,27 @@ function drawTableGridAndCells(
       // 있으면 표 전체 기본 글꼴 대신 그걸 써요. ctx.font를 표 전체용으로 한 번만
       // 설정하던 걸(위 914번째 줄) 칸마다 다시 설정하도록 바꿨어요 — 칸마다 다를 수
       // 있으니까요(정렬/여백을 칸마다 다시 계산하는 것과 같은 이유, 바로 위 주석 참고).
+      // 2026-11-9차, 혜민님 요청("표안에... 일반 텍스트패널과 동일하게") — 크기·굵게·
+      // 기울임·글자색·줄간격·자간·밑줄·취소선도 같은 방식(cellOverride 우선, 없으면
+      // 표 전체 기본값)으로 칸마다 다시 계산해요. 화면(app/upload/page.tsx의 textarea
+      // style)과 완전히 같은 우선순위예요.
       const effFontFamily = style?.fontFamily ?? fontFamily;
-      ctx.font = `${fontStyle}${fontWeight}${fontPx}px ${effFontFamily}`;
+      const effFontPx = Math.max(8, Math.round(refWidthPx * TEXT_BOX_FONT_SCALE_BASE_RATIO * (style?.fontScale ?? box.fontScale ?? 1)));
+      const effBold = style?.bold ?? box.bold;
+      const effItalic = style?.italic ?? box.italic;
+      const effFontWeight = effBold ? "bold " : "";
+      const effFontStyle = effItalic ? "italic " : "";
+      const effColor = style?.color ?? box.color ?? "#1F2937";
+      const effUnderline = style?.underline ?? box.underline;
+      const effStrikethrough = style?.strikethrough ?? false; // 표 전체엔 취소선 필드가 없어요(TableCellStyle.strikethrough 주석 참고).
+      ctx.font = `${effFontStyle}${effFontWeight}${effFontPx}px ${effFontFamily}`;
+      ctx.fillStyle = effColor;
+      if ("letterSpacing" in ctx) {
+        const effLetterSpacingEm = style?.letterSpacing ?? 0;
+        (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = effLetterSpacingEm
+          ? `${effFontPx * effLetterSpacingEm}px`
+          : "0px";
+      }
       const cellLeftPx = leftPx + colLefts[c];
       const cellRightPx = leftPx + colLefts[c + colSpan];
       const cellW = cellRightPx - cellLeftPx;
@@ -1023,7 +1042,7 @@ function drawTableGridAndCells(
       const cy = cellTopPx + cellHeight / 2;
       const maxTextWidth = Math.max(4, cellW - effPad * 2);
       const lines = wrapTextForCanvas(ctx, text, maxTextWidth);
-      const lineHeight = fontPx * (box.lineHeight ?? 1.25);
+      const lineHeight = effFontPx * (style?.lineHeight ?? box.lineHeight ?? 1.25);
       // 가로 정렬: 왼쪽/오른쪽/가운데에 따라 기준 x와 canvas textAlign을 바꿔요.
       ctx.textAlign = effAlign;
       const lineX = effAlign === "left" ? cellLeftPx + effPad : effAlign === "right" ? cellRightPx - effPad : cx;
@@ -1042,24 +1061,36 @@ function drawTableGridAndCells(
       lines.forEach((line, i) => {
         const lineY = startY + i * lineHeight;
         ctx.fillText(line, lineX, lineY, maxTextWidth);
-        if (box.underline) {
+        if (effUnderline || effStrikethrough) {
           const textWidth = Math.min(maxTextWidth, ctx.measureText(line).width);
-          const underlineY = lineY + fontPx * 0.38;
           const underlineStartX =
             effAlign === "left" ? lineX : effAlign === "right" ? lineX - textWidth : lineX - textWidth / 2;
           ctx.save();
-          ctx.strokeStyle = box.color ?? "#1F2937";
-          ctx.lineWidth = Math.max(1, fontPx * 0.06);
+          ctx.strokeStyle = effColor;
+          ctx.lineWidth = Math.max(1, effFontPx * 0.06);
           ctx.setLineDash([]);
-          ctx.beginPath();
-          ctx.moveTo(underlineStartX, underlineY);
-          ctx.lineTo(underlineStartX + textWidth, underlineY);
-          ctx.stroke();
+          if (effUnderline) {
+            const underlineY = lineY + effFontPx * 0.38;
+            ctx.beginPath();
+            ctx.moveTo(underlineStartX, underlineY);
+            ctx.lineTo(underlineStartX + textWidth, underlineY);
+            ctx.stroke();
+          }
+          if (effStrikethrough) {
+            const strikeY = lineY - effFontPx * 0.2;
+            ctx.beginPath();
+            ctx.moveTo(underlineStartX, strikeY);
+            ctx.lineTo(underlineStartX + textWidth, strikeY);
+            ctx.stroke();
+          }
           ctx.restore();
         }
       });
       ctx.restore();
     }
+  }
+  if ("letterSpacing" in ctx) {
+    (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
   }
 
   ctx.restore(); // 표 면 채우기용 클립 해제

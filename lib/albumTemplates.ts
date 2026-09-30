@@ -246,6 +246,20 @@ export type TableCellStyle = {
   // fillColor/padding과 같은 "표 전체 기본값을 이 칸만 덮어쓴다" 패턴). 값이 없으면
   // (기본, 기존 표는 전부 이 상태) 표 전체 기본값을 그대로 따라가서 하위 호환이에요.
   fontFamily?: string;
+  // 2026-11-9차, 혜민님 요청("표안에 텍스트크기, 비율 등 만들어준 텍스트 수정패널이
+  // 없어서... 일반 텍스트패널과 동일하게 만들어줘") — 위 fontFamily와 같은 "표 전체
+  // 기본값을 이 칸만 덮어쓴다" 패턴으로, 일반 텍스트박스(TextBoxToolbar)가 이미 갖고
+  // 있던 글자 꾸밈 항목들을 칸 단위로도 줄 수 있게 넓혀요. 값이 없으면(기본, 기존
+  // 표는 전부 이 상태) 표 전체 기본값(TableBoxDef의 같은 이름 필드, letterSpacing·
+  // strikethrough는 표 전체에 아직 없어서 0/false)을 그대로 따라가서 하위 호환이에요.
+  fontScale?: number; // 표 전체 기본값(TableBoxDef.fontScale) 대신 이 칸만 다른 배율.
+  color?: string; // 글자 색. 표 전체 기본값(TableBoxDef.color) 대신 이 칸만 다른 색.
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean; // 표 전체엔 이 필드가 없어서(취소선 자체가 표엔 없던 기능) 항상 이 칸 자신의 값(없으면 false)만 써요.
+  letterSpacing?: number; // em 단위. 표 전체엔 이 필드가 없어서 항상 이 칸 자신의 값(없으면 0)만 써요.
+  lineHeight?: number; // 줄 간격 배수. 표 전체 기본값(TableBoxDef.lineHeight) 대신 이 칸만 다른 값.
   hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
   // 이 칸(anchor)에 닿은 격자선의 선 색·굵기·종류·점선 세부값을 표 전체 기본값과
   // 다르게 줘요(2026-10, 혜민님 요청: "표 전체를 선택했을 때는 전체 선 설정을, 셀을
