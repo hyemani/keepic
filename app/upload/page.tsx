@@ -4103,7 +4103,6 @@ function TextStyleFieldsPanel({
   syncKey,
   value,
   onChange,
-  onReset,
   pageWidthMm,
   background,
   onBackgroundChange,
@@ -4111,7 +4110,13 @@ function TextStyleFieldsPanel({
   syncKey: string;
   value: TextStyleFields;
   onChange: (patch: Partial<TextStyleFields>) => void;
-  onReset?: (fields: (keyof TextStyleFields)[]) => void;
+  // 2026-11-9차 8번째 라운드, 혜민님 요청("표 안의 텍스트를 수정할 때 보이는
+  // '기본값' 버튼은 화면에서 제거해 주세요. 버튼을 없애면서 기존 표의 저장된 값이나
+  // 기본 스타일 적용 방식이 바뀌지 않게") — 이 패널의 글자 서식(기본값) 되돌리기
+  // 버튼을 없애서 onReset prop 자체가 더 필요 없어졌어요. 밑에 깔린 "칸에 개별
+  // 설정이 없으면 표 전체 기본값으로" 동작(resetCellStyleFields, TableBoxOverlayHandle)
+  // 자체는 전혀 안 건드렸어요 — 배경색·안쪽 여백 기본값 버튼("선택한 칸" 섹션)은
+  // 이 컴포넌트 밖 별개 버튼이라 그대로 남아있어요.
   pageWidthMm: number;
   background?: TextBackgroundFields;
   onBackgroundChange?: (patch: {
@@ -4141,154 +4146,161 @@ function TextStyleFieldsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncKey]);
 
-  function resetButton(fields: (keyof TextStyleFields)[]) {
-    if (!onReset) return null;
-    return (
-      <button
-        type="button"
-        onClick={() => onReset(fields)}
-        className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)]"
-      >
-        기본값
-      </button>
-    );
-  }
-
   return (
     <>
       <div>
         <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">서체</label>
-        <div className="flex items-center gap-1.5">
-          <select
-            value={value.fontFamily}
-            onChange={(e) => onChange({ fontFamily: e.target.value })}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-          >
-            {fontOptions.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-          {resetButton(["fontFamily"])}
-        </div>
+        <select
+          value={value.fontFamily}
+          onChange={(e) => onChange({ fontFamily: e.target.value })}
+          className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+        >
+          {fontOptions.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
+        </select>
       </div>
-      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+      {/* 2026-11-9차 7번째 라운드, 혜민님 요청("문자 설정을 2열×3행으로 정리해주세요:
+          1행 글자크기|행간, 2행 세로폭|가로폭, 3행 커닝|자간. 세로·가로 폭은 글자
+          모양 비율이라 박스 자체 너비·높이와 혼동되면 안 됨") — InDesign류 문자
+          패널을 참고한 2열×3행 그리드예요. 값·단위·유효범위는 전부 예전과 완전히
+          같고(기본값 버튼만 이번 라운드에서 없앴어요, 아래 "기본값" 버튼 제거 주석
+          참고) 자리만 이 순서로 옮겼어요.
+          "가로 폭"·"세로 폭"엔 title(hover)로 "이 박스 자체의 너비·높이(아래 '박스
+          크기')와는 다른 값"이라고 분명히 적었어요.
+          3행 "커닝"은 이번 라운드엔 실제로 구현하지 않았어요(입력칸 자체가
+          비활성) — 혜민님 요청 원문 중 "커서가 놓인 두 글자 사이"에만 적용되는
+          진짜 커닝은, 지금 서식 구조(lib/textRuns.ts의 TextRun)가 "글자 내용
+          구간별 서식"만 표현할 수 있어서(구간이 아니라 "정확히 그 경계 한 곳"에만
+          거는 오프셋 개념이 아예 없음) 새 자료구조 + 화면(문자별 span)·인쇄(PDF
+          캔버스) 양쪽 렌더링을 같이 바꿔야 하는 일이라, 브라우저로 직접 눌러볼 수
+          없는 이번 세션에서 안전하게 만들 자신이 없어서 미뤘어요(작업 보고에 자세히
+          적었어요). "자간"은 기존 letterSpacing 필드를 자리만 옮긴 것뿐이라 동작은
+          이전과 똑같아요(박스 전체에 적용 — "선택한 범위에만"은 아직 아니에요,
+          이것도 같은 이유로 이번엔 손 안 댔어요). 커닝 칸을 자간과 똑같은 값으로
+          채워 넣어 "나눠놓은 척"하지 않으려고 일부러 빈 채 비활성으로 뒀어요. */}
+      <div className="mt-1 grid grid-cols-2 gap-1.5">
         <div>
           <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">글자 크기(pt)</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={6}
-              max={200}
-              step={0.5}
-              value={ptDraft}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setPtDraft(raw);
-                const pt = Number(raw);
-                if (Number.isFinite(pt) && pt > 0) {
-                  onChange({ fontScale: textBoxPtToFontScale(Math.max(6, Math.min(200, pt)), pageWidthMm) });
-                }
-              }}
-              onBlur={() => setPtDraft(String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)))}
-              className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-            />
-            {resetButton(["fontScale"])}
-          </div>
+          <input
+            type="number"
+            min={6}
+            max={200}
+            step={0.5}
+            value={ptDraft}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setPtDraft(raw);
+              const pt = Number(raw);
+              if (Number.isFinite(pt) && pt > 0) {
+                onChange({ fontScale: textBoxPtToFontScale(Math.max(6, Math.min(200, pt)), pageWidthMm) });
+              }
+            }}
+            onBlur={() => setPtDraft(String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)))}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          />
         </div>
         <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">줄 간격</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={0.8}
-              max={3}
-              step={0.05}
-              value={lineHeightDraft}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setLineHeightDraft(raw);
-                const v = Number(raw);
-                if (Number.isFinite(v)) onChange({ lineHeight: Math.max(0.8, Math.min(3, v)) });
-              }}
-              onBlur={() => setLineHeightDraft(String(value.lineHeight))}
-              className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-            />
-            {resetButton(["lineHeight"])}
-          </div>
+          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">행간</label>
+          <input
+            type="number"
+            min={0.8}
+            max={3}
+            step={0.05}
+            value={lineHeightDraft}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setLineHeightDraft(raw);
+              const v = Number(raw);
+              if (Number.isFinite(v)) onChange({ lineHeight: Math.max(0.8, Math.min(3, v)) });
+            }}
+            onBlur={() => setLineHeightDraft(String(value.lineHeight))}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          />
         </div>
       </div>
-      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+      <div className="mt-1 grid grid-cols-2 gap-1.5">
         <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">자간</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={-0.1}
-              max={0.5}
-              step={0.01}
-              value={letterSpacingDraft}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setLetterSpacingDraft(raw);
-                const v = Number(raw);
-                if (Number.isFinite(v)) onChange({ letterSpacing: Math.max(-0.1, Math.min(0.5, v)) });
-              }}
-              onBlur={() => setLetterSpacingDraft(String(value.letterSpacing))}
-              className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-            />
-            {resetButton(["letterSpacing"])}
-          </div>
+          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">세로 폭(%)</label>
+          <input
+            type="number"
+            min={50}
+            max={200}
+            step={1}
+            value={scaleYDraft}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setScaleYDraft(raw);
+              const v = Number(raw);
+              if (Number.isFinite(v)) onChange({ scaleYPct: Math.max(50, Math.min(200, v)) });
+            }}
+            onBlur={() => setScaleYDraft(String(value.scaleYPct))}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            title="글자 모양을 세로로 늘이는 비율(화면 미리보기 전용) — 아래 '박스 크기'(이 상자 자체의 너비·높이)와는 다른 값이에요"
+          />
         </div>
         <div>
           <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">가로 폭(%)</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={50}
-              max={200}
-              step={1}
-              value={scaleXDraft}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setScaleXDraft(raw);
-                const v = Number(raw);
-                if (Number.isFinite(v)) onChange({ scaleXPct: Math.max(50, Math.min(200, v)) });
-              }}
-              onBlur={() => setScaleXDraft(String(value.scaleXPct))}
-              className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-              title="글자를 가로로 늘이는 비율(화면 미리보기 전용)"
-            />
-            {resetButton(["scaleXPct"])}
-          </div>
+          <input
+            type="number"
+            min={50}
+            max={200}
+            step={1}
+            value={scaleXDraft}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setScaleXDraft(raw);
+              const v = Number(raw);
+              if (Number.isFinite(v)) onChange({ scaleXPct: Math.max(50, Math.min(200, v)) });
+            }}
+            onBlur={() => setScaleXDraft(String(value.scaleXPct))}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            title="글자 모양을 가로로 늘이는 비율(화면 미리보기 전용) — 아래 '박스 크기'(이 상자 자체의 너비·높이)와는 다른 값이에요"
+          />
         </div>
       </div>
-      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+      <div className="mt-1 grid grid-cols-2 gap-1.5">
         <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">세로 폭(%)</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={50}
-              max={200}
-              step={1}
-              value={scaleYDraft}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setScaleYDraft(raw);
-                const v = Number(raw);
-                if (Number.isFinite(v)) onChange({ scaleYPct: Math.max(50, Math.min(200, v)) });
-              }}
-              onBlur={() => setScaleYDraft(String(value.scaleYPct))}
-              className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-              title="글자를 세로로 늘이는 비율(화면 미리보기 전용)"
-            />
-            {resetButton(["scaleYPct"])}
-          </div>
+          <label className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/40">
+            커닝
+            <span
+              title="커서가 놓인 두 글자 사이만 미세 조정하는 커닝은 이번 업데이트엔 없어요 — 자간과는 다른 동작이라 화면에서 직접 확인하며 만들어야 안전한데, 이번 세션은 그게 안 돼서 다음 라운드로 미뤘어요."
+              className="cursor-help select-none text-[9px] leading-none"
+            >
+              ⓘ
+            </span>
+          </label>
+          <input
+            type="text"
+            value=""
+            disabled
+            placeholder="—"
+            title="아직 지원하지 않아요(위 ⓘ 참고)"
+            className="w-full cursor-not-allowed border border-dashed border-[var(--color-hairline)] bg-[var(--color-hairline)]/10 px-1.5 py-1.5 text-xs text-[var(--color-charcoal)]/30 outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">자간</label>
+          <input
+            type="number"
+            min={-0.1}
+            max={0.5}
+            step={0.01}
+            value={letterSpacingDraft}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setLetterSpacingDraft(raw);
+              const v = Number(raw);
+              if (Number.isFinite(v)) onChange({ letterSpacing: Math.max(-0.1, Math.min(0.5, v)) });
+            }}
+            onBlur={() => setLetterSpacingDraft(String(value.letterSpacing))}
+            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          />
         </div>
       </div>
-      <div className="mt-1.5 flex items-center gap-1.5">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
           title="굵게"
@@ -4344,114 +4356,137 @@ function TextStyleFieldsPanel({
           className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
           title="글자 색"
         />
-        {resetButton(["bold", "italic", "underline", "strikethrough", "color"])}
-      </div>
-      {/* 2026-11-9차 6번째 라운드, 혜민님 요청("그림자와 텍스트배경 설정이 흩어져
-          있고, 배경색 아이콘에 제목이 없어서... 구역을 정리해주세요") — 텍스트선·
-          그림자·텍스트 배경 세 구역 모두 "제목 + on/off 토글 + 색상 견본"으로 시작하는
-          같은 모양 헤더를 쓰고, 구역 사이엔 표 칸 패널(TableBoxToolbar, "선택한 칸"
-          섹션 끝)에서 이미 쓰던 구분선 스타일(border-t + pt-2)을 그대로 재사용해서
-          경계를 분명히 나눠요. */}
-      <div className="mt-2 border-t border-[var(--color-hairline)] pt-2">
-        <div className="flex items-center justify-between gap-1.5">
-          <label className="text-[10px] text-[var(--color-charcoal)]/60">텍스트선(외곽선)</label>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기(검정, 굵기는 마지막에 쓰던 값)"}
-              aria-pressed={!!value.strokeColor}
-              onClick={() =>
-                onChange(
-                  value.strokeColor
-                    ? { strokeColor: undefined }
-                    : { strokeColor: "#000000", strokeWidth: value.strokeWidth ?? 0.08 }
-                )
+        {/* 2026-11-9차 8번째 라운드, 혜민님 요청("텍스트선·그림자·텍스트배경을 각자
+            큰 구역으로 두지 말고, 기존 폰트 효과(B/I/U/S+색) 줄에 같은 크기·간격으로
+            나란히 배치해서 하나의 '텍스트 효과' 그룹으로 보이게") — 텍스트선(outline)·
+            그림자·텍스트배경 세 토글을 위 B/I/U/S/색과 같은 h-7 w-7 크기·같은
+            gap-1.5로 이 한 줄에 이어 붙였어요. 얇은 구분선(세로 막대) 하나만 둬서
+            "글자 모양 버튼들"과 "텍스트 효과 버튼들"을 시각적으로만 살짝 나눴어요
+            (별도 제목·구분선 섹션은 없앴어요). 패널 폭이 224px가 최대(왼쪽 속성
+            패널, 위 line 14546 clamp(160px,22cqw,224px) 참고)라 이 8개 아이콘이
+            전부 한 줄엔 안 들어가요 — flex-wrap으로 넘치면 다음 줄로 자연스럽게
+            줄바꿈되게 해서(잘리거나 겹치지 않음) 폭이 좁아도 항상 온전히 다 보이게
+            했어요. 각 토글을 켰을 때의 세부 설정은 바로 아래(다른 효과 설정과 안
+            섞이게, 토글 켠 순서와 무관하게 텍스트선→그림자→텍스트배경 고정 순서로)
+            그 효과만의 작은 블록으로 떠요 — 꺼져 있으면 그 블록 자체가 없어서
+            패널이 짧게 유지돼요. */}
+        <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--color-hairline)]" aria-hidden="true" />
+        <button
+          type="button"
+          title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기(검정, 굵기는 마지막에 쓰던 값)"}
+          aria-pressed={!!value.strokeColor}
+          onClick={() =>
+            onChange(
+              value.strokeColor
+                ? { strokeColor: undefined }
+                : { strokeColor: "#000000", strokeWidth: value.strokeWidth ?? 0.08 }
+            )
+          }
+          className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
+            value.strokeColor
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 투명도·번짐·이동은 마지막에 쓰던 값)"}
+          aria-pressed={!!value.shadowColor}
+          onClick={() =>
+            onChange(
+              value.shadowColor
+                ? { shadowColor: undefined }
+                : {
+                    shadowColor: "#000000",
+                    shadowOpacity: value.shadowOpacity ?? 100,
+                    shadowBlur: value.shadowBlur ?? 0.15,
+                    shadowOffsetX: value.shadowOffsetX ?? 0.05,
+                    shadowOffsetY: value.shadowOffsetY ?? 0.05,
+                  }
+            )
+          }
+          className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
+            value.shadowColor
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="textShadowToggle" className="h-4 w-4" />
+        </button>
+        {background && (
+          <button
+            type="button"
+            title={background.backgroundColor ? "텍스트 배경 끄기" : "텍스트 배경 켜기"}
+            aria-pressed={!!background.backgroundColor}
+            onClick={() => {
+              if (background.backgroundColor) {
+                onBackgroundChange?.({ backgroundColor: undefined });
+                return;
               }
-              className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
-                value.strokeColor
-                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-              }`}
-            >
-              <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
-            </button>
-            {value.strokeColor && (
-              <input
-                type="color"
-                value={value.strokeColor}
-                onChange={(e) => onChange({ strokeColor: e.target.value })}
-                className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-                title="텍스트선 색"
-              />
-            )}
-            {value.strokeColor && (
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round((value.strokeWidth ?? 0.08) * 100)}
-                onChange={(e) =>
-                  onChange({ strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
-                }
-                className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
-              />
-            )}
-            {value.strokeColor && <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>}
-          </div>
-        </div>
+              onBackgroundChange?.(
+                background.allowFillBoxBackground
+                  ? {
+                      backgroundColor: "#fff59d",
+                      backgroundMode: "fillBox",
+                      heightPct: background.heightPct ?? 20,
+                    }
+                  : { backgroundColor: "#fff59d" }
+              );
+            }}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
+              background.backgroundColor
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+            }`}
+          >
+            <LayerIcon name="highlight" className="h-4 w-4" />
+          </button>
+        )}
       </div>
-      {/* 그림자(2026-11-9차 6번째 라운드 재정리, 혜민님 요청: "토글+색상표를 제목 옆에
-          두고, 켜면 투명도·X이동·Y이동·번짐 4개를 2열×2행으로, 각 칸에 아이콘이 아니라
-          짧은 이름표를 붙이고, 입력칸 자체에서 단위(%)를 알 수 있게") — 슬라이더는 안
-          쓰고(717a353 라운드에서 이미 뺀 규칙 유지) 전부 숫자 입력+퍼센트 표시예요.
-          투명도(shadowOpacity, 이번에 새로 추가된 필드)는 CSS text-shadow에 알파
-          채널이 따로 없어서 색 자체에 입혀요(combinedTextShadow의 hexToRgba, 인쇄는
-          lib/printCompose.ts의 hexToRgbaPrint로 동일하게 처리) — 입력칸 자체는 평범한
-          0~100 숫자라 사용자가 보기엔 그냥 "투명도 %"예요. */}
-      <div className="mt-2 border-t border-[var(--color-hairline)] pt-2">
-        <div className="flex items-center justify-between gap-1.5">
-          <label className="text-[10px] text-[var(--color-charcoal)]/60">그림자</label>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 투명도·번짐·이동은 마지막에 쓰던 값)"}
-              aria-pressed={!!value.shadowColor}
-              onClick={() =>
-                onChange(
-                  value.shadowColor
-                    ? { shadowColor: undefined }
-                    : {
-                        shadowColor: "#000000",
-                        shadowOpacity: value.shadowOpacity ?? 100,
-                        shadowBlur: value.shadowBlur ?? 0.15,
-                        shadowOffsetX: value.shadowOffsetX ?? 0.05,
-                        shadowOffsetY: value.shadowOffsetY ?? 0.05,
-                      }
-                )
-              }
-              className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
-                value.shadowColor
-                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-              }`}
-            >
-              <LayerIcon name="textShadowToggle" className="h-4 w-4" />
-            </button>
-            {value.shadowColor && (
-              <input
-                type="color"
-                value={value.shadowColor}
-                onChange={(e) => onChange({ shadowColor: e.target.value })}
-                className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-                title="그림자 색"
-              />
-            )}
-          </div>
+      {/* 텍스트선 세부 설정 — 켜졌을 때만, 토글 바로 아래(위 주석 참고). 필드·값·
+          단위는 예전과 완전히 같아요, 헤더(제목+구분선)만 없앴어요. */}
+      {value.strokeColor && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선</label>
+          <input
+            type="color"
+            value={value.strokeColor}
+            onChange={(e) => onChange({ strokeColor: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="텍스트선 색"
+          />
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round((value.strokeWidth ?? 0.08) * 100)}
+            onChange={(e) =>
+              onChange({ strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
+            }
+            className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+            title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
+          />
+          <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
         </div>
-        {value.shadowColor && (
-          <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+      )}
+      {/* 그림자 세부 설정 — 켜졌을 때만. 투명도/X이동/Y이동/번짐 2열×2행 그리드는
+          예전 그대로(717a353 라운드부터 슬라이더 없이 숫자 입력만), 헤더만 없앴어요. */}
+      {value.shadowColor && (
+        <div className="mt-1.5">
+          <div className="flex items-center gap-1.5">
+            <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자</label>
+            <input
+              type="color"
+              value={value.shadowColor}
+              onChange={(e) => onChange({ shadowColor: e.target.value })}
+              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="그림자 색"
+            />
+          </div>
+          <div className="mt-1 grid grid-cols-2 gap-1.5">
             <div>
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">투명도</label>
               <div className="flex items-center gap-1">
@@ -4525,69 +4560,34 @@ function TextStyleFieldsPanel({
               </div>
             </div>
           </div>
-        )}
-      </div>
-      {/* 텍스트 배경(2026-11-9차 6번째 라운드, 혜민님 요청: "배경 아이콘이 제목도 없이
-          그림자 밑에 떠 있어서 뭔지 알기 어려워요... '텍스트 배경'이라는 이름의 별도
-          구역으로 옮기고, 켰을 때만 글자 주변/박스 전체 방식과 세부 설정이 보이게") —
-          이 구역은 표 칸(TableBoxToolbar)엔 없는 텍스트박스 전용 기능이라, 호출하는
-          쪽(TextBoxToolbar)이 background prop을 넘길 때만 렌더링돼요(표 칸은 안
-          넘겨서 예전처럼 이 구역 자체가 안 보여요 — 기존 동작과 동일). 값 자체
+        </div>
+      )}
+      {/* 텍스트 배경 세부 설정 — 켜졌을 때만, 값·필드는 예전과 완전히 같아요
           (backgroundColor·backgroundMode·backgroundPaddingXPct/YPct·
-          backgroundWidthPct·widthPct·heightPct)는 그대로 TextBoxToolbar가 읽고
-          쓰던 필드라 저장 위치·의미는 전혀 안 바뀌고, 자리만 이 컴포넌트 안 "텍스트
-          배경"이라는 제목 달린 구역으로 옮겼어요. */}
-      {background && (
-        <div className="mt-2 border-t border-[var(--color-hairline)] pt-2">
-          <div className="flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1">
-              <label className="text-[10px] text-[var(--color-charcoal)]/60">텍스트 배경</label>
-              <span
-                title="배경이 이 박스의 실제 크기와 항상 같아요. '박스 전체 배경'일 땐 캔버스에서 손잡이로 박스 크기를 조절하면 배경도 같이 늘어나거나 줄어들어요."
-                className="cursor-help select-none text-[10px] leading-none text-[var(--color-charcoal)]/40"
-              >
-                ⓘ
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                title="배경"
-                onClick={() => {
-                  if (background.backgroundColor) {
-                    onBackgroundChange?.({ backgroundColor: undefined });
-                    return;
-                  }
-                  onBackgroundChange?.(
-                    background.allowFillBoxBackground
-                      ? {
-                          backgroundColor: "#fff59d",
-                          backgroundMode: "fillBox",
-                          heightPct: background.heightPct ?? 20,
-                        }
-                      : { backgroundColor: "#fff59d" }
-                  );
-                }}
-                className={`flex h-7 w-7 items-center justify-center border ${
-                  background.backgroundColor
-                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                }`}
-              >
-                <LayerIcon name="highlight" className="h-4 w-4" />
-              </button>
-              {background.backgroundColor && (
-                <input
-                  type="color"
-                  value={background.backgroundColor}
-                  onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
-                  className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-                  title="배경 색"
-                />
-              )}
-            </div>
+          backgroundWidthPct·widthPct·heightPct, 저장 위치·의미 그대로). 헤더(제목+
+          토글+색상표+ⓘ) 대신 색상표만 남기고 ⓘ 설명은 tooltip으로 유지했어요.
+          "박스 크기"는 이 배경 섹션이 아니라 원래도 별도 섹션(TextBoxToolbar, "박스
+          크기(선택 테두리, %)")이라 안 건드렸어요 — 거긴 이미 너비·높이 두 입력칸이
+          한 줄(grid-cols-2)에 있어서 혜민님이 요청하신 모양 그대로예요. */}
+      {background?.backgroundColor && (
+        <div className="mt-1.5">
+          <div className="flex items-center gap-1">
+            <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트 배경</label>
+            <input
+              type="color"
+              value={background.backgroundColor}
+              onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
+              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="배경 색"
+            />
+            <span
+              title="배경이 이 박스의 실제 크기와 항상 같아요. '박스 전체 배경'일 땐 캔버스에서 손잡이로 박스 크기를 조절하면 배경도 같이 늘어나거나 줄어들어요."
+              className="cursor-help select-none text-[10px] leading-none text-[var(--color-charcoal)]/40"
+            >
+              ⓘ
+            </span>
           </div>
-          {background.backgroundColor && background.allowFillBoxBackground && (
+          {background.allowFillBoxBackground && (
             <div className="mt-1.5">
               <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 방식</label>
               <div className="grid grid-cols-2 gap-1">
@@ -4778,7 +4778,9 @@ function TableBoxToolbar({
   }
   return (
     <div
-      className="mt-2 flex flex-col gap-2 border-t border-[var(--color-hairline)] pt-2"
+      // 2026-11-9차 8번째 라운드, 혜민님 요청(간격 줄이기, 일정하게) — TextBoxToolbar와
+      // 같은 gap-1.5(6px)로 맞췄어요.
+      className="mt-2 flex flex-col gap-1.5 border-t border-[var(--color-hairline)] pt-2"
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between">
@@ -5150,9 +5152,6 @@ function TableBoxToolbar({
             }}
             onChange={(patch) =>
               (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle(patch)
-            }
-            onReset={(fields) =>
-              (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.resetCellStyleFields(fields)
             }
             pageWidthMm={pageWidthMm}
           />
@@ -5746,7 +5745,11 @@ function TextBoxToolbar({
     // 카드 안에 또 카드가 들어간 느낌을 없애려고 테두리·그림자·둥근 배경은 빼고,
     // 아래쪽 구분선 하나로만 다른 내용과 나눴어요.
     <div
-      className="mb-4 flex flex-col gap-2 border-b border-[var(--color-hairline)] pb-4"
+      // 2026-11-9차 8번째 라운드, 혜민님 요청("항목 사이 세로 여백이 커서 스크롤을
+      // 많이 해야 해요... 입력칸·버튼·구분선 사이 간격을 일정하게 줄여 주세요") —
+      // 이 패널의 최상위 블록 사이 간격을 gap-2(8px)에서 gap-1.5(6px)로 줄였어요.
+      // TableBoxToolbar(표 칸 패널)도 같은 값으로 맞춰서 두 패널의 밀도가 똑같아요.
+      className="mb-4 flex flex-col gap-1.5 border-b border-[var(--color-hairline)] pb-4"
       // e.preventDefault()도 같이 줘요(2026-10-06 추가) — 안 그러면 이 패널 안 버튼을
       // 누르는 순간 브라우저가 포커스를 그 버튼으로 옮기면서 텍스트박스
       // contentEditable의 선택(드래그로 고른 글자 범위)이 먼저 사라져서, "선택 범위에만
