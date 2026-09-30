@@ -140,6 +140,12 @@ export type TextBoxDef = {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  // 그림자 불투명도(2026-11-9차 6번째 라운드, 혜민님 요청: "그림자에 투명도(Opacity)
+  // 필드를 추가해주세요" — 일러스트레이터 Drop Shadow 대화상자를 참고 자료로 받음) —
+  // 0~100(%), shadowColor의 알파 채널에 곱해져요. 지정 안 하면(undefined, 기존
+  // 저장된 문서 전부 이 상태) 100(완전 불투명)으로 취급해서 이 필드가 생기기 전과
+  // 화면·인쇄 모두 똑같이 보여요(하위 호환).
+  shadowOpacity?: number;
 };
 
 // 자유 배치 이미지박스 하나예요(내지 스프레드·표지 앞면 공통으로 써요). 텍스트박스와
@@ -287,6 +293,9 @@ export type TableCellStyle = {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  // TextBoxDef.shadowOpacity와 같은 이름·같은 단위(0~100%)·같은 하위 호환 규칙
+  // (undefined면 100=완전 불투명)이에요.
+  shadowOpacity?: number;
   hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
   // 이 칸(anchor)에 닿은 격자선의 선 색·굵기·종류·점선 세부값을 표 전체 기본값과
   // 다르게 줘요(2026-10, 혜민님 요청: "표 전체를 선택했을 때는 전체 선 설정을, 셀을

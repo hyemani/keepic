@@ -166,6 +166,7 @@ export type TextStylePreset = {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  shadowOpacity?: number;
 };
 
 const TEXT_STYLE_STORAGE_KEY = "keepic_text_style_presets";

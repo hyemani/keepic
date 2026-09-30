@@ -392,7 +392,7 @@ function drawTextBoxOnCanvasRuns(
             : "0px";
         }
         if (hasShadow) {
-          ctx.shadowColor = box.shadowColor!;
+          ctx.shadowColor = hexToRgbaPrint(box.shadowColor!, (box.shadowOpacity ?? 100) / 100);
           ctx.shadowBlur = strokeShadowBasePx * (box.shadowBlur ?? 0);
           ctx.shadowOffsetX = strokeShadowBasePx * (box.shadowOffsetX ?? 0);
           ctx.shadowOffsetY = strokeShadowBasePx * (box.shadowOffsetY ?? 0);
@@ -572,7 +572,7 @@ function drawTextBoxOnCanvas(
   const hasShadow = !!box.shadowColor;
   const drawLineStrokeAndFill = (line: string, lineY: number) => {
     if (hasShadow) {
-      ctx.shadowColor = box.shadowColor!;
+      ctx.shadowColor = hexToRgbaPrint(box.shadowColor!, (box.shadowOpacity ?? 100) / 100);
       ctx.shadowBlur = fontPx * (box.shadowBlur ?? 0);
       ctx.shadowOffsetX = fontPx * (box.shadowOffsetX ?? 0);
       ctx.shadowOffsetY = fontPx * (box.shadowOffsetY ?? 0);
@@ -1042,6 +1042,7 @@ function drawTableGridAndCells(
       const effShadowBlur = style?.shadowBlur;
       const effShadowOffsetX = style?.shadowOffsetX;
       const effShadowOffsetY = style?.shadowOffsetY;
+      const effShadowOpacity = style?.shadowOpacity;
       const hasShadow = !!effShadowColor;
       ctx.font = `${effFontStyle}${effFontWeight}${effFontPx}px ${effFontFamily}`;
       ctx.fillStyle = effColor;
@@ -1080,7 +1081,7 @@ function drawTableGridAndCells(
       lines.forEach((line, i) => {
         const lineY = startY + i * lineHeight;
         if (hasShadow) {
-          ctx.shadowColor = effShadowColor!;
+          ctx.shadowColor = hexToRgbaPrint(effShadowColor!, (effShadowOpacity ?? 100) / 100);
           ctx.shadowBlur = effFontPx * (effShadowBlur ?? 0);
           ctx.shadowOffsetX = effFontPx * (effShadowOffsetX ?? 0);
           ctx.shadowOffsetY = effFontPx * (effShadowOffsetY ?? 0);
@@ -1872,6 +1873,7 @@ function drawSpineTitleCanvas(
   shadowBlur?: number,
   shadowOffsetX?: number,
   shadowOffsetY?: number,
+  shadowOpacity?: number,
   backgroundColor?: string,
   backgroundPaddingXPct: number = 40,
   backgroundPaddingYPct: number = 25,
@@ -1954,7 +1956,7 @@ function drawSpineTitleCanvas(
   const hasStroke = !!strokeColor && !!strokeWidth && strokeWidth > 0;
   const hasShadow = !!shadowColor;
   if (hasShadow) {
-    ctx.shadowColor = shadowColor!;
+    ctx.shadowColor = hexToRgbaPrint(shadowColor!, (shadowOpacity ?? 100) / 100);
     ctx.shadowBlur = size * (shadowBlur ?? 0);
     ctx.shadowOffsetX = size * (shadowOffsetX ?? 0);
     ctx.shadowOffsetY = size * (shadowOffsetY ?? 0);
@@ -2098,6 +2100,7 @@ export async function buildCoverPrintPdf({
   coverTitleShadowBlur,
   coverTitleShadowOffsetX,
   coverTitleShadowOffsetY,
+  coverTitleShadowOpacity,
   coverTitleBackgroundColor,
   coverTitleBackgroundPaddingXPct = 40,
   coverTitleBackgroundPaddingYPct = 25,
@@ -2122,6 +2125,7 @@ export async function buildCoverPrintPdf({
   spineTitleShadowBlur,
   spineTitleShadowOffsetX,
   spineTitleShadowOffsetY,
+  spineTitleShadowOpacity,
   spineTitleBackgroundColor,
   spineTitleBackgroundPaddingXPct = 40,
   spineTitleBackgroundPaddingYPct = 25,
@@ -2183,6 +2187,9 @@ export async function buildCoverPrintPdf({
   coverTitleShadowBlur?: number;
   coverTitleShadowOffsetX?: number;
   coverTitleShadowOffsetY?: number;
+  // 그림자 불투명도(2026-11-9차 6번째 라운드, 0~100%) — 화면(app/upload/page.tsx
+  // TextStyleFields.shadowOpacity)과 같은 이름·단위, undefined면 100(완전 불투명).
+  coverTitleShadowOpacity?: number;
   coverTitleBackgroundColor?: string;
   coverTitleBackgroundPaddingXPct?: number;
   coverTitleBackgroundPaddingYPct?: number;
@@ -2216,6 +2223,7 @@ export async function buildCoverPrintPdf({
   spineTitleShadowBlur?: number;
   spineTitleShadowOffsetX?: number;
   spineTitleShadowOffsetY?: number;
+  spineTitleShadowOpacity?: number;
   spineTitleBackgroundColor?: string;
   spineTitleBackgroundPaddingXPct?: number;
   spineTitleBackgroundPaddingYPct?: number;
@@ -2436,6 +2444,7 @@ export async function buildCoverPrintPdf({
       spineTitleShadowBlur,
       spineTitleShadowOffsetX,
       spineTitleShadowOffsetY,
+      spineTitleShadowOpacity,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -2490,7 +2499,9 @@ export async function buildCoverPrintPdf({
     // titlePx*0.4, 이동 없음)를 그대로 써요 — 하위 호환, 기존 표지는 렌더링이 전혀
     // 안 바뀌어요.
     const hasCustomTitleShadow = !!coverTitleShadowColor;
-    const titleShadowColor = hasCustomTitleShadow ? coverTitleShadowColor! : "rgba(0,0,0,0.45)";
+    const titleShadowColor = hasCustomTitleShadow
+      ? hexToRgbaPrint(coverTitleShadowColor!, (coverTitleShadowOpacity ?? 100) / 100)
+      : "rgba(0,0,0,0.45)";
     const titleShadowBlur = hasCustomTitleShadow ? titlePx * (coverTitleShadowBlur ?? 0) : titlePx * 0.4;
     const titleShadowOffsetX = hasCustomTitleShadow ? titlePx * (coverTitleShadowOffsetX ?? 0) : 0;
     const titleShadowOffsetY = hasCustomTitleShadow ? titlePx * (coverTitleShadowOffsetY ?? 0) : 0;

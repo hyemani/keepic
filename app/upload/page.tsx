@@ -2136,14 +2136,20 @@ function combinedTextShadow(
   shadowColor: string | undefined,
   shadowBlurEm: number | undefined,
   shadowOffsetXEm: number | undefined,
-  shadowOffsetYEm: number | undefined
+  shadowOffsetYEm: number | undefined,
+  // 그림자 불투명도(2026-11-9차 6번째 라운드, 0~100%) — CSS text-shadow엔 따로 알파
+  // 채널이 없어서, shadowColor 자체를 hexToRgba로 알파를 입힌 rgba() 문자열로 바꿔서
+  // 표현해요(인쇄 lib/printCompose.ts의 ctx.shadowColor도 같은 방식). undefined면
+  // 100(완전 불투명)으로 취급해 이 필드가 생기기 전과 똑같이 보여요.
+  shadowOpacityPct?: number
 ): string | undefined {
   const parts: string[] = [];
   if (strokeColor && strokeWidthEm) {
     parts.push(...strokeRingShadowList(strokeColor, strokeWidthEm));
   }
   if (shadowColor) {
-    parts.push(`${shadowOffsetXEm ?? 0}em ${shadowOffsetYEm ?? 0}em ${shadowBlurEm ?? 0}em ${shadowColor}`);
+    const shadowColorWithAlpha = hexToRgba(shadowColor, (shadowOpacityPct ?? 100) / 100);
+    parts.push(`${shadowOffsetXEm ?? 0}em ${shadowOffsetYEm ?? 0}em ${shadowBlurEm ?? 0}em ${shadowColorWithAlpha}`);
   }
   return parts.length ? parts.join(", ") : undefined;
 }
@@ -2442,7 +2448,8 @@ function TextBoxRichEditor({
               box.shadowColor,
               box.shadowBlur,
               box.shadowOffsetX,
-              box.shadowOffsetY
+              box.shadowOffsetY,
+              box.shadowOpacity
             );
             return ts ? { textShadow: ts } : {};
           })(),
@@ -4070,6 +4077,26 @@ type TextStyleFields = {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  shadowOpacity?: number;
+};
+
+// 텍스트 배경(하이라이트) 구역 전용 값·콜백이에요 — 표 칸(TableBoxToolbar)엔 없는
+// 텍스트박스 전용 기능이라(2026-11-9차 6번째 라운드), 이 prop이 없으면(undefined)
+// TextStyleFieldsPanel이 "텍스트 배경" 구역 자체를 안 그려요(표 칸 호출부는 이 prop을
+// 안 넘겨서 기존과 동일하게 안 보여요). 필드 이름·의미는 TextBoxDef의 같은 이름
+// 필드와 1:1로 같아요 — 이 타입은 오직 "지금 보여줄 값"을 한데 묶어 넘기는 용도예요.
+type TextBackgroundFields = {
+  backgroundColor?: string;
+  backgroundMode?: "hugText" | "fillBox";
+  backgroundPaddingXPct?: number;
+  backgroundPaddingYPct?: number;
+  backgroundWidthPct?: number;
+  widthPct: number;
+  heightPct?: number;
+  // 책등(스핀)은 배경이 90도 회전돼 그려져서 "박스 전체 배경" 모드가 아직 화면에서
+  // 검증 안 됐어요(TextBoxToolbar allowFillBoxBackground 주석과 같은 이유) — 책등
+  // 호출부만 false를 넘겨서 "배경 방식" 버튼 자체를 숨겨요.
+  allowFillBoxBackground: boolean;
 };
 
 function TextStyleFieldsPanel({
@@ -4078,12 +4105,23 @@ function TextStyleFieldsPanel({
   onChange,
   onReset,
   pageWidthMm,
+  background,
+  onBackgroundChange,
 }: {
   syncKey: string;
   value: TextStyleFields;
   onChange: (patch: Partial<TextStyleFields>) => void;
   onReset?: (fields: (keyof TextStyleFields)[]) => void;
   pageWidthMm: number;
+  background?: TextBackgroundFields;
+  onBackgroundChange?: (patch: {
+    backgroundColor?: string;
+    backgroundMode?: "hugText" | "fillBox";
+    backgroundPaddingXPct?: number;
+    backgroundPaddingYPct?: number;
+    backgroundWidthPct?: number;
+    heightPct?: number;
+  }) => void;
 }) {
   const [ptDraft, setPtDraft] = useState(() => String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)));
   const [lineHeightDraft, setLineHeightDraft] = useState(() => String(value.lineHeight));
@@ -4308,7 +4346,13 @@ function TextStyleFieldsPanel({
         />
         {resetButton(["bold", "italic", "underline", "strikethrough", "color"])}
       </div>
-      <div className="mt-1.5">
+      {/* 2026-11-9차 6번째 라운드, 혜민님 요청("그림자와 텍스트배경 설정이 흩어져
+          있고, 배경색 아이콘에 제목이 없어서... 구역을 정리해주세요") — 텍스트선·
+          그림자·텍스트 배경 세 구역 모두 "제목 + on/off 토글 + 색상 견본"으로 시작하는
+          같은 모양 헤더를 쓰고, 구역 사이엔 표 칸 패널(TableBoxToolbar, "선택한 칸"
+          섹션 끝)에서 이미 쓰던 구분선 스타일(border-t + pt-2)을 그대로 재사용해서
+          경계를 분명히 나눠요. */}
+      <div className="mt-2 border-t border-[var(--color-hairline)] pt-2">
         <div className="flex items-center justify-between gap-1.5">
           <label className="text-[10px] text-[var(--color-charcoal)]/60">텍스트선(외곽선)</label>
           <div className="flex items-center gap-1.5">
@@ -4358,13 +4402,21 @@ function TextStyleFieldsPanel({
           </div>
         </div>
       </div>
-      <div className="mt-1.5">
+      {/* 그림자(2026-11-9차 6번째 라운드 재정리, 혜민님 요청: "토글+색상표를 제목 옆에
+          두고, 켜면 투명도·X이동·Y이동·번짐 4개를 2열×2행으로, 각 칸에 아이콘이 아니라
+          짧은 이름표를 붙이고, 입력칸 자체에서 단위(%)를 알 수 있게") — 슬라이더는 안
+          쓰고(717a353 라운드에서 이미 뺀 규칙 유지) 전부 숫자 입력+퍼센트 표시예요.
+          투명도(shadowOpacity, 이번에 새로 추가된 필드)는 CSS text-shadow에 알파
+          채널이 따로 없어서 색 자체에 입혀요(combinedTextShadow의 hexToRgba, 인쇄는
+          lib/printCompose.ts의 hexToRgbaPrint로 동일하게 처리) — 입력칸 자체는 평범한
+          0~100 숫자라 사용자가 보기엔 그냥 "투명도 %"예요. */}
+      <div className="mt-2 border-t border-[var(--color-hairline)] pt-2">
         <div className="flex items-center justify-between gap-1.5">
           <label className="text-[10px] text-[var(--color-charcoal)]/60">그림자</label>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 번짐·이동은 마지막에 쓰던 값)"}
+              title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 투명도·번짐·이동은 마지막에 쓰던 값)"}
               aria-pressed={!!value.shadowColor}
               onClick={() =>
                 onChange(
@@ -4372,6 +4424,7 @@ function TextStyleFieldsPanel({
                     ? { shadowColor: undefined }
                     : {
                         shadowColor: "#000000",
+                        shadowOpacity: value.shadowOpacity ?? 100,
                         shadowBlur: value.shadowBlur ?? 0.15,
                         shadowOffsetX: value.shadowOffsetX ?? 0.05,
                         shadowOffsetY: value.shadowOffsetY ?? 0.05,
@@ -4398,55 +4451,250 @@ function TextStyleFieldsPanel({
           </div>
         </div>
         {value.shadowColor && (
-          <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+          <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <div>
+              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">투명도</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round(value.shadowOpacity ?? 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })
+                  }
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 투명도를 숫자로 직접 입력(0~100%, 100이 완전 불투명)"
+                />
+                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">X 이동</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={-100}
+                  max={100}
+                  step={1}
+                  value={Math.round((value.shadowOffsetX ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetX: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 가로 이동을 숫자로 직접 입력(-100~100%)"
+                />
+                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">Y 이동</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={-100}
+                  max={100}
+                  step={1}
+                  value={Math.round((value.shadowOffsetY ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetY: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 세로 이동을 숫자로 직접 입력(-100~100%)"
+                />
+                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
+            </div>
             <div>
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">번짐</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round((value.shadowBlur ?? 0.15) * 100)}
-                onChange={(e) =>
-                  onChange({ shadowBlur: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
-                }
-                className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                title="그림자 번짐을 숫자로 직접 입력(0~100%)"
-              />
-            </div>
-            <div>
-              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">가로 이동</label>
-              <input
-                type="number"
-                min={-100}
-                max={100}
-                step={1}
-                value={Math.round((value.shadowOffsetX ?? 0.05) * 100)}
-                onChange={(e) =>
-                  onChange({ shadowOffsetX: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
-                }
-                className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                title="그림자 가로 이동을 숫자로 직접 입력(-100~100%)"
-              />
-            </div>
-            <div>
-              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">세로 이동</label>
-              <input
-                type="number"
-                min={-100}
-                max={100}
-                step={1}
-                value={Math.round((value.shadowOffsetY ?? 0.05) * 100)}
-                onChange={(e) =>
-                  onChange({ shadowOffsetY: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
-                }
-                className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                title="그림자 세로 이동을 숫자로 직접 입력(-100~100%)"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round((value.shadowBlur ?? 0.15) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowBlur: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 번짐을 숫자로 직접 입력(0~100%)"
+                />
+                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
             </div>
           </div>
         )}
       </div>
+      {/* 텍스트 배경(2026-11-9차 6번째 라운드, 혜민님 요청: "배경 아이콘이 제목도 없이
+          그림자 밑에 떠 있어서 뭔지 알기 어려워요... '텍스트 배경'이라는 이름의 별도
+          구역으로 옮기고, 켰을 때만 글자 주변/박스 전체 방식과 세부 설정이 보이게") —
+          이 구역은 표 칸(TableBoxToolbar)엔 없는 텍스트박스 전용 기능이라, 호출하는
+          쪽(TextBoxToolbar)이 background prop을 넘길 때만 렌더링돼요(표 칸은 안
+          넘겨서 예전처럼 이 구역 자체가 안 보여요 — 기존 동작과 동일). 값 자체
+          (backgroundColor·backgroundMode·backgroundPaddingXPct/YPct·
+          backgroundWidthPct·widthPct·heightPct)는 그대로 TextBoxToolbar가 읽고
+          쓰던 필드라 저장 위치·의미는 전혀 안 바뀌고, 자리만 이 컴포넌트 안 "텍스트
+          배경"이라는 제목 달린 구역으로 옮겼어요. */}
+      {background && (
+        <div className="mt-2 border-t border-[var(--color-hairline)] pt-2">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1">
+              <label className="text-[10px] text-[var(--color-charcoal)]/60">텍스트 배경</label>
+              <span
+                title="배경이 이 박스의 실제 크기와 항상 같아요. '박스 전체 배경'일 땐 캔버스에서 손잡이로 박스 크기를 조절하면 배경도 같이 늘어나거나 줄어들어요."
+                className="cursor-help select-none text-[10px] leading-none text-[var(--color-charcoal)]/40"
+              >
+                ⓘ
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                title="배경"
+                onClick={() => {
+                  if (background.backgroundColor) {
+                    onBackgroundChange?.({ backgroundColor: undefined });
+                    return;
+                  }
+                  onBackgroundChange?.(
+                    background.allowFillBoxBackground
+                      ? {
+                          backgroundColor: "#fff59d",
+                          backgroundMode: "fillBox",
+                          heightPct: background.heightPct ?? 20,
+                        }
+                      : { backgroundColor: "#fff59d" }
+                  );
+                }}
+                className={`flex h-7 w-7 items-center justify-center border ${
+                  background.backgroundColor
+                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                }`}
+              >
+                <LayerIcon name="highlight" className="h-4 w-4" />
+              </button>
+              {background.backgroundColor && (
+                <input
+                  type="color"
+                  value={background.backgroundColor}
+                  onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
+                  className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+                  title="배경 색"
+                />
+              )}
+            </div>
+          </div>
+          {background.backgroundColor && background.allowFillBoxBackground && (
+            <div className="mt-1.5">
+              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 방식</label>
+              <div className="grid grid-cols-2 gap-1">
+                {(
+                  [
+                    { id: "hugText" as const, label: "글자 주변 배경" },
+                    { id: "fillBox" as const, label: "박스 전체 배경" },
+                  ]
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      if (opt.id === "fillBox" && background.heightPct === undefined) {
+                        onBackgroundChange?.({ backgroundMode: opt.id, heightPct: 20 });
+                      } else {
+                        onBackgroundChange?.({ backgroundMode: opt.id });
+                      }
+                    }}
+                    className={`border px-2 py-1.5 text-xs transition ${
+                      (background.backgroundMode ?? "hugText") === opt.id
+                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {background.backgroundColor && (background.backgroundMode ?? "hugText") === "hugText" && (
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 가로 여백(%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={150}
+                  step={5}
+                  value={background.backgroundPaddingXPct ?? 40}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (!Number.isFinite(v)) return;
+                    onBackgroundChange?.({ backgroundPaddingXPct: Math.max(0, Math.min(150, v)) });
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 세로 여백(%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={150}
+                  step={5}
+                  value={background.backgroundPaddingYPct ?? 25}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (!Number.isFinite(v)) return;
+                    onBackgroundChange?.({ backgroundPaddingYPct: Math.max(0, Math.min(150, v)) });
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                />
+              </div>
+            </div>
+          )}
+          {background.backgroundColor && (background.backgroundMode ?? "hugText") === "hugText" && (
+            <div className="mt-1.5">
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-[10px] text-[var(--color-charcoal)]/60">배경 띠 너비(%, 전체 너비 기준)</label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onBackgroundChange?.({
+                      backgroundWidthPct:
+                        background.backgroundWidthPct === undefined ? Math.round(background.widthPct) : undefined,
+                    })
+                  }
+                  className={`shrink-0 border px-2 py-0.5 text-[10px] ${
+                    background.backgroundWidthPct !== undefined
+                      ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                      : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+                  }`}
+                >
+                  {background.backgroundWidthPct !== undefined ? "직접 지정" : "자동"}
+                </button>
+              </div>
+              {background.backgroundWidthPct !== undefined && (
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={Math.round(background.backgroundWidthPct)}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (!Number.isFinite(v)) return;
+                    onBackgroundChange?.({ backgroundWidthPct: Math.max(1, Math.min(100, v)) });
+                  }}
+                  className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -4898,6 +5146,7 @@ function TableBoxToolbar({
               shadowBlur: sel.selStyle?.shadowBlur,
               shadowOffsetX: sel.selStyle?.shadowOffsetX,
               shadowOffsetY: sel.selStyle?.shadowOffsetY,
+              shadowOpacity: sel.selStyle?.shadowOpacity,
             }}
             onChange={(patch) =>
               (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle(patch)
@@ -5486,6 +5735,7 @@ function TextBoxToolbar({
       shadowBlur: b.shadowBlur,
       shadowOffsetX: b.shadowOffsetX,
       shadowOffsetY: b.shadowOffsetY,
+      shadowOpacity: b.shadowOpacity,
     };
   }
 
@@ -5621,6 +5871,7 @@ function TextBoxToolbar({
           shadowBlur: box.shadowBlur,
           shadowOffsetX: box.shadowOffsetX,
           shadowOffsetY: box.shadowOffsetY,
+          shadowOpacity: box.shadowOpacity,
         }}
         onChange={(patch) => {
           const RUN_AWARE_KEYS: readonly string[] = ["fontFamily", "fontScale", "bold", "italic", "underline", "color"];
@@ -5628,197 +5879,23 @@ function TextBoxToolbar({
           onChange(isRunAware ? applyRunAwareStyleChange(box, selectionRange, patch) : patch);
         }}
         pageWidthMm={pageWidthMm}
+        // 2026-11-9차 6번째 라운드, 혜민님 요청("배경 설정을 '텍스트 배경'이라는
+        // 이름의 구역으로 정리") — 배경(하이라이트)은 표 칸엔 없는 텍스트박스 전용
+        // 기능이라 이 prop을 넘길 때만 TextStyleFieldsPanel이 그 구역을 그려요. 값
+        // 자체는 예전에 여기 직접 있던 JSX와 완전히 같은 필드(box.backgroundColor 등)
+        // 라 저장 위치·의미는 전혀 안 바뀌었어요(자리만 공용 컴포넌트 안으로 옮김).
+        background={{
+          backgroundColor: box.backgroundColor,
+          backgroundMode: box.backgroundMode,
+          backgroundPaddingXPct: box.backgroundPaddingXPct,
+          backgroundPaddingYPct: box.backgroundPaddingYPct,
+          backgroundWidthPct: box.backgroundWidthPct,
+          widthPct: box.widthPct,
+          heightPct: box.heightPct,
+          allowFillBoxBackground,
+        }}
+        onBackgroundChange={(patch) => onChange(patch)}
       />
-      {/* 2026-10-02, 혜민님 요청: "텍스트에 밑줄, 기울기, 배경 넣는기능 추가" —
-          밑줄·기울임·취소선은 2026-11-9차 5번째 라운드에서 위 공용 글자 꾸밈
-          패널(TextStyleFieldsPanel)의 B/I/U/S 줄로 옮겼어요(표 칸 패널과 순서 통일).
-          배경은 표 칸엔 없는 텍스트박스 전용 기능이라 그대로 여기 남아있어요. 배경을
-          켜면 색상표와 가로/세로 여백(%) 조절이 바로 아래에 나타남(가로/세로 크기를
-          조절할 수 있어야 한다는 요청). ⚠️ 화면 미리보기 전용은 아니고 인쇄 PDF
-          (lib/printCompose.ts)에도 같이 반영돼요. */}
-      <div className="mt-1.5 flex items-center gap-1.5">
-        <button
-          type="button"
-          title="배경"
-          onClick={() => {
-            if (box.backgroundColor) {
-              // 이미 켜져 있으면 그냥 꺼요(방식/여백 등 다른 설정은 그대로 남겨둬서,
-              // 다시 켜면 마지막으로 쓰던 모습 그대로 돌아와요).
-              onChange({ backgroundColor: undefined });
-              return;
-            }
-            // 2026-10(7차), 혜민님 요청("배경은 글상자의 실제 가로폭에 맞춰 채워지고,
-            // 크기를 조절하면 함께 바뀌게") — 처음 배경을 켤 때(box.backgroundColor가
-            // 아직 없을 때만) 기본을 "박스 전체 배경"(fillBox)으로 시작해요.
-            onChange(
-              allowFillBoxBackground
-                ? {
-                    backgroundColor: "#fff59d",
-                    backgroundMode: "fillBox",
-                    heightPct: box.heightPct ?? 20,
-                  }
-                : { backgroundColor: "#fff59d" }
-            );
-          }}
-          className={`flex h-7 w-7 items-center justify-center border ${
-            box.backgroundColor
-              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-          }`}
-        >
-          <LayerIcon name="highlight" className="h-4 w-4" />
-        </button>
-        {box.backgroundColor && (
-          <input
-            type="color"
-            value={box.backgroundColor}
-            onChange={(e) => onChange({ backgroundColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="배경 색"
-          />
-        )}
-      </div>
-      {/* "글자 주변 배경" vs "박스 전체 배경"(2026-10, 혜민님 요청: "박스 전체 채우기
-          방식을 추가... 기존처럼 글자 주변에만 배경을 넣는 방식도 필요하므로 구분해
-          선택할 수 있게") — 모드 하나만 고르면 그 모드에만 해당하는 세부 설정만
-          아래 보여요(중복되는 "배경 띠 너비"는 fillBox에선 항상 "박스 폭과 같음"이라
-          아예 안 보여요). */}
-      {box.backgroundColor && allowFillBoxBackground && (
-        <div>
-          <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">배경 방식</label>
-          <div className="grid grid-cols-2 gap-1">
-            {(
-              [
-                { id: "hugText" as const, label: "글자 주변 배경" },
-                { id: "fillBox" as const, label: "박스 전체 배경" },
-              ]
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => {
-                  if (opt.id === "fillBox" && box.heightPct === undefined) {
-                    // fillBox는 "박스 자신의 실제 세로 크기"가 있어야 의미가 있어요 — 아직
-                    // 고정 높이가 없는(글자 양에 맞춰 자동으로 늘어나는) 박스라면, 지금
-                    // 화면에 보이는 정도의 합리적인 기본 높이를 같이 지정해요(2026-10,
-                    // 혜민님 요청 "박스 전체 채우기... 상자 크기를 조절하면 배경도 늘어나야").
-                    // 높이가 없으면 배경은 자동으로 "폭은 박스 그대로, 높이는 글자에 맞춤"
-                    // (아래 fillBoxBackground div가 자동으로 그렇게 동작해요)으로 남아요.
-                    onChange({ backgroundMode: opt.id, heightPct: 20 });
-                  } else {
-                    onChange({ backgroundMode: opt.id });
-                  }
-                }}
-                className={`border px-2 py-1.5 text-xs transition ${
-                  (box.backgroundMode ?? "hugText") === opt.id
-                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {box.backgroundColor && (box.backgroundMode ?? "hugText") === "hugText" && (
-        <div className="grid grid-cols-2 gap-1.5">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
-              배경 가로 여백(%)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={150}
-              step={5}
-              value={box.backgroundPaddingXPct ?? 40}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (!Number.isFinite(v)) return;
-                onChange({ backgroundPaddingXPct: Math.max(0, Math.min(150, v)) });
-              }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
-              배경 세로 여백(%)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={150}
-              step={5}
-              value={box.backgroundPaddingYPct ?? 25}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (!Number.isFinite(v)) return;
-                onChange({ backgroundPaddingYPct: Math.max(0, Math.min(150, v)) });
-              }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
-            />
-          </div>
-        </div>
-      )}
-      {box.backgroundColor && (box.backgroundMode ?? "hugText") === "hugText" && (
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <label className="block text-sm font-medium text-[var(--color-charcoal)]/70">
-              배경 띠 너비(%, 전체 너비 기준)
-            </label>
-            {/* "배경 가로 여백"(위)은 글자 주변 여백이고, 이건 배경 띠 자체의 전체
-                너비예요 — 서로 다른 설정이라는 걸 라벨과 이 토글 버튼으로 분명히
-                구분해요(2026-10, 혜민님 요청: "노란 배경 띠 가로길이를 글자와 별개로
-                조절하고 싶다"). 꺼두면(자동) 글자 폭+위 여백으로 예전처럼 자동
-                계산되고, 켜면 그 값을 무시하고 이 너비로 고정돼요. "박스 전체 배경"
-                모드에선 배경 폭이 항상 박스 폭과 같아서 이 설정 자체가 없어요(위 배경
-                방식 토글로 구분). */}
-            <button
-              type="button"
-              onClick={() =>
-                onChange({
-                  backgroundWidthPct:
-                    box.backgroundWidthPct === undefined ? Math.round(box.widthPct) : undefined,
-                })
-              }
-              className={`shrink-0 border px-2 py-0.5 text-xs ${
-                box.backgroundWidthPct !== undefined
-                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-              }`}
-            >
-              {box.backgroundWidthPct !== undefined ? "직접 지정" : "자동"}
-            </button>
-          </div>
-          {box.backgroundWidthPct !== undefined && (
-            <input
-              type="number"
-              min={1}
-              max={100}
-              step={1}
-              value={Math.round(box.backgroundWidthPct)}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (!Number.isFinite(v)) return;
-                onChange({ backgroundWidthPct: Math.max(1, Math.min(100, v)) });
-              }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
-            />
-          )}
-          <p className="mt-1 text-xs text-[var(--color-charcoal)]/50">
-            글자는 그대로 두고 배경 띠만 늘리거나 줄여요. “배경 가로 여백”과는 다른
-            설정이에요.
-          </p>
-        </div>
-      )}
-      {box.backgroundColor && (box.backgroundMode ?? "hugText") === "fillBox" && (
-        <p className="text-xs text-[var(--color-charcoal)]/50">
-          배경이 이 박스의 실제 가로·세로 크기와 항상 같아요 — 캔버스에서 박스 손잡이로
-          크기를 조절하면 배경도 같이 늘어나거나 줄어들어요. 박스 안 글자 위치는 아래
-          “문단 정렬”과 “박스영역 정렬”을 따라요.
-        </p>
-      )}
       {/* 2026-10(7차), 혜민님 요청("속성 패널에서도 상자 너비·높이를 확인하고 입력할
           수 있으면 좋겠다") — 위 "가로 폭(%)"/"세로 폭(%)"은 글자 모양을 늘이는
           scaleXPct/scaleYPct(캔버스 미리보기 전용)이고, 이건 그것과 완전히 다른 값 —
@@ -8790,7 +8867,8 @@ const TableBoxOverlay = forwardRef<
                   cellOverride?.shadowColor,
                   cellOverride?.shadowBlur,
                   cellOverride?.shadowOffsetX,
-                  cellOverride?.shadowOffsetY
+                  cellOverride?.shadowOffsetY,
+                  cellOverride?.shadowOpacity
                 ),
               }}
               className="relative z-10 max-h-full w-full resize-none overflow-hidden bg-transparent p-0 outline-none"
@@ -9203,7 +9281,8 @@ function CoverTitleOverlay({
         editableBox.shadowColor,
         editableBox.shadowBlur,
         editableBox.shadowOffsetX,
-        editableBox.shadowOffsetY
+        editableBox.shadowOffsetY,
+        editableBox.shadowOpacity
       );
       return ts ? { textShadow: ts } : {};
     })(),
@@ -9357,6 +9436,7 @@ function SpineTitleOverlay({
   shadowBlur,
   shadowOffsetX,
   shadowOffsetY,
+  shadowOpacity,
   backgroundColor,
   backgroundPaddingXPct,
   backgroundPaddingYPct,
@@ -9394,6 +9474,7 @@ function SpineTitleOverlay({
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  shadowOpacity?: number;
   backgroundColor?: string;
   backgroundPaddingXPct?: number;
   backgroundPaddingYPct?: number;
@@ -9488,7 +9569,7 @@ function SpineTitleOverlay({
     // 텍스트선·그림자(2026-11-9차 3번째 라운드) — 위 CoverTitleOverlay/
     // TextBoxRichEditor와 같은 combinedTextShadow(다중 그림자 링) 방식.
     ...(() => {
-      const ts = combinedTextShadow(strokeColor, strokeWidth, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY);
+      const ts = combinedTextShadow(strokeColor, strokeWidth, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, shadowOpacity);
       return ts ? { textShadow: ts } : {};
     })(),
   };
@@ -10184,6 +10265,7 @@ function UploadPageContent() {
   const [spineTitleShadowBlur, setSpineTitleShadowBlur] = useState<number | undefined>(undefined);
   const [spineTitleShadowOffsetX, setSpineTitleShadowOffsetX] = useState<number | undefined>(undefined);
   const [spineTitleShadowOffsetY, setSpineTitleShadowOffsetY] = useState<number | undefined>(undefined);
+  const [spineTitleShadowOpacity, setSpineTitleShadowOpacity] = useState<number | undefined>(undefined);
   const [spineTitleBackgroundColor, setSpineTitleBackgroundColor] = useState<string | undefined>(undefined);
   const [spineTitleBackgroundPaddingXPct, setSpineTitleBackgroundPaddingXPct] = useState(40);
   const [spineTitleBackgroundPaddingYPct, setSpineTitleBackgroundPaddingYPct] = useState(25);
@@ -10225,6 +10307,7 @@ function UploadPageContent() {
   const [coverTitleShadowBlur, setCoverTitleShadowBlur] = useState<number | undefined>(undefined);
   const [coverTitleShadowOffsetX, setCoverTitleShadowOffsetX] = useState<number | undefined>(undefined);
   const [coverTitleShadowOffsetY, setCoverTitleShadowOffsetY] = useState<number | undefined>(undefined);
+  const [coverTitleShadowOpacity, setCoverTitleShadowOpacity] = useState<number | undefined>(undefined);
   const [coverTitleBackgroundColor, setCoverTitleBackgroundColor] = useState<string | undefined>(undefined);
   const [coverTitleBackgroundPaddingXPct, setCoverTitleBackgroundPaddingXPct] = useState(40);
   const [coverTitleBackgroundPaddingYPct, setCoverTitleBackgroundPaddingYPct] = useState(25);
@@ -12534,6 +12617,7 @@ function UploadPageContent() {
       coverTitleShadowBlur,
       coverTitleShadowOffsetX,
       coverTitleShadowOffsetY,
+      coverTitleShadowOpacity,
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
@@ -12559,6 +12643,7 @@ function UploadPageContent() {
       spineTitleShadowBlur,
       spineTitleShadowOffsetX,
       spineTitleShadowOffsetY,
+      spineTitleShadowOpacity,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -12612,6 +12697,7 @@ function UploadPageContent() {
     setCoverTitleShadowBlur(s.coverTitleShadowBlur);
     setCoverTitleShadowOffsetX(s.coverTitleShadowOffsetX);
     setCoverTitleShadowOffsetY(s.coverTitleShadowOffsetY);
+    setCoverTitleShadowOpacity(s.coverTitleShadowOpacity);
     setCoverTitleBackgroundColor(s.coverTitleBackgroundColor);
     setCoverTitleBackgroundPaddingXPct(s.coverTitleBackgroundPaddingXPct ?? 40);
     setCoverTitleBackgroundPaddingYPct(s.coverTitleBackgroundPaddingYPct ?? 25);
@@ -12650,6 +12736,7 @@ function UploadPageContent() {
     setSpineTitleShadowBlur(s.spineTitleShadowBlur);
     setSpineTitleShadowOffsetX(s.spineTitleShadowOffsetX);
     setSpineTitleShadowOffsetY(s.spineTitleShadowOffsetY);
+    setSpineTitleShadowOpacity(s.spineTitleShadowOpacity);
     setSpineTitleBackgroundColor(s.spineTitleBackgroundColor);
     setSpineTitleBackgroundPaddingXPct(s.spineTitleBackgroundPaddingXPct ?? 40);
     setSpineTitleBackgroundPaddingYPct(s.spineTitleBackgroundPaddingYPct ?? 25);
@@ -12732,6 +12819,7 @@ function UploadPageContent() {
     coverTitleShadowBlur,
     coverTitleShadowOffsetX,
     coverTitleShadowOffsetY,
+    coverTitleShadowOpacity,
     coverTitleBackgroundColor,
     coverTitleBackgroundPaddingXPct,
     coverTitleBackgroundPaddingYPct,
@@ -12757,6 +12845,7 @@ function UploadPageContent() {
     spineTitleShadowBlur,
     spineTitleShadowOffsetX,
     spineTitleShadowOffsetY,
+    spineTitleShadowOpacity,
     spineTitleBackgroundColor,
     spineTitleBackgroundPaddingXPct,
     spineTitleBackgroundPaddingYPct,
@@ -13040,6 +13129,7 @@ function UploadPageContent() {
       coverTitleShadowBlur,
       coverTitleShadowOffsetX,
       coverTitleShadowOffsetY,
+      coverTitleShadowOpacity,
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
@@ -13064,6 +13154,7 @@ function UploadPageContent() {
       spineTitleShadowBlur,
       spineTitleShadowOffsetX,
       spineTitleShadowOffsetY,
+      spineTitleShadowOpacity,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -13498,6 +13589,7 @@ function UploadPageContent() {
       shadowBlur: coverTitleShadowBlur,
       shadowOffsetX: coverTitleShadowOffsetX,
       shadowOffsetY: coverTitleShadowOffsetY,
+      shadowOpacity: coverTitleShadowOpacity,
       lineHeight: coverTitleLineHeightEm,
       letterSpacing: coverTitleLetterSpacingEm,
       backgroundColor: coverTitleBackgroundColor,
@@ -13543,6 +13635,7 @@ function UploadPageContent() {
       if ("shadowBlur" in changes) setCoverTitleShadowBlur(changes.shadowBlur);
       if ("shadowOffsetX" in changes) setCoverTitleShadowOffsetX(changes.shadowOffsetX);
       if ("shadowOffsetY" in changes) setCoverTitleShadowOffsetY(changes.shadowOffsetY);
+      if ("shadowOpacity" in changes) setCoverTitleShadowOpacity(changes.shadowOpacity);
       if ("backgroundColor" in changes) setCoverTitleBackgroundColor(changes.backgroundColor);
       if (changes.backgroundPaddingXPct !== undefined) setCoverTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setCoverTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
@@ -13577,6 +13670,7 @@ function UploadPageContent() {
       shadowBlur: spineTitleShadowBlur,
       shadowOffsetX: spineTitleShadowOffsetX,
       shadowOffsetY: spineTitleShadowOffsetY,
+      shadowOpacity: spineTitleShadowOpacity,
       // 책등은 행간·자간을 따로 안 둬요(한 줄짜리 세로쓰기 글자라 줄바꿈 개념이 없어요) —
       // 패널엔 그대로 보이지만(같은 컴포넌트라서) 바꿔도 저장할 자리가 없어 조용히
       // 무시돼요. 기본값만 채워둬요.
@@ -13607,6 +13701,7 @@ function UploadPageContent() {
       if ("shadowBlur" in changes) setSpineTitleShadowBlur(changes.shadowBlur);
       if ("shadowOffsetX" in changes) setSpineTitleShadowOffsetX(changes.shadowOffsetX);
       if ("shadowOffsetY" in changes) setSpineTitleShadowOffsetY(changes.shadowOffsetY);
+      if ("shadowOpacity" in changes) setSpineTitleShadowOpacity(changes.shadowOpacity);
       if ("backgroundColor" in changes) setSpineTitleBackgroundColor(changes.backgroundColor);
       if (changes.backgroundPaddingXPct !== undefined) setSpineTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setSpineTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
@@ -15073,6 +15168,7 @@ function UploadPageContent() {
                               shadowBlur={spineTitleShadowBlur}
                               shadowOffsetX={spineTitleShadowOffsetX}
                               shadowOffsetY={spineTitleShadowOffsetY}
+                              shadowOpacity={spineTitleShadowOpacity}
                               backgroundColor={spineTitleBackgroundColor}
                               backgroundPaddingXPct={spineTitleBackgroundPaddingXPct}
                               backgroundPaddingYPct={spineTitleBackgroundPaddingYPct}
