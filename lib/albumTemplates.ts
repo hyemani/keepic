@@ -274,6 +274,19 @@ export type TableCellStyle = {
   scaleYPct?: number;
   strokeColor?: string;
   strokeWidth?: number; // em 단위(글자 크기 대비 비율). 0.08 = 8%.
+  // 2026-11-9차 5번째 라운드, 혜민님 버그 리포트/요청("표안 글꼴 수정패널...
+  // 텍스트패널란은 공통으로 들어가야지 똑같은 내용으로") — 일반 글상자
+  // (TextBoxDef)의 shadowColor/shadowBlur/shadowOffsetX/shadowOffsetY와 같은
+  // 이름·같은 단위(em, 글자 크기 대비 비율)로 칸 전용 그림자를 둬요. 표 전체엔
+  // 이 필드들이 없어서 strokeColor/strokeWidth와 같은 이유로 항상 이 칸 자신의
+  // 값만 써요(값이 없으면 그림자 없음, 기존 표는 전부 이 상태라 하위 호환). 화면
+  // (app/upload/page.tsx TableBoxOverlay, combinedTextShadow)·인쇄
+  // (lib/printCompose.ts drawTableGridAndCells)에서 일반 글상자와 같은 방식으로
+  // 반영돼요.
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
   hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
   // 이 칸(anchor)에 닿은 격자선의 선 색·굵기·종류·점선 세부값을 표 전체 기본값과
   // 다르게 줘요(2026-10, 혜민님 요청: "표 전체를 선택했을 때는 전체 선 설정을, 셀을

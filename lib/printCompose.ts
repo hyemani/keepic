@@ -1033,6 +1033,16 @@ function drawTableGridAndCells(
       const effStrokeColor = style?.strokeColor;
       const effStrokeWidth = style?.strokeWidth;
       const hasStroke = !!effStrokeColor && !!effStrokeWidth && effStrokeWidth > 0;
+      // 2026-11-9차 5번째 라운드 — 표 전체엔 그림자 필드가 없어서(칸에 새로 생긴
+      // 기능, TableCellStyle.shadowColor 주석 참고) 위 외곽선과 같은 이유로 항상 이
+      // 칸 자신의 값만 써요. 일반 텍스트박스(drawTextBoxOnCanvas의
+      // drawLineStrokeAndFill)와 같은 "stroke가 있으면 stroke에만, 없으면 채우기에
+      // 직접" 규칙을 그대로 따라요.
+      const effShadowColor = style?.shadowColor;
+      const effShadowBlur = style?.shadowBlur;
+      const effShadowOffsetX = style?.shadowOffsetX;
+      const effShadowOffsetY = style?.shadowOffsetY;
+      const hasShadow = !!effShadowColor;
       ctx.font = `${effFontStyle}${effFontWeight}${effFontPx}px ${effFontFamily}`;
       ctx.fillStyle = effColor;
       if ("letterSpacing" in ctx) {
@@ -1069,6 +1079,12 @@ function drawTableGridAndCells(
       ctx.clip();
       lines.forEach((line, i) => {
         const lineY = startY + i * lineHeight;
+        if (hasShadow) {
+          ctx.shadowColor = effShadowColor!;
+          ctx.shadowBlur = effFontPx * (effShadowBlur ?? 0);
+          ctx.shadowOffsetX = effFontPx * (effShadowOffsetX ?? 0);
+          ctx.shadowOffsetY = effFontPx * (effShadowOffsetY ?? 0);
+        }
         if (hasStroke) {
           ctx.save();
           ctx.strokeStyle = effStrokeColor!;
@@ -1076,8 +1092,20 @@ function drawTableGridAndCells(
           ctx.lineJoin = "round";
           ctx.strokeText(line, lineX, lineY, maxTextWidth);
           ctx.restore();
+          if (hasShadow) {
+            ctx.shadowColor = "transparent";
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+          }
         }
         ctx.fillText(line, lineX, lineY, maxTextWidth);
+        if (hasShadow && !hasStroke) {
+          ctx.shadowColor = "transparent";
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
         if (effUnderline || effStrikethrough) {
           const textWidth = Math.min(maxTextWidth, ctx.measureText(line).width);
           const underlineStartX =
