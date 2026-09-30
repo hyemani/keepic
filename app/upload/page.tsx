@@ -4150,17 +4150,55 @@ function TextStyleFieldsPanel({
     <>
       <div>
         <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">서체</label>
-        <select
-          value={value.fontFamily}
-          onChange={(e) => onChange({ fontFamily: e.target.value })}
-          className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-        >
-          {fontOptions.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.label}
-            </option>
-          ))}
-        </select>
+        {/* 2026-11-9차 9번째 라운드, 혜민님 요청("볼드+텍스트색상+텍스트선색상은
+            상단에 서체 오른쪽 공간에 넣어주세요") — 굵게(B) 버튼, 글자색 견본,
+            텍스트선 색 견본(텍스트선이 켜져 있을 때만) 이 3개만 서체 드롭다운 옆
+            같은 줄로 옮겼어요. I/U/S, 텍스트선 on/off 토글·굵기 입력칸, 그림자·
+            텍스트배경 토글은 그대로 아래 "텍스트 효과" 줄에 남겨뒀어요(요청 문구가
+            정확히 이 3개만 짚었어요). 서체 select는 flex-1로 남은 공간을 모두
+            차지하고, 아이콘들은 h-7 w-7 고정 크기로 오른쪽에 붙어서 드롭다운이
+            줄어들 뿐 줄바꿈되진 않아요. */}
+        <div className="flex items-center gap-1">
+          <select
+            value={value.fontFamily}
+            onChange={(e) => onChange({ fontFamily: e.target.value })}
+            className="min-w-0 flex-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+          >
+            {fontOptions.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            title="굵게"
+            onClick={() => onChange({ bold: !value.bold })}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center border text-sm font-bold ${
+              value.bold
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                : "border-[var(--color-hairline)]"
+            }`}
+          >
+            B
+          </button>
+          <input
+            type="color"
+            value={value.color}
+            onChange={(e) => onChange({ color: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="글자 색"
+          />
+          {value.strokeColor && (
+            <input
+              type="color"
+              value={value.strokeColor}
+              onChange={(e) => onChange({ strokeColor: e.target.value })}
+              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="텍스트선 색"
+            />
+          )}
+        </div>
       </div>
       {/* 2026-11-9차 7번째 라운드, 혜민님 요청("문자 설정을 2열×3행으로 정리해주세요:
           1행 글자크기|행간, 2행 세로폭|가로폭, 3행 커닝|자간. 세로·가로 폭은 글자
@@ -4303,18 +4341,6 @@ function TextStyleFieldsPanel({
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
-          title="굵게"
-          onClick={() => onChange({ bold: !value.bold })}
-          className={`flex h-7 w-7 items-center justify-center border text-sm font-bold ${
-            value.bold
-              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-              : "border-[var(--color-hairline)]"
-          }`}
-        >
-          B
-        </button>
-        <button
-          type="button"
           title="기울임"
           onClick={() => onChange({ italic: !value.italic })}
           className={`flex h-7 w-7 items-center justify-center border ${
@@ -4349,28 +4375,19 @@ function TextStyleFieldsPanel({
         >
           <span className="text-sm line-through">S</span>
         </button>
-        <input
-          type="color"
-          value={value.color}
-          onChange={(e) => onChange({ color: e.target.value })}
-          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-          title="글자 색"
-        />
         {/* 2026-11-9차 8번째 라운드, 혜민님 요청("텍스트선·그림자·텍스트배경을 각자
             큰 구역으로 두지 말고, 기존 폰트 효과(B/I/U/S+색) 줄에 같은 크기·간격으로
             나란히 배치해서 하나의 '텍스트 효과' 그룹으로 보이게") — 텍스트선(outline)·
-            그림자·텍스트배경 세 토글을 위 B/I/U/S/색과 같은 h-7 w-7 크기·같은
-            gap-1.5로 이 한 줄에 이어 붙였어요. 얇은 구분선(세로 막대) 하나만 둬서
-            "글자 모양 버튼들"과 "텍스트 효과 버튼들"을 시각적으로만 살짝 나눴어요
-            (별도 제목·구분선 섹션은 없앴어요). 패널 폭이 224px가 최대(왼쪽 속성
-            패널, 위 line 14546 clamp(160px,22cqw,224px) 참고)라 이 8개 아이콘이
-            전부 한 줄엔 안 들어가요 — flex-wrap으로 넘치면 다음 줄로 자연스럽게
-            줄바꿈되게 해서(잘리거나 겹치지 않음) 폭이 좁아도 항상 온전히 다 보이게
-            했어요. 각 토글을 켰을 때의 세부 설정은 바로 아래(다른 효과 설정과 안
-            섞이게, 토글 켠 순서와 무관하게 텍스트선→그림자→텍스트배경 고정 순서로)
-            그 효과만의 작은 블록으로 떠요 — 꺼져 있으면 그 블록 자체가 없어서
-            패널이 짧게 유지돼요. */}
-        <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--color-hairline)]" aria-hidden="true" />
+            그림자·텍스트배경 세 토글을 위 I/U/S와 같은 h-7 w-7 크기·같은 gap-1.5로
+            이 한 줄에 이어 붙였어요(9번째 라운드, 혜민님 요청으로 구분선(세로 막대)은
+            없앴고, 굵게(B)·글자색·텍스트선색 견본은 위 "서체" 줄로 옮겨졌어요). 패널
+            폭이 224px가 최대(왼쪽 속성 패널, 위 line 14546 clamp(160px,22cqw,224px)
+            참고)라 아이콘이 한 줄엔 안 들어갈 수 있어요 — flex-wrap으로 넘치면 다음
+            줄로 자연스럽게 줄바꿈되게 해서(잘리거나 겹치지 않음) 폭이 좁아도 항상
+            온전히 다 보이게 했어요. 각 토글을 켰을 때의 세부 설정은 바로 아래(다른
+            효과 설정과 안 섞이게, 토글 켠 순서와 무관하게 텍스트선→그림자→텍스트배경
+            고정 순서로) 그 효과만의 작은 블록으로 떠요 — 꺼져 있으면 그 블록 자체가
+            없어서 패널이 짧게 유지돼요. */}
         <button
           type="button"
           title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기(검정, 굵기는 마지막에 쓰던 값)"}
@@ -4449,14 +4466,7 @@ function TextStyleFieldsPanel({
           단위는 예전과 완전히 같아요, 헤더(제목+구분선)만 없앴어요. */}
       {value.strokeColor && (
         <div className="mt-1.5 flex items-center gap-1.5">
-          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선</label>
-          <input
-            type="color"
-            value={value.strokeColor}
-            onChange={(e) => onChange({ strokeColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="텍스트선 색"
-          />
+          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선 굵기</label>
           <input
             type="number"
             min={0}
@@ -4472,8 +4482,9 @@ function TextStyleFieldsPanel({
           <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
         </div>
       )}
-      {/* 그림자 세부 설정 — 켜졌을 때만. 투명도/X이동/Y이동/번짐 2열×2행 그리드는
-          예전 그대로(717a353 라운드부터 슬라이더 없이 숫자 입력만), 헤더만 없앴어요. */}
+      {/* 그림자 세부 설정 — 켜졌을 때만. 필드 순서·레이아웃은 아래 grid-cols-4
+          블록의 9번째 라운드 주석 참고(717a353 라운드부터 슬라이더 없이 숫자
+          입력만인 것은 그대로예요). */}
       {value.shadowColor && (
         <div className="mt-1.5">
           <div className="flex items-center gap-1.5">
@@ -4486,10 +4497,17 @@ function TextStyleFieldsPanel({
               title="그림자 색"
             />
           </div>
-          <div className="mt-1 grid grid-cols-2 gap-1.5">
+          {/* 2026-11-9차 9번째 라운드, 혜민님 요청("순서를 투명도, 번짐, x이동,
+              y이동 이렇게... 한줄로 넣을순없나요?") — 2열×2행 대신 4개 필드를
+              한 줄(grid-cols-4)에 투명도→번짐→X 이동→Y 이동 순서로 나열했어요.
+              필드 자체(값·단위·유효범위·onChange)는 전혀 안 바꿨고 자리·순서만
+              옮겼어요. 패널 최소 폭(160px)에서도 안 잘리게 라벨을 text-[9px]로,
+              입력칸 좌우 여백을 px-0.5로 줄였어요 — 그래도 아주 좁은 폭에서는
+              칸이 촘촘해질 수 있는데, 숫자+%는 항상 온전히 보여요. */}
+          <div className="mt-1 grid grid-cols-4 gap-1">
             <div>
-              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">투명도</label>
-              <div className="flex items-center gap-1">
+              <label className="mb-0.5 block text-[9px] leading-tight text-[var(--color-charcoal)]/60">투명도</label>
+              <div className="flex items-center gap-0.5">
                 <input
                   type="number"
                   min={0}
@@ -4499,51 +4517,15 @@ function TextStyleFieldsPanel({
                   onChange={(e) =>
                     onChange({ shadowOpacity: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })
                   }
-                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  className="w-full min-w-0 border border-[var(--color-hairline)] bg-white px-0.5 py-1 text-[11px] outline-none focus:border-[var(--color-sky)]"
                   title="그림자 투명도를 숫자로 직접 입력(0~100%, 100이 완전 불투명)"
                 />
-                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+                <span className="shrink-0 text-[9px] text-[var(--color-charcoal)]/50">%</span>
               </div>
             </div>
             <div>
-              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">X 이동</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={-100}
-                  max={100}
-                  step={1}
-                  value={Math.round((value.shadowOffsetX ?? 0.05) * 100)}
-                  onChange={(e) =>
-                    onChange({ shadowOffsetX: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
-                  }
-                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                  title="그림자 가로 이동을 숫자로 직접 입력(-100~100%)"
-                />
-                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
-              </div>
-            </div>
-            <div>
-              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">Y 이동</label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={-100}
-                  max={100}
-                  step={1}
-                  value={Math.round((value.shadowOffsetY ?? 0.05) * 100)}
-                  onChange={(e) =>
-                    onChange({ shadowOffsetY: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
-                  }
-                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-                  title="그림자 세로 이동을 숫자로 직접 입력(-100~100%)"
-                />
-                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
-              </div>
-            </div>
-            <div>
-              <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">번짐</label>
-              <div className="flex items-center gap-1">
+              <label className="mb-0.5 block text-[9px] leading-tight text-[var(--color-charcoal)]/60">번짐</label>
+              <div className="flex items-center gap-0.5">
                 <input
                   type="number"
                   min={0}
@@ -4553,10 +4535,46 @@ function TextStyleFieldsPanel({
                   onChange={(e) =>
                     onChange({ shadowBlur: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
                   }
-                  className="w-full border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+                  className="w-full min-w-0 border border-[var(--color-hairline)] bg-white px-0.5 py-1 text-[11px] outline-none focus:border-[var(--color-sky)]"
                   title="그림자 번짐을 숫자로 직접 입력(0~100%)"
                 />
-                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+                <span className="shrink-0 text-[9px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[9px] leading-tight text-[var(--color-charcoal)]/60">X 이동</label>
+              <div className="flex items-center gap-0.5">
+                <input
+                  type="number"
+                  min={-100}
+                  max={100}
+                  step={1}
+                  value={Math.round((value.shadowOffsetX ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetX: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full min-w-0 border border-[var(--color-hairline)] bg-white px-0.5 py-1 text-[11px] outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 가로 이동을 숫자로 직접 입력(-100~100%)"
+                />
+                <span className="shrink-0 text-[9px] text-[var(--color-charcoal)]/50">%</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[9px] leading-tight text-[var(--color-charcoal)]/60">Y 이동</label>
+              <div className="flex items-center gap-0.5">
+                <input
+                  type="number"
+                  min={-100}
+                  max={100}
+                  step={1}
+                  value={Math.round((value.shadowOffsetY ?? 0.05) * 100)}
+                  onChange={(e) =>
+                    onChange({ shadowOffsetY: Math.max(-100, Math.min(100, Number(e.target.value) || 0)) / 100 })
+                  }
+                  className="w-full min-w-0 border border-[var(--color-hairline)] bg-white px-0.5 py-1 text-[11px] outline-none focus:border-[var(--color-sky)]"
+                  title="그림자 세로 이동을 숫자로 직접 입력(-100~100%)"
+                />
+                <span className="shrink-0 text-[9px] text-[var(--color-charcoal)]/50">%</span>
               </div>
             </div>
           </div>
