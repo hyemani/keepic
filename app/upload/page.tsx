@@ -2081,6 +2081,32 @@ function applyRunStyleToSpan(span: HTMLSpanElement, run: TextRun, box: TextBoxDe
   span.style.color = style.color;
   span.style.fontWeight = style.bold ? "700" : "400";
   span.style.fontStyle = style.italic ? "italic" : "normal";
+  // 그라데이션(2026-11, 15번째 라운드, 새 기능) — box 전체 필드라 구간(run)마다 다른
+  // 색(style.color)을 덮어써요(문자 단위로 다른 그라데이션은 지원 안 함, 박스 전체
+  // 글자색처럼 하나만). CSS background-clip:text는 "자기 자신의 배경"만 자기 글자
+  // 모양으로 잘라내므로, 구간이 여러 개(runs)면 각 span이 자기 너비 기준으로 같은
+  // 그라데이션을 따로 그려요 — 구간이 하나뿐인 가장 흔한 경우(박스 전체가 같은
+  // 서식)엔 완전히 매끄럽고, 구간이 여러 개로 쪼개진 경우에만 그라데이션이 구간
+  // 경계에서 약간 끊겨 보일 수 있어요(작업 보고에 명시한 알려진 한계).
+  if (box.gradientEnabled && box.gradientColorStart && box.gradientColorEnd) {
+    const angle = box.gradientAngle ?? 90;
+    span.style.backgroundImage = `linear-gradient(${angle}deg, ${box.gradientColorStart}, ${box.gradientColorEnd})`;
+    span.style.setProperty("-webkit-background-clip", "text");
+    span.style.setProperty("background-clip", "text");
+    span.style.color = "transparent";
+    span.style.setProperty("-webkit-text-fill-color", "transparent");
+  } else {
+    span.style.backgroundImage = "";
+    span.style.removeProperty("-webkit-background-clip");
+    span.style.removeProperty("background-clip");
+    span.style.removeProperty("-webkit-text-fill-color");
+  }
+  // 모두 대문자 / 작은 대문자(2026-11, 15번째 라운드, 새 기능) — 둘 다 box 전체
+  // 필드(TextBoxDef.textTransformUppercase/fontVariantSmallCaps)라 runs와 무관하게
+  // 항상 같이 적용돼요. CSS 전용이라 라틴 문자에만 실제 효과가 있고(한글은 대/소문자
+  // 구분이 없어서 그대로예요), 값이 없으면 둘 다 "효과 없음"(기존과 동일, 하위 호환).
+  span.style.textTransform = box.textTransformUppercase ? "uppercase" : "none";
+  span.style.setProperty("font-variant-caps", box.fontVariantSmallCaps ? "small-caps" : "normal");
   // 취소선(2026-10 6차)은 runs엔 없는 box 전체 필드예요(TextBoxDef.strikethrough
   // 주석 참고) — 밑줄과 한 textDecoration 안에 같이 넣어야 브라우저가 둘 다 그려요
   // (예: "underline line-through").
@@ -2895,7 +2921,12 @@ type LayerIconName =
   | "copy"
   | "paste"
   | "save"
-  | "swapColors";
+  | "swapColors"
+  | "boxWidth"
+  | "boxHeight"
+  | "cornerRadius"
+  | "allCaps"
+  | "smallCaps";
 
 function LayerIcon({ name, className }: { name: LayerIconName; className?: string }) {
   const common = {
@@ -3251,6 +3282,55 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         <svg {...common}>
           <path d="M7 7h10l-3-3" />
           <path d="M17 17H7l3 3" />
+        </svg>
+      );
+    // 2026-11(15번째 라운드), 혜민님 요청("박스 크기' 너비/높이/모퉁이도 다른 칸처럼
+    // 아이콘으로") — 문자설정 그리드(charScaleV/charScaleH 등)와 같은 24x24 stroke
+    // 방식. 너비·높이는 각각 가로/세로 양방향 화살표로, 모퉁이는 네 귀퉁이 중 하나만
+    // 둥근 사각형으로 그려서 뜻이 바로 짐작되게 했어요.
+    case "boxWidth":
+      return (
+        <svg {...common}>
+          <rect x="4" y="8" width="16" height="8" rx="1" />
+          <path d="M2 12h3M3.5 10.5L2 12l1.5 1.5" />
+          <path d="M22 12h-3M20.5 10.5L22 12l-1.5 1.5" />
+        </svg>
+      );
+    case "boxHeight":
+      return (
+        <svg {...common}>
+          <rect x="8" y="4" width="8" height="16" rx="1" />
+          <path d="M12 2v3M10.5 3.5L12 2l1.5 1.5" />
+          <path d="M12 22v-3M10.5 20.5L12 22l1.5-1.5" />
+        </svg>
+      );
+    case "cornerRadius":
+      return (
+        <svg {...common}>
+          <path d="M4 14V9a5 5 0 0 1 5-5h5" />
+          <path d="M4 14v3a3 3 0 0 0 3 3h3" />
+          <path d="M14 20h2a4 4 0 0 0 4-4v-2" />
+          <path d="M20 10V8" />
+        </svg>
+      );
+    // 2026-11(15번째 라운드), 혜민님 요청("효과 줄에 모두대문자/작은대문자 추가,
+    // 참고 스크린샷처럼") — 모두대문자는 같은 크기의 대문자 "T" 둘("TT"), 작은대문자는
+    // 큰 "T" 옆에 작은 "R"로(참고 스크린샷의 "Tr" 스타일) 뜻을 보여줘요. 둘 다 다른
+    // LayerIcon처럼 path 몇 개로 손그림 글자를 그렸어요(실제 폰트 글리프 대신 — 아주
+    // 작은 아이콘 크기에서 또렷하게 보이려고요).
+    case "allCaps":
+      return (
+        <svg {...common}>
+          <path d="M3 6h5M5.5 6v12" />
+          <path d="M11 18l3.2-12M17.4 18l-3.2-12" />
+          <path d="M12.3 13.5h1.8" />
+        </svg>
+      );
+    case "smallCaps":
+      return (
+        <svg {...common}>
+          <path d="M3 5h5M5.5 5v14" />
+          <path d="M14 11.5a2 2 0 1 1 3.6 1.2L14 17h4" />
         </svg>
       );
   }
@@ -4229,6 +4309,12 @@ type TextStyleFields = {
   shadowOffsetX?: number;
   shadowOffsetY?: number;
   shadowOpacity?: number;
+  gradientEnabled?: boolean;
+  gradientColorStart?: string;
+  gradientColorEnd?: string;
+  gradientAngle?: number;
+  textTransformUppercase?: boolean;
+  fontVariantSmallCaps?: boolean;
 };
 
 // 텍스트 배경(하이라이트) 구역 전용 값·콜백이에요 — 표 칸(TableBoxToolbar)엔 없는
@@ -4288,7 +4374,7 @@ function TextStyleFieldsPanel({
   // 2026-10(13번째 라운드) — 면색/선색 패널에서 두 네모 중 어느 쪽이 "앞"(마지막
   // 클릭, 지금 활성)인지만 기억해요(12번째 라운드의 activeColorTarget을 대신해요 —
   // 이제 밑줄·배경은 각자 전용 색상표가 있어서 더 이상 이 상태가 필요 없어요).
-  const [fillStrokeActive, setFillStrokeActive] = useState<"fill" | "stroke">("fill");
+  const [fillStrokeActive, setFillStrokeActive] = useState<"fill" | "stroke" | "shadow">("fill");
 
   useEffect(() => {
     if (lastSyncedKeyRef.current === syncKey) return;
@@ -4471,17 +4557,19 @@ function TextStyleFieldsPanel({
           />
         </div>
       </div>
-      {/* 2026-10(13번째 라운드), 혜민님 요청("볼드, 기울기, 밑줄, 텍스트배경,
-          그림자 이렇게 5개 구현해주시고 면색 선색은 색상패널로 대체할게요") — 이
-          줄을 정확히 5개(굵게/기울임/밑줄/텍스트배경/그림자)로 다시 짰어요.
-          텍스트선(stroke) 토글과 12번째 라운드의 "공용 색상표 1개"는 이 줄에서
-          빠지고, 바로 아래 새 "면색/선색" 패널(일러스트레이터 면·선 색상 패널
-          참고)로 대체됐어요 — activeColorTarget 상태는 더 이상 안 써요(지웠어요).
-          밑줄·배경은 색상표가 없어지면 정작 그 색을 바꿀 방법이 없어지므로,
-          11번째 라운드 이전처럼 토글 바로 옆에 "켜졌을 때만" 보이는 전용 색상표를
-          되살렸어요(펜·배경 각자 전용 색, 면색/선색 패널과는 무관). 그림자는 이번에
-          다시 이 5개 줄 안으로 들어왔고, 색은 전처럼 아래 "그림자 세부 설정"
-          헤더의 전용 색상표를 그대로 써요(안 건드림). */}
+      {/* 2026-11(15번째 라운드), 혜민님 요청(4건 중 하나: "효과 줄을 정확히 7개
+          (굵게/기울임/밑줄/모두대문자[새]/작은대문자[새]/텍스트배경/그림자)로, 이
+          줄엔 색상표를 더는 안 두고 색은 전부 아래 새 4버튼 색상 패널(면색/선색/
+          그라데이션/없음)로만 고치게") — 밑줄·텍스트배경 토글 옆에 각각 따로 있던
+          인라인 색상표(input[type=color])를 이 줄에서 뺐어요. 그 색을 고칠 방법이
+          아예 없어지면 안 되니, 밑줄은 바로 아래 새 "밑줄 세부 설정" 구역(그림자·
+          텍스트배경과 같은 "토글 켜졌을 때만 보이는 세부 설정" 패턴)으로, 텍스트배경은
+          원래도 있던 "텍스트 배경 세부 설정" 구역 맨 위로 그 색상표를 옮겼어요(값·
+          필드·onChange는 전혀 안 바꾸고 자리만 옮김, 기능 손실 없음 — 작업 보고에
+          명시). 모두대문자(textTransformUppercase)·작은대문자(fontVariantSmallCaps)는
+          이번에 새로 추가한 필드예요(lib/albumTemplates.ts TextBoxDef 참고) — 둘 다
+          라틴 문자에만 실제 효과가 있고, 작은대문자는 인쇄 PDF엔 반영이 안 돼요(화면
+          전용 — 그 이유와 범위는 각 버튼의 title과 작업 보고에 명시). */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
@@ -4519,15 +4607,32 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="underline" className="h-4 w-4" />
         </button>
-        {value.underline && (
-          <input
-            type="color"
-            value={value.underlineColor ?? value.color}
-            onChange={(e) => onChange({ underlineColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="밑줄 색(안 고르면 면색을 그대로 따라가요)"
-          />
-        )}
+        <button
+          type="button"
+          title="모두 대문자(라틴 문자만 — 한글엔 효과 없음)"
+          aria-pressed={!!value.textTransformUppercase}
+          onClick={() => onChange({ textTransformUppercase: !value.textTransformUppercase })}
+          className={`flex h-7 w-7 items-center justify-center border text-[10px] font-semibold ${
+            value.textTransformUppercase
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="allCaps" className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          title="작은 대문자(라틴 문자만, 화면 미리보기 전용 — 인쇄 PDF엔 반영 안 돼요)"
+          aria-pressed={!!value.fontVariantSmallCaps}
+          onClick={() => onChange({ fontVariantSmallCaps: !value.fontVariantSmallCaps })}
+          className={`flex h-7 w-7 items-center justify-center border ${
+            value.fontVariantSmallCaps
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="smallCaps" className="h-4 w-4" />
+        </button>
         {background && (
           <button
             type="button"
@@ -4557,20 +4662,12 @@ function TextStyleFieldsPanel({
             <LayerIcon name="highlight" className="h-4 w-4" />
           </button>
         )}
-        {background?.backgroundColor && (
-          <input
-            type="color"
-            value={background.backgroundColor}
-            onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="텍스트 배경 색"
-          />
-        )}
         <button
           type="button"
           title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 투명도·번짐·이동은 마지막에 쓰던 값)"}
           aria-pressed={!!value.shadowColor}
-          onClick={() =>
+          onClick={() => {
+            setFillStrokeActive("shadow");
             onChange(
               value.shadowColor
                 ? { shadowColor: undefined }
@@ -4581,8 +4678,8 @@ function TextStyleFieldsPanel({
                     shadowOffsetX: value.shadowOffsetX ?? 0.05,
                     shadowOffsetY: value.shadowOffsetY ?? 0.05,
                   }
-            )
-          }
+            );
+          }}
           className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
             value.shadowColor
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4592,156 +4689,238 @@ function TextStyleFieldsPanel({
           <LayerIcon name="textShadowToggle" className="h-4 w-4" />
         </button>
       </div>
-      {/* 2026-10(13번째 라운드), 혜민님 요청("색상표 정리를 다시할게요... 면색
-          선택했을때 선색 선택했을때 면색선색교체, 면색없애기 선색없애기는
-          스크린샷과 똑같이 구현해줘요. 다만 스크린샷은 세로로 되어있지만 가로로
-          한줄로 만들어주세요") — 일러스트레이터 도구상자의 면(Fill)/선(Stroke)
-          색상 패널을 가로 한 줄로 재구성했어요.
-          매핑(제 판단, 작업 보고에 명시): 면색 = value.color(지금까지 "글자
-          색"으로 쓰던 바로 그 필드, Bold/Italic/일반 텍스트가 전부 이 색으로
-          그려져요) · 선색 = value.strokeColor(텍스트선). "선색 없음"이 곧
-          strokeColor가 undefined인 상태와 완전히 같아서, 이 패널이 이제 예전
-          "텍스트선 켜기/끄기" 토글 버튼을 대신해요 — 토글 버튼은 없앴고, 선색
-          쪽 네모(아래 fillStrokeActive==="stroke")나 "선색 없음" 미니 스와치를
-          누르는 게 곧 켜기/끄기예요(strokeWidth는 그대로 둬서 다시 켜면 마지막
-          굵기를 기억해요, 기존 토글과 동일한 동작).
-          "면색 없음"은 데이터상 선례가 없어서 새로 판단했어요 — value.color는
-          타입상 항상 string(필수)이라 undefined로 만들 수 없어서, CSS/캔버스가
-          그대로 이해하는 특수 문자열 "transparent"를 색상값으로 저장해요(화면
-          CSS·lib/printCompose.ts의 ctx.fillStyle 둘 다 "transparent"를 그대로
-          투명으로 처리해요 — 코드 변경 없이 값만으로 해결). 글자가 안 보이고
-          텍스트선만 보이는 "윤곽선만" 효과가 돼요(일러스트레이터에서 면 없음+선
-          있음과 같은 흔한 조합). 기존 저장 문서는 color가 전부 실제 색상값이라
-          이 상태가 될 일이 없어요(하위 호환 영향 없음).
-          앞/뒤 겹침: 네모 2개를 가로로 살짝 겹쳐 놓고(음수 마진), 마지막으로
-          누른 쪽(fillStrokeActive)이 z-index로 위에 와요 — 일러스트레이터의
-          "클릭한 쪽이 앞으로" 동작을 가로 배치로 옮긴 거예요. 다만 일러스트레이터
-          앱은 "먼저 클릭 = 앞으로만, 한 번 더 클릭 = 그제서야 색상 피커가 열림"
-          2단계인데, 기본 HTML <input type="color">는 누르는 즉시 항상 피커가
-          열려서 그 2단계를 그대로 흉내낼 수 없었어요 — 이 구현은 클릭 한 번에
-          "앞으로 오기"와 "피커 열기"가 동시에 일어나요(기능은 다 되지만 미세한
-          상호작용 차이가 있어요, 작업 보고에 명시). 교체(swap) 버튼은 면↔선을
-          그대로 바꿔요(둘 중 하나가 "없음"이면 그 "없음"도 같이 건너가요). */}
+      {/* "밑줄 세부 설정" — 그림자·텍스트배경과 같은 패턴(토글이 켜졌을 때만 보임)으로
+          새로 만든 구역이에요(2026-11, 15번째 라운드) — 위 효과 줄에서 색상표를 뺀
+          대신이에요(판단 근거는 바로 위 주석 참고). 값·onChange는 예전 인라인
+          색상표와 완전히 같아요(underlineColor, 자리만 옮김). */}
+      {value.underline && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">밑줄 세부 설정</label>
+          <input
+            type="color"
+            value={value.underlineColor ?? value.color}
+            onChange={(e) => onChange({ underlineColor: e.target.value })}
+            className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="밑줄 색(안 고르면 면색을 그대로 따라가요)"
+          />
+        </div>
+      )}
+      {/* 2026-11(15번째 라운드), 혜민님 요청 4건 중 하나("색상표를 정확히 4개로:
+          면색/선색/그라데이션[새]/없음(1개만)") — 겹친 네모 2개(z-index "앞으로
+          오기")·교체(swap) 버튼·"없음" 미니 스와치 2개로 이뤄졌던 13번째 라운드의
+          일러스트레이터 패널을, 겹침 없는 같은 크기 버튼 4개(+그림자가 켜졌을 때만
+          보이는 5번째 조건부 스와치)로 다시 짰어요.
+          면색=value.color, 선색=value.strokeColor는 그대로(13번째 라운드와 같은
+          매핑, "면색 없음"="transparent" 문자열 유지) — 다만 교체(swap) 버튼은
+          "정확히 4개"라는 이번 요청에 맞추려고 뺐어요(판단 근거·기능 손실, 작업 보고에
+          명시).
+          "없음" 버튼 1개가 fillStrokeActive(이번에 "shadow"까지 포함하도록 확장,
+          항목 3)가 가리키는 대상(면색/선색/그림자)을 그때그때 켰다 껐다 해요 —
+          예전처럼 면색·선색 각자 전용 "없음" 버튼 2개를 두는 대신, "마지막으로 누른
+          쪽"을 끄고 켜는 토글 버튼 1개로 합쳤어요.
+          그림자 색은 "그림자 세부 설정"(바로 아래) 안에 있던 전용 스와치를
+          없애고(항목 3, 중복 제거) 이 줄 맨 끝에 그림자가 켜졌을 때만 조건부로
+          나타나는 스와치로 옮겼어요 — "그림자가 가장 최근에 다룬 대상"이 되는
+          시점은 바로 위 그림자 토글 버튼을 누르는 순간(fillStrokeActive를
+          "shadow"로 같이 세팅)이고, 이 스와치를 직접 눌러도(onMouseDown) 다시
+          "shadow"가 활성 대상이 돼요 — 그 뒤로 "없음" 버튼은 그림자를 끄고, 이
+          스와치를 눌러 바꾸는 색은 그대로 value.shadowColor예요(화면·인쇄 모두
+          전부터 쓰던 같은 필드라 렌더링 코드는 안 건드렸어요).
+          그라데이션 버튼은 전혀 새 기능(항목 4)이에요 — 클릭 한 번으로 켜고/꺼요(다른
+          토글 버튼들과 같은 동작), 켜지는 순간 기본 시작·끝 색(인디고→핑크)과
+          각도(90°, 가로)를 같이 저장하고, 바로 아래 "그라데이션 세부 설정"에서
+          시작색·끝색·각도를 고쳐요. 꺼지면 예전처럼 면색(value.color)이 그대로
+          보여요(gradientEnabled가 없으면 기존 문서와 완전히 동일 — 하위 호환). */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {value.color === "transparent" ? (
+          <button
+            type="button"
+            title="면색 — 지금 없음(눌러서 색 지정)"
+            onClick={() => {
+              setFillStrokeActive("fill");
+              onChange({ color: "#1F2937" });
+            }}
+            className={`relative h-7 w-7 shrink-0 overflow-hidden border ${
+              fillStrokeActive === "fill" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+            }`}
+            style={{
+              backgroundImage:
+                "linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)",
+              backgroundSize: "6px 6px",
+              backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <svg viewBox="0 0 28 28" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+              <line x1="3" y1="25" x2="25" y2="3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        ) : (
+          <input
+            type="color"
+            value={value.color}
+            onMouseDown={() => setFillStrokeActive("fill")}
+            onChange={(e) => {
+              setFillStrokeActive("fill");
+              onChange({ color: e.target.value });
+            }}
+            title="면색(글자 색)"
+            className={`h-7 w-7 shrink-0 cursor-pointer appearance-none border p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0 ${
+              fillStrokeActive === "fill" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+            }`}
+          />
+        )}
+        {!value.strokeColor ? (
+          <button
+            type="button"
+            title="선색 — 지금 없음(텍스트선 꺼짐, 눌러서 켜기)"
+            onClick={() => {
+              setFillStrokeActive("stroke");
+              onChange({ strokeColor: value.color === "transparent" ? "#000000" : value.color, strokeWidth: value.strokeWidth ?? 0.08 });
+            }}
+            className={`relative h-7 w-7 shrink-0 overflow-hidden border ${
+              fillStrokeActive === "stroke" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+            }`}
+            style={{
+              backgroundImage:
+                "linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)",
+              backgroundSize: "6px 6px",
+              backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <svg viewBox="0 0 28 28" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+              <line x1="3" y1="25" x2="25" y2="3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        ) : (
+          <input
+            type="color"
+            value={value.strokeColor}
+            onMouseDown={() => setFillStrokeActive("stroke")}
+            onChange={(e) => {
+              setFillStrokeActive("stroke");
+              onChange({ strokeColor: e.target.value });
+            }}
+            title="선색(텍스트선)"
+            className={`h-7 w-7 shrink-0 cursor-pointer appearance-none border p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0 ${
+              fillStrokeActive === "stroke" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+            }`}
+          />
+        )}
         <button
           type="button"
-          title="면색·선색 교체"
-          onClick={() => {
-            const oldFill = value.color;
-            const oldStroke = value.strokeColor;
-            if (oldStroke === undefined) {
-              onChange({
-                color: "transparent",
-                strokeColor: oldFill === "transparent" ? "#000000" : oldFill,
-                strokeWidth: value.strokeWidth ?? 0.08,
-              });
-            } else if (oldFill === "transparent") {
-              onChange({ color: oldStroke, strokeColor: undefined });
-            } else {
-              onChange({ color: oldStroke, strokeColor: oldFill });
-            }
-          }}
-          className="flex h-6 w-6 shrink-0 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
-        >
-          <LayerIcon name="swapColors" className="h-3.5 w-3.5" />
-        </button>
-        <div className="flex items-center">
-          {value.color === "transparent" ? (
-            <button
-              type="button"
-              title="면색 — 지금 없음(눌러서 색 지정)"
-              onClick={() => onChange({ color: "#1F2937" })}
-              className={`relative z-10 h-7 w-7 shrink-0 overflow-hidden border ${
-                fillStrokeActive === "fill" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
-              }`}
-              style={{
-                backgroundImage:
-                  "linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)",
-                backgroundSize: "6px 6px",
-                backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
-                backgroundColor: "#ffffff",
-              }}
-            >
-              <svg viewBox="0 0 28 28" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
-                <line x1="3" y1="25" x2="25" y2="3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </button>
-          ) : (
-            <input
-              type="color"
-              value={value.color}
-              onMouseDown={() => setFillStrokeActive("fill")}
-              onChange={(e) => {
-                setFillStrokeActive("fill");
-                onChange({ color: e.target.value });
-              }}
-              title="면색(글자 색)"
-              className={`relative z-10 h-7 w-7 shrink-0 cursor-pointer appearance-none border p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0 ${
-                fillStrokeActive === "fill" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
-              }`}
-            />
-          )}
-          {!value.strokeColor ? (
-            <button
-              type="button"
-              title="선색 — 지금 없음(텍스트선 꺼짐, 눌러서 켜기)"
-              onClick={() => {
-                setFillStrokeActive("stroke");
-                onChange({ strokeColor: value.color === "transparent" ? "#000000" : value.color, strokeWidth: value.strokeWidth ?? 0.08 });
-              }}
-              className={`relative -ml-2 h-7 w-7 shrink-0 overflow-hidden border ${
-                fillStrokeActive === "stroke" ? "z-10 border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
-              }`}
-              style={{
-                backgroundImage:
-                  "linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)",
-                backgroundSize: "6px 6px",
-                backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
-                backgroundColor: "#ffffff",
-              }}
-            >
-              <svg viewBox="0 0 28 28" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
-                <line x1="3" y1="25" x2="25" y2="3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </button>
-          ) : (
-            <input
-              type="color"
-              value={value.strokeColor}
-              onMouseDown={() => setFillStrokeActive("stroke")}
-              onChange={(e) => {
-                setFillStrokeActive("stroke");
-                onChange({ strokeColor: e.target.value });
-              }}
-              title="선색(텍스트선)"
-              className={`relative -ml-2 h-7 w-7 shrink-0 cursor-pointer appearance-none border p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0 ${
-                fillStrokeActive === "stroke" ? "z-10 border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
-              }`}
-            />
-          )}
-        </div>
-        <NoneSwatchButton
-          active={value.color === "transparent"}
-          onClick={() => {
-            setFillStrokeActive("fill");
-            onChange({ color: value.color === "transparent" ? "#1F2937" : "transparent" });
-          }}
-          title="면색 없음(글자 자체가 안 보여요 — 선색과 같이 쓰면 윤곽선만 남아요)"
-          size={5}
-        />
-        <NoneSwatchButton
-          active={!value.strokeColor}
+          title={value.gradientEnabled ? "그라데이션 끄기" : "그라데이션 켜기(면색 대신 시작→끝 색으로)"}
+          aria-pressed={!!value.gradientEnabled}
           onClick={() =>
             onChange(
-              value.strokeColor
-                ? { strokeColor: undefined }
-                : { strokeColor: value.color === "transparent" ? "#000000" : value.color, strokeWidth: value.strokeWidth ?? 0.08 }
+              value.gradientEnabled
+                ? { gradientEnabled: false }
+                : {
+                    gradientEnabled: true,
+                    gradientColorStart: value.gradientColorStart ?? "#6366f1",
+                    gradientColorEnd: value.gradientColorEnd ?? "#ec4899",
+                    gradientAngle: value.gradientAngle ?? 90,
+                  }
             )
           }
-          title="선색 없음(텍스트선 꺼짐)"
-          size={5}
+          className={`h-7 w-7 shrink-0 border ${
+            value.gradientEnabled ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+          }`}
+          style={{
+            background: `linear-gradient(90deg, ${value.gradientColorStart ?? "#6366f1"}, ${value.gradientColorEnd ?? "#ec4899"})`,
+          }}
         />
+        <NoneSwatchButton
+          active={
+            fillStrokeActive === "fill"
+              ? value.color === "transparent"
+              : fillStrokeActive === "stroke"
+                ? !value.strokeColor
+                : !value.shadowColor
+          }
+          onClick={() => {
+            if (fillStrokeActive === "fill") {
+              onChange({ color: value.color === "transparent" ? "#1F2937" : "transparent" });
+            } else if (fillStrokeActive === "stroke") {
+              onChange(
+                value.strokeColor
+                  ? { strokeColor: undefined }
+                  : { strokeColor: value.color === "transparent" ? "#000000" : value.color, strokeWidth: value.strokeWidth ?? 0.08 }
+              );
+            } else {
+              onChange(
+                value.shadowColor
+                  ? { shadowColor: undefined }
+                  : {
+                      shadowColor: "#000000",
+                      shadowOpacity: value.shadowOpacity ?? 100,
+                      shadowBlur: value.shadowBlur ?? 0.15,
+                      shadowOffsetX: value.shadowOffsetX ?? 0.05,
+                      shadowOffsetY: value.shadowOffsetY ?? 0.05,
+                    }
+              );
+            }
+          }}
+          title={
+            fillStrokeActive === "fill" ? "면색 없음" : fillStrokeActive === "stroke" ? "선색 없음" : "그림자 없음(그림자 끄기)"
+          }
+        />
+        {value.shadowColor && (
+          <input
+            type="color"
+            value={value.shadowColor}
+            onMouseDown={() => setFillStrokeActive("shadow")}
+            onChange={(e) => {
+              setFillStrokeActive("shadow");
+              onChange({ shadowColor: e.target.value });
+            }}
+            title="그림자 색"
+            className={`h-7 w-7 shrink-0 cursor-pointer appearance-none border p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0 ${
+              fillStrokeActive === "shadow" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+            }`}
+          />
+        )}
       </div>
+      {/* 그라데이션 세부 설정(2026-11, 15번째 라운드, 새 기능) — 시작색·끝색·각도(도).
+          각도는 "단순하게" 요청(과설계 금지)이라 숫자 입력 하나만 뒀어요 — CSS
+          linear-gradient 각도와 같은 단위(0~360도, 지정 안 하면 90=가로). */}
+      {value.gradientEnabled && (
+        <div className="mt-1.5">
+          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/50">그라데이션 세부 설정</label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={value.gradientColorStart ?? "#6366f1"}
+              onChange={(e) => onChange({ gradientColorStart: e.target.value })}
+              className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="시작 색"
+            />
+            <input
+              type="color"
+              value={value.gradientColorEnd ?? "#ec4899"}
+              onChange={(e) => onChange({ gradientColorEnd: e.target.value })}
+              className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="끝 색"
+            />
+            <input
+              type="number"
+              min={0}
+              max={360}
+              step={1}
+              value={Math.round(value.gradientAngle ?? 90)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                onChange({ gradientAngle: Math.max(0, Math.min(360, v)) });
+              }}
+              className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+              title="각도(도, 90=왼쪽→오른쪽)"
+            />
+            <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">°</span>
+          </div>
+        </div>
+      )}
       {/* 텍스트선 세부 설정 — 켜졌을 때만(= 위 "선색" 네모가 색을 갖고 있을 때).
           색 자체는 이제 위 면색/선색 패널로 옮겨서 여기엔 굵기 입력칸만 남아요. */}
       {value.strokeColor && (
@@ -4764,16 +4943,13 @@ function TextStyleFieldsPanel({
       )}
       {value.shadowColor && (
         <div className="mt-1.5">
-          <div className="flex items-center gap-1.5">
-            <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자 세부 설정</label>
-            <input
-              type="color"
-              value={value.shadowColor}
-              onChange={(e) => onChange({ shadowColor: e.target.value })}
-              className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-              title="그림자 색"
-            />
-          </div>
+          {/* 2026-11(15번째 라운드), 혜민님 요청("그림자 세부 설정 안 색상표는 중복,
+              색 편집은 위 면색/선색 패널 한 곳에서만") — 이 구역 안에 따로 있던
+              shadowColor 전용 색상표(input[type=color])를 없앴어요. 그림자 색은 이제
+              위 면색/선색/그라데이션/없음 줄 맨 끝의 조건부 스와치(그림자가 켜졌을 때만
+              나타남)로만 고쳐요 — 값은 여전히 value.shadowColor 그대로라 화면·인쇄
+              렌더링 코드는 전혀 안 건드렸어요. */}
+          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자 세부 설정</label>
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             <div>
               <label className="mb-0.5 block text-[10px] text-[var(--color-charcoal)]/60">투명도</label>
@@ -4856,11 +5032,21 @@ function TextStyleFieldsPanel({
           토글+색상표+ⓘ) 대신 색상표만 남기고 ⓘ 설명은 tooltip으로 유지했어요.
           "박스 크기"는 이 배경 섹션이 아니라 원래도 별도 섹션(TextBoxToolbar, "박스
           크기(선택 테두리, %)")이라 안 건드렸어요 — 거긴 이미 너비·높이 두 입력칸이
-          한 줄(grid-cols-2)에 있어서 혜민님이 요청하신 모양 그대로예요. */}
+          한 줄(grid-cols-2)에 있어서 혜민님이 요청하신 모양 그대로예요.
+          2026-11(15번째 라운드) — backgroundColor 전용 색상표를 위 효과 줄(인라인)에서
+          이 헤더로 옮겨왔어요(판단 근거는 효과 줄 쪽 주석 참고, 값·onBackgroundChange는
+          전혀 안 바꿈). */}
       {background?.backgroundColor && (
         <div className="mt-1.5">
           <div className="flex items-center gap-1">
             <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트 배경 세부 설정</label>
+            <input
+              type="color"
+              value={background.backgroundColor}
+              onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
+              className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="텍스트 배경 색"
+            />
             <span
               title="배경이 이 박스의 실제 크기와 항상 같아요. '박스 전체 배경'일 땐 캔버스에서 손잡이로 박스 크기를 조절하면 배경도 같이 늘어나거나 줄어들어요."
               className="cursor-help select-none text-[10px] leading-none text-[var(--color-charcoal)]/40"
@@ -5414,6 +5600,12 @@ function TableBoxToolbar({
               shadowOffsetX: sel.selStyle?.shadowOffsetX,
               shadowOffsetY: sel.selStyle?.shadowOffsetY,
               shadowOpacity: sel.selStyle?.shadowOpacity,
+              gradientEnabled: sel.selStyle?.gradientEnabled,
+              gradientColorStart: sel.selStyle?.gradientColorStart,
+              gradientColorEnd: sel.selStyle?.gradientColorEnd,
+              gradientAngle: sel.selStyle?.gradientAngle,
+              textTransformUppercase: sel.selStyle?.textTransformUppercase,
+              fontVariantSmallCaps: sel.selStyle?.fontVariantSmallCaps,
             }}
             onChange={(patch) =>
               (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.setCellStyle(patch)
@@ -6106,6 +6298,12 @@ function TextBoxToolbar({
           shadowOffsetX: box.shadowOffsetX,
           shadowOffsetY: box.shadowOffsetY,
           shadowOpacity: box.shadowOpacity,
+          gradientEnabled: box.gradientEnabled,
+          gradientColorStart: box.gradientColorStart,
+          gradientColorEnd: box.gradientColorEnd,
+          gradientAngle: box.gradientAngle,
+          textTransformUppercase: box.textTransformUppercase,
+          fontVariantSmallCaps: box.fontVariantSmallCaps,
         }}
         onChange={(patch) => {
           const RUN_AWARE_KEYS: readonly string[] = ["fontFamily", "fontScale", "bold", "italic", "underline", "color"];
@@ -6141,18 +6339,19 @@ function TextBoxToolbar({
         <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
           박스 크기(선택 테두리, %)
         </p>
-        {/* 2026-10(14번째 라운드) — 위 문자 설정 그리드와 같은 이유로 테두리를
-            합쳤어요. 이 3칸은 애초에 아이콘이 아니라 짧은 한글 라벨(너비/높이/
-            모퉁이)을 썼는데, 참고 스크린샷에 맞는 새 아이콘을 따로 만들 근거(모양
-            참고 자료)가 없어서 아이콘을 새로 만들지 않고, 그 라벨 글자를 그대로
-            "아이콘 자리"에 넣는 같은 구조(라벨+입력이 테두리 하나 공유)로만
-            맞췄어요(판단 근거는 작업 보고에 명시). */}
+        {/* 2026-10(14번째 라운드)에 테두리를 하나로 합치고, 그때는 참고 스크린샷에
+            맞는 새 아이콘을 그릴 근거가 없어서 너비/높이/모퉁이 한글 라벨 글자를
+            그대로 "아이콘 자리"에 넣었는데, 2026-11(15번째 라운드)에 혜민님이 아이콘
+            디자인 참고(문자설정 그리드와 같은 스타일)를 명시적으로 요청해서 이제
+            LayerIcon 3종(boxWidth/boxHeight/cornerRadius)으로 바꿨어요. 값·단위·
+            유효범위·onChange는 전혀 안 건드렸고, 한글 뜻은 각 칸의 title(hover
+            툴팁)로 그대로 남아있어요. */}
         <div className="grid grid-cols-3 gap-1.5">
           <div
             className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
             title="너비(%)"
           >
-            <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">너비</span>
+            <LayerIcon name="boxWidth" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
             <input
               type="number"
               min={6}
@@ -6181,7 +6380,7 @@ function TextBoxToolbar({
             className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
             title="높이(%)"
           >
-            <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">높이</span>
+            <LayerIcon name="boxHeight" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
             <input
               type="number"
               min={4}
@@ -6207,7 +6406,7 @@ function TextBoxToolbar({
             className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
             title="박스 배경·선택 테두리의 모서리를 둥글게(%, 박스 짧은 변 기준). 0이면 직각이에요."
           >
-            <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">모퉁이</span>
+            <LayerIcon name="cornerRadius" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
             <input
               type="number"
               min={0}
@@ -9099,6 +9298,24 @@ const TableBoxOverlay = forwardRef<
                 color: cellOverride?.color ?? box.color ?? "#1F2937",
                 fontWeight: (cellOverride?.bold ?? box.bold) ? 700 : 400,
                 fontStyle: (cellOverride?.italic ?? box.italic) ? "italic" : "normal",
+                // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드, 새 기능) —
+                // 표 전체엔 아직 이 필드가 없어서(strokeColor/shadowColor와 같은 이유)
+                // 항상 이 칸 자신의 설정만 써요. 그라데이션은 <textarea>에 CSS
+                // background-clip:text를 걸어요 — input/textarea 위 그라데이션
+                // 텍스트는 input[type=color] 전용 스와치만큼 표준적이진 않지만 최신
+                // Chrome·Safari에서는 동작해요(브라우저별 최선의 노력, 작업 보고에
+                // 명시).
+                ...(cellOverride?.gradientEnabled && cellOverride?.gradientColorStart && cellOverride?.gradientColorEnd
+                  ? {
+                      backgroundImage: `linear-gradient(${cellOverride.gradientAngle ?? 90}deg, ${cellOverride.gradientColorStart}, ${cellOverride.gradientColorEnd})`,
+                      WebkitBackgroundClip: "text",
+                      backgroundClip: "text",
+                      color: "transparent",
+                      WebkitTextFillColor: "transparent",
+                    }
+                  : {}),
+                textTransform: cellOverride?.textTransformUppercase ? "uppercase" : "none",
+                fontVariantCaps: cellOverride?.fontVariantSmallCaps ? "small-caps" : "normal",
                 textDecoration: textDecorationValue(cellOverride?.underline ?? box.underline, cellOverride?.strikethrough),
                 textDecorationColor: textDecorationColorValue(
                   cellOverride?.underline ?? box.underline,
@@ -9516,6 +9733,20 @@ function CoverTitleOverlay({
     textAlign: align,
     color,
     fontWeight: bold ? 600 : 400,
+    // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드, 새 기능) — editMode일
+    // 땐 TextBoxRichEditor(applyRunStyleToSpan)가 따로 그려서 이미 반영되고, 이
+    // textStyle은 미리보기(!editMode) <p> 전용이라 여기서도 같이 반영해요.
+    ...(editableBox.gradientEnabled && editableBox.gradientColorStart && editableBox.gradientColorEnd
+      ? {
+          backgroundImage: `linear-gradient(${editableBox.gradientAngle ?? 90}deg, ${editableBox.gradientColorStart}, ${editableBox.gradientColorEnd})`,
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          color: "transparent",
+          WebkitTextFillColor: "transparent",
+        }
+      : {}),
+    textTransform: editableBox.textTransformUppercase ? "uppercase" : "none",
+    fontVariantCaps: editableBox.fontVariantSmallCaps ? "small-caps" : "normal",
     textDecoration: textDecorationValue(underline, editableBox.strikethrough),
     textDecorationColor: textDecorationColorValue(
       underline,
@@ -9718,6 +9949,12 @@ function SpineTitleOverlay({
   shadowOffsetX,
   shadowOffsetY,
   shadowOpacity,
+  gradientEnabled,
+  gradientColorStart,
+  gradientColorEnd,
+  gradientAngle,
+  textTransformUppercase,
+  fontVariantSmallCaps,
   backgroundColor,
   backgroundPaddingXPct,
   backgroundPaddingYPct,
@@ -9758,6 +9995,14 @@ function SpineTitleOverlay({
   shadowOffsetX?: number;
   shadowOffsetY?: number;
   shadowOpacity?: number;
+  // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드, 새 기능) — 위
+  // strikethrough/strokeColor와 같은 이유로 표지 제목 어댑터 대신 개별 prop을 받아요.
+  gradientEnabled?: boolean;
+  gradientColorStart?: string;
+  gradientColorEnd?: string;
+  gradientAngle?: number;
+  textTransformUppercase?: boolean;
+  fontVariantSmallCaps?: boolean;
   backgroundColor?: string;
   backgroundPaddingXPct?: number;
   backgroundPaddingYPct?: number;
@@ -9856,7 +10101,23 @@ function SpineTitleOverlay({
       const ts = combinedTextShadow(strokeColor, strokeWidth, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, shadowOpacity);
       return ts ? { textShadow: ts } : {};
     })(),
+    // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드, 새 기능) — 아래 실제
+    // <span> JSX는 이 spineTextStyle을 펼친(spread) "뒤에" color를 다시 한 번 명시적으로
+    // 주는 구조라서(책등 전용 패턴), 그라데이션의 color:"transparent"는 여기가 아니라
+    // 아래 spineEffectiveColor로 따로 계산해요(안 그러면 뒤의 color가 다시 덮어써요) —
+    // 배경 이미지·클립 속성만 여기서 주고, color는 그대로 둬요.
+    ...(gradientEnabled && gradientColorStart && gradientColorEnd
+      ? {
+          backgroundImage: `linear-gradient(${gradientAngle ?? 90}deg, ${gradientColorStart}, ${gradientColorEnd})`,
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        }
+      : {}),
+    textTransform: textTransformUppercase ? "uppercase" : "none",
+    fontVariantCaps: fontVariantSmallCaps ? "small-caps" : "normal",
   };
+  const spineEffectiveColor = gradientEnabled && gradientColorStart && gradientColorEnd ? "transparent" : color;
   const spineScaleTransform =
     (scaleXPct ?? 100) !== 100 || (scaleYPct ?? 100) !== 100
       ? ` scaleX(${(scaleXPct ?? 100) / 100}) scaleY(${(scaleYPct ?? 100) / 100})`
@@ -9902,7 +10163,7 @@ function SpineTitleOverlay({
             lineHeight: 1,
             transform: `rotate(90deg)${spineScaleTransform}`,
             fontFamily,
-            color,
+            color: spineEffectiveColor,
           }}
         >
           {title}
@@ -10555,6 +10816,15 @@ function UploadPageContent() {
   const [spineTitleShadowOffsetX, setSpineTitleShadowOffsetX] = useState<number | undefined>(undefined);
   const [spineTitleShadowOffsetY, setSpineTitleShadowOffsetY] = useState<number | undefined>(undefined);
   const [spineTitleShadowOpacity, setSpineTitleShadowOpacity] = useState<number | undefined>(undefined);
+  // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드, 새 기능) — 일반
+  // 글상자(TextBoxDef)와 같은 이름의 책등 전용 상태예요(strokeColor/shadowColor와
+  // 같은 패턴). 작은 대문자는 인쇄 PDF엔 반영 안 돼요(TextBoxDef 주석과 같은 이유).
+  const [spineTitleGradientEnabled, setSpineTitleGradientEnabled] = useState<boolean | undefined>(undefined);
+  const [spineTitleGradientColorStart, setSpineTitleGradientColorStart] = useState<string | undefined>(undefined);
+  const [spineTitleGradientColorEnd, setSpineTitleGradientColorEnd] = useState<string | undefined>(undefined);
+  const [spineTitleGradientAngle, setSpineTitleGradientAngle] = useState<number | undefined>(undefined);
+  const [spineTitleTextTransformUppercase, setSpineTitleTextTransformUppercase] = useState<boolean | undefined>(undefined);
+  const [spineTitleFontVariantSmallCaps, setSpineTitleFontVariantSmallCaps] = useState<boolean | undefined>(undefined);
   const [spineTitleBackgroundColor, setSpineTitleBackgroundColor] = useState<string | undefined>(undefined);
   const [spineTitleBackgroundPaddingXPct, setSpineTitleBackgroundPaddingXPct] = useState(40);
   const [spineTitleBackgroundPaddingYPct, setSpineTitleBackgroundPaddingYPct] = useState(25);
@@ -10606,6 +10876,15 @@ function UploadPageContent() {
   const [coverTitleShadowOffsetX, setCoverTitleShadowOffsetX] = useState<number | undefined>(undefined);
   const [coverTitleShadowOffsetY, setCoverTitleShadowOffsetY] = useState<number | undefined>(undefined);
   const [coverTitleShadowOpacity, setCoverTitleShadowOpacity] = useState<number | undefined>(undefined);
+  // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드, 새 기능) — 일반
+  // 글상자(TextBoxDef)와 같은 이름의 표지 제목 전용 상태예요(strokeColor/shadowColor와
+  // 같은 패턴). 작은 대문자는 인쇄 PDF엔 반영 안 돼요(TextBoxDef 주석과 같은 이유).
+  const [coverTitleGradientEnabled, setCoverTitleGradientEnabled] = useState<boolean | undefined>(undefined);
+  const [coverTitleGradientColorStart, setCoverTitleGradientColorStart] = useState<string | undefined>(undefined);
+  const [coverTitleGradientColorEnd, setCoverTitleGradientColorEnd] = useState<string | undefined>(undefined);
+  const [coverTitleGradientAngle, setCoverTitleGradientAngle] = useState<number | undefined>(undefined);
+  const [coverTitleTextTransformUppercase, setCoverTitleTextTransformUppercase] = useState<boolean | undefined>(undefined);
+  const [coverTitleFontVariantSmallCaps, setCoverTitleFontVariantSmallCaps] = useState<boolean | undefined>(undefined);
   const [coverTitleBackgroundColor, setCoverTitleBackgroundColor] = useState<string | undefined>(undefined);
   const [coverTitleBackgroundPaddingXPct, setCoverTitleBackgroundPaddingXPct] = useState(40);
   const [coverTitleBackgroundPaddingYPct, setCoverTitleBackgroundPaddingYPct] = useState(25);
@@ -12919,6 +13198,12 @@ function UploadPageContent() {
       coverTitleShadowOffsetX,
       coverTitleShadowOffsetY,
       coverTitleShadowOpacity,
+      coverTitleGradientEnabled,
+      coverTitleGradientColorStart,
+      coverTitleGradientColorEnd,
+      coverTitleGradientAngle,
+      coverTitleTextTransformUppercase,
+      coverTitleFontVariantSmallCaps,
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
@@ -12947,6 +13232,12 @@ function UploadPageContent() {
       spineTitleShadowOffsetX,
       spineTitleShadowOffsetY,
       spineTitleShadowOpacity,
+      spineTitleGradientEnabled,
+      spineTitleGradientColorStart,
+      spineTitleGradientColorEnd,
+      spineTitleGradientAngle,
+      spineTitleTextTransformUppercase,
+      spineTitleFontVariantSmallCaps,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -13004,6 +13295,12 @@ function UploadPageContent() {
     setCoverTitleShadowOffsetX(s.coverTitleShadowOffsetX);
     setCoverTitleShadowOffsetY(s.coverTitleShadowOffsetY);
     setCoverTitleShadowOpacity(s.coverTitleShadowOpacity);
+    setCoverTitleGradientEnabled(s.coverTitleGradientEnabled);
+    setCoverTitleGradientColorStart(s.coverTitleGradientColorStart);
+    setCoverTitleGradientColorEnd(s.coverTitleGradientColorEnd);
+    setCoverTitleGradientAngle(s.coverTitleGradientAngle);
+    setCoverTitleTextTransformUppercase(s.coverTitleTextTransformUppercase);
+    setCoverTitleFontVariantSmallCaps(s.coverTitleFontVariantSmallCaps);
     setCoverTitleBackgroundColor(s.coverTitleBackgroundColor);
     setCoverTitleBackgroundPaddingXPct(s.coverTitleBackgroundPaddingXPct ?? 40);
     setCoverTitleBackgroundPaddingYPct(s.coverTitleBackgroundPaddingYPct ?? 25);
@@ -13045,6 +13342,12 @@ function UploadPageContent() {
     setSpineTitleShadowOffsetX(s.spineTitleShadowOffsetX);
     setSpineTitleShadowOffsetY(s.spineTitleShadowOffsetY);
     setSpineTitleShadowOpacity(s.spineTitleShadowOpacity);
+    setSpineTitleGradientEnabled(s.spineTitleGradientEnabled);
+    setSpineTitleGradientColorStart(s.spineTitleGradientColorStart);
+    setSpineTitleGradientColorEnd(s.spineTitleGradientColorEnd);
+    setSpineTitleGradientAngle(s.spineTitleGradientAngle);
+    setSpineTitleTextTransformUppercase(s.spineTitleTextTransformUppercase);
+    setSpineTitleFontVariantSmallCaps(s.spineTitleFontVariantSmallCaps);
     setSpineTitleBackgroundColor(s.spineTitleBackgroundColor);
     setSpineTitleBackgroundPaddingXPct(s.spineTitleBackgroundPaddingXPct ?? 40);
     setSpineTitleBackgroundPaddingYPct(s.spineTitleBackgroundPaddingYPct ?? 25);
@@ -13131,6 +13434,12 @@ function UploadPageContent() {
     coverTitleShadowOffsetX,
     coverTitleShadowOffsetY,
     coverTitleShadowOpacity,
+    coverTitleGradientEnabled,
+    coverTitleGradientColorStart,
+    coverTitleGradientColorEnd,
+    coverTitleGradientAngle,
+    coverTitleTextTransformUppercase,
+    coverTitleFontVariantSmallCaps,
     coverTitleBackgroundColor,
     coverTitleBackgroundPaddingXPct,
     coverTitleBackgroundPaddingYPct,
@@ -13159,6 +13468,12 @@ function UploadPageContent() {
     spineTitleShadowOffsetX,
     spineTitleShadowOffsetY,
     spineTitleShadowOpacity,
+    spineTitleGradientEnabled,
+    spineTitleGradientColorStart,
+    spineTitleGradientColorEnd,
+    spineTitleGradientAngle,
+    spineTitleTextTransformUppercase,
+    spineTitleFontVariantSmallCaps,
     spineTitleBackgroundColor,
     spineTitleBackgroundPaddingXPct,
     spineTitleBackgroundPaddingYPct,
@@ -13446,6 +13761,11 @@ function UploadPageContent() {
       coverTitleShadowOffsetX,
       coverTitleShadowOffsetY,
       coverTitleShadowOpacity,
+      coverTitleGradientEnabled,
+      coverTitleGradientColorStart,
+      coverTitleGradientColorEnd,
+      coverTitleGradientAngle,
+      coverTitleTextTransformUppercase,
       coverTitleBackgroundColor,
       coverTitleBackgroundPaddingXPct,
       coverTitleBackgroundPaddingYPct,
@@ -13473,6 +13793,11 @@ function UploadPageContent() {
       spineTitleShadowOffsetX,
       spineTitleShadowOffsetY,
       spineTitleShadowOpacity,
+      spineTitleGradientEnabled,
+      spineTitleGradientColorStart,
+      spineTitleGradientColorEnd,
+      spineTitleGradientAngle,
+      spineTitleTextTransformUppercase,
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
@@ -13911,6 +14236,12 @@ function UploadPageContent() {
       shadowOffsetX: coverTitleShadowOffsetX,
       shadowOffsetY: coverTitleShadowOffsetY,
       shadowOpacity: coverTitleShadowOpacity,
+      gradientEnabled: coverTitleGradientEnabled,
+      gradientColorStart: coverTitleGradientColorStart,
+      gradientColorEnd: coverTitleGradientColorEnd,
+      gradientAngle: coverTitleGradientAngle,
+      textTransformUppercase: coverTitleTextTransformUppercase,
+      fontVariantSmallCaps: coverTitleFontVariantSmallCaps,
       lineHeight: coverTitleLineHeightEm,
       letterSpacing: coverTitleLetterSpacingEm,
       backgroundColor: coverTitleBackgroundColor,
@@ -13960,6 +14291,12 @@ function UploadPageContent() {
       if ("shadowOffsetX" in changes) setCoverTitleShadowOffsetX(changes.shadowOffsetX);
       if ("shadowOffsetY" in changes) setCoverTitleShadowOffsetY(changes.shadowOffsetY);
       if ("shadowOpacity" in changes) setCoverTitleShadowOpacity(changes.shadowOpacity);
+      if ("gradientEnabled" in changes) setCoverTitleGradientEnabled(changes.gradientEnabled);
+      if ("gradientColorStart" in changes) setCoverTitleGradientColorStart(changes.gradientColorStart);
+      if ("gradientColorEnd" in changes) setCoverTitleGradientColorEnd(changes.gradientColorEnd);
+      if ("gradientAngle" in changes) setCoverTitleGradientAngle(changes.gradientAngle);
+      if ("textTransformUppercase" in changes) setCoverTitleTextTransformUppercase(changes.textTransformUppercase);
+      if ("fontVariantSmallCaps" in changes) setCoverTitleFontVariantSmallCaps(changes.fontVariantSmallCaps);
       if ("backgroundColor" in changes) setCoverTitleBackgroundColor(changes.backgroundColor);
       if (changes.backgroundPaddingXPct !== undefined) setCoverTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setCoverTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
@@ -13997,6 +14334,12 @@ function UploadPageContent() {
       shadowOffsetX: spineTitleShadowOffsetX,
       shadowOffsetY: spineTitleShadowOffsetY,
       shadowOpacity: spineTitleShadowOpacity,
+      gradientEnabled: spineTitleGradientEnabled,
+      gradientColorStart: spineTitleGradientColorStart,
+      gradientColorEnd: spineTitleGradientColorEnd,
+      gradientAngle: spineTitleGradientAngle,
+      textTransformUppercase: spineTitleTextTransformUppercase,
+      fontVariantSmallCaps: spineTitleFontVariantSmallCaps,
       // 책등은 행간·자간을 따로 안 둬요(한 줄짜리 세로쓰기 글자라 줄바꿈 개념이 없어요) —
       // 패널엔 그대로 보이지만(같은 컴포넌트라서) 바꿔도 저장할 자리가 없어 조용히
       // 무시돼요. 기본값만 채워둬요.
@@ -14030,6 +14373,12 @@ function UploadPageContent() {
       if ("shadowOffsetX" in changes) setSpineTitleShadowOffsetX(changes.shadowOffsetX);
       if ("shadowOffsetY" in changes) setSpineTitleShadowOffsetY(changes.shadowOffsetY);
       if ("shadowOpacity" in changes) setSpineTitleShadowOpacity(changes.shadowOpacity);
+      if ("gradientEnabled" in changes) setSpineTitleGradientEnabled(changes.gradientEnabled);
+      if ("gradientColorStart" in changes) setSpineTitleGradientColorStart(changes.gradientColorStart);
+      if ("gradientColorEnd" in changes) setSpineTitleGradientColorEnd(changes.gradientColorEnd);
+      if ("gradientAngle" in changes) setSpineTitleGradientAngle(changes.gradientAngle);
+      if ("textTransformUppercase" in changes) setSpineTitleTextTransformUppercase(changes.textTransformUppercase);
+      if ("fontVariantSmallCaps" in changes) setSpineTitleFontVariantSmallCaps(changes.fontVariantSmallCaps);
       if ("backgroundColor" in changes) setSpineTitleBackgroundColor(changes.backgroundColor);
       if (changes.backgroundPaddingXPct !== undefined) setSpineTitleBackgroundPaddingXPct(changes.backgroundPaddingXPct);
       if (changes.backgroundPaddingYPct !== undefined) setSpineTitleBackgroundPaddingYPct(changes.backgroundPaddingYPct);
@@ -15549,6 +15898,12 @@ function UploadPageContent() {
                               shadowOffsetX={spineTitleShadowOffsetX}
                               shadowOffsetY={spineTitleShadowOffsetY}
                               shadowOpacity={spineTitleShadowOpacity}
+                              gradientEnabled={spineTitleGradientEnabled}
+                              gradientColorStart={spineTitleGradientColorStart}
+                              gradientColorEnd={spineTitleGradientColorEnd}
+                              gradientAngle={spineTitleGradientAngle}
+                              textTransformUppercase={spineTitleTextTransformUppercase}
+                              fontVariantSmallCaps={spineTitleFontVariantSmallCaps}
                               backgroundColor={spineTitleBackgroundColor}
                               backgroundPaddingXPct={spineTitleBackgroundPaddingXPct}
                               backgroundPaddingYPct={spineTitleBackgroundPaddingYPct}

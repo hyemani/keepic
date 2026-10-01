@@ -167,6 +167,30 @@ export type TextBoxDef = {
   // 실험적(allowFillBoxBackground=false)이라 패널에 필드는 보이지만 배경이 꺼져
   // 있는 한 눈에 보이는 효과는 없어요(기존 범위와 동일).
   cornerRadiusPct?: number;
+  // 그라데이션 글자색(2026-11, 15번째 라운드, 혜민님 요청 "그라데이션" 버튼 추가) —
+  // gradientEnabled가 true이고 시작·끝 색이 둘 다 있어야 실제로 적용되고, 켜져 있으면
+  // color(면색) 대신 시작색→끝색으로 이어지는 그라데이션이 글자를 채워요(색 자체인
+  // color 필드는 그대로 두고 켰다 끄면 원래 면색으로 돌아가요). 값이 없으면(undefined,
+  // 기존 문서 전부 이 상태) 예전처럼 그라데이션 없음 = 기존 color 그대로(하위 호환).
+  // 화면은 CSS background-clip:text(+ WebkitTextFillColor:transparent), 인쇄는
+  // lib/printCompose.ts의 ctx.createLinearGradient로 각각 구현했어요. gradientAngle은
+  // CSS linear-gradient 각도와 같은 단위(도, deg) — 지정 안 하면 90(왼쪽→오른쪽,
+  // 가로)으로 취급해요.
+  gradientEnabled?: boolean;
+  gradientColorStart?: string;
+  gradientColorEnd?: string;
+  gradientAngle?: number;
+  // 모두 대문자 / 작은 대문자(2026-11, 15번째 라운드, 혜민님 요청 — 효과 아이콘 줄에
+  // 7개로 확장) — 라틴 문자에만 실제 효과가 있어요(한글은 대/소문자 구분이 없어서
+  // 시각적으로 그대로예요, 자연히 아무 영향 없음). 모두 대문자는 화면(CSS
+  // text-transform:uppercase)·인쇄(lib/printCompose.ts에서 그리기 직전에 실제 문자열을
+  // .toUpperCase()로 바꿔서 폭 계산·줄바꿈까지 동일하게 반영) 둘 다 적용돼요. 작은
+  // 대문자는 캔버스 2D API에 대응 기능이 없어서(브라우저의 font-variant-caps 같은 걸
+  // canvas가 지원 안 함) 화면 미리보기(CSS font-variant-caps: small-caps)에서만
+  // 보이고, 인쇄 PDF엔 반영되지 않아요(화면·인쇄가 달라지는 예외 — 작업 보고에 명시,
+  // 값이 없으면 당연히 기존과 동일, 하위 호환 영향 없음).
+  textTransformUppercase?: boolean;
+  fontVariantSmallCaps?: boolean;
 };
 
 // 자유 배치 이미지박스 하나예요(내지 스프레드·표지 앞면 공통으로 써요). 텍스트박스와
@@ -323,6 +347,17 @@ export type TableCellStyle = {
   // TextBoxDef.shadowOpacity와 같은 이름·같은 단위(0~100%)·같은 하위 호환 규칙
   // (undefined면 100=완전 불투명)이에요.
   shadowOpacity?: number;
+  // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드) — 일반 글상자
+  // (TextBoxDef)의 같은 이름 필드와 완전히 같은 의미·단위·하위 호환 규칙이에요(표
+  // 전체엔 이 필드들이 없어서 shadowColor 등과 같은 이유로 항상 이 칸 자신의 값만
+  // 써요, 값이 없으면 기존과 동일). 화면·인쇄 반영 범위도 TextBoxDef와 같아요(작은
+  // 대문자는 인쇄 미반영, 작업 보고에 명시).
+  gradientEnabled?: boolean;
+  gradientColorStart?: string;
+  gradientColorEnd?: string;
+  gradientAngle?: number;
+  textTransformUppercase?: boolean;
+  fontVariantSmallCaps?: boolean;
   hiddenSides?: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean };
   // 이 칸(anchor)에 닿은 격자선의 선 색·굵기·종류·점선 세부값을 표 전체 기본값과
   // 다르게 줘요(2026-10, 혜민님 요청: "표 전체를 선택했을 때는 전체 선 설정을, 셀을

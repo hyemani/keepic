@@ -86,6 +86,40 @@ function fillRoundedRect(
   ctx.fill();
 }
 
+// 그라데이션 글자색(2026-11, 15번째 라운드, 새 기능) — 화면의 CSS
+// background-clip:text(linear-gradient(각도deg, 시작, 끝))와 같은 각도 규칙을
+// canvas 2D의 createLinearGradient(x0,y0,x1,y1)로 옮겨요. CSS 각도(0deg=위쪽,
+// 시계방향 증가)를 박스 대각선 전체를 덮는 그라데이션 선으로 바꾸는 표준 공식이에요
+// (각도가 90deg=기본값이면 박스를 가로로 가로지르는 왼쪽→오른쪽 직선이 돼요, 화면과
+// 똑같은 모양). enabled가 꺼져 있거나 시작·끝 색 중 하나라도 없으면 undefined를
+// 돌려줘서, 호출부가 예전처럼 평범한 단색 fillStyle을 그대로 쓰게 해요(하위 호환).
+function textGradientFillStyle(
+  ctx: CanvasRenderingContext2D,
+  enabled: boolean | undefined,
+  colorStart: string | undefined,
+  colorEnd: string | undefined,
+  angleDeg: number | undefined,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): string | CanvasGradient | undefined {
+  if (!enabled || !colorStart || !colorEnd) return undefined;
+  const boxW = Math.max(1, Math.abs(w));
+  const boxH = Math.max(1, Math.abs(h));
+  const rad = (((angleDeg ?? 90) % 360) * Math.PI) / 180;
+  const length = Math.abs(boxW * Math.sin(rad)) + Math.abs(boxH * Math.cos(rad));
+  const half = length / 2;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const dx = Math.sin(rad) * half;
+  const dy = -Math.cos(rad) * half;
+  const grad = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+  grad.addColorStop(0, colorStart);
+  grad.addColorStop(1, colorEnd);
+  return grad;
+}
+
 export function parseWorkSizeMm(productionFileSizeMm: string | null): { w: number; h: number } {
   const match = (productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)\s*x\s*(\d+(\.\d+)?)/i);
   if (!match) return { w: 310, h: 310 }; // 혹시 규격을 못 읽으면 L사이즈 기준으로 안전하게
@@ -347,6 +381,20 @@ function drawTextBoxOnCanvasRuns(
     return { line, maxFontPx, lineHeight: maxFontPx * (box.lineHeight ?? 1.35) };
   });
   const textBlockHeight = lineInfos.reduce((sum, li) => sum + li.lineHeight, 0);
+  // 그라데이션(2026-11, 15번째 라운드, 새 기능) — box 전체 bounding box 기준으로 한 번만
+  // 계산해서, 구간(run)마다 다른 색(seg.style.color)을 덮어써요(화면 CSS
+  // background-clip:text가 box 전체를 기준으로 하나만 그리는 것과 같은 결과).
+  const boxGradient = textGradientFillStyle(
+    ctx,
+    box.gradientEnabled,
+    box.gradientColorStart,
+    box.gradientColorEnd,
+    box.gradientAngle,
+    x,
+    y,
+    w,
+    textBlockHeight
+  );
 
   const align = box.align;
   const textXBase = align === "left" ? x : align === "right" ? x + w : x + w / 2;
@@ -414,7 +462,7 @@ function drawTextBoxOnCanvasRuns(
       const hasShadow = !!box.shadowColor;
       for (const seg of line) {
         setCtxFontForRunStyle(ctx, seg.style);
-        ctx.fillStyle = seg.style.color;
+        ctx.fillStyle = boxGradient ?? seg.style.color;
         if ("letterSpacing" in ctx) {
           (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = box.letterSpacing
             ? `${seg.style.fontPx * box.letterSpacing}px`
@@ -514,11 +562,21 @@ function drawTextBoxOnCanvas(
   if (box.runs && box.runs.length > 0) {
     const trimmed = trimRuns(box.runs);
     if (trimmed.length === 0) return;
-    drawTextBoxOnCanvasRuns(ctx, box, trimmed, pageW, pageH, offsetX, offsetY);
+    // 모두 대문자(2026-11, 15번째 라운드, 새 기능) — 구간(run)마다 서로 다른 글자일
+    // 수 있어서, 여기서 전부 한 번에 대문자로 바꿔서 넘겨요(줄바꿈·폭 계산까지 전부
+    // 대문자 기준으로 맞아떨어지게). 작은 대문자는 canvas 2D에 대응 기능이 없어서
+    // 인쇄엔 반영 안 해요(화면 전용, 작업 보고에 명시).
+    const effRuns = box.textTransformUppercase
+      ? trimmed.map((r) => ({ ...r, text: r.text.toUpperCase() }))
+      : trimmed;
+    drawTextBoxOnCanvasRuns(ctx, box, effRuns, pageW, pageH, offsetX, offsetY);
     return;
   }
 
-  const text = box.text.trim();
+  // 모두 대문자(2026-11, 15번째 라운드, 새 기능) — 측정(wrapTextForCanvas)·그리기 모두
+  // 이 변환된 문자열을 쓰도록 맨 앞에서 한 번만 바꿔요(화면과 똑같이 줄바꿈도 대문자
+  // 기준). 작은 대문자는 canvas 2D에 대응 기능이 없어서 인쇄엔 반영 안 해요(화면 전용).
+  const text = (box.textTransformUppercase ? box.text.toUpperCase() : box.text).trim();
   if (!text) return;
   const x = offsetX + (box.xPct / 100) * pageW;
   const y = offsetY + (box.yPct / 100) * pageH;
@@ -543,6 +601,22 @@ function drawTextBoxOnCanvas(
   const lineHeight = fontPx * (box.lineHeight ?? 1.35);
   const lines = wrapTextForCanvas(ctx, text, w);
   const textX = box.align === "left" ? x : box.align === "right" ? x + w : x + w / 2;
+  // 그라데이션(2026-11, 15번째 라운드, 새 기능) — box 전체 bounding box(줄 수 x 줄
+  // 높이) 기준으로 한 번만 계산해서 ctx.fillStyle을 덮어써요. 이 함수의 유일한
+  // fillStyle 지정이라(위에서 한 번 box.color로 세팅한 뒤 아무 데서도 다시 안 바꿈),
+  // 여기서 덮으면 이후 모든 fillText가 자동으로 그라데이션을 써요.
+  const textGradient = textGradientFillStyle(
+    ctx,
+    box.gradientEnabled,
+    box.gradientColorStart,
+    box.gradientColorEnd,
+    box.gradientAngle,
+    x,
+    y,
+    w,
+    lines.length * lineHeight
+  );
+  if (textGradient) ctx.fillStyle = textGradient;
 
   // 밑줄·배경을 그릴 때 필요한, 그 줄의 실제 가로폭과 시작 x예요 — 정렬(align)에 따라
   // textX가 왼쪽/가운데/오른쪽 중 어느 기준점인지 다르고, 줄마다 글자 수가 달라 폭도
@@ -1078,6 +1152,11 @@ function drawTableGridAndCells(
       const effShadowOffsetY = style?.shadowOffsetY;
       const effShadowOpacity = style?.shadowOpacity;
       const hasShadow = !!effShadowColor;
+      // 모두 대문자(2026-11, 15번째 라운드, 새 기능) — 표 전체엔 이 필드가 없어서
+      // strokeColor/shadowColor와 같은 이유로 항상 이 칸 자신의 값만 써요. 작은
+      // 대문자는 canvas 2D에 대응 기능이 없어서 인쇄엔 반영 안 해요(화면 전용).
+      const effTextTransformUppercase = style?.textTransformUppercase;
+      const effText = effTextTransformUppercase ? text.toUpperCase() : text;
       ctx.font = `${effFontStyle}${effFontWeight}${effFontPx}px ${effFontFamily}`;
       ctx.fillStyle = effColor;
       if ("letterSpacing" in ctx) {
@@ -1095,7 +1174,21 @@ function drawTableGridAndCells(
       const cx = cellLeftPx + cellW / 2;
       const cy = cellTopPx + cellHeight / 2;
       const maxTextWidth = Math.max(4, cellW - effPad * 2);
-      const lines = wrapTextForCanvas(ctx, text, maxTextWidth);
+      const lines = wrapTextForCanvas(ctx, effText, maxTextWidth);
+      // 그라데이션(2026-11, 15번째 라운드, 새 기능) — 이 칸의 bounding box 기준으로
+      // 계산해요(일반 텍스트박스의 box 전체 기준과 같은 방식, 칸 하나가 "박스"예요).
+      const cellGradient = textGradientFillStyle(
+        ctx,
+        style?.gradientEnabled,
+        style?.gradientColorStart,
+        style?.gradientColorEnd,
+        style?.gradientAngle,
+        cellLeftPx,
+        cellTopPx,
+        cellW,
+        cellHeight
+      );
+      if (cellGradient) ctx.fillStyle = cellGradient;
       const lineHeight = effFontPx * (style?.lineHeight ?? box.lineHeight ?? 1.25);
       // 가로 정렬: 왼쪽/오른쪽/가운데에 따라 기준 x와 canvas textAlign을 바꿔요.
       ctx.textAlign = effAlign;
@@ -1920,9 +2013,22 @@ function drawSpineTitleCanvas(
   // 배경 띠 "길이"(책등의 세로/글자 진행 방향)를 직접 지정해요(%, panelPx=책등
   // 패널 전체 길이를 100%로 보는 퍼센트 — spineTitleHeightPct와 같은 좌표계). 값이
   // 없으면(기존과 동일) 글자 폭+backgroundPaddingXPct로 자동 계산돼요.
-  backgroundWidthPct?: number
+  backgroundWidthPct?: number,
+  // 그라데이션·모두 대문자(2026-11, 15번째 라운드, 새 기능) — 포지셔널 인자 끝에
+  // 추가해서 기존 호출부(이 인자들을 안 넘기는 코드가 있다면)와 순서가 안 깨지게
+  // 했어요. 그라데이션은 회전된(90도) 로컬 좌표계 기준으로 한 번 계산해요(이 함수의
+  // 다른 모든 그리기(strokeText/fillText/배경)도 전부 이 로컬 좌표계를 쓰는 것과
+  // 같은 방식) — 책등은 세로로 길게 눕혀 그려서, "가로 그라데이션(90deg, 기본값)"이
+  // 화면에서 책등을 따라 위→아래로 흐르는 모습이 돼요(화면 CSS와 완전히 같은 각도
+  // 수치는 아니지만, 가장 자연스러운 근사예요 — 작업 보고에 명시).
+  gradientEnabled?: boolean,
+  gradientColorStart?: string,
+  gradientColorEnd?: string,
+  gradientAngle?: number,
+  textTransformUppercase?: boolean
 ): boolean {
-  const trimmed = title.trim();
+  const effTitle = textTransformUppercase ? title.toUpperCase() : title;
+  const trimmed = effTitle.trim();
   if (!trimmed) return true;
 
   const sidePaddingPx = mmToPx(SPINE_TITLE_SIDE_PADDING_MM);
@@ -2015,7 +2121,18 @@ function drawSpineTitleCanvas(
       ctx.shadowOffsetY = 0;
     }
   }
-  ctx.fillStyle = color;
+  const spineGradient = textGradientFillStyle(
+    ctx,
+    gradientEnabled,
+    gradientColorStart,
+    gradientColorEnd,
+    gradientAngle,
+    0,
+    -size / 2,
+    textWidthPx,
+    size
+  );
+  ctx.fillStyle = spineGradient ?? color;
   ctx.fillText(trimmed, 0, 0);
   if (hasShadow && !hasStroke) {
     ctx.shadowColor = "transparent";
@@ -2143,6 +2260,11 @@ export async function buildCoverPrintPdf({
   coverTitleShadowOffsetX,
   coverTitleShadowOffsetY,
   coverTitleShadowOpacity,
+  coverTitleGradientEnabled,
+  coverTitleGradientColorStart,
+  coverTitleGradientColorEnd,
+  coverTitleGradientAngle,
+  coverTitleTextTransformUppercase,
   coverTitleCornerRadiusPct,
   coverTitleBackgroundColor,
   coverTitleBackgroundPaddingXPct = 40,
@@ -2171,6 +2293,11 @@ export async function buildCoverPrintPdf({
   spineTitleShadowOffsetX,
   spineTitleShadowOffsetY,
   spineTitleShadowOpacity,
+  spineTitleGradientEnabled,
+  spineTitleGradientColorStart,
+  spineTitleGradientColorEnd,
+  spineTitleGradientAngle,
+  spineTitleTextTransformUppercase,
   spineTitleBackgroundColor,
   spineTitleBackgroundPaddingXPct = 40,
   spineTitleBackgroundPaddingYPct = 25,
@@ -2237,6 +2364,14 @@ export async function buildCoverPrintPdf({
   // 그림자 불투명도(2026-11-9차 6번째 라운드, 0~100%) — 화면(app/upload/page.tsx
   // TextStyleFields.shadowOpacity)과 같은 이름·단위, undefined면 100(완전 불투명).
   coverTitleShadowOpacity?: number;
+  // 그라데이션·모두 대문자(2026-11, 15번째 라운드, 새 기능) — 화면(coverTitleAsTextBox
+  // 어댑터)과 같은 이름의 필드예요. 작은 대문자(fontVariantSmallCaps)는 캔버스 2D에
+  // 대응 기능이 없어서 인쇄엔 아예 안 넣었어요(화면 전용 — TextBoxDef 주석과 같은 이유).
+  coverTitleGradientEnabled?: boolean;
+  coverTitleGradientColorStart?: string;
+  coverTitleGradientColorEnd?: string;
+  coverTitleGradientAngle?: number;
+  coverTitleTextTransformUppercase?: boolean;
   // 2026-10(12번째 라운드) — 화면(coverTitleAsTextBox 어댑터)의 cornerRadiusPct와
   // 같은 필드, 같은 단위(%)예요. 0/undefined면 기존과 동일한 직각.
   coverTitleCornerRadiusPct?: number;
@@ -2276,6 +2411,13 @@ export async function buildCoverPrintPdf({
   spineTitleShadowOffsetX?: number;
   spineTitleShadowOffsetY?: number;
   spineTitleShadowOpacity?: number;
+  // 그라데이션·모두 대문자(2026-11, 15번째 라운드, 새 기능) — 위 coverTitle과 같은
+  // 이름·같은 범위(작은 대문자는 인쇄 미지원, 화면 전용).
+  spineTitleGradientEnabled?: boolean;
+  spineTitleGradientColorStart?: string;
+  spineTitleGradientColorEnd?: string;
+  spineTitleGradientAngle?: number;
+  spineTitleTextTransformUppercase?: boolean;
   spineTitleBackgroundColor?: string;
   spineTitleBackgroundPaddingXPct?: number;
   spineTitleBackgroundPaddingYPct?: number;
@@ -2502,7 +2644,12 @@ export async function buildCoverPrintPdf({
       spineTitleBackgroundColor,
       spineTitleBackgroundPaddingXPct,
       spineTitleBackgroundPaddingYPct,
-      spineTitleBackgroundWidthPct
+      spineTitleBackgroundWidthPct,
+      spineTitleGradientEnabled,
+      spineTitleGradientColorStart,
+      spineTitleGradientColorEnd,
+      spineTitleGradientAngle,
+      spineTitleTextTransformUppercase
     );
   }
   if (spineLogoLayout.fits) {
@@ -2579,7 +2726,12 @@ export async function buildCoverPrintPdf({
     const titleBoxTopPx = (coverTitleYPct / 100) * frontCellHpx;
     const titleMaxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
     const titleLinePx = titlePx * coverTitleLineHeightEm;
-    const titleLines = coverTitle.trim().split("\n");
+    // 모두 대문자(2026-11, 15번째 라운드, 새 기능) — 측정·줄바꿈·그리기 전부 이
+    // 변환된 문자열을 쓰도록 맨 앞에서 한 번만 바꿔요(화면과 똑같이 줄바꿈 결과도
+    // 대문자 기준으로 맞아떨어져요). 작은 대문자는 canvas 2D에 대응 기능이 없어서
+    // 인쇄엔 반영 안 해요(화면 전용, 작업 보고에 명시).
+    const effCoverTitleText = coverTitleTextTransformUppercase ? coverTitle.toUpperCase() : coverTitle;
+    const titleLines = effCoverTitleText.trim().split("\n");
     // 2026-10(7차) — 화면(CoverTitleOverlay)과 같은 "실제 높이(heightPct)가 있을 때만
     // 세로 정렬"이에요. 없으면(예전과 동일) 항상 맨 위부터 그려요.
     const titleBlockHeightPx = titleLines.length * titleLinePx;
@@ -2594,6 +2746,21 @@ export async function buildCoverPrintPdf({
             : 0
         : 0;
     const titleYpx = titleBoxTopPx + titleStartYOffsetPx;
+    // 그라데이션(2026-11, 15번째 라운드, 새 기능) — 제목 전체 글상자 bounding box
+    // 기준으로 한 번만 계산해서, 아래 줄별 fillText가 다 같은 그라데이션을 공유해요
+    // (화면의 "박스 전체에 한 그라데이션" 모습과 같아요).
+    const titleGradient = textGradientFillStyle(
+      ctxNN,
+      coverTitleGradientEnabled,
+      coverTitleGradientColorStart,
+      coverTitleGradientColorEnd,
+      coverTitleGradientAngle,
+      titleBoxLeftPx,
+      titleYpx,
+      titleBoxWidthPx,
+      titleBlockHeightPx
+    );
+    if (titleGradient) ctxNN.fillStyle = titleGradient;
     // "박스 전체 배경"(fillBox) + 실제 높이가 있으면, 화면의 TextBoxOverlay와 똑같이
     // 줄마다가 아니라 박스 전체를 덮는 사각형 하나를 글자보다 먼저 한 번만 그려요.
     if (coverTitleBackgroundColor && coverTitleBackgroundMode === "fillBox" && titleBoxHeightPx !== undefined) {
