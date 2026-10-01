@@ -4389,6 +4389,29 @@ type TextBackgroundFields = {
   allowFillBoxBackground: boolean;
 };
 
+// 2026-11(18번째 라운드 재정정), 혜민님 버그 리포트("자간이 지금 -1만 했는데도
+// 엄청 좁아진것처럼 변형되고 반대로 +1밖에 안했는데 엄청 넓어졌어") — 원인을
+// 추적한 결과: 17번째 라운드(0c8f735)가 입력칸의 min/max를 -0.1~0.5에서
+// -40~100으로 넓히면서, 그 숫자를 em 값에 그대로(1:1, 배율 없이) 저장하게
+// 했었어요(그 커밋 메시지도 "값·단위(em)·저장 방식은 전혀 안 바꿨다"고 명시).
+// 즉 그때부터 "-1"을 입력하면 실제로 letterSpacing: -1(글자 폭만큼 음수 자간,
+// 극단적으로 좁아짐)이 저장되고 있었어요 — 원래(17라운드 이전) 범위였던
+// -0.1~0.5em처럼 작은 소수 em 값이 전혀 아니었던 거예요. 18번째 라운드의
+// 소수점 반올림 수정은 이 단위 문제를 안 건드려서 그대로 남아있었어요.
+// 지금 고치는 방식 — 화면에 보여주는 정수(-40~100, 혜민님이 원래 요청한 범위
+// 그대로)와 실제 저장되는 em 값 사이에 100:1 배율을 둬요(표시 1단위 = 0.01em,
+// textBoxFontScaleToPt/Pt↔fontScale 변환과 같은 "표시용 draft ↔ 저장값" 패턴).
+// 이러면 "-1" 입력 시 실제 저장은 -0.01em(거의 안 보이는 미세 조정, 정상)이
+// 되고, 표시 범위 -40~100은 저장 기준 -0.4em~1.0em이 돼서 예전(-0.1~0.5em)보다
+// 넓어진 "확장된 범위"라는 원래 취지도 그대로 유지돼요.
+const LETTER_SPACING_DISPLAY_PER_EM = 100;
+function letterSpacingEmToDisplay(em: number): number {
+  return Math.round(em * LETTER_SPACING_DISPLAY_PER_EM);
+}
+function letterSpacingDisplayToEm(display: number): number {
+  return display / LETTER_SPACING_DISPLAY_PER_EM;
+}
+
 function TextStyleFieldsPanel({
   syncKey,
   value,
@@ -4420,7 +4443,7 @@ function TextStyleFieldsPanel({
 }) {
   const [ptDraft, setPtDraft] = useState(() => String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)));
   const [lineHeightDraft, setLineHeightDraft] = useState(() => String(value.lineHeight));
-  const [letterSpacingDraft, setLetterSpacingDraft] = useState(() => String(Math.round(value.letterSpacing)));
+  const [letterSpacingDraft, setLetterSpacingDraft] = useState(() => String(letterSpacingEmToDisplay(value.letterSpacing)));
   const [scaleXDraft, setScaleXDraft] = useState(() => String(value.scaleXPct));
   const [scaleYDraft, setScaleYDraft] = useState(() => String(value.scaleYPct));
   const lastSyncedKeyRef = useRef<string | undefined>(undefined);
@@ -4440,7 +4463,7 @@ function TextStyleFieldsPanel({
     lastSyncedKeyRef.current = syncKey;
     setPtDraft(String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)));
     setLineHeightDraft(String(value.lineHeight));
-    setLetterSpacingDraft(String(Math.round(value.letterSpacing)));
+    setLetterSpacingDraft(String(letterSpacingEmToDisplay(value.letterSpacing)));
     setScaleXDraft(String(value.scaleXPct));
     setScaleYDraft(String(value.scaleYPct));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4621,15 +4644,21 @@ function TextStyleFieldsPanel({
           <input
             type="number"
             // 2026-11(17번째 라운드), 혜민님 요청("자간은 -40 부터 +100 만들어줘") —
-            // 입력 가능 범위만 넓혔어요(기존 -0.1~0.5). 값·단위(em)·저장 방식은
-            // 전혀 안 바꿨고, onChange의 clamp 범위만 똑같이 맞췄어요.
-            // 2026-11(18번째 라운드), 혜민님 요청("자간 소숫점이 너무 많습니다") —
-            // step을 1로 바꾸고(화살표로 조절할 때 정수 단위로만 움직여요), 포커스를
-            // 잃을 때·칸 밖에서 값이 다시 동기화될 때 보여주는 값을 Math.round로
-            // 반올림해서 긴 소수점 꼬리가 안 보이게 했어요. 타이핑 도중(onChange)엔
-            // 입력한 그대로 보여줘서 커서가 안 튀고, 저장되는 값(onChange 쪽
-            // letterSpacing)도 반올림해서 어차피 소수점 없는 정수만 저장돼요(em
-            // 단위·저장 방식 자체는 그대로).
+            // 입력 가능 범위를 -0.1~0.5(em 그대로 1:1)에서 -40~100으로 넓혔는데,
+            // 그때 "em 값에 그대로(배율 없이) 저장"해서 -40~100 숫자가 곧바로
+            // -40em~100em으로 저장되는 치명적인 단위 버그가 생겼었어요.
+            // 2026-11(18번째 라운드 1차), 혜민님 요청("자간 소숫점이 너무 많습니다") —
+            // 소수점 표시만 정리했고(이 단위 버그는 못 건드림).
+            // 2026-11(18번째 라운드 2차 재정정), 혜민님 버그 리포트("-1만 했는데도
+            // 엄청 좁아지고 +1인데 엄청 넓어짐") — 바로 그 단위 버그였어요. 이제
+            // letterSpacingEmToDisplay/letterSpacingDisplayToEm(위 함수 정의, 100:1
+            // 배율 = 표시 1단위당 0.01em)로 "화면에 보여주는 정수(-40~100)"와 "실제
+            // 저장되는 em 값(-0.4~1.0em)"을 분리했어요 — min/max/step(-40/100/1)은
+            // 전부 "화면에 보이는 숫자" 기준 그대로라 혜민님이 요청한 입력 범위 느낌은
+            // 똑같이 유지돼요. 표시값은 정수만 보이고(Math.round 그대로 유지), 저장은
+            // 그 정수를 /100 해서 작은 소수 em으로 바뀌어요(1 입력 → 0.01em,
+            // 100 입력 → 1.0em). onChange의 clamp는 "화면 숫자" 범위(-40~100)에
+            // 그대로 적용한 뒤 em으로 변환해요.
             min={-40}
             max={100}
             step={1}
@@ -4638,9 +4667,10 @@ function TextStyleFieldsPanel({
               const raw = e.target.value;
               setLetterSpacingDraft(raw);
               const v = Number(raw);
-              if (Number.isFinite(v)) onChange({ letterSpacing: Math.round(Math.max(-40, Math.min(100, v))) });
+              if (Number.isFinite(v))
+                onChange({ letterSpacing: letterSpacingDisplayToEm(Math.round(Math.max(-40, Math.min(100, v)))) });
             }}
-            onBlur={() => setLetterSpacingDraft(String(Math.round(value.letterSpacing)))}
+            onBlur={() => setLetterSpacingDraft(String(letterSpacingEmToDisplay(value.letterSpacing)))}
             className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
