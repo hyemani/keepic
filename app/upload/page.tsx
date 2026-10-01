@@ -4334,14 +4334,19 @@ function TextStyleFieldsPanel({
           2열×3행에서 2열×2행+1칸으로 줄었어요(자간 칸은 col-span-2로 넓혀서 빈 공백이
           안 보이게 했어요). "세로 폭"·"가로 폭" 아이콘 title엔 "이 박스 자체의
           너비·높이(아래 '박스 크기')와는 다른 값"이라는 구분 설명을 그대로 남겼어요. */}
+      {/* 2026-10(14번째 라운드), 혜민님 요청(참고 스크린샷: "아이콘+숫자입력박스"가
+          따로 떨어진 두 상자가 아니라 테두리 하나를 공유하는 한 상자로 보여야 함) —
+          라벨 줄(아이콘만 있는 줄) + 입력칸(따로 테두리) 2단 구조였던 걸, 아이콘이
+          입력칸 왼쪽 안에 들어앉은 "하나의 테두리·배경·둥근 모서리" 입력 필드로
+          합쳤어요. 값·단위·유효범위·onChange·draft 상태는 전혀 안 건드렸고, title
+          (hover 설명)은 아이콘 대신 이 전체 박스(label 역할을 하는 바깥 div)로
+          옮겨서 박스 어디에 올려도 설명이 보여요. */}
       <div className="mt-1 grid grid-cols-2 gap-1.5">
-        <div>
-          <label
-            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
-            title="글자 크기(pt)"
-          >
-            <LayerIcon name="charFontSize" className="h-3.5 w-3.5" />
-          </label>
+        <div
+          className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+          title="글자 크기(pt)"
+        >
+          <LayerIcon name="charFontSize" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
           <input
             type="number"
             min={6}
@@ -4357,16 +4362,14 @@ function TextStyleFieldsPanel({
               }
             }}
             onBlur={() => setPtDraft(String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
-        <div>
-          <label
-            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
-            title="행간"
-          >
-            <LayerIcon name="charLineHeight" className="h-3.5 w-3.5" />
-          </label>
+        <div
+          className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+          title="행간"
+        >
+          <LayerIcon name="charLineHeight" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
           <input
             type="number"
             min={0.8}
@@ -4380,18 +4383,16 @@ function TextStyleFieldsPanel({
               if (Number.isFinite(v)) onChange({ lineHeight: Math.max(0.8, Math.min(3, v)) });
             }}
             onBlur={() => setLineHeightDraft(String(value.lineHeight))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1.5">
-        <div>
-          <label
-            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
-            title="세로 폭(%) — 이 박스 자체의 너비·높이(아래 '박스 크기')와는 다른 값이에요"
-          >
-            <LayerIcon name="charScaleV" className="h-3.5 w-3.5" />
-          </label>
+        <div
+          className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+          title="세로 폭(%) — 이 박스 자체의 너비·높이(아래 '박스 크기')와는 다른 값이에요"
+        >
+          <LayerIcon name="charScaleV" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
           <input
             type="number"
             min={50}
@@ -4405,17 +4406,14 @@ function TextStyleFieldsPanel({
               if (Number.isFinite(v)) onChange({ scaleYPct: Math.max(50, Math.min(200, v)) });
             }}
             onBlur={() => setScaleYDraft(String(value.scaleYPct))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-            title="글자 모양을 세로로 늘이는 비율(화면 미리보기 전용) — 아래 '박스 크기'(이 상자 자체의 너비·높이)와는 다른 값이에요"
+            className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
-        <div>
-          <label
-            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
-            title="가로 폭(%) — 이 박스 자체의 너비·높이(아래 '박스 크기')와는 다른 값이에요"
-          >
-            <LayerIcon name="charScaleH" className="h-3.5 w-3.5" />
-          </label>
+        <div
+          className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+          title="가로 폭(%) — 이 박스 자체의 너비·높이(아래 '박스 크기')와는 다른 값이에요"
+        >
+          <LayerIcon name="charScaleH" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
           <input
             type="number"
             min={50}
@@ -4429,19 +4427,16 @@ function TextStyleFieldsPanel({
               if (Number.isFinite(v)) onChange({ scaleXPct: Math.max(50, Math.min(200, v)) });
             }}
             onBlur={() => setScaleXDraft(String(value.scaleXPct))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-            title="글자 모양을 가로로 늘이는 비율(화면 미리보기 전용) — 아래 '박스 크기'(이 상자 자체의 너비·높이)와는 다른 값이에요"
+            className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1.5">
-        <div>
-          <label
-            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
-            title="자간"
-          >
-            <LayerIcon name="charTracking" className="h-3.5 w-3.5" />
-          </label>
+        <div
+          className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+          title="자간"
+        >
+          <LayerIcon name="charTracking" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
           <input
             type="number"
             min={-0.1}
@@ -4455,34 +4450,24 @@ function TextStyleFieldsPanel({
               if (Number.isFinite(v)) onChange({ letterSpacing: Math.max(-0.1, Math.min(0.5, v)) });
             }}
             onBlur={() => setLetterSpacingDraft(String(value.letterSpacing))}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+            className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
-        {/* 2026-10(12번째 라운드), 혜민님 요청("커닝부분이 사라졌습니다. 제가 원한건
-            아이콘 오른쪽에 수치 적용하는 박스 넣는것입니다") — "커닝"을 다시 이
-            그리드의 6번째 칸으로 되돌렸어요. 다만 진짜 커닝(글자 "쌍"마다 다른 간격을
-            주는 기능)은 지금 데이터 모델에서 구현할 수 없어요 — letterSpacing(자간)은
-            박스 전체에 걸리는 값 하나뿐이라 특정 두 글자 사이만 좁히는 "범위"가 아예
-            없어요(이전 라운드(d0d2147 이전, f7582e6)에서 같은 이유로 비활성 자리표시
-            칸으로 만들었다가, 11번째 라운드에서 "오류나보이는 아이콘자리"로 오해돼
-            완전히 삭제됐었어요). 다시 추가하면서 숫자 입력칸은 그대로 두되 disabled로
-            꺼두고, 값도 항상 "—"로 고정해서 "눌러도 바뀌는 게 없다"는 게 분명하게
-            보이도록 했어요 — 다른 5개(글자크기/행간/세로폭/가로폭/자간) 칸과 똑같이
-            "아이콘 + 옆 숫자 입력칸" 모양이라 그리드가 비어 보이지 않아요. */}
-        <div>
-          <label
-            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/35"
-            title="커닝 — 글자 '쌍'마다 다른 간격을 주는 기능은 지금 데이터 구조로는 만들 수 없어서 비활성으로 남겨뒀어요. 전체 글자 간격은 바로 왼쪽 '자간'을 써주세요."
-          >
-            <LayerIcon name="charKerning" className="h-3.5 w-3.5" />
-          </label>
+        {/* 커닝 — 2026-10(12번째 라운드)부터 비활성 자리표시(데이터 모델상 구현
+            불가능, 자세한 이유는 자간 칸 쪽 과거 주석 참고). 이번엔 테두리 합치기만
+            적용했고, 비활성(disabled/회색) 상태는 그대로예요. */}
+        <div
+          className="flex cursor-not-allowed items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-[var(--color-ivory)] px-1.5 py-1.5"
+          title="커닝 — 글자 '쌍'마다 다른 간격을 주는 기능은 지금 데이터 구조로는 만들 수 없어서 비활성으로 남겨뒀어요. 전체 글자 간격은 바로 왼쪽 '자간'을 써주세요."
+        >
+          <LayerIcon name="charKerning" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/35" />
           <input
             type="text"
             value="—"
             disabled
             readOnly
             title="커닝 — 아직 지원하지 않아요(자간을 대신 써주세요)"
-            className="w-full cursor-not-allowed border border-[var(--color-hairline)] bg-[var(--color-ivory)] px-1.5 py-1.5 text-xs text-[var(--color-charcoal)]/35 outline-none"
+            className="w-full cursor-not-allowed border-0 bg-transparent p-0 text-xs text-[var(--color-charcoal)]/35 outline-none"
           />
         </div>
       </div>
@@ -6156,9 +6141,18 @@ function TextBoxToolbar({
         <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
           박스 크기(선택 테두리, %)
         </p>
+        {/* 2026-10(14번째 라운드) — 위 문자 설정 그리드와 같은 이유로 테두리를
+            합쳤어요. 이 3칸은 애초에 아이콘이 아니라 짧은 한글 라벨(너비/높이/
+            모퉁이)을 썼는데, 참고 스크린샷에 맞는 새 아이콘을 따로 만들 근거(모양
+            참고 자료)가 없어서 아이콘을 새로 만들지 않고, 그 라벨 글자를 그대로
+            "아이콘 자리"에 넣는 같은 구조(라벨+입력이 테두리 하나 공유)로만
+            맞췄어요(판단 근거는 작업 보고에 명시). */}
         <div className="grid grid-cols-3 gap-1.5">
-          <div>
-            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/50">너비</label>
+          <div
+            className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+            title="너비(%)"
+          >
+            <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">너비</span>
             <input
               type="number"
               min={6}
@@ -6170,23 +6164,24 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ widthPct: Math.max(6, Math.min(96, v)) });
               }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+              className="w-full border-0 bg-transparent p-0 text-base outline-none"
             />
           </div>
-          <div>
-            {/* 2026-10(11번째 라운드), 혜민님 요청("너비,높이 오른쪽에 직접지정버튼
-                삭제") — "자동"/"직접 지정" 토글 버튼을 없애고 "높이" 입력칸을 "너비"와
-                완전히 같은 모양으로 항상 보여줘요. heightPct는 데이터상 여전히
-                optional이라(undefined=자동 높이, 세로 정렬·분배 등 다른 기능이 이 값
-                유무로 분기) 아직 한 번도 고정한 적 없는 박스는 20을 보여주다, 실제로
-                숫자를 고치는 순간에만 heightPct가 저장돼요(캔버스 손잡이로 끌 때와
-                같은 흐름). ⚠️ 동작 변화: 이 버튼이 "다시 자동으로" 되돌리는 유일한
-                UI였어서, 버튼 제거로 패널에서 되돌릴 방법이 없어졌어요(혜민님 요청
-                "직접지정은 없어도 될 것 같다"는 전제와 맞닿아 있어요 — 작업 보고에
-                명시). */}
-            <div className="mb-1">
-              <label className="block text-[10px] text-[var(--color-charcoal)]/50">높이</label>
-            </div>
+          {/* 2026-10(11번째 라운드), 혜민님 요청("너비,높이 오른쪽에 직접지정버튼
+              삭제") — "자동"/"직접 지정" 토글 버튼을 없애고 "높이" 입력칸을 "너비"와
+              완전히 같은 모양으로 항상 보여줘요. heightPct는 데이터상 여전히
+              optional이라(undefined=자동 높이, 세로 정렬·분배 등 다른 기능이 이 값
+              유무로 분기) 아직 한 번도 고정한 적 없는 박스는 20을 보여주다, 실제로
+              숫자를 고치는 순간에만 heightPct가 저장돼요(캔버스 손잡이로 끌 때와
+              같은 흐름). ⚠️ 동작 변화: 이 버튼이 "다시 자동으로" 되돌리는 유일한
+              UI였어서, 버튼 제거로 패널에서 되돌릴 방법이 없어졌어요(혜민님 요청
+              "직접지정은 없어도 될 것 같다"는 전제와 맞닿아 있어요 — 작업 보고에
+              명시). */}
+          <div
+            className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+            title="높이(%)"
+          >
+            <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">높이</span>
             <input
               type="number"
               min={4}
@@ -6198,7 +6193,7 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ heightPct: Math.max(4, Math.min(96, v)) });
               }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+              className="w-full border-0 bg-transparent p-0 text-base outline-none"
             />
           </div>
           {/* 2026-10(12번째 라운드), 혜민님 요청("박스크기부분 너비, 높이,
@@ -6208,8 +6203,11 @@ function TextBoxToolbar({
               이고, 화면은 TextBoxLayer의 배경 div border-radius로, 인쇄는
               lib/printCompose.ts의 텍스트 배경 사각형을 둥근 사각형 경로로 바꿔서
               반영돼요(둘 다 이 라운드에 새로 연결 — 기존엔 코드 자체가 없었어요). */}
-          <div>
-            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/50">모퉁이</label>
+          <div
+            className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+            title="박스 배경·선택 테두리의 모서리를 둥글게(%, 박스 짧은 변 기준). 0이면 직각이에요."
+          >
+            <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">모퉁이</span>
             <input
               type="number"
               min={0}
@@ -6221,8 +6219,7 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ cornerRadiusPct: Math.max(0, Math.min(50, v)) });
               }}
-              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
-              title="박스 배경·선택 테두리의 모서리를 둥글게(%, 박스 짧은 변 기준). 0이면 직각이에요."
+              className="w-full border-0 bg-transparent p-0 text-base outline-none"
             />
           </div>
         </div>
@@ -15125,7 +15122,7 @@ function UploadPageContent() {
                                           type="button"
                                           onClick={handleCopyActiveTextBox}
                                           title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
-                                          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
                                         >
                                           <LayerIcon name="copy" className="h-4 w-4" />
                                         </button>
@@ -15133,7 +15130,7 @@ function UploadPageContent() {
                                           type="button"
                                           onClick={handlePasteTextBox}
                                           title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
-                                          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
                                         >
                                           <LayerIcon name="paste" className="h-4 w-4" />
                                         </button>
@@ -15151,7 +15148,7 @@ function UploadPageContent() {
                                         }
                                       }}
                                       title="삭제"
-                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-red-500 hover:bg-red-50"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-red-500 hover:bg-red-50"
                                     >
                                       <LayerIcon name="delete" className="h-4 w-4" />
                                     </button>
@@ -15896,7 +15893,7 @@ function UploadPageContent() {
                                       type="button"
                                       onClick={handleCopyActiveTextBox}
                                       title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
-                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
                                     >
                                       <LayerIcon name="copy" className="h-4 w-4" />
                                     </button>
@@ -15904,7 +15901,7 @@ function UploadPageContent() {
                                       type="button"
                                       onClick={handlePasteTextBox}
                                       title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
-                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
                                     >
                                       <LayerIcon name="paste" className="h-4 w-4" />
                                     </button>
@@ -15912,7 +15909,7 @@ function UploadPageContent() {
                                       type="button"
                                       onClick={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                                       title="삭제"
-                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-red-500 hover:bg-red-50"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-red-500 hover:bg-red-50"
                                     >
                                       <LayerIcon name="delete" className="h-4 w-4" />
                                     </button>
