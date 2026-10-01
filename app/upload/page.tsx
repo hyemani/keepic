@@ -3213,19 +3213,21 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         </svg>
       );
     case "charScaleV":
+      // 라운드16: 혜민님 요청으로 세로 폭 조절 아이콘을 직관적인 상하 양방향 화살표(↕)로 단순화
       return (
         <svg {...common}>
-          <rect x="9" y="7" width="6" height="10" rx="1" />
-          <path d="M12 2v3M10 3.5l2-2 2 2" />
-          <path d="M12 22v-3M10 20.5l2 2 2-2" />
+          <path d="M12 3v18" />
+          <path d="M8 7l4-4 4 4" />
+          <path d="M8 17l4 4 4-4" />
         </svg>
       );
     case "charScaleH":
+      // 라운드16: 혜민님 요청으로 가로 폭 조절 아이콘을 직관적인 좌우 양방향 화살표(↔)로 단순화
       return (
         <svg {...common}>
-          <rect x="7" y="9" width="10" height="6" rx="1" />
-          <path d="M2 12h3M3.5 10l-2 2 2 2" />
-          <path d="M22 12h-3M20.5 10l2 2-2 2" />
+          <path d="M3 12h18" />
+          <path d="M7 8l-4 4 4 4" />
+          <path d="M17 8l4 4-4 4" />
         </svg>
       );
     case "charTracking":
@@ -3313,24 +3315,32 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
           <path d="M20 10V8" />
         </svg>
       );
-    // 2026-11(15번째 라운드), 혜민님 요청("효과 줄에 모두대문자/작은대문자 추가,
-    // 참고 스크린샷처럼") — 모두대문자는 같은 크기의 대문자 "T" 둘("TT"), 작은대문자는
-    // 큰 "T" 옆에 작은 "R"로(참고 스크린샷의 "Tr" 스타일) 뜻을 보여줘요. 둘 다 다른
-    // LayerIcon처럼 path 몇 개로 손그림 글자를 그렸어요(실제 폰트 글리프 대신 — 아주
-    // 작은 아이콘 크기에서 또렷하게 보이려고요).
+    // 2026-11(15번째 라운드) 첫 디자인("TT"/"Tr")을 2026-11(16번째 라운드),
+    // 혜민님 재지적("TA Ta 아이콘 이렇게 수정해주시고... 작은대문자가 T2처럼
+    // 보여요")으로 다시 그렸어요. 모두대문자는 "T"+"A"(둘 다 대문자, 같은
+    // 높이) — 대문자만 쓴다는 뜻이 "TT"보다 또렷해요. 작은대문자는 "T"+"a"
+    // (큰 대문자 옆에 작고 낮은 소문자 "a") — 전 라운드의 "T2"(숫자처럼 보임,
+    // 혜민님 지적대로 오해 소지)를 완전히 새로 그려서, 소문자 "a"답게 동그란
+    // 볼(bowl)+오른쪽 획으로 표현했어요(글자 하단선=baseline 공유, 소문자라
+    // 대문자보다 낮은 높이(x-height)만 차지).
     case "allCaps":
       return (
         <svg {...common}>
-          <path d="M3 6h5M5.5 6v12" />
-          <path d="M11 18l3.2-12M17.4 18l-3.2-12" />
-          <path d="M12.3 13.5h1.8" />
+          {/* T */}
+          <path d="M3 6h6M6 6v12" />
+          {/* A (대문자, T와 같은 높이) */}
+          <path d="M14 18L17 6L20 18" />
+          <path d="M15.3 13.5h3.4" />
         </svg>
       );
     case "smallCaps":
       return (
         <svg {...common}>
-          <path d="M3 5h5M5.5 5v14" />
-          <path d="M14 11.5a2 2 0 1 1 3.6 1.2L14 17h4" />
+          {/* T (대문자, 큰 높이) */}
+          <path d="M3 6h6M6 6v12" />
+          {/* a (소문자, T보다 낮은 x-height만 차지 — 볼(bowl)+오른쪽 획) */}
+          <circle cx="15.3" cy="14.5" r="2.6" />
+          <path d="M18.7 11.5v6.5" />
         </svg>
       );
   }
@@ -4518,6 +4528,42 @@ function TextStyleFieldsPanel({
         </div>
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1.5">
+        {/* 커닝 — 2026-10(12번째 라운드)부터 비활성, 2026-11(16번째 라운드)에
+            혜민님이 "왜 안 되나요, 되게 해주세요"라고 다시 요청해서 TextRun 구조
+            (lib/textRuns.ts)와 이 박스를 실제로 그리는 TextBoxRichEditor(커서
+            위치 추적용 selectionchange 리스너, DOM을 매번 새로 안 그리고
+            "signature가 바뀔 때만" 부분적으로만 다시 그리는 방식)를 다시 전부
+            읽고 재검토했어요. 혜민님이 제안하신 "afterCharIndex 배열" 구조는
+            글자를 입력/삭제할 때마다 그 인덱스보다 앞쪽이 바뀌면 전부 밀려야
+            해서(어느 글자 다음인지 추적이 쉽게 깨짐) 그대로 쓰기 어렵고, 대신
+            TextRun 자체에 값을 붙이는 방식(볼드·기울임처럼 "이 구간 다음 커닝
+            값")이 구조적으로 더 맞아요 — 이 부분은 실제로 가능성이 있어요.
+            막히는 지점은 "커서가 있는 글자 쌍"을 실시간으로 아는 것 자체가
+            아니라(이미 selectionchange로 커서 위치는 항상 추적되고 있어요),
+            그 위치에 실제로 커닝 값을 적용하려면 지금 "편집(타이핑)할 때만
+            run을 쪼갠다"는 이 에디터의 핵심 원칙을 깨고 "커서가 옮겨갈 때마다"
+            run을 미리 쪼개야 하거나, 입력 순간에만 쪼개도록 만들어야 하는데
+            — 이 DOM 재구성·커서 복원 로직은 코드 내 주석에도 "가장 깨지기 쉬운
+            부분"이라고 적혀 있고(과거 커서 튐·한글 조합 중 끊김 버그 이력),
+            픽셀 단위로 글자 쌍 간격이 맞게 당겨지는지는 결국 화면에 직접
+            띄워봐야만 확인 가능해서, 이 환경(브라우저 미리보기 없이 코드만
+            수정)에서 안전하게 구현·검증할 수가 없었어요. 그래서 이번에도
+            비활성으로 남겨뒀지만, 자간 칸 오른쪽으로 옮겼고 설명 문구도
+            위 내용대로 구체적으로 바꿨어요. */}
+        <div
+          className="flex cursor-not-allowed items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-[var(--color-ivory)] px-1.5 py-1.5"
+          title="커닝 — 글자 '쌍'마다 다른 간격을 주는 기능이에요. 설계상 가능성은 있지만, 입력 중 커서 위치에 맞춰 화면을 실시간으로 다시 그리는 부분이 이 에디터에서 가장 깨지기 쉬운 부분이라 화면으로 직접 확인 없이는 안전하게 구현할 수 없어서 비활성으로 남겨뒀어요. 전체 글자 간격은 오른쪽 '자간'을 써주세요."
+        >
+          <LayerIcon name="charKerning" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/35" />
+          <input
+            type="text"
+            value="—"
+            disabled
+            readOnly
+            title="커닝 — 아직 지원하지 않아요(오른쪽 '자간'을 대신 써주세요)"
+            className="w-full cursor-not-allowed border-0 bg-transparent p-0 text-xs text-[var(--color-charcoal)]/35 outline-none"
+          />
+        </div>
         <div
           className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
           title="자간"
@@ -4539,23 +4585,6 @@ function TextStyleFieldsPanel({
             className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
-        {/* 커닝 — 2026-10(12번째 라운드)부터 비활성 자리표시(데이터 모델상 구현
-            불가능, 자세한 이유는 자간 칸 쪽 과거 주석 참고). 이번엔 테두리 합치기만
-            적용했고, 비활성(disabled/회색) 상태는 그대로예요. */}
-        <div
-          className="flex cursor-not-allowed items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-[var(--color-ivory)] px-1.5 py-1.5"
-          title="커닝 — 글자 '쌍'마다 다른 간격을 주는 기능은 지금 데이터 구조로는 만들 수 없어서 비활성으로 남겨뒀어요. 전체 글자 간격은 바로 왼쪽 '자간'을 써주세요."
-        >
-          <LayerIcon name="charKerning" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/35" />
-          <input
-            type="text"
-            value="—"
-            disabled
-            readOnly
-            title="커닝 — 아직 지원하지 않아요(자간을 대신 써주세요)"
-            className="w-full cursor-not-allowed border-0 bg-transparent p-0 text-xs text-[var(--color-charcoal)]/35 outline-none"
-          />
-        </div>
       </div>
       {/* 2026-11(15번째 라운드), 혜민님 요청(4건 중 하나: "효과 줄을 정확히 7개
           (굵게/기울임/밑줄/모두대문자[새]/작은대문자[새]/텍스트배경/그림자)로, 이
@@ -4569,8 +4598,16 @@ function TextStyleFieldsPanel({
           명시). 모두대문자(textTransformUppercase)·작은대문자(fontVariantSmallCaps)는
           이번에 새로 추가한 필드예요(lib/albumTemplates.ts TextBoxDef 참고) — 둘 다
           라틴 문자에만 실제 효과가 있고, 작은대문자는 인쇄 PDF엔 반영이 안 돼요(화면
-          전용 — 그 이유와 범위는 각 버튼의 title과 작업 보고에 명시). */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          전용 — 그 이유와 범위는 각 버튼의 title과 작업 보고에 명시).
+          2026-11(16번째 라운드), 혜민님 버그 리포트("지금은 6개 아이콘 위에있고
+          아래 그림자아이콘 1개만 따로 떨어져있는데 7개를 한줄로 나열해줘") — 원인:
+          flex-wrap이 걸려 있어서, 패널 폭(최대 224px)에 h-7 버튼 7개+간격이 다
+          안 들어가면(7*28px+간격 > 224px) 그림자 아이콘 하나가 다음 줄로 밀려났어요.
+          flex-wrap을 없애고(flex-nowrap) 이 줄에만 가로 스크롤(overflow-x-auto)을
+          줘서 — 다른 아이콘 줄(예: 테두리 위치 선택)과 같은 패턴 — 7개가 항상 한
+          줄에 남고, 패널이 좁을 땐 그 줄만 옆으로 살짝 스크롤돼요(패널 전체 폭엔
+          영향 없음). */}
+      <div className="mt-1.5 flex flex-nowrap items-center gap-1 overflow-x-auto">
         <button
           type="button"
           title="굵게"
@@ -6073,9 +6110,23 @@ function TextBoxToolbar({
   contentValue,
   onContentChange,
   allowFillBoxBackground = true,
+  onCopyBox,
+  onPasteBox,
+  onDeleteBox,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
+  // 2026-11(16번째 라운드), 혜민님 재지적("내용 오른쪽에 복사, 붙여넣기, 삭제 아이콘
+  // 넣어달라고했는데 반영이 안됐어요") — 12번째 라운드에서 이 버튼들을 이 컴포넌트
+  // 밖(호출부의 글쓰기/표만들기/이모티콘 탭 줄 바로 아래)으로 옮겼었는데, 혜민님이
+  // 원래 원했던 자리는 "내용" 라벨 바로 오른쪽이었어요 — 이번에 그 자리로
+  // 되돌리면서, 탭 줄 아래 있던 중복 버튼은 제거했어요(복제가 아니라 이동, 작업
+  // 보고에 명시). 셋 다 optional이라 호출부가 안 넘기면(표지 제목·책등처럼 복사/
+  // 붙여넣기 개념이 없는 경우) 그 버튼 자체가 안 보여요(기존 조건부 노출과 동일한
+  // 규칙 — 복사/붙여넣기는 늘 짝으로, 삭제는 따로).
+  onCopyBox?: () => void;
+  onPasteBox?: () => void;
+  onDeleteBox?: () => void;
   // 2026-10(6차), 혜민님 요청("표지 제목/책등 패널에 일반 글상자와 똑같은 항목이
   // 다 있어야 해요") — 예전엔 hideAdvanced prop으로 표지 제목·책등 호출부에서
   // 배경·가로세로 폭·박스영역 정렬 구간을 통째로 숨겼는데(그 값들을 담을 상태가
@@ -6256,9 +6307,45 @@ function TextBoxToolbar({
         onDelete={(id) => setTextStylePresets(deleteTextStylePreset(id))}
       />
       <div>
-        <label className="mb-1 block text-sm font-medium text-[var(--color-charcoal)]/70">
-          내용
-        </label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-sm font-medium text-[var(--color-charcoal)]/70">
+            내용
+          </label>
+          {(onCopyBox || onPasteBox || onDeleteBox) && (
+            <div className="flex items-center gap-1">
+              {onCopyBox && (
+                <button
+                  type="button"
+                  onClick={onCopyBox}
+                  title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                >
+                  <LayerIcon name="copy" className="h-4 w-4" />
+                </button>
+              )}
+              {onPasteBox && (
+                <button
+                  type="button"
+                  onClick={onPasteBox}
+                  title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                >
+                  <LayerIcon name="paste" className="h-4 w-4" />
+                </button>
+              )}
+              {onDeleteBox && (
+                <button
+                  type="button"
+                  onClick={onDeleteBox}
+                  title="삭제"
+                  className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-red-500 hover:bg-red-50"
+                >
+                  <LayerIcon name="delete" className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <textarea
           value={contentValue}
           onChange={(e) => onContentChange(e.target.value)}
@@ -15428,16 +15515,13 @@ function UploadPageContent() {
                                   / 이모티콘 메뉴를 만들고 싶습니다" — 글상자/타이틀 편집(기존
                                   화면)과 표·이모티콘 추가를 서브탭으로 나눠요. */}
                               <div className="border-b border-[var(--color-hairline)] pb-2">
-                                {/* 2026-10(13번째 라운드), 혜민님 요청("글쓰기, 표만들기, 이모티콘은
-                                    편집패널에 비율 맞춰서 이전으로 돌려주시고, 텍스트박스 복사,
-                                    붙여넣기, 삭제는 오른쪽으로 넣어주세요") — 12번째 라운드에서 이
-                                    3개 탭과 복사/붙여넣기/삭제 아이콘을 한 줄에 나란히 뒀더니, 패널
-                                    폭이 고정이라(~160~224px) 아이콘들이 차지한 만큼 탭 3개가 좁아져
-                                    글자가 눌려 보였어요. 탭 줄은 11번째 라운드 이전과 완전히 같은
-                                    grid-cols-3 한 줄(전체 폭)로 되돌리고, 복사/붙여넣기/삭제는 그
-                                    "바로 아래" 줄에서 오른쪽 정렬로 보여요 — 여전히 위쪽(탭 바로
-                                    밑)에 있고 여전히 오른쪽에 있지만, 탭과 같은 줄을 안 써서 탭
-                                    비율은 전혀 안 건드려요. */}
+                                {/* 2026-10(13번째 라운드) — 탭 줄은 11번째 라운드 이전과 같은
+                                    grid-cols-3 한 줄(전체 폭)이에요. 복사/붙여넣기/삭제 아이콘은
+                                    한때 이 줄 바로 아래에 있었는데, 2026-11(16번째 라운드) 혜민님
+                                    재지적("원래 '내용' 오른쪽에 넣어달라고 했는데 반영이 안
+                                    됐다")으로 TextBoxToolbar의 "내용" 라벨 옆으로 옮겼어요(위치만
+                                    이동, 중복 아님 — 자세한 내용은 TextBoxToolbar의 onCopyBox/
+                                    onPasteBox/onDeleteBox prop 쪽 주석 참고). */}
                                 <div className="grid grid-cols-3 gap-1">
                                   {(
                                     [
@@ -15460,49 +15544,6 @@ function UploadPageContent() {
                                     </button>
                                   ))}
                                 </div>
-                                {textPanelSubTab === "write" &&
-                                  ((activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover")) ||
-                                    coverTitleSelected ||
-                                    spineTitleSelected) && (
-                                  <div className="mt-1 flex items-center justify-end gap-1">
-                                    {activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={handleCopyActiveTextBox}
-                                          title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
-                                          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
-                                        >
-                                          <LayerIcon name="copy" className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={handlePasteTextBox}
-                                          title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
-                                          className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
-                                        >
-                                          <LayerIcon name="paste" className="h-4 w-4" />
-                                        </button>
-                                      </>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover")) {
-                                          deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
-                                        } else if (coverTitleSelected) {
-                                          handleCoverTitleChange("");
-                                        } else if (spineTitleSelected) {
-                                          handleSpineTitleChange("");
-                                        }
-                                      }}
-                                      title="삭제"
-                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-red-500 hover:bg-red-50"
-                                    >
-                                      <LayerIcon name="delete" className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                )}
                               </div>
                               {textPanelSubTab === "table" && (
                                 <>
@@ -15603,6 +15644,9 @@ function UploadPageContent() {
                               selectionRange={activeTextSelectionRange}
                               contentValue={activeTextBoxDef?.text ?? ""}
                               onContentChange={handleActiveTextBoxContentChange}
+                              onCopyBox={handleCopyActiveTextBox}
+                              onPasteBox={handlePasteTextBox}
+                              onDeleteBox={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                             />
                           )}
                           {/* 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가
@@ -15624,6 +15668,7 @@ function UploadPageContent() {
                               selectionRange={null}
                               contentValue={coverTitle}
                               onContentChange={handleCoverTitleChange}
+                              onDeleteBox={() => handleCoverTitleChange("")}
                             />
                           )}
                           {/* 책등도 같은 방식이에요(항목4·5) — 별도의 "책등 제목 크기·서체"/
@@ -15653,6 +15698,7 @@ function UploadPageContent() {
                                 contentValue={spineTitle}
                                 onContentChange={handleSpineTitleChange}
                                 allowFillBoxBackground={false}
+                                onDeleteBox={() => handleSpineTitleChange("")}
                               />
                             </div>
                           )}
@@ -16216,10 +16262,10 @@ function UploadPageContent() {
                               >
                             {activeEditTab === "text" && (
                               <div className="mb-1.5 border-b border-[var(--color-hairline)] pb-2">
-                                {/* 2026-10(13번째 라운드) — 표지 쪽과 같은 이유로 되돌렸어요(탭 3개
-                                    비율을 11번째 라운드 이전과 같은 grid-cols-3 전체 폭으로 복구하고,
-                                    복사/붙여넣기/삭제는 바로 아래 줄에서 오른쪽 정렬로). 자세한 이유는
-                                    위 표지 패널 쪽 주석 참고. */}
+                                {/* 2026-10(13번째 라운드) — 탭 3개 비율을 11번째 라운드 이전과 같은
+                                    grid-cols-3 전체 폭으로. 복사/붙여넣기/삭제 아이콘은 2026-11
+                                    (16번째 라운드)에 TextBoxToolbar의 "내용" 라벨 옆으로
+                                    옮겼어요(위 표지 패널 쪽 주석과 같은 이유). */}
                                 <div className="grid grid-cols-3 gap-1">
                                   {(
                                     [
@@ -16242,34 +16288,6 @@ function UploadPageContent() {
                                     </button>
                                   ))}
                                 </div>
-                                {textPanelSubTab === "write" && activeTextBox && activeTextBox.ref.scope === "spread" && (
-                                  <div className="mt-1 flex items-center justify-end gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={handleCopyActiveTextBox}
-                                      title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
-                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
-                                    >
-                                      <LayerIcon name="copy" className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={handlePasteTextBox}
-                                      title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
-                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
-                                    >
-                                      <LayerIcon name="paste" className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
-                                      title="삭제"
-                                      className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white text-red-500 hover:bg-red-50"
-                                    >
-                                      <LayerIcon name="delete" className="h-4 w-4" />
-                                    </button>
-                                  </div>
-                                )}
                               </div>
                             )}
                             {activeEditTab === "text" && textPanelSubTab === "table" && (
@@ -16340,6 +16358,9 @@ function UploadPageContent() {
                                 selectionRange={activeTextSelectionRange}
                                 contentValue={activeTextBoxDef?.text ?? ""}
                                 onContentChange={handleActiveTextBoxContentChange}
+                                onCopyBox={handleCopyActiveTextBox}
+                                onPasteBox={handlePasteTextBox}
+                                onDeleteBox={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                               />
                             )}
                             <div>
