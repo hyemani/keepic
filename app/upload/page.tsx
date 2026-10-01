@@ -11445,12 +11445,20 @@ function UploadPageContent() {
     // (직접 고른 표지 사진이 있으면 건드리지 않고, "표지 사진 바꾸기"로 언제든 바꿀 수 있어요.)
     // 2026-10-04: 자동 배치도 applyCoverPhotoAsImageBox로 같이 이어받아서, 처음부터
     // 내지와 똑같은 이미지박스(스냅·테두리 패널)로 시작해요.
-    if (!coverPhoto && coverImageBoxes.length === 0) {
+    // 2026-11(17번째 라운드), 혜민님 버그 리포트("표지 이미지가 내지첫페이지에
+    // 중복적용됩니다") 원인 — 바로 아래 isAiAuto 배치 루프가 newPhotos 전체(0번째
+    // 포함)를 그대로 순회해서, slot 0 → findAutoPhotoSlotPosition(0, ...)이 가리키는
+    // "스프레드 1의 오른쪽 면"(내지 첫 페이지)에 newPhotos[0]을 또 넣고 있었어요 —
+    // 바로 위에서 newPhotos[0]을 이미 표지 사진으로도 쓰고 있는데, 이 루프는 그 사실을
+    // 전혀 몰라서 같은 사진이 표지와 내지 첫 페이지 양쪽에 중복으로 배치됐어요. 지금
+    // 이 업로드에서 실제로 표지 사진을 새로 가져갔는지(coverPhotoJustAutoAssigned)를
+    // 기억해뒀다가, 그런 경우에만 isAiAuto 루프에서 0번째 사진을 건너뛰어요(내지 첫
+    // 페이지 그 자리는 빈 칸으로 남고, 나머지 사진들의 슬롯 번호는 그대로예요).
+    const coverPhotoJustAutoAssigned = !coverPhoto && coverImageBoxes.length === 0 && !!newPhotos[0];
+    if (coverPhotoJustAutoAssigned) {
       const first = newPhotos[0];
-      if (first) {
-        setCoverPhoto({ ...first, caption: "", size: "base", align: "center", position: "below" });
-        applyCoverPhotoAsImageBox("front", first.url, first.width, first.height);
-      }
+      setCoverPhoto({ ...first, caption: "", size: "base", align: "center", position: "below" });
+      applyCoverPhotoAsImageBox("front", first.url, first.width, first.height);
     }
 
     // "AI 맞춤 레이아웃"이면 방금 올린 사진들을 곧바로 자유 배치 이미지박스로 넣어요
@@ -11460,6 +11468,9 @@ function UploadPageContent() {
       setCustomSpreads((prevSpreads) => {
         let spreads = prevSpreads;
         newPhotos.forEach((p, k) => {
+          // 방금 표지 사진으로 자동 배정된 0번째 사진은 내지에 또 넣지 않아요(위 주석,
+          // 중복 적용 버그 수정).
+          if (coverPhotoJustAutoAssigned && k === 0) return;
           const slot = autoPhotoBaseSlot + k;
           const pos = findAutoPhotoSlotPosition(slot, requiredSpreadCount);
           const box: ImageBoxDef = {
