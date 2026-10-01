@@ -12852,43 +12852,53 @@ function UploadPageContent() {
 
   // 슬롯의 네 변 중 트림(재단) 가장자리(0%/100%)에 닿아 있던 변만 안전영역 안쪽으로
   // 당겨요 — min/max 클램프라 이미 안전영역보다 안쪽인 변(게터 있는 템플릿)은 안 건드려요.
-  function clampSlotToSpreadSafety(
-    xPct: number,
-    yPct: number,
-    widthPct: number,
-    heightPct: number,
+  // 2026-11(18번째 라운드 12차), 혜민님 버그 리포트("가로 이미지 하단에
+  // 세로이미지의 크기가 전부 제각각입니다. 일부러배치한것이아니고
+  // 오류가난것같아보입니다") — 원인을 정확히 추적한 결과: 예전엔 템플릿의 슬롯
+  // 하나하나를 "따로따로" 안전영역에 맞춰 당겼어요(클램프). 예를 들어 한 줄에
+  // 똑같은 폭으로 나란히 있는 3칸짜리 행(half-4-oneTopThreeBottom의 하단 3컷처럼
+  // 자기 게터가 없는 템플릿)에서, 맨 왼쪽 칸은 바깥쪽 재단선에 닿아 있어서 왼쪽
+  // 변만 안전영역만큼 당겨지고(폭이 줄어듦), 맨 오른쪽 칸은 접힘부(50%)에 닿아
+  // 있어서 오른쪽 변만 당겨지고(폭이 줄어듦), 가운데 칸은 어느 쪽 가장자리에도
+  // 안 닿아 있어서 전혀 안 당겨졌어요(원래 폭 그대로) — 그 결과 "같은 칸 수,
+  // 같은 비율"이어야 할 한 줄이 좁음/넓음/좁음으로 제각각이 되는 게 원인이었어요.
+  // 고친 방식 — 슬롯 하나하나가 아니라 템플릿 전체(이 적용 범위 안의 모든 슬롯)의
+  // 바깥 테두리(바운딩 박스)를 기준으로 어느 변이 재단선/접힘부에 닿아 있는지
+  // 한 번만 판단하고, 필요한 만큼 안쪽으로 당기는 걸 모든 슬롯에 "똑같은 비율"로
+  // 축소·이동해서 적용해요 — 그러면 원래 템플릿에서 폭이 같던 칸들은 당겨진
+  // 뒤에도 여전히 폭이 같게 유지돼요(게터가 이미 있어서 어느 변도 안 닿는
+  // 템플릿은 비율이 1이라 그대로 no-op — 기존 동작 그대로 유지).
+  function clampTemplateSlotsToSpreadSafety(
+    rawSlots: { xPct: number; yPct: number; widthPct: number; heightPct: number }[],
     safety: { xPct: number; yPct: number }
   ) {
-    // 트림(재단) 가장자리에 실제로 닿아 있던 변만 골라서 안전영역 안쪽으로 당겨요.
-    // 문턱값 비교(예: xPct < safety.xPct면 무조건 당기기)로 하면, 이미 자기 여백을
-    // 가진 템플릿(gridWithGutter 등)의 여백이 안전영역보다 살짝 좁을 때도 함께
-    // 당겨져서 "여백 있는 페이지까지 기준선에 딱 맞춰진다"는 문제가 생겨요 — 그런
-    // 템플릿은 자기 여백을 그대로 두는 게 맞아요(혜민님 2026-09-27 재확인).
     const EDGE_EPS = 0.5; // %
-    const touchesLeft = xPct <= EDGE_EPS;
-    const touchesRight = xPct + widthPct >= 100 - EDGE_EPS;
-    const touchesTop = yPct <= EDGE_EPS;
-    const touchesBottom = yPct + heightPct >= 100 - EDGE_EPS;
-    let left = touchesLeft ? Math.max(xPct, safety.xPct) : xPct;
-    let right = touchesRight ? Math.min(xPct + widthPct, 100 - safety.xPct) : xPct + widthPct;
-    const top = touchesTop ? Math.max(yPct, safety.yPct) : yPct;
-    const bottom = touchesBottom ? Math.min(yPct + heightPct, 100 - safety.yPct) : yPct + heightPct;
-    // 2026-10-02, 혜민님 요청: "안전영역이 가운데 기준으로 잡혀있지않음 접히는부분값도
-    // 동일하게 15mm로 맞춰주어야함" — 접힘부(스프레드 정중앙, 50%)에 닿아 있던 변도
-    // 바깥쪽 가장자리와 똑같이 안전영역만큼 당겨요(예전엔 SPREAD_GUTTER_PCT=0이라
-    // 접힘부는 전혀 안 당겼었음). 왼쪽 낱장의 오른쪽(접힘부 쪽) 변, 오른쪽 낱장의
-    // 왼쪽(접힘부 쪽) 변만 대상 — 이미 자기 게터가 있어서 50%에 안 닿아 있는 템플릿은
-    // (기존 로직처럼) 그대로 둬요.
+    const minX = Math.min(...rawSlots.map((s) => s.xPct));
+    const maxX = Math.max(...rawSlots.map((s) => s.xPct + s.widthPct));
+    const minY = Math.min(...rawSlots.map((s) => s.yPct));
+    const maxY = Math.max(...rawSlots.map((s) => s.yPct + s.heightPct));
+    const touchesLeft = minX <= EDGE_EPS;
+    const touchesRight = maxX >= 100 - EDGE_EPS;
+    const touchesTop = minY <= EDGE_EPS;
+    const touchesBottom = maxY >= 100 - EDGE_EPS;
+    let left = touchesLeft ? Math.max(minX, safety.xPct) : minX;
+    let right = touchesRight ? Math.min(maxX, 100 - safety.xPct) : maxX;
+    const top = touchesTop ? Math.max(minY, safety.yPct) : minY;
+    const bottom = touchesBottom ? Math.min(maxY, 100 - safety.yPct) : maxY;
     const touchesFoldFromLeftPage = right >= 50 - EDGE_EPS && right <= 50 + EDGE_EPS;
     const touchesFoldFromRightPage = left >= 50 - EDGE_EPS && left <= 50 + EDGE_EPS;
     if (touchesFoldFromLeftPage) right = Math.min(right, 50 - safety.xPct);
     if (touchesFoldFromRightPage) left = Math.max(left, 50 + safety.xPct);
-    return {
-      xPct: left,
-      yPct: top,
-      widthPct: Math.max(1, right - left),
-      heightPct: Math.max(1, bottom - top),
-    };
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const scaleX = spanX > 0 ? Math.max(0.01, (right - left) / spanX) : 1;
+    const scaleY = spanY > 0 ? Math.max(0.01, (bottom - top) / spanY) : 1;
+    return rawSlots.map((s) => ({
+      xPct: left + (s.xPct - minX) * scaleX,
+      yPct: top + (s.yPct - minY) * scaleY,
+      widthPct: Math.max(1, s.widthPct * scaleX),
+      heightPct: Math.max(1, s.heightPct * scaleY),
+    }));
   }
 
   // 표지 판(앞/뒤) 전용 버전 — 책등 쪽 경계는 안전영역 대상이 아니라서(혜민님 확인:
@@ -12996,12 +13006,16 @@ function UploadPageContent() {
       ? orderedExisting.filter((b) => !selectedIds.includes(b.id))
       : orderedExisting.slice(template.slots.length);
     const spreadSafetyPct = computeSpreadSafetyPct();
-    const placed = template.slots.map((slot, idx) => {
+    // 슬롯 각각을 따로 클램프하면 한 줄 안에서 폭이 달라지는 문제가 생겨서(바로
+    // 위 clampTemplateSlotsToSpreadSafety 설명 참고), 템플릿의 모든 슬롯을 한 번에
+    // 바운딩 박스 기준으로 계산해서 같은 비율로 당겨요.
+    const rawSlots = template.slots.map((slot) => {
       const raw = slotToSpreadCoords(slot, range);
-      // 슬롯이 스프레드 바깥쪽(재단) 가장자리에 닿아 있으면 안전영역 안쪽으로 당겨요
-      // (2026-09-27, "안전영역에 맞물리게 작업해주세요"). 게터로 이미 안쪽에 있던
-      // 슬롯(예: 접힘부 여백이 있는 템플릿)은 클램프가 no-op이라 그대로 유지돼요.
-      const clamped = clampSlotToSpreadSafety(raw.xPct, slot.yPct, raw.widthPct, slot.heightPct, spreadSafetyPct);
+      return { xPct: raw.xPct, widthPct: raw.widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
+    });
+    const clampedSlots = clampTemplateSlotsToSpreadSafety(rawSlots, spreadSafetyPct);
+    const placed = template.slots.map((slot, idx) => {
+      const clamped = clampedSlots[idx];
       const { xPct, yPct, widthPct, heightPct } = clamped;
       const existing = usable[idx];
       if (existing) {
