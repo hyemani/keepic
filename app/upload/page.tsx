@@ -1340,18 +1340,16 @@ function CoverGuideBox({
 // 내지 펼침면 가운데의 "제본 경계"예요. 실제로 두 페이지가 만나는 정중앙(50%)에 검정
 // 이중선을 하나 긋고(책등 경계와 같은 시각 언어), 그 양옆으로 제본 때문에 주의가
 // 필요한 영역을 옅은 음영으로 보여줘요. 화면 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
-// 2026-11(18번째 라운드 1차), 혜민님 혼란 리포트("제본부 안전선이 바깥 안전선과 똑같이
-// 15mm라 구분이 안 돼서 혼란") 대응 — 수치(GUIDE_BINDING_MARGIN_MM 호출부 주석 참고,
-// 실제로 바깥 안전선과 같은 15mm가 맞음)는 안 바꾸고, 이 구역이 "바깥 안전선과는 별도
-// 성격의 제본 여백"임을 한눈에 알아보게 음영을 뚜렷하게 하고(black/5 → black/10) 라벨을
-// 달았었는데, 2026-11(18번째 라운드 2차) 혜민님 재요청("접힘 여백 부분을 더 진하게
-// 음영 처리하고 '제본 여백'이라는 라벨 삭제") — 음영을 한 번 더 진하게(black/10 →
-// black/25) 올리고, 텍스트 라벨은 완전히 제거했어요(순수하게 음영 차이만으로 구분).
-// 양 끝 점선 테두리는 그대로 남겨서 구역 경계는 여전히 분명해요.
+// 음영 진하기 변천: black/5(최초) → black/10(18-1차, 라벨과 함께 뚜렷하게) →
+// black/25(18-2차, 혜민님이 "더 진하게") → 2026-11(18번째 라운드 5차), 혜민님 재요청
+// ("접힘 여백 부분을 진하게 음영처리하지말아줘 전전에 적용된 수치값이 자연스러워
+// 흐리게해줘") — black/25가 너무 진했다고 하셔서 "전전" 값인 black/10으로 되돌렸어요.
+// "제본 여백" 텍스트 라벨은 이번에 다시 요청 안 하셔서(음영 진하기만 언급) 그대로
+// 뺀 채로 둬요. 양 끝 점선 테두리는 그대로 남겨서 구역 경계는 여전히 분명해요.
 function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number }) {
   return (
     <div
-      className="pointer-events-none absolute inset-y-0 z-10 border-x bg-black/25"
+      className="pointer-events-none absolute inset-y-0 z-10 border-x bg-black/10"
       style={{ left: `${leftPct}%`, right: `${100 - rightPct}%`, borderStyle: "dotted", borderColor: GUIDE_LINE_COLOR }}
     />
   );
