@@ -3287,32 +3287,35 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         </svg>
       );
     // 2026-11(15번째 라운드), 혜민님 요청("박스 크기' 너비/높이/모퉁이도 다른 칸처럼
-    // 아이콘으로") — 문자설정 그리드(charScaleV/charScaleH 등)와 같은 24x24 stroke
-    // 방식. 너비·높이는 각각 가로/세로 양방향 화살표로, 모퉁이는 네 귀퉁이 중 하나만
-    // 둥근 사각형으로 그려서 뜻이 바로 짐작되게 했어요.
+    // 아이콘으로")으로 처음 만든 아이콘을, 2026-11(17번째 라운드) 재요청("<->
+    // 화살표 모양으로... 모퉁이아이콘은 모퉁이같지가않아")으로 다시 그렸어요.
+    // 너비·높이는 가로세로폭(charScaleH/charScaleV)과 완전히 같은 좌우(↔)·
+    // 상하(↕) 양방향 화살표로 통일했고, 모퉁이는 네 귀퉁이를 전부 그리던 예전
+    // 디자인이 "모퉁이"로 안 읽힌다는 지적이라 — 직선 두 변이 사분원(quarter
+    // circle) 하나로 둥글게 이어지는 모양 하나만 남겨서(테두리 한쪽 귀퉁이를
+    // 확대해 보여주는 모양) 화살표 아이콘들과도 분명히 구분되게 했어요.
     case "boxWidth":
       return (
         <svg {...common}>
-          <rect x="4" y="8" width="16" height="8" rx="1" />
-          <path d="M2 12h3M3.5 10.5L2 12l1.5 1.5" />
-          <path d="M22 12h-3M20.5 10.5L22 12l-1.5 1.5" />
+          <path d="M3 12h18" />
+          <path d="M7 8l-4 4 4 4" />
+          <path d="M17 8l4 4-4 4" />
         </svg>
       );
     case "boxHeight":
       return (
         <svg {...common}>
-          <rect x="8" y="4" width="8" height="16" rx="1" />
-          <path d="M12 2v3M10.5 3.5L12 2l1.5 1.5" />
-          <path d="M12 22v-3M10.5 20.5L12 22l1.5-1.5" />
+          <path d="M12 3v18" />
+          <path d="M8 7l4-4 4 4" />
+          <path d="M8 17l4 4 4-4" />
         </svg>
       );
     case "cornerRadius":
       return (
         <svg {...common}>
-          <path d="M4 14V9a5 5 0 0 1 5-5h5" />
-          <path d="M4 14v3a3 3 0 0 0 3 3h3" />
-          <path d="M14 20h2a4 4 0 0 0 4-4v-2" />
-          <path d="M20 10V8" />
+          <path d="M4 20V11a7 7 0 0 1 7-7h9" />
+          <path d="M4 20h2M4 20v-2" />
+          <path d="M20 4h-2M20 4v2" />
         </svg>
       );
     // 2026-11(15번째 라운드) 첫 디자인("TT"/"Tr")을 2026-11(16번째 라운드),
@@ -4384,7 +4387,13 @@ function TextStyleFieldsPanel({
   // 2026-10(13번째 라운드) — 면색/선색 패널에서 두 네모 중 어느 쪽이 "앞"(마지막
   // 클릭, 지금 활성)인지만 기억해요(12번째 라운드의 activeColorTarget을 대신해요 —
   // 이제 밑줄·배경은 각자 전용 색상표가 있어서 더 이상 이 상태가 필요 없어요).
-  const [fillStrokeActive, setFillStrokeActive] = useState<"fill" | "stroke" | "shadow">("fill");
+  // 2026-11(17번째 라운드), 혜민님 버그 리포트("그라데이션 적용하고 없음 누르면
+  // 꺼지게 해주세요... 적용을 풀고싶은데 안 되네요") — "gradient"가 이 타입에
+  // 아예 없어서, 그라데이션 버튼을 눌러도 fillStrokeActive가 안 바뀌었고(이전에
+  // 눌렀던 면색/선색/그림자가 그대로 "활성 대상"으로 남아있었음), 그래서 "없음"
+  // 버튼이 그라데이션이 아니라 엉뚱한 대상을 끄고 있었어요. "gradient"를 추가해서
+  // 고쳤어요(아래 onChange/NoneSwatchButton 쪽도 같이 수정).
+  const [fillStrokeActive, setFillStrokeActive] = useState<"fill" | "stroke" | "shadow" | "gradient">("fill");
 
   useEffect(() => {
     if (lastSyncedKeyRef.current === syncKey) return;
@@ -4571,15 +4580,18 @@ function TextStyleFieldsPanel({
           <LayerIcon name="charTracking" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
           <input
             type="number"
-            min={-0.1}
-            max={0.5}
+            // 2026-11(17번째 라운드), 혜민님 요청("자간은 -40 부터 +100 만들어줘") —
+            // 입력 가능 범위만 넓혔어요(기존 -0.1~0.5). 값·단위(em)·저장 방식은
+            // 전혀 안 바꿨고, onChange의 clamp 범위만 똑같이 맞췄어요.
+            min={-40}
+            max={100}
             step={0.01}
             value={letterSpacingDraft}
             onChange={(e) => {
               const raw = e.target.value;
               setLetterSpacingDraft(raw);
               const v = Number(raw);
-              if (Number.isFinite(v)) onChange({ letterSpacing: Math.max(-0.1, Math.min(0.5, v)) });
+              if (Number.isFinite(v)) onChange({ letterSpacing: Math.max(-40, Math.min(100, v)) });
             }}
             onBlur={() => setLetterSpacingDraft(String(value.letterSpacing))}
             className="w-full border-0 bg-transparent p-0 text-xs outline-none"
@@ -4767,8 +4779,39 @@ function TextStyleFieldsPanel({
           토글 버튼들과 같은 동작), 켜지는 순간 기본 시작·끝 색(인디고→핑크)과
           각도(90°, 가로)를 같이 저장하고, 바로 아래 "그라데이션 세부 설정"에서
           시작색·끝색·각도를 고쳐요. 꺼지면 예전처럼 면색(value.color)이 그대로
-          보여요(gradientEnabled가 없으면 기존 문서와 완전히 동일 — 하위 호환). */}
+          보여요(gradientEnabled가 없으면 기존 문서와 완전히 동일 — 하위 호환).
+          2026-11(17번째 라운드), 혜민님 재요청("면과 선의 색상교체아이콘이
+          사라졌습니다. 다시 만들어주세요")로 13번째 라운드의 swapColors 버튼(면↔선
+          교체, 핸들러·조건 전부 그대로)을 되살렸어요 — "정확히 4개"였던 15번째
+          라운드 결정을 뒤집는 명시적 요청이라 5번째 요소로 추가했고, 같은 요청에
+          있던 "면색 아이콘을 서로 간격을 붙여서 하나로 보이도록"에 맞춰 면색·선색
+          스와치 2개만 별도 div로 묶어 간격 0으로 붙였어요(13번째 라운드의 겹침
+          버전과는 다르게 — 겹치지 않고 그냥 나란히 붙게만, 혜민님이 이번엔
+          "겹치지 않게"로 명시). */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          title="면색·선색 교체"
+          onClick={() => {
+            const oldFill = value.color;
+            const oldStroke = value.strokeColor;
+            if (oldStroke === undefined) {
+              onChange({
+                color: "transparent",
+                strokeColor: oldFill === "transparent" ? "#000000" : oldFill,
+                strokeWidth: value.strokeWidth ?? 0.08,
+              });
+            } else if (oldFill === "transparent") {
+              onChange({ color: oldStroke, strokeColor: undefined });
+            } else {
+              onChange({ color: oldStroke, strokeColor: oldFill });
+            }
+          }}
+          className="flex h-7 w-7 shrink-0 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+        >
+          <LayerIcon name="swapColors" className="h-3.5 w-3.5" />
+        </button>
+        <div className="flex items-center">
         {value.color === "transparent" ? (
           <button
             type="button"
@@ -4845,11 +4888,15 @@ function TextStyleFieldsPanel({
             }`}
           />
         )}
+        </div>
         <button
           type="button"
           title={value.gradientEnabled ? "그라데이션 끄기" : "그라데이션 켜기(면색 대신 시작→끝 색으로)"}
           aria-pressed={!!value.gradientEnabled}
-          onClick={() =>
+          onClick={() => {
+            // "마지막으로 누른 대상"을 그라데이션으로 표시해둬야 아래 "없음" 버튼이
+            // 그라데이션을 끌 수 있어요(면색/선색/그림자와 같은 패턴).
+            setFillStrokeActive("gradient");
             onChange(
               value.gradientEnabled
                 ? { gradientEnabled: false }
@@ -4859,8 +4906,8 @@ function TextStyleFieldsPanel({
                     gradientColorEnd: value.gradientColorEnd ?? "#ec4899",
                     gradientAngle: value.gradientAngle ?? 90,
                   }
-            )
-          }
+            );
+          }}
           className={`h-7 w-7 shrink-0 border ${
             value.gradientEnabled ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
           }`}
@@ -4874,7 +4921,9 @@ function TextStyleFieldsPanel({
               ? value.color === "transparent"
               : fillStrokeActive === "stroke"
                 ? !value.strokeColor
-                : !value.shadowColor
+                : fillStrokeActive === "gradient"
+                  ? !value.gradientEnabled
+                  : !value.shadowColor
           }
           onClick={() => {
             if (fillStrokeActive === "fill") {
@@ -4884,6 +4933,19 @@ function TextStyleFieldsPanel({
                 value.strokeColor
                   ? { strokeColor: undefined }
                   : { strokeColor: value.color === "transparent" ? "#000000" : value.color, strokeWidth: value.strokeWidth ?? 0.08 }
+              );
+            } else if (fillStrokeActive === "gradient") {
+              // 2026-11(17번째 라운드) 버그 수정 — 그라데이션이 활성 대상일 때 "없음"을
+              // 누르면 gradientEnabled를 꺼서 면색(value.color) 렌더링으로 되돌아가요.
+              onChange(
+                value.gradientEnabled
+                  ? { gradientEnabled: false }
+                  : {
+                      gradientEnabled: true,
+                      gradientColorStart: value.gradientColorStart ?? "#6366f1",
+                      gradientColorEnd: value.gradientColorEnd ?? "#ec4899",
+                      gradientAngle: value.gradientAngle ?? 90,
+                    }
               );
             } else {
               onChange(
@@ -4900,7 +4962,13 @@ function TextStyleFieldsPanel({
             }
           }}
           title={
-            fillStrokeActive === "fill" ? "면색 없음" : fillStrokeActive === "stroke" ? "선색 없음" : "그림자 없음(그림자 끄기)"
+            fillStrokeActive === "fill"
+              ? "면색 없음"
+              : fillStrokeActive === "stroke"
+                ? "선색 없음"
+                : fillStrokeActive === "gradient"
+                  ? "그라데이션 없음(그라데이션 끄기)"
+                  : "그림자 없음(그림자 끄기)"
           }
         />
         {value.shadowColor && (
@@ -4929,14 +4997,22 @@ function TextStyleFieldsPanel({
             <input
               type="color"
               value={value.gradientColorStart ?? "#6366f1"}
-              onChange={(e) => onChange({ gradientColorStart: e.target.value })}
+              onMouseDown={() => setFillStrokeActive("gradient")}
+              onChange={(e) => {
+                setFillStrokeActive("gradient");
+                onChange({ gradientColorStart: e.target.value });
+              }}
               className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
               title="시작 색"
             />
             <input
               type="color"
               value={value.gradientColorEnd ?? "#ec4899"}
-              onChange={(e) => onChange({ gradientColorEnd: e.target.value })}
+              onMouseDown={() => setFillStrokeActive("gradient")}
+              onChange={(e) => {
+                setFillStrokeActive("gradient");
+                onChange({ gradientColorEnd: e.target.value });
+              }}
               className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
               title="끝 색"
             />
@@ -4946,7 +5022,9 @@ function TextStyleFieldsPanel({
               max={360}
               step={1}
               value={Math.round(value.gradientAngle ?? 90)}
+              onFocus={() => setFillStrokeActive("gradient")}
               onChange={(e) => {
+                setFillStrokeActive("gradient");
                 const v = Number(e.target.value);
                 if (!Number.isFinite(v)) return;
                 onChange({ gradientAngle: Math.max(0, Math.min(360, v)) });
@@ -6433,6 +6511,11 @@ function TextBoxToolbar({
             LayerIcon 3종(boxWidth/boxHeight/cornerRadius)으로 바꿨어요. 값·단위·
             유효범위·onChange는 전혀 안 건드렸고, 한글 뜻은 각 칸의 title(hover
             툴팁)로 그대로 남아있어요. */}
+        {/* 2026-11(17번째 라운드), 혜민님 지적("박스크기 ui박스가 굉장히 큽니다.
+            아이콘은 굉장히 작아요") — 입력 글자 크기가 text-base(16px)라 다른
+            칸(문자설정 그리드 등, text-xs=12px)보다 박스 자체가 더 커 보였어요.
+            값·단위·유효범위·onChange는 그대로 두고 입력 글자 크기만 text-xs로
+            맞춰서 다른 칸들과 높이를 통일했어요. */}
         <div className="grid grid-cols-3 gap-1.5">
           <div
             className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
@@ -6450,7 +6533,7 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ widthPct: Math.max(6, Math.min(96, v)) });
               }}
-              className="w-full border-0 bg-transparent p-0 text-base outline-none"
+              className="w-full border-0 bg-transparent p-0 text-xs outline-none"
             />
           </div>
           {/* 2026-10(11번째 라운드), 혜민님 요청("너비,높이 오른쪽에 직접지정버튼
@@ -6479,7 +6562,7 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ heightPct: Math.max(4, Math.min(96, v)) });
               }}
-              className="w-full border-0 bg-transparent p-0 text-base outline-none"
+              className="w-full border-0 bg-transparent p-0 text-xs outline-none"
             />
           </div>
           {/* 2026-10(12번째 라운드), 혜민님 요청("박스크기부분 너비, 높이,
@@ -6505,7 +6588,7 @@ function TextBoxToolbar({
                 if (!Number.isFinite(v)) return;
                 onChange({ cornerRadiusPct: Math.max(0, Math.min(50, v)) });
               }}
-              className="w-full border-0 bg-transparent p-0 text-base outline-none"
+              className="w-full border-0 bg-transparent p-0 text-xs outline-none"
             />
           </div>
         </div>
