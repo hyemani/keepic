@@ -14303,25 +14303,28 @@ function UploadPageContent() {
     const safetyOuterXPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideSpreadWorkMm) * 100;
     const safetyYPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guidePageWorkMm) * 100;
     // 제본부(가운데) 전용 안전 여백 — 표지 책등 폭과는 무관하게, 내지 자체의 여백이에요.
-    // ⚠️ 추정치예요 — 실제 제본 방식(무선철 등) 확인이 필요해요.
-    // 2026-11(18번째 라운드), 혜민님 재질문("안전영역 20MM 기준으로 접히는선도
-    // 수정해주세요... 안전선이 사방 15MM로 되어있어서 혼란") — 코드를 직접 추적한 결과,
-    // 표지의 20mm(hardCoverWrapBleedMm)는 "하드커버가 두꺼운 보드를 감싸 접어 넣는 실제
-    // 물리적 마감" 때문에 필요한 값이라 내지(종이를 그냥 제본하는 낱장들)에는 애초에
-    // 해당되는 개념이 아니에요(표지와 내지는 서로 다른 재질·제본 공정) — 그래서 "내지에도
-    // 20mm를 적용"하는 건 수치를 억지로 맞추는 게 됐을 거예요. 대신 실제로 확인한 건:
-    // 바깥쪽 안전선(safetyOuterXPct, 위)은 "도련(bleed) 5mm + 안전여백 15mm"=재단선
-    // 기준 15mm이고, 이 제본부 여백도 "제본 중심선 기준 15mm"라서 — 재단/접힘 기준선
-    // 기준으로 보면 둘 다 똑같이 15mm예요(바로 위 예전 주석이 "더 넓은 여백"이라고
-    // 썼던 건 틀린 설명이었어요, 실제로는 같은 15mm — 이번에 정정). 즉 "사방 15mm로
-    // 보인다"는 혜민님 관찰이 정확해요 — 버그가 아니라 original 설계가 실제로 그래요.
-    // 다만 제본부는 바깥 재단선과 성격이 달라서(접혀 들어가 가려지는 영역) 그냥 "같은
-    // 15mm 점선"으로만 보이면 "왜 표지처럼 더 넓게 안 돼있지?"라는 혼란이 생기기
-    // 쉬워요 — 그래서 코드를 고치는 대신(수치를 바꾸면 오히려 근거 없이 표지의 20mm를
-    // 내지에 그대로 베끼는 꼴이라), 화면에서 이 영역을 "제본 여백(바깥 안전선과 같은
-    // 15mm, 접혀 들어가는 별도 구역)"이라고 라벨을 달아 분명히 보이게 했어요(아래
-    // BindingGuide 호출부·컴포넌트 참고) — 수치·저장 데이터는 전혀 안 건드렸어요.
-    const GUIDE_BINDING_MARGIN_MM = 15;
+    // 2026-11(18번째 라운드 1차) 혜민님 재질문 당시엔 "바깥 안전선·제본부 안전선 둘 다
+    // 재단/접힘 기준선 기준 15mm로 똑같다"(버그 아님, 디자인이 원래 그렇다)고
+    // 결론지었었는데, 2026-11(18번째 라운드 6차) 혜민님이 실제 6칸 그리드 템플릿
+    // 레이아웃 스크린샷으로 "접힘 여백 부분만 안전선을 20mm로" 재요청하면서 다시 보니 —
+    // 그 "15mm" 결론은 화면에 그려지는 "안내선 위치"만 본 것이었고, 실제로 그리드
+    // 템플릿 사진이 자동 배치될 때 쓰는 computeSpreadSafetyPct()(위, clampSlotToSpreadSafety가
+    // 호출)는 바깥쪽·제본부 구분 없이 항상 "bleedMm(5) + GUIDE_SAFETY_MARGIN_MM(15) =
+    // 20mm"를 양쪽 다 적용하고 있었어요 — 즉 사진은 원래부터 제본부 기준 20mm로 당겨져서
+    // 배치되고 있었는데, 화면에 그려지는 이 안내선(GUIDE_BINDING_MARGIN_MM)만 15mm로
+    // 더 좁게 그려져서 "사진이 안내선보다 안쪽으로 더 들어가 있는" 눈에 보이는 불일치가
+    // 생겼던 거예요(혜민님이 스크린샷으로 보여주신 그리드 템플릿 사진의 어긋남이 바로
+    // 이거). 그래서 이번엔 "제본부만" 바깥 안전선(15mm)과 다르게, computeSpreadSafetyPct()가
+    // 이미 쓰고 있던 것과 똑같은 20mm(GUIDE_BLEED_MM + GUIDE_SAFETY_MM)로 맞췄어요 —
+    // 바깥쪽 3면(safetyOuterXPct)은 그대로 15mm(바깥은 사진 클램프·안내선 둘 다 원래도
+    // 15mm로 일치했어서 안 건드림). 이 변경은 "화면에 그려지는 안내선·스냅 기준점"만
+    // 움직여요 — clampSlotToSpreadSafety의 실제 사진 클램프 계산은 처음부터
+    // computeSpreadSafetyPct()의 20mm를 썼으므로 전혀 안 바뀌고, 그래서 기존에 이미
+    // 그리드 템플릿으로 자동 배치된 사진들의 저장된 위치(xPct 등)도 전혀 안 바뀌어요 —
+    // 다만 이제 안내선이 그 사진들이 실제로 클램프된 위치와 같은 자리에 그려지니,
+    // 기존 레이아웃들도 화면에서 더 안 맞아 보이던 게 아니라 더 맞아 보이게 돼요.
+    // ⚠️ 여전히 추정치의 연장선이에요 — 실제 제본 방식(무선철 등) 확인은 필요해요.
+    const GUIDE_BINDING_MARGIN_MM = GUIDE_BLEED_MM + GUIDE_SAFETY_MM; // = 20mm, computeSpreadSafetyPct()의 bleedMm+GUIDE_SAFETY_MARGIN_MM과 동일
     const bindingHalfPct = (GUIDE_BINDING_MARGIN_MM / guideSpreadWorkMm) * 100;
     const bindingCenterPct = 50;
     const bindingLeftEdgePct = bindingCenterPct - bindingHalfPct; // 왼쪽 페이지 안전영역의 오른쪽(제본쪽) 경계
