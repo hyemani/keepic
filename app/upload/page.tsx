@@ -2226,8 +2226,40 @@ function runFromResolvedStyle(style: ResolvedRunStyle, box: TextBoxDef, text: st
   };
 }
 
+// 2026-11(18번째 라운드), 혜민님 버그 리포트("그라데이션이 이번엔 적용자체가
+// 안되는거같습니다") 원인 — 그라데이션(gradientEnabled 등)은 box 전체 필드로
+// applyRunStyleToSpan(위)이 실제로 그리는데, 이 시그니처엔 처음부터(15번째
+// 라운드, 그라데이션 기능 추가 때) 빠져 있었어요. TextBoxRichEditor의
+// useLayoutEffect는 "방금 계산한 시그니처가 마지막으로 그렸던 시그니처와 같으면
+// 다시 안 그린다"는 규칙이라, 그라데이션을 켜도(gradientEnabled만 바뀌고 box.id·
+// runs·fontFamily·fontScale·color·bold·italic·underline은 그대로) 시그니처가
+// 똑같아서 span을 다시 안 그렸고, 그래서 패널 상태(gradientEnabled: true)와
+// 실제 화면(검정 텍스트 그대로)이 어긋났어요 — 버튼 클릭 핸들러나 onChange 전달
+// 경로는 처음부터 정상이었고, 순전히 "다시 그릴지 말지"를 결정하는 이 시그니처가
+// 누락이었어요. 같은 이유로 textTransformUppercase/fontVariantSmallCaps(모두
+// 대문자/작은 대문자)와 strikethrough/underlineColor/strikethroughColor도 같은
+// round에 추가된 box 전체 필드라 전부 시그니처에 빠져 있었어서 같이 넣었어요(같은
+// 버그의 다른 증상 — 아직 리포트는 안 됐지만 구조가 같아 같이 고쳤어요).
 function runSyncSignature(box: TextBoxDef, runs: TextRun[]): string {
-  return JSON.stringify([box.id, runs, box.fontFamily, box.fontScale, box.color, box.bold, box.italic, box.underline]);
+  return JSON.stringify([
+    box.id,
+    runs,
+    box.fontFamily,
+    box.fontScale,
+    box.color,
+    box.bold,
+    box.italic,
+    box.underline,
+    box.gradientEnabled,
+    box.gradientColorStart,
+    box.gradientColorEnd,
+    box.gradientAngle,
+    box.textTransformUppercase,
+    box.fontVariantSmallCaps,
+    box.strikethrough,
+    box.underlineColor,
+    box.strikethroughColor,
+  ]);
 }
 
 // 문자 단위 서식(runs)을 지원하는 텍스트박스 편집 영역이에요. 예전엔 그냥
@@ -11533,10 +11565,15 @@ function UploadPageContent() {
     // 포함)를 그대로 순회해서, slot 0 → findAutoPhotoSlotPosition(0, ...)이 가리키는
     // "스프레드 1의 오른쪽 면"(내지 첫 페이지)에 newPhotos[0]을 또 넣고 있었어요 —
     // 바로 위에서 newPhotos[0]을 이미 표지 사진으로도 쓰고 있는데, 이 루프는 그 사실을
-    // 전혀 몰라서 같은 사진이 표지와 내지 첫 페이지 양쪽에 중복으로 배치됐어요. 지금
-    // 이 업로드에서 실제로 표지 사진을 새로 가져갔는지(coverPhotoJustAutoAssigned)를
-    // 기억해뒀다가, 그런 경우에만 isAiAuto 루프에서 0번째 사진을 건너뛰어요(내지 첫
-    // 페이지 그 자리는 빈 칸으로 남고, 나머지 사진들의 슬롯 번호는 그대로예요).
+    // 전혀 몰라서 같은 사진이 표지와 내지 첫 페이지 양쪽에 중복으로 배치됐어요.
+    // 2026-11(18번째 라운드) 회귀 수정 — 17번째 라운드의 첫 수정은 0번째 사진을
+    // "건너뛰기"만 해서, slot(=autoPhotoBaseSlot+k)이 k=1부터도 그대로 1이라
+    // 내지 첫 페이지(slot 0) 자리가 아예 빈 칸으로 남아버렸어요(혜민님 리포트: "내지
+    // 첫페이지 이미지 배치 안되는 오류"). 지금 이 업로드에서 실제로 표지 사진을 새로
+    // 가져갔는지(coverPhotoJustAutoAssigned)를 기억해뒀다가, 그런 경우 0번째 사진은
+    // 내지에 안 넣되(표지로 이미 씀), 1번째부터는 slot 번호를 1칸씩 당겨서
+    // (autoPhotoBaseSlot + k - 1) 내지 첫 페이지(slot 0)에 newPhotos[1]이 들어가도록
+    // 고쳤어요 — 빈 칸 없이 그대로 순서대로 채워져요(아래 forEach 쪽 slot 계산 참고).
     const coverPhotoJustAutoAssigned = !coverPhoto && coverImageBoxes.length === 0 && !!newPhotos[0];
     if (coverPhotoJustAutoAssigned) {
       const first = newPhotos[0];
@@ -11552,9 +11589,10 @@ function UploadPageContent() {
         let spreads = prevSpreads;
         newPhotos.forEach((p, k) => {
           // 방금 표지 사진으로 자동 배정된 0번째 사진은 내지에 또 넣지 않아요(위 주석,
-          // 중복 적용 버그 수정).
+          // 중복 적용 버그 수정). 1번째부터는 slot을 1칸씩 당겨서 내지 첫 페이지가
+          // 빈 칸으로 남지 않게 해요(18번째 라운드 회귀 수정).
           if (coverPhotoJustAutoAssigned && k === 0) return;
-          const slot = autoPhotoBaseSlot + k;
+          const slot = coverPhotoJustAutoAssigned ? autoPhotoBaseSlot + k - 1 : autoPhotoBaseSlot + k;
           const pos = findAutoPhotoSlotPosition(slot, requiredSpreadCount);
           const box: ImageBoxDef = {
             id: crypto.randomUUID(),
