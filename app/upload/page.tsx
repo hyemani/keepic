@@ -2768,6 +2768,9 @@ function TextBoxOverlay({
                 ? "flex-end"
                 : "flex-start"
             : undefined,
+        // 2026-10(12번째 라운드) — "모퉁이" 필드. 선택 테두리(outline)도 배경과 같은
+        // 둥글기로 같이 보여요(0이면 undefined라 기존과 완전히 동일).
+        borderRadius: box.cornerRadiusPct ? `${box.cornerRadiusPct}%` : undefined,
       }}
     >
       {/* 2026-10-05, 혜민님 리포트: "텍스트박스 이동하려고 하면 뒤에 있는 이미지가 움직여요,
@@ -2785,7 +2788,17 @@ function TextBoxOverlay({
           늘어나거나 줄어들어요(같은 style 객체, 같은 렌더 사이클이라 어긋날 일이
           없어요). 글자보다 먼저(= 아래에) 그려서 글자가 항상 배경 위에 보여요. */}
       {box.backgroundColor !== undefined && box.backgroundMode === "fillBox" && (
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundColor: box.backgroundColor }} />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundColor: box.backgroundColor,
+            // 2026-10(12번째 라운드) — "모퉁이" 필드(cornerRadiusPct). 0(기본,
+            // undefined도 0과 동일)이면 border-radius 자체가 0이라 기존과 완전히
+            // 같은 직각 사각형이에요.
+            borderRadius: `${box.cornerRadiusPct ?? 0}%`,
+          }}
+        />
       )}
       {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
         <>
@@ -2878,6 +2891,7 @@ type LayerIconName =
   | "charScaleV"
   | "charScaleH"
   | "charTracking"
+  | "charKerning"
   | "copy"
   | "paste"
   | "save";
@@ -3188,6 +3202,20 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
           <path d="M7 4v16M17 4v16" />
           <path d="M5 12H2M3.5 10.5L2 12l1.5 1.5" />
           <path d="M19 12h3M20.5 10.5L22 12l-1.5 1.5" />
+        </svg>
+      );
+    // 2026-10(12번째 라운드), 혜민님 요청("커닝부분이 사라졌습니다... 아이콘
+    // 오른쪽에 수치 적용하는 박스") — 글자 간격(자간, charTracking)과 구분되도록
+    // 두 글자가 서로 맞물리는 모양으로 그렸어요. 이 그리드 안에서 실제로 비활성
+    // (disabled) 상태로만 쓰여요 — 아래 "커닝" 입력칸 쪽 주석 참고.
+    case "charKerning":
+      return (
+        <svg {...common}>
+          <path d="M4 5v14" />
+          <path d="M9 5v14" />
+          <path d="M15 5v14" />
+          <path d="M20 5v14" />
+          <path d="M9 12h6" strokeDasharray="1.5 2" />
         </svg>
       );
     // 2026-10(11번째 라운드, 혜민님 요청 "박스 복사·붙여넣기·삭제/텍스트 스타일 저장·
@@ -4040,9 +4068,29 @@ function StylePresetSection<T>({
   const selected = presets.find((p) => p.id === selectedId) ?? null;
 
   return (
+    // 2026-10(12번째 라운드), 혜민님 요청("텍스트스타일 박스안을 1줄로 만들어주세요
+    // [텍스트스타일] 저장, 적용, 삭제") — 원래 2줄(라벨+저장 아이콘 줄 / 드롭다운+
+    // 적용+삭제 줄)이던 걸 한 줄로 합쳤어요. 라벨은 드롭다운의 placeholder 옵션으로
+    // 옮기고, 저장·적용·삭제 아이콘 3개를 그 옆에 한 줄로 나란히 둬요. 값·동작
+    // (onSave/onApply/onDelete, localStorage 읽고 쓰는 lib/stylePresets.ts 쪽)은
+    // 전혀 안 건드렸어요 — 저장된 스타일이 하나도 없을 때도 드롭다운은 항상 보이고
+    // (고를 항목이 없을 뿐), 적용·삭제 버튼만 비활성화돼요.
     <div className="border border-[var(--color-hairline)] bg-white p-1.5">
-      <div className="mb-1.5 flex items-center justify-between">
-        <p className="text-[11px] font-medium text-[var(--color-charcoal)]/70">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+        >
+          <option value="">
+            {presets.length === 0 ? `저장된 ${label} 없음` : `${label} 선택…`}
+          </option>
+          {presets.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           onClick={() => {
@@ -4052,55 +4100,34 @@ function StylePresetSection<T>({
             onSave(trimmed);
           }}
           title="지금 스타일로 저장"
-          className="flex h-7 w-7 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
         >
           <LayerIcon name="save" className="h-4 w-4" />
         </button>
+        <button
+          type="button"
+          disabled={!selected}
+          onClick={() => selected && onApply(selected)}
+          title="적용"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10 disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <LayerIcon name="check" className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          disabled={!selected}
+          onClick={() => {
+            if (!selected) return;
+            if (!window.confirm(`"${selected.name}" 스타일을 삭제할까요?`)) return;
+            onDelete(selected.id);
+            setSelectedId("");
+          }}
+          title="삭제"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--color-hairline)] text-[var(--color-charcoal)]/50 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+        >
+          <LayerIcon name="delete" className="h-4 w-4" />
+        </button>
       </div>
-      {presets.length === 0 ? (
-        <p className="text-[10px] text-[var(--color-charcoal)]/45 break-keep">
-          아직 저장한 {label}이 없어요. 위 버튼으로 지금 스타일을 저장해두면, 다른 페이지나
-          다음에 또 골라서 바로 적용할 수 있어요.
-        </p>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-          >
-            <option value="">저장된 {label} 선택…</option>
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={!selected}
-            onClick={() => selected && onApply(selected)}
-            title="적용"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10 disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            <LayerIcon name="check" className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            disabled={!selected}
-            onClick={() => {
-              if (!selected) return;
-              if (!window.confirm(`"${selected.name}" 스타일을 삭제할까요?`)) return;
-              onDelete(selected.id);
-              setSelectedId("");
-            }}
-            title="삭제"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--color-hairline)] text-[var(--color-charcoal)]/50 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            <LayerIcon name="delete" className="h-4 w-4" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -4248,6 +4275,11 @@ function TextStyleFieldsPanel({
   const [scaleXDraft, setScaleXDraft] = useState(() => String(value.scaleXPct));
   const [scaleYDraft, setScaleYDraft] = useState(() => String(value.scaleYPct));
   const lastSyncedKeyRef = useRef<string | undefined>(undefined);
+  // 2026-10(12번째 라운드) — 맨 끝 색상표 1개가 지금 어떤 필드의 색을 보여주고/
+  // 고치는지 기억해요(굵게·기울임은 "color" 하나를 같이 써요). 박스를 바꿔
+  // 선택해도(syncKey) 굳이 안 되돌려요 — 매번 "글자색"으로 리셋되면 오히려
+  // 번거로울 수 있어서, 사용자가 마지막으로 고른 대상을 그대로 유지해요.
+  const [activeColorTarget, setActiveColorTarget] = useState<"color" | "underline" | "stroke" | "background">("color");
 
   useEffect(() => {
     if (lastSyncedKeyRef.current === syncKey) return;
@@ -4394,7 +4426,7 @@ function TextStyleFieldsPanel({
         </div>
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1.5">
-        <div className="col-span-2 max-w-[calc(50%-0.1875rem)]">
+        <div>
           <label
             className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
             title="자간"
@@ -4417,29 +4449,60 @@ function TextStyleFieldsPanel({
             className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
           />
         </div>
+        {/* 2026-10(12번째 라운드), 혜민님 요청("커닝부분이 사라졌습니다. 제가 원한건
+            아이콘 오른쪽에 수치 적용하는 박스 넣는것입니다") — "커닝"을 다시 이
+            그리드의 6번째 칸으로 되돌렸어요. 다만 진짜 커닝(글자 "쌍"마다 다른 간격을
+            주는 기능)은 지금 데이터 모델에서 구현할 수 없어요 — letterSpacing(자간)은
+            박스 전체에 걸리는 값 하나뿐이라 특정 두 글자 사이만 좁히는 "범위"가 아예
+            없어요(이전 라운드(d0d2147 이전, f7582e6)에서 같은 이유로 비활성 자리표시
+            칸으로 만들었다가, 11번째 라운드에서 "오류나보이는 아이콘자리"로 오해돼
+            완전히 삭제됐었어요). 다시 추가하면서 숫자 입력칸은 그대로 두되 disabled로
+            꺼두고, 값도 항상 "—"로 고정해서 "눌러도 바뀌는 게 없다"는 게 분명하게
+            보이도록 했어요 — 다른 5개(글자크기/행간/세로폭/가로폭/자간) 칸과 똑같이
+            "아이콘 + 옆 숫자 입력칸" 모양이라 그리드가 비어 보이지 않아요. */}
+        <div>
+          <label
+            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/35"
+            title="커닝 — 글자 '쌍'마다 다른 간격을 주는 기능은 지금 데이터 구조로는 만들 수 없어서 비활성으로 남겨뒀어요. 전체 글자 간격은 바로 왼쪽 '자간'을 써주세요."
+          >
+            <LayerIcon name="charKerning" className="h-3.5 w-3.5" />
+          </label>
+          <input
+            type="text"
+            value="—"
+            disabled
+            readOnly
+            title="커닝 — 아직 지원하지 않아요(자간을 대신 써주세요)"
+            className="w-full cursor-not-allowed border border-[var(--color-hairline)] bg-[var(--color-ivory)] px-1.5 py-1.5 text-xs text-[var(--color-charcoal)]/35 outline-none"
+          />
+        </div>
       </div>
-      {/* 2026-10(11번째 라운드), 혜민님 요청("굵기, 기울기, 밑줄, 그림자, 텍스트배경,
-          색상표 이렇게 6개로 배치하고 가운데선은 삭제") — 이 줄은 정확히 6개 아이콘
-          (굵게/기울임/밑줄/그림자/텍스트배경/색상표)만 가져요. 밑줄·그림자·텍스트배경은
-          토글이 켜졌을 때만 바로 옆에 전용 색상표가 따로 붙어요(9~10번째 라운드부터의
-          동작 그대로, 이번엔 안 건드림). 맨 끝 "색상표"는 글자 전체 색(value.color)
-          하나만 보여주는 고정 스와치예요(원래 굵게 바로 옆에 있던 걸 자리만 맨 끝으로
-          옮김) — "토글에 따라 뜻이 바뀌는 스와치"처럼 더 똑똑한 동작은 브라우저로 직접
-          확인할 수 없는 이번 세션엔 위험 부담이 커서 만들지 않았고, 가장 낮은 위험의
-          해석(흩어진 색상표를 "글자색 스와치 하나"로 단순화)을 택했어요(작업 보고에
-          근거 설명).
-          삭제한 것: "취소선(S, 혜민님이 '가운데선'이라 부르신 것)" 토글 버튼, 기울임
-          옆의 회색 "해당 없음(ⓘ)" 자리표시. 전부 UI에서만 뺐고, 데이터
-          (box.strikethrough/strikethroughColor)와 화면·인쇄 렌더링 코드는 전혀 안
-          건드렸어요 — 이미 취소선이 켜져 있던 기존 문서는 그대로 취소선이 그려져요.
-          ⚠️ 다만 이 패널엔 이제 취소선을 "새로 켜는" 버튼이 전혀 없어서, 이 라운드
-          이후엔 새 텍스트에 취소선을 켤 UI 경로가 없어요(작업 보고에 명시 — 의도하신
-          게 맞는지 확인 부탁드려요). */}
+      {/* 2026-10(12번째 라운드), 혜민님 요청("볼드, 기울기, 밑줄, 텍스트선, 배경,
+          색상표1개(선택한 부분을 색상 수정할수있게) 지금너무 색상이 여러가지
+          보여서 뭐가어떤색상인지 알수가 없습니다") — 이 줄을 정확히 6개(굵게/
+          기울임/밑줄/텍스트선/배경/색상표 1개)로 다시 짰어요. 전엔 밑줄·그림자·
+          배경마다 각자 옆에 따로 색상표가 붙어서(최대 4개 색상표가 동시에 보임)
+          "뭐가 어떤 색인지" 헷갈리셨다고 하셔서, 맨 끝 색상표 1개만 남기고 그
+          색상표가 "지금 막 누른 토글"의 색을 보여주고 고치도록 바꿨어요
+          (activeColorTarget 참고) — 굵게/기울임은 둘 다 글자색(value.color)을
+          같이 쓰고, 밑줄은 underlineColor, 텍스트선은 strokeColor, 배경은
+          background.backgroundColor를 각각 따로 가리켜요(토글을 안 누르고
+          색상표만 먼저 눌러도 마지막으로 누른 토글 기준 그대로예요, 기본값은
+          "글자색"). 그림자(섀도)는 이 6개 목록에서 빠졌어요 — 혜민님이 불러주신
+          6개 안에 그림자가 없어서예요. 기능 자체(그림자 켜기/끄기·투명도·번짐·
+          이동)는 안 지웠고, 바로 아래 "그림자" 작은 토글 버튼으로 자리만
+          옮겼어요(데이터·렌더링 코드 전혀 안 건드림). 텍스트선(stroke)은
+          11번째 라운드에서 이 줄에서 완전히 빠졌던 걸 요청대로 다시 넣었어요 —
+          strokeColor/strokeWidth 데이터·화면·인쇄 렌더링은 그때도 전혀 안
+          건드렸었어서 토글만 다시 보이면 바로 정상 동작해요. */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
           title="굵게"
-          onClick={() => onChange({ bold: !value.bold })}
+          onClick={() => {
+            setActiveColorTarget("color");
+            onChange({ bold: !value.bold });
+          }}
           className={`flex h-7 w-7 items-center justify-center border text-sm font-bold ${
             value.bold
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4451,7 +4514,10 @@ function TextStyleFieldsPanel({
         <button
           type="button"
           title="기울임"
-          onClick={() => onChange({ italic: !value.italic })}
+          onClick={() => {
+            setActiveColorTarget("color");
+            onChange({ italic: !value.italic });
+          }}
           className={`flex h-7 w-7 items-center justify-center border ${
             value.italic
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4463,7 +4529,10 @@ function TextStyleFieldsPanel({
         <button
           type="button"
           title="밑줄"
-          onClick={() => onChange({ underline: !value.underline })}
+          onClick={() => {
+            setActiveColorTarget("underline");
+            onChange({ underline: !value.underline });
+          }}
           className={`flex h-7 w-7 items-center justify-center border ${
             value.underline
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4472,15 +4541,115 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="underline" className="h-4 w-4" />
         </button>
-        {value.underline && (
-          <input
-            type="color"
-            value={value.underlineColor ?? value.color}
-            onChange={(e) => onChange({ underlineColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="밑줄 색(안 고르면 글자 색을 그대로 따라가요)"
-          />
+        <button
+          type="button"
+          title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기"}
+          aria-pressed={!!value.strokeColor}
+          onClick={() => {
+            setActiveColorTarget("stroke");
+            onChange(
+              value.strokeColor
+                ? { strokeColor: undefined }
+                : { strokeColor: value.color, strokeWidth: value.strokeWidth ?? 0.08 }
+            );
+          }}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
+            value.strokeColor
+              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+          }`}
+        >
+          <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
+        </button>
+        {background && (
+          <button
+            type="button"
+            title={background.backgroundColor ? "텍스트 배경 끄기" : "텍스트 배경 켜기"}
+            aria-pressed={!!background.backgroundColor}
+            onClick={() => {
+              setActiveColorTarget("background");
+              if (background.backgroundColor) {
+                onBackgroundChange?.({ backgroundColor: undefined });
+                return;
+              }
+              onBackgroundChange?.(
+                background.allowFillBoxBackground
+                  ? {
+                      backgroundColor: "#fff59d",
+                      backgroundMode: "fillBox",
+                      heightPct: background.heightPct ?? 20,
+                    }
+                  : { backgroundColor: "#fff59d" }
+              );
+            }}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
+              background.backgroundColor
+                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
+            }`}
+          >
+            <LayerIcon name="highlight" className="h-4 w-4" />
+          </button>
         )}
+        <input
+          type="color"
+          value={
+            activeColorTarget === "underline"
+              ? value.underlineColor ?? value.color
+              : activeColorTarget === "stroke"
+                ? value.strokeColor ?? value.color
+                : activeColorTarget === "background"
+                  ? background?.backgroundColor ?? value.color
+                  : value.color
+          }
+          onChange={(e) => {
+            const hex = e.target.value;
+            if (activeColorTarget === "underline") onChange({ underlineColor: hex });
+            else if (activeColorTarget === "stroke") onChange({ strokeColor: hex });
+            else if (activeColorTarget === "background") onBackgroundChange?.({ backgroundColor: hex });
+            else onChange({ color: hex });
+          }}
+          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+          title={
+            activeColorTarget === "underline"
+              ? "색상표 — 지금은 밑줄 색을 고쳐요"
+              : activeColorTarget === "stroke"
+                ? "색상표 — 지금은 텍스트선 색을 고쳐요"
+                : activeColorTarget === "background"
+                  ? "색상표 — 지금은 텍스트 배경 색을 고쳐요"
+                  : "색상표 — 지금은 글자 색을 고쳐요(굵게/기울임 기본)"
+          }
+        />
+      </div>
+      {/* 텍스트선 세부 설정 — 켜졌을 때만, 토글 바로 위(색은 이제 위 서체 줄의
+          색상표 하나로 공유해요 — activeColorTarget이 "stroke"일 때). 여기엔
+          굵기 입력칸만 남아요. */}
+      {value.strokeColor && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선 굵기</label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round((value.strokeWidth ?? 0.08) * 100)}
+            onChange={(e) =>
+              onChange({ strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
+            }
+            className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+            title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
+          />
+          <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+        </div>
+      )}
+      {/* 그림자 — 2026-10(12번째 라운드)부터 위 6개 아이콘 줄에서 빠지고(혜민님이
+          불러주신 목록에 없음) 여기 작은 켜기/끄기 버튼으로 옮겨왔어요. 기능은
+          전혀 안 바꿨어요(그림자 켜질 때 기본값도 기존 그대로). 그림자 색은
+          위 공용 색상표가 아니라 여기 전용 색상표를 그대로 써요(그림자는
+          activeColorTarget 5종에 안 들어가요 — 요청 목록에 없던 항목이라
+          가장 낮은 위험으로 기존 전용 색상표를 유지했어요). */}
+      <div className="mt-1.5 flex items-center justify-between">
+        <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자</label>
         <button
           type="button"
           title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 투명도·번짐·이동은 마지막에 쓰던 값)"}
@@ -4506,88 +4675,18 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="textShadowToggle" className="h-4 w-4" />
         </button>
-        {value.shadowColor && (
-          <input
-            type="color"
-            value={value.shadowColor}
-            onChange={(e) => onChange({ shadowColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="그림자 색"
-          />
-        )}
-        {background && (
-          <button
-            type="button"
-            title={background.backgroundColor ? "텍스트 배경 끄기" : "텍스트 배경 켜기"}
-            aria-pressed={!!background.backgroundColor}
-            onClick={() => {
-              if (background.backgroundColor) {
-                onBackgroundChange?.({ backgroundColor: undefined });
-                return;
-              }
-              onBackgroundChange?.(
-                background.allowFillBoxBackground
-                  ? {
-                      backgroundColor: "#fff59d",
-                      backgroundMode: "fillBox",
-                      heightPct: background.heightPct ?? 20,
-                    }
-                  : { backgroundColor: "#fff59d" }
-              );
-            }}
-            className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
-              background.backgroundColor
-                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-            }`}
-          >
-            <LayerIcon name="highlight" className="h-4 w-4" />
-          </button>
-        )}
-        {background?.backgroundColor && (
-          <input
-            type="color"
-            value={background.backgroundColor}
-            onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="텍스트 배경 색"
-          />
-        )}
-        <input
-          type="color"
-          value={value.color}
-          onChange={(e) => onChange({ color: e.target.value })}
-          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-          title="색상표(글자 색)"
-        />
       </div>
-      {/* 텍스트선 세부 설정 — 켜졌을 때만, 토글 바로 아래(위 서체 줄 참고). 색
-          스와치는 2026-11-9차 10번째 라운드부터 위 서체 줄의 토글 옆으로 옮겨가서
-          (혜민님 요청, 위 주석 참고) 여기엔 굵기 입력칸만 남아요. */}
-      {value.strokeColor && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선 굵기</label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            step={1}
-            value={Math.round((value.strokeWidth ?? 0.08) * 100)}
-            onChange={(e) =>
-              onChange({ strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
-            }
-            className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-            title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
-          />
-          <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
-        </div>
-      )}
-      {/* 그림자 세부 설정 — 켜졌을 때만. 투명도/X이동/Y이동/번짐 2열×2행 그리드는
-          예전 그대로(717a353 라운드부터 슬라이더 없이 숫자 입력만), 헤더만 없앴어요. */}
       {value.shadowColor && (
         <div className="mt-1.5">
           <div className="flex items-center gap-1.5">
             <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자 세부 설정</label>
+            <input
+              type="color"
+              value={value.shadowColor}
+              onChange={(e) => onChange({ shadowColor: e.target.value })}
+              className="h-6 w-6 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+              title="그림자 색"
+            />
           </div>
           <div className="mt-1 grid grid-cols-2 gap-1.5">
             <div>
@@ -5691,18 +5790,14 @@ function EmojiPanelGrid({ onPick }: { onPick: (emoji: string) => void }) {
 function TextBoxToolbar({
   box,
   onChange,
-  onDelete,
   pageWidthMm,
   selectionRange,
   contentValue,
   onContentChange,
   allowFillBoxBackground = true,
-  onCopyBox,
-  onPasteBox,
 }: {
   box: TextBoxDef | null;
   onChange: (changes: Partial<TextBoxDef>) => void;
-  onDelete: () => void;
   // 2026-10(6차), 혜민님 요청("표지 제목/책등 패널에 일반 글상자와 똑같은 항목이
   // 다 있어야 해요") — 예전엔 hideAdvanced prop으로 표지 제목·책등 호출부에서
   // 배경·가로세로 폭·박스영역 정렬 구간을 통째로 숨겼는데(그 값들을 담을 상태가
@@ -5746,8 +5841,6 @@ function TextBoxToolbar({
   // 복사해요. 표지 제목·책등(coverTitleAsTextBox/spineTitleAsTextBox)은 이 복사
   // 기능 자체가 없어서(별도 상태라 activeTextBoxDef 대상이 아님) 이 prop을 안 넘겨서
   // 버튼 자체가 안 보여요 — 기존 범위 밖.
-  onCopyBox?: () => void;
-  onPasteBox?: () => void;
   // 지금 고르고 있는 게 앞표지/뒤표지/내지 중 어떤 텍스트박스인지 — 혼동하지 않도록
   // 항상 보여줘요(2026-09-23 요청).
   scopeLabel?: string;
@@ -5857,49 +5950,12 @@ function TextBoxToolbar({
           둬요. scopeLabel prop 자체는 지우지 않았어요(호출하는 쪽 3곳— 표지/뒤표지/내지
           — 이 다르게 넘겨주고 있는데, 당장은 화면에 안 쓰지만 나중에 다시 필요할 수
           있어서 prop만 남겨둠). */}
-      <div className="flex items-center justify-end gap-3">
-        {/* 2026-11-9차 4번째 라운드, 혜민님 버그 리포트("복사해서 붙여넣기했는데
-            텍스트효과나 글꼴은 복사가 안되네") — 위 onCopyBox/onPasteBox prop 주석
-            참고. 버튼을 누르면 브라우저가 그 순간 텍스트박스 안 커서 포커스를 자동으로
-            빼주니(표 칸 "칸 복사"/"붙여넣기" 버튼과 같은 이유), Ctrl/Cmd+C·V 단축키가
-            포커스 상태에 따라 간헐적으로 막히던 문제와 상관없이 항상 박스 전체(글꼴·
-            텍스트선·그림자·스타일 전부)를 확실하게 복제해요. 표지 제목·책등 호출부는
-            onCopyBox/onPasteBox를 안 넘겨서(그 두 자리는 복사 대상 자체가 아직 없음)
-            버튼이 안 보여요.
-        */}
-        {/* 2026-10(11번째 라운드), 혜민님 요청("상단에 박스복사,붙여넣기, 삭제
-            글자말고 아이콘으로 배치") — 글자 링크 대신 LayerIcon 아이콘 버튼으로
-            바꾸고, 원래 글자/상세 설명은 title(hover 툴팁)로 그대로 남겼어요.
-            onClick·동작은 전혀 안 건드렸어요. */}
-        {onCopyBox && (
-          <button
-            type="button"
-            onClick={onCopyBox}
-            title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
-            className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
-          >
-            <LayerIcon name="copy" className="h-4 w-4" />
-          </button>
-        )}
-        {onPasteBox && (
-          <button
-            type="button"
-            onClick={onPasteBox}
-            title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
-            className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
-          >
-            <LayerIcon name="paste" className="h-4 w-4" />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onDelete}
-          title="삭제"
-          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-red-500 hover:bg-red-50"
-        >
-          <LayerIcon name="delete" className="h-4 w-4" />
-        </button>
-      </div>
+      {/* 2026-10(12번째 라운드), 혜민님 요청("복사,붙여넣기,삭제 아이콘을 글쓰기/
+          표만들기/이모티콘 오른쪽으로 배치") — 이 박스 복사/붙여넣기/삭제 아이콘
+          버튼 자체를 이 컴포넌트에서 들어냈어요(위치만 이동, onClick 동작·대상은
+          전혀 안 바뀜) — 이제 호출부(표지/내지 패널)의 서브탭 바로 옆에서 그려요.
+          자세한 위치·조건은 app/upload/page.tsx의 "textPanelSubTab" 서브탭 줄 쪽
+          주석을 참고하세요. */}
       {/* 2026-11-8차, 혜민님 요청("텍스트스타일도 저장해서 뒷페이지나 추후에도 다시
           사용할수있게") — 지금 이 텍스트박스의 글꼴/크기/색/굵게·기울임·밑줄·취소선/
           정렬/배경 등 "꾸밈" 값만 이름 붙여 저장했다가, 다른 텍스트박스(표지 제목·
@@ -5999,7 +6055,7 @@ function TextBoxToolbar({
         <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">
           박스 크기(선택 테두리, %)
         </p>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5">
           <div>
             <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/50">너비</label>
             <input
@@ -6042,6 +6098,30 @@ function TextBoxToolbar({
                 onChange({ heightPct: Math.max(4, Math.min(96, v)) });
               }}
               className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+            />
+          </div>
+          {/* 2026-10(12번째 라운드), 혜민님 요청("박스크기부분 너비, 높이,
+              모퉁이조절 가능하도록 3가지로 만들어주세요") — 너비·높이 옆에 3번째
+              칸으로 "모퉁이"(cornerRadiusPct, lib/albumTemplates.ts의 TextBoxDef
+              참고)를 추가했어요. 0이 기본(직각 모서리, 기존 문서와 완전히 동일)
+              이고, 화면은 TextBoxLayer의 배경 div border-radius로, 인쇄는
+              lib/printCompose.ts의 텍스트 배경 사각형을 둥근 사각형 경로로 바꿔서
+              반영돼요(둘 다 이 라운드에 새로 연결 — 기존엔 코드 자체가 없었어요). */}
+          <div>
+            <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/50">모퉁이</label>
+            <input
+              type="number"
+              min={0}
+              max={50}
+              step={1}
+              value={Math.round(box.cornerRadiusPct ?? 0)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                onChange({ cornerRadiusPct: Math.max(0, Math.min(50, v)) });
+              }}
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+              title="박스 배경·선택 테두리의 모서리를 둥글게(%, 박스 짧은 변 기준). 0이면 직각이에요."
             />
           </div>
         </div>
@@ -9381,6 +9461,12 @@ function CoverTitleOverlay({
       );
       return ts ? { textShadow: ts } : {};
     })(),
+    // 2026-10(12번째 라운드) — "모퉁이"(cornerRadiusPct). 배경이 켜져 있을 때만
+    // 의미가 있어서(배경 없으면 보이는 사각형 자체가 없음) backgroundColor가 있을
+    // 때만 적용해요. 0/undefined면 기존과 동일(직각).
+    ...(editableBox.backgroundColor && editableBox.cornerRadiusPct
+      ? { borderRadius: `${editableBox.cornerRadiusPct}%` }
+      : {}),
   };
   // 띠 너비는 backgroundWidthPct(앞표지 칸 전체 기준 %)를 "이 제목 박스 자신의 너비
   // (widthPct)" 기준 퍼센트로 환산해요 — boxRef 컨테이너 자체가 widthPct%로 이미
@@ -10412,6 +10498,10 @@ function UploadPageContent() {
   // 텍스트선·그림자(2026-11-9차, 혜민님 요청 "자막스타일처럼") — 위 spineTitleStroke*
   // 와 같은 이유·같은 단위(em)로 표지 제목 전용 상태를 둬요.
   const [coverTitleStrokeColor, setCoverTitleStrokeColor] = useState<string | undefined>(undefined);
+  // 2026-10(12번째 라운드), 혜민님 요청("박스크기부분 너비, 높이, 모퉁이조절") — 표지 제목도 widthPct/heightPct처럼 이 필드를 지원해요(책등은 widthPct 자체가 이미
+  // 이 패널에서 안 쓰여서 — handleSpineTitleBoxChange 참고 — 모퉁이도 똑같이 범위
+  // 밖으로 뒀어요).
+  const [coverTitleCornerRadiusPct, setCoverTitleCornerRadiusPct] = useState<number | undefined>(undefined);
   const [coverTitleStrokeWidth, setCoverTitleStrokeWidth] = useState<number | undefined>(undefined);
   const [coverTitleShadowColor, setCoverTitleShadowColor] = useState<string | undefined>(undefined);
   const [coverTitleShadowBlur, setCoverTitleShadowBlur] = useState<number | undefined>(undefined);
@@ -12714,6 +12804,7 @@ function UploadPageContent() {
       coverTitleYPct,
       coverTitleWidthPct,
       coverTitleHeightPct,
+      coverTitleCornerRadiusPct,
       coverTitleFontFamily,
       coverTitleAlign,
       coverTitleColor,
@@ -12798,6 +12889,7 @@ function UploadPageContent() {
     // 그대로 남아서 하위 호환돼요.
     setCoverTitleWidthPct(s.coverTitleWidthPct ?? 84);
     setCoverTitleHeightPct(s.coverTitleHeightPct);
+    setCoverTitleCornerRadiusPct(s.coverTitleCornerRadiusPct);
     setCoverTitleFontFamily(s.coverTitleFontFamily);
     setCoverTitleAlign(s.coverTitleAlign ?? "center");
     setCoverTitleColor(s.coverTitleColor ?? "#ffffff");
@@ -12924,6 +13016,7 @@ function UploadPageContent() {
     coverTitleYPct,
     coverTitleWidthPct,
     coverTitleHeightPct,
+    coverTitleCornerRadiusPct,
     coverTitleFontFamily,
     coverTitleAlign,
     coverTitleColor,
@@ -13239,6 +13332,7 @@ function UploadPageContent() {
       coverTitleYPct,
       coverTitleWidthPct,
       coverTitleHeightPct,
+      coverTitleCornerRadiusPct,
       coverTitleVerticalAlign,
       coverTitleColor,
       coverTitleBold,
@@ -13701,6 +13795,7 @@ function UploadPageContent() {
       yPct: coverTitleYPct,
       widthPct: coverTitleWidthPct,
       heightPct: coverTitleHeightPct,
+      cornerRadiusPct: coverTitleCornerRadiusPct,
       fontFamily: coverTitleFontFamily,
       fontScale: textBoxPtToFontScale(coverTitleFontSizePt, coverTitlePanelPageWidthMm),
       color: coverTitleColor,
@@ -13740,6 +13835,7 @@ function UploadPageContent() {
       // 끌 때(아래 CoverTitleOverlay onResizeBox) 둘 다 이 경로로 들어와요.
       if (changes.widthPct !== undefined) setCoverTitleWidthPct(changes.widthPct);
       if ("heightPct" in changes) setCoverTitleHeightPct(changes.heightPct);
+      if ("cornerRadiusPct" in changes) setCoverTitleCornerRadiusPct(changes.cornerRadiusPct);
       if (changes.fontFamily !== undefined) handleCoverTitleFontFamilyChange(changes.fontFamily);
       if (changes.fontScale !== undefined) {
         const pt = textBoxFontScaleToPt(changes.fontScale, coverTitlePanelPageWidthMm);
@@ -14884,27 +14980,81 @@ function UploadPageContent() {
                               {/* 2026-09-25, 혜민님 요청: "텍스트 메뉴 상단에는 글쓰기 / 표만들기
                                   / 이모티콘 메뉴를 만들고 싶습니다" — 글상자/타이틀 편집(기존
                                   화면)과 표·이모티콘 추가를 서브탭으로 나눠요. */}
-                              <div className="grid grid-cols-3 gap-1 border-b border-[var(--color-hairline)] pb-2">
-                                {(
-                                  [
-                                    { id: "write" as const, label: "글쓰기" },
-                                    { id: "table" as const, label: "표만들기" },
-                                    { id: "emoji" as const, label: "이모티콘" },
-                                  ]
-                                ).map((t) => (
-                                  <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() => setTextPanelSubTab(t.id)}
-                                    className={`py-1.5 text-xs font-medium transition ${
-                                      textPanelSubTab === t.id
-                                        ? "bg-[var(--color-charcoal)] text-white"
-                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
-                                    }`}
-                                  >
-                                    {t.label}
-                                  </button>
-                                ))}
+                              <div className="flex items-stretch gap-1.5 border-b border-[var(--color-hairline)] pb-2">
+                                {/* 2026-10(12번째 라운드), 혜민님 요청("복사,붙여넣기,삭제 아이콘을
+                                    텍스트추가 하단에 넣지말고 글쓰기,표만들기,이모티콘 오른쪽에 세로선
+                                    오른쪽에 배치") — 공통 버튼(박스 복사/붙여넣기/삭제)을 이 서브탭 줄
+                                    오른쪽, 세로 구분선 너머로 옮겼어요. 무엇을 복사/삭제할지는 지금
+                                    선택된 대상(일반 글상자/표지 제목/책등)에 따라 그대로 갈라져요 —
+                                    동작 자체(handleCopyActiveTextBox 등)는 전혀 안 건드렸고, 버튼이
+                                    보이는 자리만 TextBoxToolbar 안쪽에서 이 줄로 옮겼어요(아래
+                                    TextBoxToolbar 정의 쪽 주석 참고). 표지 제목·책등은 복사/붙여넣기
+                                    대상이 아니라서(기존 범위 밖) 삭제 아이콘만 보여요. */}
+                                <div className="grid flex-1 grid-cols-3 gap-1">
+                                  {(
+                                    [
+                                      { id: "write" as const, label: "글쓰기" },
+                                      { id: "table" as const, label: "표만들기" },
+                                      { id: "emoji" as const, label: "이모티콘" },
+                                    ]
+                                  ).map((t) => (
+                                    <button
+                                      key={t.id}
+                                      type="button"
+                                      onClick={() => setTextPanelSubTab(t.id)}
+                                      className={`py-1.5 text-xs font-medium transition ${
+                                        textPanelSubTab === t.id
+                                          ? "bg-[var(--color-charcoal)] text-white"
+                                          : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
+                                      }`}
+                                    >
+                                      {t.label}
+                                    </button>
+                                  ))}
+                                </div>
+                                {textPanelSubTab === "write" &&
+                                  ((activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover")) ||
+                                    coverTitleSelected ||
+                                    spineTitleSelected) && (
+                                  <div className="flex shrink-0 items-center gap-1 border-l border-[var(--color-hairline)] pl-1.5">
+                                    {activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={handleCopyActiveTextBox}
+                                          title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
+                                          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                        >
+                                          <LayerIcon name="copy" className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={handlePasteTextBox}
+                                          title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
+                                          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                        >
+                                          <LayerIcon name="paste" className="h-4 w-4" />
+                                        </button>
+                                      </>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover")) {
+                                          deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
+                                        } else if (coverTitleSelected) {
+                                          handleCoverTitleChange("");
+                                        } else if (spineTitleSelected) {
+                                          handleSpineTitleChange("");
+                                        }
+                                      }}
+                                      title="삭제"
+                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-red-500 hover:bg-red-50"
+                                    >
+                                      <LayerIcon name="delete" className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                               {textPanelSubTab === "table" && (
                                 <>
@@ -15000,14 +15150,11 @@ function UploadPageContent() {
                             <TextBoxToolbar
                               box={activeTextBoxDef}
                               onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
-                              onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                               scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                               pageWidthMm={coverPanelMm + coverBleedMm}
                               selectionRange={activeTextSelectionRange}
                               contentValue={activeTextBoxDef?.text ?? ""}
                               onContentChange={handleActiveTextBoxContentChange}
-                              onCopyBox={handleCopyActiveTextBox}
-                              onPasteBox={handlePasteTextBox}
                             />
                           )}
                           {/* 2026-10-08, 혜민님 요청("표지 타이틀, 일반 글상자, 책등 텍스트가
@@ -15025,7 +15172,6 @@ function UploadPageContent() {
                             <TextBoxToolbar
                               box={coverTitleAsTextBox}
                               onChange={handleCoverTitleBoxChange}
-                              onDelete={() => handleCoverTitleChange("")}
                               pageWidthMm={coverTitlePanelPageWidthMm}
                               selectionRange={null}
                               contentValue={coverTitle}
@@ -15054,7 +15200,6 @@ function UploadPageContent() {
                               <TextBoxToolbar
                                 box={spineTitleAsTextBox}
                                 onChange={handleSpineTitleBoxChange}
-                                onDelete={() => handleSpineTitleChange("")}
                                 pageWidthMm={coverTitlePanelPageWidthMm}
                                 selectionRange={null}
                                 contentValue={spineTitle}
@@ -15616,27 +15761,60 @@ function UploadPageContent() {
                                 }
                               >
                             {activeEditTab === "text" && (
-                              <div className="mb-1.5 grid grid-cols-3 gap-1 border-b border-[var(--color-hairline)] pb-2">
-                                {(
-                                  [
-                                    { id: "write" as const, label: "글쓰기" },
-                                    { id: "table" as const, label: "표만들기" },
-                                    { id: "emoji" as const, label: "이모티콘" },
-                                  ]
-                                ).map((t) => (
-                                  <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() => setTextPanelSubTab(t.id)}
-                                    className={`py-1.5 text-xs font-medium transition ${
-                                      textPanelSubTab === t.id
-                                        ? "bg-[var(--color-charcoal)] text-white"
-                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
-                                    }`}
-                                  >
-                                    {t.label}
-                                  </button>
-                                ))}
+                              <div className="mb-1.5 flex items-stretch gap-1.5 border-b border-[var(--color-hairline)] pb-2">
+                                {/* 2026-10(12번째 라운드) — 표지 쪽과 같은 이유로, 박스 복사/붙여넣기/
+                                    삭제를 "+ 텍스트 추가" 아래가 아니라 이 서브탭 줄 오른쪽(세로
+                                    구분선 너머)으로 옮겼어요. */}
+                                <div className="grid flex-1 grid-cols-3 gap-1">
+                                  {(
+                                    [
+                                      { id: "write" as const, label: "글쓰기" },
+                                      { id: "table" as const, label: "표만들기" },
+                                      { id: "emoji" as const, label: "이모티콘" },
+                                    ]
+                                  ).map((t) => (
+                                    <button
+                                      key={t.id}
+                                      type="button"
+                                      onClick={() => setTextPanelSubTab(t.id)}
+                                      className={`py-1.5 text-xs font-medium transition ${
+                                        textPanelSubTab === t.id
+                                          ? "bg-[var(--color-charcoal)] text-white"
+                                          : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
+                                      }`}
+                                    >
+                                      {t.label}
+                                    </button>
+                                  ))}
+                                </div>
+                                {textPanelSubTab === "write" && activeTextBox && activeTextBox.ref.scope === "spread" && (
+                                  <div className="flex shrink-0 items-center gap-1 border-l border-[var(--color-hairline)] pl-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={handleCopyActiveTextBox}
+                                      title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
+                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                    >
+                                      <LayerIcon name="copy" className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handlePasteTextBox}
+                                      title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
+                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+                                    >
+                                      <LayerIcon name="paste" className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
+                                      title="삭제"
+                                      className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-red-500 hover:bg-red-50"
+                                    >
+                                      <LayerIcon name="delete" className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {activeEditTab === "text" && textPanelSubTab === "table" && (
@@ -15702,14 +15880,11 @@ function UploadPageContent() {
                               <TextBoxToolbar
                                 box={activeTextBoxDef}
                                 onChange={(c) => updateTextBoxByRef(activeTextBox.ref, activeTextBox.boxId, c)}
-                                onDelete={() => deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId)}
                                 scopeLabel={textBoxScopeLabel(activeTextBox.ref)}
                                 pageWidthMm={guidePageWorkMm}
                                 selectionRange={activeTextSelectionRange}
                                 contentValue={activeTextBoxDef?.text ?? ""}
                                 onContentChange={handleActiveTextBoxContentChange}
-                                onCopyBox={handleCopyActiveTextBox}
-                                onPasteBox={handlePasteTextBox}
                               />
                             )}
                             <div>

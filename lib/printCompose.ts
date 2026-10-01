@@ -57,6 +57,35 @@ function pxToMm(px: number) {
   return (px / PRINT_DPI) * MM_PER_INCH;
 }
 
+// "박스 전체 배경"(fillBox) 사각형을 cornerRadiusPct(TextBoxDef, 2026-10 12번째
+// 라운드 추가)만큼 둥글게 그려요 — 화면(TextBoxLayer/TextBoxOverlay)의 CSS
+// border-radius와 같은 규칙(박스 짧은 변 기준 %)이에요. radiusPct가 0/undefined면
+// 반지름이 0이라 기존 ctx.fillRect(x, y, w, h)와 완전히 같은 직각 사각형이 그려져요
+// (하위 호환). ctx.roundRect는 최신 브라우저(Chrome 99+/Firefox 112+/Safari 16+)면
+// 다 지원하지만, 혹시 없는 환경을 대비해 직접 arcTo로 그려요(폴리필 불필요).
+function fillRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radiusPct: number | undefined
+) {
+  const r = Math.max(0, Math.min(50, radiusPct ?? 0)) / 100 * Math.min(Math.abs(w), Math.abs(h));
+  if (!r) {
+    ctx.fillRect(x, y, w, h);
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
+
 export function parseWorkSizeMm(productionFileSizeMm: string | null): { w: number; h: number } {
   const match = (productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)\s*x\s*(\d+(\.\d+)?)/i);
   if (!match) return { w: 310, h: 310 }; // 혹시 규격을 못 읽으면 L사이즈 기준으로 안전하게
@@ -328,7 +357,7 @@ function drawTextBoxOnCanvasRuns(
     if (!isFillBox || !box.backgroundColor) return;
     ctx.save();
     ctx.fillStyle = box.backgroundColor;
-    ctx.fillRect(x, y, w, boxH);
+    fillRoundedRect(ctx, x, y, w, boxH, box.cornerRadiusPct);
     ctx.restore();
   }
 
@@ -543,7 +572,7 @@ function drawTextBoxOnCanvas(
     if (!isFillBox || !box.backgroundColor) return;
     ctx.save();
     ctx.fillStyle = box.backgroundColor;
-    ctx.fillRect(x, y, w, boxH);
+    fillRoundedRect(ctx, x, y, w, boxH, box.cornerRadiusPct);
     ctx.restore();
   };
   const drawLineBackground = (line: string, lineY: number) => {
@@ -2114,6 +2143,7 @@ export async function buildCoverPrintPdf({
   coverTitleShadowOffsetX,
   coverTitleShadowOffsetY,
   coverTitleShadowOpacity,
+  coverTitleCornerRadiusPct,
   coverTitleBackgroundColor,
   coverTitleBackgroundPaddingXPct = 40,
   coverTitleBackgroundPaddingYPct = 25,
@@ -2207,6 +2237,9 @@ export async function buildCoverPrintPdf({
   // 그림자 불투명도(2026-11-9차 6번째 라운드, 0~100%) — 화면(app/upload/page.tsx
   // TextStyleFields.shadowOpacity)과 같은 이름·단위, undefined면 100(완전 불투명).
   coverTitleShadowOpacity?: number;
+  // 2026-10(12번째 라운드) — 화면(coverTitleAsTextBox 어댑터)의 cornerRadiusPct와
+  // 같은 필드, 같은 단위(%)예요. 0/undefined면 기존과 동일한 직각.
+  coverTitleCornerRadiusPct?: number;
   coverTitleBackgroundColor?: string;
   coverTitleBackgroundPaddingXPct?: number;
   coverTitleBackgroundPaddingYPct?: number;
@@ -2567,7 +2600,7 @@ export async function buildCoverPrintPdf({
       ctxNN.save();
       ctxNN.shadowBlur = 0;
       ctxNN.fillStyle = coverTitleBackgroundColor;
-      ctxNN.fillRect(titleBoxLeftPx, titleBoxTopPx, titleBoxWidthPx, titleBoxHeightPx);
+      fillRoundedRect(ctxNN, titleBoxLeftPx, titleBoxTopPx, titleBoxWidthPx, titleBoxHeightPx, coverTitleCornerRadiusPct);
       ctxNN.restore();
     }
     // 밑줄(2026-10-08, 표지 제목도 일반 글상자·책등과 같은 밑줄 기능을 쓸 수 있게) — 줄마다
