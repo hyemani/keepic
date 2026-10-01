@@ -1340,12 +1340,25 @@ function CoverGuideBox({
 // 내지 펼침면 가운데의 "제본 경계"예요. 실제로 두 페이지가 만나는 정중앙(50%)에 검정
 // 이중선을 하나 긋고(책등 경계와 같은 시각 언어), 그 양옆으로 제본 때문에 주의가
 // 필요한 영역을 옅은 음영으로 보여줘요. 화면 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
+// 2026-11(18번째 라운드), 혜민님 혼란 리포트("제본부 안전선이 바깥 안전선과 똑같이
+// 15mm라 구분이 안 돼서 혼란") 대응 — 수치(GUIDE_BINDING_MARGIN_MM 호출부 주석 참고,
+// 실제로 바깥 안전선과 같은 15mm가 맞음)는 안 바꾸고, 이 구역이 "바깥 안전선과는 별도
+// 성격의 제본 여백"임을 한눈에 알아보게 ① 음영을 더 뚜렷하게(black/5 → black/10),
+// ② 구역 양 끝에 가는 점선 테두리를 더해 경계를 분명히 하고, ③ 구역 위쪽 가운데에
+// 작게 라벨을 달았어요.
 function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number }) {
   return (
     <div
-      className="pointer-events-none absolute inset-y-0 z-10 bg-black/5"
-      style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
-    />
+      className="pointer-events-none absolute inset-y-0 z-10 border-x bg-black/10"
+      style={{ left: `${leftPct}%`, right: `${100 - rightPct}%`, borderStyle: "dotted", borderColor: GUIDE_LINE_COLOR }}
+    >
+      <div
+        className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 whitespace-nowrap rounded-sm bg-white/80 px-1 text-[9px] leading-tight text-[#1a1a1a]"
+        style={{ fontFamily: "inherit" }}
+      >
+        제본 여백
+      </div>
+    </div>
   );
 }
 
@@ -4412,7 +4425,7 @@ function TextStyleFieldsPanel({
 }) {
   const [ptDraft, setPtDraft] = useState(() => String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)));
   const [lineHeightDraft, setLineHeightDraft] = useState(() => String(value.lineHeight));
-  const [letterSpacingDraft, setLetterSpacingDraft] = useState(() => String(value.letterSpacing));
+  const [letterSpacingDraft, setLetterSpacingDraft] = useState(() => String(Math.round(value.letterSpacing)));
   const [scaleXDraft, setScaleXDraft] = useState(() => String(value.scaleXPct));
   const [scaleYDraft, setScaleYDraft] = useState(() => String(value.scaleYPct));
   const lastSyncedKeyRef = useRef<string | undefined>(undefined);
@@ -4432,7 +4445,7 @@ function TextStyleFieldsPanel({
     lastSyncedKeyRef.current = syncKey;
     setPtDraft(String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)));
     setLineHeightDraft(String(value.lineHeight));
-    setLetterSpacingDraft(String(value.letterSpacing));
+    setLetterSpacingDraft(String(Math.round(value.letterSpacing)));
     setScaleXDraft(String(value.scaleXPct));
     setScaleYDraft(String(value.scaleYPct));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4615,17 +4628,24 @@ function TextStyleFieldsPanel({
             // 2026-11(17번째 라운드), 혜민님 요청("자간은 -40 부터 +100 만들어줘") —
             // 입력 가능 범위만 넓혔어요(기존 -0.1~0.5). 값·단위(em)·저장 방식은
             // 전혀 안 바꿨고, onChange의 clamp 범위만 똑같이 맞췄어요.
+            // 2026-11(18번째 라운드), 혜민님 요청("자간 소숫점이 너무 많습니다") —
+            // step을 1로 바꾸고(화살표로 조절할 때 정수 단위로만 움직여요), 포커스를
+            // 잃을 때·칸 밖에서 값이 다시 동기화될 때 보여주는 값을 Math.round로
+            // 반올림해서 긴 소수점 꼬리가 안 보이게 했어요. 타이핑 도중(onChange)엔
+            // 입력한 그대로 보여줘서 커서가 안 튀고, 저장되는 값(onChange 쪽
+            // letterSpacing)도 반올림해서 어차피 소수점 없는 정수만 저장돼요(em
+            // 단위·저장 방식 자체는 그대로).
             min={-40}
             max={100}
-            step={0.01}
+            step={1}
             value={letterSpacingDraft}
             onChange={(e) => {
               const raw = e.target.value;
               setLetterSpacingDraft(raw);
               const v = Number(raw);
-              if (Number.isFinite(v)) onChange({ letterSpacing: Math.max(-40, Math.min(100, v)) });
+              if (Number.isFinite(v)) onChange({ letterSpacing: Math.round(Math.max(-40, Math.min(100, v))) });
             }}
-            onBlur={() => setLetterSpacingDraft(String(value.letterSpacing))}
+            onBlur={() => setLetterSpacingDraft(String(Math.round(value.letterSpacing)))}
             className="w-full border-0 bg-transparent p-0 text-xs outline-none"
           />
         </div>
@@ -14259,9 +14279,25 @@ function UploadPageContent() {
     // (제본부 반대쪽) 가장자리에 써요.
     const safetyOuterXPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guideSpreadWorkMm) * 100;
     const safetyYPct = ((GUIDE_BLEED_MM + GUIDE_SAFETY_MM) / guidePageWorkMm) * 100;
-    // 제본부(가운데) 전용 안전 여백 — 바깥쪽 안전 여백과 다른 값을 써요(제본 때문에 접히는
-    // 쪽이라 더 넓은 여백이 필요해요). 표지 책등 폭과는 무관하게, 내지 자체의 여백이에요.
+    // 제본부(가운데) 전용 안전 여백 — 표지 책등 폭과는 무관하게, 내지 자체의 여백이에요.
     // ⚠️ 추정치예요 — 실제 제본 방식(무선철 등) 확인이 필요해요.
+    // 2026-11(18번째 라운드), 혜민님 재질문("안전영역 20MM 기준으로 접히는선도
+    // 수정해주세요... 안전선이 사방 15MM로 되어있어서 혼란") — 코드를 직접 추적한 결과,
+    // 표지의 20mm(hardCoverWrapBleedMm)는 "하드커버가 두꺼운 보드를 감싸 접어 넣는 실제
+    // 물리적 마감" 때문에 필요한 값이라 내지(종이를 그냥 제본하는 낱장들)에는 애초에
+    // 해당되는 개념이 아니에요(표지와 내지는 서로 다른 재질·제본 공정) — 그래서 "내지에도
+    // 20mm를 적용"하는 건 수치를 억지로 맞추는 게 됐을 거예요. 대신 실제로 확인한 건:
+    // 바깥쪽 안전선(safetyOuterXPct, 위)은 "도련(bleed) 5mm + 안전여백 15mm"=재단선
+    // 기준 15mm이고, 이 제본부 여백도 "제본 중심선 기준 15mm"라서 — 재단/접힘 기준선
+    // 기준으로 보면 둘 다 똑같이 15mm예요(바로 위 예전 주석이 "더 넓은 여백"이라고
+    // 썼던 건 틀린 설명이었어요, 실제로는 같은 15mm — 이번에 정정). 즉 "사방 15mm로
+    // 보인다"는 혜민님 관찰이 정확해요 — 버그가 아니라 original 설계가 실제로 그래요.
+    // 다만 제본부는 바깥 재단선과 성격이 달라서(접혀 들어가 가려지는 영역) 그냥 "같은
+    // 15mm 점선"으로만 보이면 "왜 표지처럼 더 넓게 안 돼있지?"라는 혼란이 생기기
+    // 쉬워요 — 그래서 코드를 고치는 대신(수치를 바꾸면 오히려 근거 없이 표지의 20mm를
+    // 내지에 그대로 베끼는 꼴이라), 화면에서 이 영역을 "제본 여백(바깥 안전선과 같은
+    // 15mm, 접혀 들어가는 별도 구역)"이라고 라벨을 달아 분명히 보이게 했어요(아래
+    // BindingGuide 호출부·컴포넌트 참고) — 수치·저장 데이터는 전혀 안 건드렸어요.
     const GUIDE_BINDING_MARGIN_MM = 15;
     const bindingHalfPct = (GUIDE_BINDING_MARGIN_MM / guideSpreadWorkMm) * 100;
     const bindingCenterPct = 50;
