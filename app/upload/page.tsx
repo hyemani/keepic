@@ -2872,7 +2872,15 @@ type LayerIconName =
   | "italic"
   | "highlight"
   | "textStrokeToggle"
-  | "textShadowToggle";
+  | "textShadowToggle"
+  | "charFontSize"
+  | "charLineHeight"
+  | "charScaleV"
+  | "charScaleH"
+  | "charTracking"
+  | "copy"
+  | "paste"
+  | "save";
 
 function LayerIcon({ name, className }: { name: LayerIconName; className?: string }) {
   const common = {
@@ -3135,6 +3143,76 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         <svg {...common}>
           <path d="M7.1 7.7h12M13.1 7.7v11.2" strokeWidth={1.8} opacity={0.32} />
           <path d="M6 6.6h12M12 6.6v11.2" strokeWidth={1.8} />
+        </svg>
+      );
+    // 2026-10(11번째 라운드) 문자설정 그리드용 아이콘 5종 — 다른 LayerIcon들과 같은
+    // 24x24 stroke 방식. 클릭 불가능한 순수 표시용이라(옆 숫자 입력이 실제 입력),
+    // 정교함보다 "대충 뜻이 짐작되는" 수준으로 단순하게 그렸어요.
+    case "charFontSize":
+      return (
+        <svg {...common}>
+          <path d="M4.5 19L8 6l3.5 13" />
+          <path d="M5.6 14.5h4.8" />
+          <path d="M14.5 19l2-6.5L18.5 19" />
+          <path d="M15.3 16.7h2.4" />
+        </svg>
+      );
+    case "charLineHeight":
+      return (
+        <svg {...common}>
+          <path d="M4 3v18" />
+          <path d="M4 3L2 5.5M4 3l2 2.5" />
+          <path d="M4 21l-2-2.5M4 21l2-2.5" />
+          <path d="M9 7h11M9 12h11M9 17h11" />
+        </svg>
+      );
+    case "charScaleV":
+      return (
+        <svg {...common}>
+          <rect x="9" y="7" width="6" height="10" rx="1" />
+          <path d="M12 2v3M10 3.5l2-2 2 2" />
+          <path d="M12 22v-3M10 20.5l2 2 2-2" />
+        </svg>
+      );
+    case "charScaleH":
+      return (
+        <svg {...common}>
+          <rect x="7" y="9" width="10" height="6" rx="1" />
+          <path d="M2 12h3M3.5 10l-2 2 2 2" />
+          <path d="M22 12h-3M20.5 10l2 2-2 2" />
+        </svg>
+      );
+    case "charTracking":
+      return (
+        <svg {...common}>
+          <path d="M7 4v16M17 4v16" />
+          <path d="M5 12H2M3.5 10.5L2 12l1.5 1.5" />
+          <path d="M19 12h3M20.5 10.5L22 12l-1.5 1.5" />
+        </svg>
+      );
+    // 2026-10(11번째 라운드, 혜민님 요청 "박스 복사·붙여넣기·삭제/텍스트 스타일 저장·
+    // 적용·삭제를 글자 말고 아이콘으로") — 클립보드(복사/붙여넣기)·북마크(저장) 아이콘.
+    // "삭제"는 기존 "delete"(휴지통) 아이콘을 재사용하고, "적용"은 기존 "check"
+    // (체크표시) 아이콘을 재사용해요(새로 안 늘림).
+    case "copy":
+      return (
+        <svg {...common}>
+          <rect x="9" y="9" width="11" height="11" rx="1.2" />
+          <path d="M6 15h-0.5A1.5 1.5 0 0 1 4 13.5v-8A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6" />
+        </svg>
+      );
+    case "paste":
+      return (
+        <svg {...common}>
+          <rect x="6" y="5" width="12" height="16" rx="1.5" />
+          <path d="M9 5V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V5" />
+          <path d="M9 12h6M9 16h6" />
+        </svg>
+      );
+    case "save":
+      return (
+        <svg {...common}>
+          <path d="M6 4h12v16l-6-4-6 4V4z" />
         </svg>
       );
   }
@@ -3973,9 +4051,10 @@ function StylePresetSection<T>({
             if (!trimmed) return;
             onSave(trimmed);
           }}
-          className="rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
+          title="지금 스타일로 저장"
+          className="flex h-7 w-7 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
         >
-          지금 스타일로 저장
+          <LayerIcon name="save" className="h-4 w-4" />
         </button>
       </div>
       {presets.length === 0 ? (
@@ -4001,9 +4080,10 @@ function StylePresetSection<T>({
             type="button"
             disabled={!selected}
             onClick={() => selected && onApply(selected)}
-            className="shrink-0 rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10 disabled:cursor-not-allowed disabled:opacity-30"
+            title="적용"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            적용
+            <LayerIcon name="check" className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -4014,9 +4094,10 @@ function StylePresetSection<T>({
               onDelete(selected.id);
               setSelectedId("");
             }}
-            className="shrink-0 text-[11px] text-[var(--color-charcoal)]/50 underline hover:text-[var(--color-charcoal)] disabled:cursor-not-allowed disabled:opacity-30"
+            title="삭제"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--color-hairline)] text-[var(--color-charcoal)]/50 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            삭제
+            <LayerIcon name="delete" className="h-4 w-4" />
           </button>
         </div>
       )}
@@ -4183,76 +4264,43 @@ function TextStyleFieldsPanel({
     <>
       <div>
         <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">서체</label>
-        {/* 2026-11-9차 10번째 라운드, 혜민님 요청("텍스트선을 상단의 서체 오른쪽에
-            넣어주세요") — 텍스트선(outline) 토글·색 스와치를 서체 드롭다운과 같은
-            줄로 옮겼어요(반대로 굵게(B)는 아래 "텍스트 효과" 줄로 내려갔어요, 그
-            변경은 아래 주석 참고). 서체 select는 flex-1로 남은 공간을 다 차지하고,
-            토글·스와치는 h-7 w-7 고정 크기로 오른쪽에 붙어서 드롭다운만 줄어들 뿐
-            줄바꿈은 안 돼요. */}
-        <div className="flex items-center gap-1">
-          <select
-            value={value.fontFamily}
-            onChange={(e) => onChange({ fontFamily: e.target.value })}
-            className="min-w-0 flex-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
-          >
-            {fontOptions.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기(검정, 굵기는 마지막에 쓰던 값)"}
-            aria-pressed={!!value.strokeColor}
-            onClick={() =>
-              onChange(
-                value.strokeColor
-                  ? { strokeColor: undefined }
-                  : { strokeColor: "#000000", strokeWidth: value.strokeWidth ?? 0.08 }
-              )
-            }
-            className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
-              value.strokeColor
-                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-            }`}
-          >
-            <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
-          </button>
-          {value.strokeColor && (
-            <input
-              type="color"
-              value={value.strokeColor}
-              onChange={(e) => onChange({ strokeColor: e.target.value })}
-              className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-              title="텍스트선 색"
-            />
-          )}
-        </div>
+        {/* 2026-10(11번째 라운드), 혜민님 요청(6개 아이콘 목록에 텍스트선이 없음) —
+            텍스트선(outline) 토글·색 스와치를 이 줄에서 없앴어요. strokeColor/
+            strokeWidth 데이터와 화면·인쇄 렌더링은 전혀 안 건드렸으니 이미 텍스트선이
+            켜진 기존 문서는 그대로 그려지지만, 이 패널 전체에 텍스트선을 "새로 켤" UI가
+            더 이상 없어요(작업 보고에 명시). */}
+        <select
+          value={value.fontFamily}
+          onChange={(e) => onChange({ fontFamily: e.target.value })}
+          className="w-full border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 text-xs outline-none focus:border-[var(--color-sky)]"
+        >
+          {fontOptions.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
+        </select>
       </div>
-      {/* 2026-11-9차 7번째 라운드, 혜민님 요청("문자 설정을 2열×3행으로 정리해주세요:
-          1행 글자크기|행간, 2행 세로폭|가로폭, 3행 커닝|자간. 세로·가로 폭은 글자
-          모양 비율이라 박스 자체 너비·높이와 혼동되면 안 됨") — InDesign류 문자
-          패널을 참고한 2열×3행 그리드예요. 값·단위·유효범위는 전부 예전과 완전히
-          같고(기본값 버튼만 이번 라운드에서 없앴어요, 아래 "기본값" 버튼 제거 주석
-          참고) 자리만 이 순서로 옮겼어요.
-          "가로 폭"·"세로 폭"엔 title(hover)로 "이 박스 자체의 너비·높이(아래 '박스
-          크기')와는 다른 값"이라고 분명히 적었어요.
-          3행 "커닝"은 이번 라운드엔 실제로 구현하지 않았어요(입력칸 자체가
-          비활성) — 혜민님 요청 원문 중 "커서가 놓인 두 글자 사이"에만 적용되는
-          진짜 커닝은, 지금 서식 구조(lib/textRuns.ts의 TextRun)가 "글자 내용
-          구간별 서식"만 표현할 수 있어서(구간이 아니라 "정확히 그 경계 한 곳"에만
-          거는 오프셋 개념이 아예 없음) 새 자료구조 + 화면(문자별 span)·인쇄(PDF
-          캔버스) 양쪽 렌더링을 같이 바꿔야 하는 일이라, 브라우저로 직접 눌러볼 수
-          없는 이번 세션에서 안전하게 만들 자신이 없어서 미뤘어요(작업 보고에 자세히
-          적었어요). "자간"은 기존 letterSpacing 필드를 자리만 옮긴 것뿐이라 동작은
-          이전과 똑같아요(박스 전체에 적용 — "선택한 범위에만"은 아직 아니에요,
-          이것도 같은 이유로 이번엔 손 안 댔어요). 커닝 칸을 자간과 똑같은 값으로
-          채워 넣어 "나눠놓은 척"하지 않으려고 일부러 빈 채 비활성으로 뒀어요. */}
+      {/* 2026-10(11번째 라운드), 혜민님 요청("글자크기, 행간, 세로폭, 가로폭, 커닝,
+          자간 한글 삭제하고 아이콘으로 배치") — 이 2열×N행 그리드(InDesign류 문자
+          패널 참고, 9번째 라운드부터)의 한글 라벨을 전부 LayerIcon 아이콘(새로 만든
+          charFontSize/charLineHeight/charScaleV/charScaleH/charTracking 5종)으로
+          바꿨어요. 값·단위·유효범위·onChange는 전혀 안 건드렸고, 한글 뜻은 각 아이콘
+          <label>의 title(hover 툴팁)로 남겼어요(item 6 아이콘 버튼들과 같은 규칙).
+          "커닝"은 비활성 자리표시만 있던 미구현 칸이라 이번에 셀 자체를 그리드에서
+          완전히 없앴어요(혜민님이 "오류나보이는 아이콘자리"라고 지적) — 남은 5개
+          필드(글자크기/행간/세로폭/가로폭/자간)는 2칸씩 2줄 + 자간 혼자 한 줄, 총
+          2열×3행에서 2열×2행+1칸으로 줄었어요(자간 칸은 col-span-2로 넓혀서 빈 공백이
+          안 보이게 했어요). "세로 폭"·"가로 폭" 아이콘 title엔 "이 박스 자체의
+          너비·높이(아래 '박스 크기')와는 다른 값"이라는 구분 설명을 그대로 남겼어요. */}
       <div className="mt-1 grid grid-cols-2 gap-1.5">
         <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">글자 크기(pt)</label>
+          <label
+            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
+            title="글자 크기(pt)"
+          >
+            <LayerIcon name="charFontSize" className="h-3.5 w-3.5" />
+          </label>
           <input
             type="number"
             min={6}
@@ -4272,7 +4320,12 @@ function TextStyleFieldsPanel({
           />
         </div>
         <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">행간</label>
+          <label
+            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
+            title="행간"
+          >
+            <LayerIcon name="charLineHeight" className="h-3.5 w-3.5" />
+          </label>
           <input
             type="number"
             min={0.8}
@@ -4292,7 +4345,12 @@ function TextStyleFieldsPanel({
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1.5">
         <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">세로 폭(%)</label>
+          <label
+            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
+            title="세로 폭(%) — 이 박스 자체의 너비·높이(아래 '박스 크기')와는 다른 값이에요"
+          >
+            <LayerIcon name="charScaleV" className="h-3.5 w-3.5" />
+          </label>
           <input
             type="number"
             min={50}
@@ -4311,7 +4369,12 @@ function TextStyleFieldsPanel({
           />
         </div>
         <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">가로 폭(%)</label>
+          <label
+            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
+            title="가로 폭(%) — 이 박스 자체의 너비·높이(아래 '박스 크기')와는 다른 값이에요"
+          >
+            <LayerIcon name="charScaleH" className="h-3.5 w-3.5" />
+          </label>
           <input
             type="number"
             min={50}
@@ -4331,27 +4394,13 @@ function TextStyleFieldsPanel({
         </div>
       </div>
       <div className="mt-1 grid grid-cols-2 gap-1.5">
-        <div>
-          <label className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/40">
-            커닝
-            <span
-              title="커서가 놓인 두 글자 사이만 미세 조정하는 커닝은 이번 업데이트엔 없어요 — 자간과는 다른 동작이라 화면에서 직접 확인하며 만들어야 안전한데, 이번 세션은 그게 안 돼서 다음 라운드로 미뤘어요."
-              className="cursor-help select-none text-[9px] leading-none"
-            >
-              ⓘ
-            </span>
+        <div className="col-span-2 max-w-[calc(50%-0.1875rem)]">
+          <label
+            className="mb-1 flex items-center gap-1 text-[10px] text-[var(--color-charcoal)]/60"
+            title="자간"
+          >
+            <LayerIcon name="charTracking" className="h-3.5 w-3.5" />
           </label>
-          <input
-            type="text"
-            value=""
-            disabled
-            placeholder="—"
-            title="아직 지원하지 않아요(위 ⓘ 참고)"
-            className="w-full cursor-not-allowed border border-dashed border-[var(--color-hairline)] bg-[var(--color-hairline)]/10 px-1.5 py-1.5 text-xs text-[var(--color-charcoal)]/30 outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">자간</label>
           <input
             type="number"
             min={-0.1}
@@ -4369,28 +4418,23 @@ function TextStyleFieldsPanel({
           />
         </div>
       </div>
-      {/* 2026-11-9차 10번째 라운드, 혜민님 요청("볼드아이콘을 하단의 기울기
-          왼쪽에 넣고 텍스트선을 상단의 서체 오른쪽에 넣어주세요") — 텍스트선은 위
-          "서체" 줄로 옮겨갔고(위 주석 참고), 이 줄엔 굵게(B)·기울임·밑줄·취소선·
-          그림자·텍스트배경이 남아요. 굵게는 원래도 이 줄 맨 앞이라 자리는 그대로고,
-          글자색 스와치만 굵게 바로 옆으로 붙여서(둘 다 "글자 자체가 어떻게
-          보이는지"를 다루는 짝이라는 판단 — 자세한 근거는 작업 보고 참고) 텍스트선이
-          위로 옮겨가며 남긴 빈자리를 채웠어요.
-          2026-11-9차 10번째 라운드, 혜민님 요청("기울기, 밑줄, 가운데줄, 텍스트선,
-          텍스트그림자, 텍스트박스배경 아이콘 오른쪽에 색상 아이콘을... 색상 넣을때는
-          하단에 따로 색상표가 생성되지않고 그 자리에서 확인되도록") — 밑줄·취소선에
-          새로 생긴 underlineColor/strikethroughColor(둘 다 없으면 글자색을 그대로
-          따라가요, 기존 문서는 전부 이 상태라 회귀 없음)를 이 자리에서 바로 고를 수
-          있는 <input type="color">를 붙였어요(토글이 켜져 있을 때만 보여요 — 텍스트선·
-          그림자·배경과 같은 "켜졌을 때만 스와치" 규칙). <input type="color">는 이
-          브라우저(OS) 자체 팝업이라 "하단에 별도 색상표가 생기는" 문제 자체가 원래도
-          없었어요(이 앱엔 그런 자체 팝업 컴포넌트가 없어요, ⓘ 참고) — 브라우저가
-          그 위에 직접 띄우는 네이티브 오버레이라 페이지 레이아웃을 안 밀어내요.
-          기울임(이탤릭)은 선·면이 아니라 "글자 자체가 기울어지는" 폰트 스타일이라
-          색이라는 개념 자체가 없어요 — 가짜로 글자색과 묶어 스와치를 붙이면 "새
-          기능"이 아니라 이미 있는 글자색 스와치를 하나 더 만드는 것뿐이라, 커닝
-          (위 "커닝" ⓘ 참고)처럼 비활성 회색 칸 + ⓘ 설명으로 "해당 없음"을 정직하게
-          보여줘요. */}
+      {/* 2026-10(11번째 라운드), 혜민님 요청("굵기, 기울기, 밑줄, 그림자, 텍스트배경,
+          색상표 이렇게 6개로 배치하고 가운데선은 삭제") — 이 줄은 정확히 6개 아이콘
+          (굵게/기울임/밑줄/그림자/텍스트배경/색상표)만 가져요. 밑줄·그림자·텍스트배경은
+          토글이 켜졌을 때만 바로 옆에 전용 색상표가 따로 붙어요(9~10번째 라운드부터의
+          동작 그대로, 이번엔 안 건드림). 맨 끝 "색상표"는 글자 전체 색(value.color)
+          하나만 보여주는 고정 스와치예요(원래 굵게 바로 옆에 있던 걸 자리만 맨 끝으로
+          옮김) — "토글에 따라 뜻이 바뀌는 스와치"처럼 더 똑똑한 동작은 브라우저로 직접
+          확인할 수 없는 이번 세션엔 위험 부담이 커서 만들지 않았고, 가장 낮은 위험의
+          해석(흩어진 색상표를 "글자색 스와치 하나"로 단순화)을 택했어요(작업 보고에
+          근거 설명).
+          삭제한 것: "취소선(S, 혜민님이 '가운데선'이라 부르신 것)" 토글 버튼, 기울임
+          옆의 회색 "해당 없음(ⓘ)" 자리표시. 전부 UI에서만 뺐고, 데이터
+          (box.strikethrough/strikethroughColor)와 화면·인쇄 렌더링 코드는 전혀 안
+          건드렸어요 — 이미 취소선이 켜져 있던 기존 문서는 그대로 취소선이 그려져요.
+          ⚠️ 다만 이 패널엔 이제 취소선을 "새로 켜는" 버튼이 전혀 없어서, 이 라운드
+          이후엔 새 텍스트에 취소선을 켤 UI 경로가 없어요(작업 보고에 명시 — 의도하신
+          게 맞는지 확인 부탁드려요). */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
@@ -4404,13 +4448,6 @@ function TextStyleFieldsPanel({
         >
           B
         </button>
-        <input
-          type="color"
-          value={value.color}
-          onChange={(e) => onChange({ color: e.target.value })}
-          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-          title="글자 색"
-        />
         <button
           type="button"
           title="기울임"
@@ -4423,13 +4460,6 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="italic" className="h-4 w-4" />
         </button>
-        <span
-          title="기울임(이탤릭)은 글자 모양을 기울이는 스타일일 뿐, 선·면처럼 색을 가질 요소가 없어서 별도 색상 스와치가 없어요."
-          aria-hidden="true"
-          className="flex h-7 w-7 shrink-0 cursor-help items-center justify-center border border-dashed border-[var(--color-hairline)] bg-[var(--color-hairline)]/10 text-[9px] leading-none text-[var(--color-charcoal)]/30"
-        >
-          ⓘ
-        </span>
         <button
           type="button"
           title="밑줄"
@@ -4449,27 +4479,6 @@ function TextStyleFieldsPanel({
             onChange={(e) => onChange({ underlineColor: e.target.value })}
             className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
             title="밑줄 색(안 고르면 글자 색을 그대로 따라가요)"
-          />
-        )}
-        <button
-          type="button"
-          title="취소선"
-          onClick={() => onChange({ strikethrough: !value.strikethrough })}
-          className={`flex h-7 w-7 items-center justify-center border ${
-            value.strikethrough
-              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-          }`}
-        >
-          <span className="text-sm line-through">S</span>
-        </button>
-        {value.strikethrough && (
-          <input
-            type="color"
-            value={value.strikethroughColor ?? value.color}
-            onChange={(e) => onChange({ strikethroughColor: e.target.value })}
-            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-            title="가운데줄(취소선) 색(안 고르면 글자 색을 그대로 따라가요)"
           />
         )}
         <button
@@ -4544,6 +4553,13 @@ function TextStyleFieldsPanel({
             title="텍스트 배경 색"
           />
         )}
+        <input
+          type="color"
+          value={value.color}
+          onChange={(e) => onChange({ color: e.target.value })}
+          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+          title="색상표(글자 색)"
+        />
       </div>
       {/* 텍스트선 세부 설정 — 켜졌을 때만, 토글 바로 아래(위 서체 줄 참고). 색
           스와치는 2026-11-9차 10번째 라운드부터 위 서체 줄의 토글 옆으로 옮겨가서
@@ -4667,38 +4683,17 @@ function TextStyleFieldsPanel({
               ⓘ
             </span>
           </div>
-          {background.allowFillBoxBackground && (
-            <div className="mt-1.5">
-              <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">배경 방식</label>
-              <div className="grid grid-cols-2 gap-1">
-                {(
-                  [
-                    { id: "hugText" as const, label: "글자 주변 배경" },
-                    { id: "fillBox" as const, label: "박스 전체 배경" },
-                  ]
-                ).map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      if (opt.id === "fillBox" && background.heightPct === undefined) {
-                        onBackgroundChange?.({ backgroundMode: opt.id, heightPct: 20 });
-                      } else {
-                        onBackgroundChange?.({ backgroundMode: opt.id });
-                      }
-                    }}
-                    className={`border px-2 py-1.5 text-xs transition ${
-                      (background.backgroundMode ?? "hugText") === opt.id
-                        ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                        : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* 2026-10(11번째 라운드), 혜민님 요청("배경방식도 삭제하세요. 기본값이
+              박스전체배경입니다. 굳이 선택안해도돼요") — "배경 방식"(글자 주변/박스
+              전체) 고르는 버튼을 없앴어요(0ad38e6에서 한 번 없앴다가 이후 라운드에서
+              의도치 않게 되살아났던 걸 이번에 다시 제거 — 자세한 경위는 작업 보고
+              참고). 새로 배경을 켜는 순간은 여전히 항상 backgroundMode: "fillBox"로
+              저장돼요(위 아이콘 줄의 배경 토글 onClick 참고, 이번에 안 건드림).
+              backgroundMode: "hugText"로 저장된 기존 문서는 이 선택 UI가 없어도 값
+              자체는 그대로 남아서, 바로 아래 hugText 전용 여백·띠 너비 칸도 그대로
+              보이고 화면·인쇄 모두 예전처럼 "글자 주변" 배경으로 계속 그려져요
+              (TextBoxRichEditor의 isFillBoxMode, lib/printCompose.ts의 isFillBox
+              렌더링 코드는 전혀 안 건드렸어요). */}
           {background.backgroundColor && (background.backgroundMode ?? "hugText") === "hugText" && (
             <div className="mt-1.5 grid grid-cols-2 gap-1.5">
               <div>
@@ -5013,23 +5008,26 @@ function TableBoxToolbar({
               되살려요(스프레드시트식 블록 복사/붙여넣기). 칸 하나만 복사했을 땐 예전처럼
               그 값을 지금 고른 칸(들) 전부에 도장 찍듯 적용해요. */}
           <div className="mb-1.5 flex gap-1.5">
+            {/* 2026-10(11번째 라운드), 혜민님 요청("전체적으로 글자말고 아이콘으로
+                배치하는 방식을 유지") — "박스 복사/붙여넣기"와 같은 이유로 "칸 복사/
+                붙여넣기"도 글자 대신 아이콘으로, 원래 글자는 title로 유지. */}
             <button
               type="button"
               onClick={() => (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.copyActiveCell()}
-              className="rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
-              title="이 칸의 내용과 스타일을 복사해요"
+              className="flex h-7 w-7 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
+              title="칸 복사 — 이 칸의 내용과 스타일을 복사해요"
             >
-              칸 복사
+              <LayerIcon name="copy" className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={() =>
                 (activeBoxId ? tableBoxHandlesRef.current.get(activeBoxId) : undefined)?.pasteIntoSelectedCells()
               }
-              className="rounded border border-[var(--color-hairline)] bg-white px-2 py-1 text-[10px] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
-              title="복사해둔 칸의 내용과 스타일을 지금 고른 칸(들)에 붙여넣어요"
+              className="flex h-7 w-7 items-center justify-center rounded border border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-sky)]/10"
+              title="붙여넣기 — 복사해둔 칸의 내용과 스타일을 지금 고른 칸(들)에 붙여넣어요"
             >
-              붙여넣기
+              <LayerIcon name="paste" className="h-4 w-4" />
             </button>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
@@ -5869,32 +5867,37 @@ function TextBoxToolbar({
             onCopyBox/onPasteBox를 안 넘겨서(그 두 자리는 복사 대상 자체가 아직 없음)
             버튼이 안 보여요.
         */}
+        {/* 2026-10(11번째 라운드), 혜민님 요청("상단에 박스복사,붙여넣기, 삭제
+            글자말고 아이콘으로 배치") — 글자 링크 대신 LayerIcon 아이콘 버튼으로
+            바꾸고, 원래 글자/상세 설명은 title(hover 툴팁)로 그대로 남겼어요.
+            onClick·동작은 전혀 안 건드렸어요. */}
         {onCopyBox && (
           <button
             type="button"
             onClick={onCopyBox}
-            title="이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
-            className="text-sm text-[var(--color-charcoal)]/60 underline underline-offset-2 hover:text-[var(--color-charcoal)]"
+            title="박스 복사 — 이 텍스트박스의 내용·글꼴·텍스트선·그림자 등 전체 스타일을 복사해요"
+            className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
           >
-            박스 복사
+            <LayerIcon name="copy" className="h-4 w-4" />
           </button>
         )}
         {onPasteBox && (
           <button
             type="button"
             onClick={onPasteBox}
-            title="복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
-            className="text-sm text-[var(--color-charcoal)]/60 underline underline-offset-2 hover:text-[var(--color-charcoal)]"
+            title="붙여넣기 — 복사해둔 텍스트박스를 조금 옮긴 자리에 그대로 붙여넣어요"
+            className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
           >
-            붙여넣기
+            <LayerIcon name="paste" className="h-4 w-4" />
           </button>
         )}
         <button
           type="button"
           onClick={onDelete}
-          className="text-sm text-red-500 underline underline-offset-2 hover:text-red-600"
+          title="삭제"
+          className="flex h-7 w-7 items-center justify-center border border-[var(--color-hairline)] text-red-500 hover:bg-red-50"
         >
-          삭제
+          <LayerIcon name="delete" className="h-4 w-4" />
         </button>
       </div>
       {/* 2026-11-8차, 혜민님 요청("텍스트스타일도 저장해서 뒷페이지나 추후에도 다시
@@ -6014,36 +6017,32 @@ function TextBoxToolbar({
             />
           </div>
           <div>
-            <div className="mb-1 flex items-center justify-between">
+            {/* 2026-10(11번째 라운드), 혜민님 요청("너비,높이 오른쪽에 직접지정버튼
+                삭제") — "자동"/"직접 지정" 토글 버튼을 없애고 "높이" 입력칸을 "너비"와
+                완전히 같은 모양으로 항상 보여줘요. heightPct는 데이터상 여전히
+                optional이라(undefined=자동 높이, 세로 정렬·분배 등 다른 기능이 이 값
+                유무로 분기) 아직 한 번도 고정한 적 없는 박스는 20을 보여주다, 실제로
+                숫자를 고치는 순간에만 heightPct가 저장돼요(캔버스 손잡이로 끌 때와
+                같은 흐름). ⚠️ 동작 변화: 이 버튼이 "다시 자동으로" 되돌리는 유일한
+                UI였어서, 버튼 제거로 패널에서 되돌릴 방법이 없어졌어요(혜민님 요청
+                "직접지정은 없어도 될 것 같다"는 전제와 맞닿아 있어요 — 작업 보고에
+                명시). */}
+            <div className="mb-1">
               <label className="block text-[10px] text-[var(--color-charcoal)]/50">높이</label>
-              <button
-                type="button"
-                onClick={() => onChange({ heightPct: box.heightPct === undefined ? 20 : undefined })}
-                title={box.heightPct === undefined ? "높이를 직접 지정해요(지금은 글자 양에 맞춰 자동)" : "다시 자동(글자 양에 맞춤)으로 되돌려요"}
-                className={`shrink-0 border px-1.5 py-0.5 text-[10px] ${
-                  box.heightPct !== undefined
-                    ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                    : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-                }`}
-              >
-                {box.heightPct !== undefined ? "직접 지정" : "자동"}
-              </button>
             </div>
-            {box.heightPct !== undefined && (
-              <input
-                type="number"
-                min={4}
-                max={96}
-                step={1}
-                value={Math.round(box.heightPct)}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  if (!Number.isFinite(v)) return;
-                  onChange({ heightPct: Math.max(4, Math.min(96, v)) });
-                }}
-                className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
-              />
-            )}
+            <input
+              type="number"
+              min={4}
+              max={96}
+              step={1}
+              value={Math.round(box.heightPct ?? 20)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                onChange({ heightPct: Math.max(4, Math.min(96, v)) });
+              }}
+              className="w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+            />
           </div>
         </div>
       </div>
@@ -6051,21 +6050,25 @@ function TextBoxToolbar({
           의미하는지 확인이 어렵습니다. 텍스트 가운데 정렬이면 텍스트 관련된 아이콘으로
           박스영역이면 박스영역 관련된 아이콘으로" — 텍스트 문단 정렬(가로)은 글줄
           아이콘(textAlign*)으로, 박스 안 세로 위치(박스 영역 개념)는 기존 사각형
-          정렬 아이콘(align top/vCenter/bottom)으로 구분해서 각각 3개씩 명시적인
-          버튼으로 바꿨어요(순환식 토글 대신 지금 상태가 바로 눌린 채로 보임).
-          "박스안에 박스" 느낌을 줄이려고 바깥 테두리 없이 버튼끼리만 나란히 뒀어요. */}
+          정렬 아이콘(align top/vCenter/bottom)으로 구분했어요.
+          2026-10(11번째 라운드), 혜민님 요청("문단정렬,박스영역정렬은 가로로 6칸
+          만들어주세요") — 예전엔 "문단 정렬" 3개, "박스영역 정렬" 3개가 각자 줄을
+          따로 썼는데, 이제 한 줄(flex)에 6개를 다 나란히 놓아요. 버튼 각각의
+          onClick/선택 상태 로직은 전혀 안 건드렸고, 두 그룹을 구분할 수 있게 작은
+          간격(spacer) 하나만 사이에 뒀어요 — 전체를 감싸는 테두리나 구분선은
+          추가하지 않았어요(이번 세션의 "군더더기 없애기" 방향과 맞춰서). */}
       <div>
-        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">문단 정렬</p>
-        <div className="flex gap-1">
+        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">정렬</p>
+        <div className="flex items-center gap-1">
           {(
             [
-              { id: "left" as const, icon: "textAlignLeft" as const, title: "왼쪽 정렬" },
-              { id: "center" as const, icon: "textAlignCenter" as const, title: "가운데 정렬" },
-              { id: "right" as const, icon: "textAlignRight" as const, title: "오른쪽 정렬" },
+              { id: "left" as const, icon: "textAlignLeft" as const, title: "문단 정렬: 왼쪽" },
+              { id: "center" as const, icon: "textAlignCenter" as const, title: "문단 정렬: 가운데" },
+              { id: "right" as const, icon: "textAlignRight" as const, title: "문단 정렬: 오른쪽" },
             ]
           ).map((opt) => (
             <button
-              key={opt.id}
+              key={`align-${opt.id}`}
               type="button"
               title={opt.title}
               onClick={() => onChange({ align: opt.id })}
@@ -6078,27 +6081,16 @@ function TextBoxToolbar({
               <LayerIcon name={opt.icon} className="h-4 w-4" />
             </button>
           ))}
-        </div>
-      </div>
-      {/* 2026-10(6차): 표지 제목·책등은 아직 "높이 고정" 개념(heightPct)이 없어서(책등은
-          있지만 이 값으로 세로 위치를 옮기는 기존 로직과 겹쳐서, 이번엔 손대지 않았어요 —
-          아래 handleCoverTitleBoxChange/handleSpineTitleBoxChange의 verticalAlign
-          처리 주석 참고) 이 버튼을 눌러도 지금 당장은 표지 제목·책등에서 화면이 안
-          바뀌어요 — 일반 글상자도 heightPct를 아직 안 정했으면(방금 만든 새 글상자)
-          똑같이 아무 효과가 없어요(기존부터 있던 동작). 버튼 자체는 세 경우 모두
-          항상 보여줘서 패널 모양은 완전히 같아요. */}
-      <div>
-        <p className="mb-1 text-[11px] font-medium text-[var(--color-charcoal)]/70">박스영역 정렬</p>
-        <div className="flex gap-1">
+          <span className="mx-0.5 w-1 shrink-0" aria-hidden="true" />
           {(
             [
-              { id: "top" as const, icon: "boxAlignTop" as const, title: "위" },
-              { id: "middle" as const, icon: "boxAlignMiddle" as const, title: "가운데" },
-              { id: "bottom" as const, icon: "boxAlignBottom" as const, title: "아래" },
+              { id: "top" as const, icon: "boxAlignTop" as const, title: "박스영역 정렬: 위" },
+              { id: "middle" as const, icon: "boxAlignMiddle" as const, title: "박스영역 정렬: 가운데" },
+              { id: "bottom" as const, icon: "boxAlignBottom" as const, title: "박스영역 정렬: 아래" },
             ]
           ).map((opt) => (
             <button
-              key={opt.id}
+              key={`valign-${opt.id}`}
               type="button"
               title={opt.title}
               onClick={() => onChange({ verticalAlign: opt.id })}
