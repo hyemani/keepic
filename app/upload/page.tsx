@@ -3847,11 +3847,6 @@ function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => 
       >
         + 표 추가
       </button>
-      <p className="text-[11px] leading-relaxed text-[var(--color-charcoal)]/50 break-keep">
-        칸을 클릭하고 바로 입력하면 돼요. 표 전체는 테두리를 끌어서 옮기거나 모서리로
-        크기를 조절할 수 있어요. 표를 선택하면 왼쪽 위 + 버튼에서 셀 병합·행/열 추가·
-        칸 폭 조절도 할 수 있어요.
-      </p>
     </div>
   );
 }
@@ -4129,11 +4124,7 @@ function BorderPositionPanel({
         표 스타일
       </p>
       <BorderPositionPicker selected={selected} onToggle={toggleKey} onPreset={applyPreset} />
-      {selectedKeys.length === 0 ? (
-        <p className="mt-1.5 text-[10px] text-[var(--color-charcoal)]/40">
-          위 표 그림에서 선을 하나 이상 클릭해서 고르세요.
-        </p>
-      ) : (
+      {selectedKeys.length === 0 ? null : (
         <>
           <p className="mt-1.5 text-[10px] text-[var(--color-charcoal)]/60">
             선택한 위치: {selectedKeys.map((k) => BORDER_POSITION_LABELS[k]).join(", ")}
@@ -5468,9 +5459,6 @@ function TableBoxToolbar({
       <div className="border border-[var(--color-hairline)] bg-white p-1.5">
         <div className="mb-1 flex items-center justify-between">
           <p className="text-[11px] font-medium text-[var(--color-charcoal)]/70">표 구조</p>
-          <p className="text-[9px] text-[var(--color-charcoal)]/45 break-keep">
-            칸을 눌러서(드래그하면 여러 칸) 고른 뒤 버튼을 눌러주세요
-          </p>
         </div>
         {/* 2026-11-8차, 혜민님 요청("표 구조 패널이 자리를 너무 차지해요") — 버튼
             6개를 2열×3행(세로로 김) 대신 3열×2행으로 배치하고(px/py를 줄여 버튼 자체도
@@ -8418,7 +8406,18 @@ const TableBoxOverlay = forwardRef<
   const [dragSel, setDragSel] = useState<{ anchorRow: number; anchorCol: number; row: number; col: number } | null>(
     null
   );
-  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+  // 2026-11(18번째 라운드 13차), 혜민님 요청("표추가하면 후 셀 선택하면 텍스트
+  // 패널이 생기는데 셀 선택해서 생기게 하지말고 그냥 표 추가할때 생기는거로
+  // 수정... 똑같은 내용인데 2번 반복해서 반응할필요가 없습니다") — 예전엔 칸을
+  // 한 번 더 클릭해야만 상세 텍스트 스타일 패널("선택한 칸" 섹션, 아래
+  // TableBoxToolbar)이 나타났어요. 표를 추가하면 handleAddTableBox가 그 표를 즉시
+  // activeTableBox로 만드므로(이 컴포넌트는 표 하나당 한 번만 마운트되고 key=box.id로
+  // 그 표가 존재하는 동안 계속 유지됨 — TableBoxLayer 참고), 이 state의 "초기값"을
+  // null 대신 첫 칸(0,0)으로 주면 표를 추가한 바로 그 순간부터 이미 칸 (0,0)이
+  // 선택된 상태로 시작해서, 칸을 따로 또 클릭하지 않아도 "선택한 칸" 패널이 바로
+  // 보여요. 이미 있던 표(이 컴포넌트가 이미 마운트된 상태)는 이 초기값이 다시
+  // 적용되지 않으니 기존 선택/해제 동작은 그대로예요.
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>({ row: 0, col: 0 });
   // 2026-11-5차, 혜민님 리포트("드래그할때 드래그의 마지막 위치에서 멈추고싶은데
   // 드래그가 계속 따라다녀") — 근본 원인: 아래 각 칸의 onMouseEnter가 "지금 실제로
   // 마우스 버튼이 눌려있는 중인지"를 전혀 확인하지 않고, dragSel이 있기만 하면 무조건
