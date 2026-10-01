@@ -13008,11 +13008,63 @@ function UploadPageContent() {
     // 슬롯 각각을 따로 클램프하면 한 줄 안에서 폭이 달라지는 문제가 생겨서(바로
     // 위 clampTemplateSlotsToSpreadSafety 설명 참고), 템플릿의 모든 슬롯을 한 번에
     // 바운딩 박스 기준으로 계산해서 같은 비율로 당겨요.
+    // 2026-11(18번째 라운드 14차), 혜민님 버그 리포트("이번엔 접히는 선 기준으로
+    // 이미지가 배치됐어요. 안전선에 맞춰서 정리해야해요") — 바로 위 방식(모든 슬롯을
+    // 한꺼번에 묶어 바운딩 박스 하나로 계산)의 부작용이었어요. 스프레드 전체(양쪽
+    // 페이지)에 걸친 템플릿에서, 왼쪽 칸이 x=0~50%, 오른쪽 칸이 x=50~100%처럼 접힘부
+    // (50%)를 사이에 두고 나란히 있으면, 전체를 하나로 묶은 바운딩 박스는 x=0~100%가
+    // 돼서 "바깥쪽(재단) 두 변만 닿았다"고 판단하고 접힘부(가운데 50%)는 전혀 안
+    // 닿은 걸로 봐서 당기질 않았어요 — 그 결과 두 칸이 똑같은 비율로 양쪽 바깥쪽만
+    // 당겨지면서 가운데(접힘부) 경계가 정확히 50%(여백 0)에 오게 됐어요. 고친 방식 —
+    // 슬롯을 "왼쪽 페이지에 완전히 속함" / "오른쪽 페이지에 완전히 속함" / "접힘부를
+    // 가로질러 걸쳐 있음"(예: 양면 통짜 사진 한 칸) 세 그룹으로 먼저 나누고, 왼쪽·
+    // 오른쪽 그룹은 각각 그 페이지 하나 기준(바깥 재단선 0 또는 100, 접힘부 50)으로
+    // 바운딩 박스를 따로 계산해요 — 그러면 그 그룹의 바운딩 박스가 접힘부에 닿은 걸로
+    // 정확히 판정되고(예: 왼쪽 칸의 오른쪽 변이 50%), 똑같은 "모든 슬롯 같은 비율로
+    // 당기기" 로직이 접힘부 안전영역(20mm)도 제대로 반영해요. 걸쳐 있는 슬롯은 원래도
+    // (한 칸짜리이므로) 그룹으로 묶을 다른 슬롯이 없어 따로 처리하고, 양쪽 바깥쪽
+    // 재단선만 닿은 걸로 보고 접힘부 쪽은 전혀 안 당겨요(통짜 사진이 접힘부를 그대로
+    // 가로지르는 게 의도된 디자인이라 2026-09-27부터 그랬어요 — 그대로 유지).
+    const EDGE_EPS_FOR_GROUPING = 0.5; // clampTemplateSlotsToSpreadSafety와 같은 문턱값
     const rawSlots = template.slots.map((slot) => {
       const raw = slotToSpreadCoords(slot, range);
       return { xPct: raw.xPct, widthPct: raw.widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
     });
-    const clampedSlots = clampTemplateSlotsToSpreadSafety(rawSlots, spreadSafetyPct);
+    const clampedSlots: { xPct: number; yPct: number; widthPct: number; heightPct: number }[] = new Array(
+      rawSlots.length
+    );
+    const leftGroupIdx: number[] = [];
+    const rightGroupIdx: number[] = [];
+    rawSlots.forEach((s, i) => {
+      const right = s.xPct + s.widthPct;
+      if (right <= 50 + EDGE_EPS_FOR_GROUPING) {
+        leftGroupIdx.push(i);
+      } else if (s.xPct >= 50 - EDGE_EPS_FOR_GROUPING) {
+        rightGroupIdx.push(i);
+      } else {
+        // 접힘부를 가로질러 걸쳐 있는 슬롯 — 혼자 자기 그룹(바운딩 박스 = 자기 자신)
+        const clamped = clampTemplateSlotsToSpreadSafety([s], spreadSafetyPct)[0];
+        clampedSlots[i] = clamped;
+      }
+    });
+    if (leftGroupIdx.length > 0) {
+      const results = clampTemplateSlotsToSpreadSafety(
+        leftGroupIdx.map((i) => rawSlots[i]),
+        spreadSafetyPct
+      );
+      leftGroupIdx.forEach((i, j) => {
+        clampedSlots[i] = results[j];
+      });
+    }
+    if (rightGroupIdx.length > 0) {
+      const results = clampTemplateSlotsToSpreadSafety(
+        rightGroupIdx.map((i) => rawSlots[i]),
+        spreadSafetyPct
+      );
+      rightGroupIdx.forEach((i, j) => {
+        clampedSlots[i] = results[j];
+      });
+    }
     const placed = template.slots.map((slot, idx) => {
       const clamped = clampedSlots[idx];
       const { xPct, yPct, widthPct, heightPct } = clamped;
