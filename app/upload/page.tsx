@@ -13040,18 +13040,55 @@ function UploadPageContent() {
       return emptyBox;
     });
 
+    // 2026-11(18번째 라운드 11차), 혜민님 버그 리포트("레이아웃을 바꾸면 전에 대지
+    // 위에 사진박스가 또 생성되서 겹치고 겹치는데... 이전배치는 자연스럽게
+    // 지워지도록해줘 이미지만 남겨줘 순서대로") — 원인을 정확히 추적한 결과: 새
+    // 템플릿의 칸 수(template.slots.length)보다 기존 사진 박스가 더 많을 때, 그
+    // 초과분(extraBoxes, 바로 위에서 이미 계산됨)이 "그대로 남겨뒀어요"라는 안내
+    // 문구와 함께 옛날 좌표 그대로 next.imageBoxes/preservedOrder에 같이 들어가고
+    // 있었어요 — 그 옛날 좌표가 새로 배치된 placed 칸들과 자리가 겹쳐서, 화면엔
+    // "레이아웃을 바꿀 때마다 사진 박스가 또 생기는" 것처럼 보였고(실제로는 새로
+    // 생긴 게 아니라 옛 박스가 안 지워진 것), 빈 칸끼리 겹치면 "PHOTO" placeholder
+    // 글자도 겹쳐 보였어요(혜민님 스크린샷의 "PHPHOTOOTO"). 스티커(stickerBoxes)·
+    // 다른 쪽 낱장 박스(outOfRange)는 원래도 그대로 안 건드리는 게 맞고(의도한
+    // 동작), 문제는 "이 범위 안에서 새 템플릿 칸 수를 넘는 초과분"만이었어요.
+    // 고친 방식 — 초과분(extraBoxes)은 이제 스프레드에 박스로 남기지 않고 완전히
+    // 지우되, 그 사진 자체는 안 잃어버리게 전체 사진 목록(photos)으로 돌려보내요
+    // (handleConvertPhotoToImageBox의 반대 방향 — 박스 하나를 다시 Photo 하나로).
+    // 어떤 사진이 새 칸에 들어가는지는 그대로 "읽는 순서(orderedExisting)" 앞에서부터
+    // template.slots.length개를 그대로 쓰므로(usable, 위에서 이미 계산됨) 순서는
+    // 전혀 안 바뀌어요 — 앞 N장은 새 칸에 순서대로, 그 뒤 초과분만 사진 목록으로.
+    const extraPhotos: Photo[] = extraBoxes
+      .filter((b) => b.url)
+      .map((b) => ({
+        url: b.url,
+        caption: "",
+        x: 0,
+        y: 0,
+        scale: 1,
+        width: b.naturalWidth || 1,
+        height: b.naturalHeight || 1,
+        fontFamily: fontOptions[0].id,
+        size: "sm",
+        bold: false,
+        color: "#2B2B2B",
+        align: "left",
+        position: "below",
+        containerW: 0,
+        containerH: 0,
+        rotation: 0,
+        flipX: false,
+      }));
+
     setLayoutApplyMessage(
       extraBoxes.length > 0
-        ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 지금 이 범위에 사진이 ${inRange.length}장 있어서, 앞 ${template.slots.length}장만 채우고 나머지 ${extraBoxes.length}장은 그대로 남겨뒀어요.`
+        ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 지금 이 범위에 사진이 ${inRange.length}장 있어서, 앞 ${template.slots.length}장만 채우고 나머지 ${extraBoxes.length}장은 전체 사진 목록으로 돌려보냈어요.`
         : null
     );
 
     const preservedOrder = [
       ...fullOrder.filter(
-        (id) =>
-          stickerBoxes.some((b) => b.id === id) ||
-          outOfRange.some((b) => b.id === id) ||
-          extraBoxes.some((b) => b.id === id)
+        (id) => stickerBoxes.some((b) => b.id === id) || outOfRange.some((b) => b.id === id)
       ),
       ...placed.map((b) => b.id),
     ];
@@ -13074,7 +13111,7 @@ function UploadPageContent() {
         if (i !== spreadIndex) return s;
         const next: SpreadDef = {
           ...s,
-          imageBoxes: [...stickerBoxes, ...outOfRange, ...extraBoxes, ...placed],
+          imageBoxes: [...stickerBoxes, ...outOfRange, ...placed],
           imageBoxOrder: preservedOrder,
         };
         if (freeformSides.includes("left")) next.left = "freeform";
@@ -13090,6 +13127,9 @@ function UploadPageContent() {
     );
     if (legacyRemovedPhotoIndexes.size > 0) {
       setPhotos((prev) => prev.filter((_, i) => !legacyRemovedPhotoIndexes.has(i)));
+    }
+    if (extraPhotos.length > 0) {
+      setPhotos((prev) => [...prev, ...extraPhotos]);
     }
   }
 
