@@ -501,15 +501,16 @@ const EDIT_TABS: { id: EditTabId; label: string; icon: MenuTabIconName }[] = [
 // "auto"는 지금 적용 범위(왼쪽/오른쪽/펼침면)에 있는 실제 사진 개수에 맞는 템플릿만
 // 자동으로 보여줘요(기본값) — "전체"를 포함해 혜민님이 다른 개수 템플릿도 미리 보고
 // 싶을 때만 직접 골라요.
-type LayoutCountFilter = "auto" | "all" | 1 | 2 | 3 | 4 | 5 | "6+";
+// 2026-11(18번째 라운드 7차), 혜민님 요청("전체, 1장, 2장, 3장, 4장+ 상단패널메뉴
+// 5개로 만들어줘 4장이상레이아웃은 4+ 안에 넣어주면돼") — 예전엔 전체/1/2/3/4/5/6+
+// 7개 탭이었는데, 4장·5장·6장+를 "4장+" 하나로 합쳐서 5개 탭으로 줄였어요.
+type LayoutCountFilter = "auto" | "all" | 1 | 2 | 3 | "4+";
 const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
   { id: "all", label: "전체" },
   { id: 1, label: "1장" },
   { id: 2, label: "2장" },
   { id: 3, label: "3장" },
-  { id: 4, label: "4장" },
-  { id: 5, label: "5장" },
-  { id: "6+", label: "6장+" },
+  { id: "4+", label: "4장+" },
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
@@ -15621,7 +15622,7 @@ function UploadPageContent() {
                             const visibleTemplates = COVER_LAYOUT_TEMPLATES.filter((t) => {
                               if (layoutCountFilter === "auto") return t.photoCount === currentCount;
                               if (layoutCountFilter === "all") return true;
-                              if (layoutCountFilter === "6+") return t.photoCount >= 6;
+                              if (layoutCountFilter === "4+") return t.photoCount >= 4;
                               return t.photoCount === layoutCountFilter;
                             });
                             return (
@@ -16605,7 +16606,7 @@ function UploadPageContent() {
                                 const visibleTemplates = candidates.filter((t) => {
                                   if (layoutCountFilter === "auto") return t.photoCount === rangePhotoCount;
                                   if (layoutCountFilter === "all") return true;
-                                  if (layoutCountFilter === "6+") return t.photoCount >= 6;
+                                  if (layoutCountFilter === "4+") return t.photoCount >= 4;
                                   return t.photoCount === layoutCountFilter;
                                 });
                                 return (
