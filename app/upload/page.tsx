@@ -2894,7 +2894,8 @@ type LayerIconName =
   | "charKerning"
   | "copy"
   | "paste"
-  | "save";
+  | "save"
+  | "swapColors";
 
 function LayerIcon({ name, className }: { name: LayerIconName; className?: string }) {
   const common = {
@@ -3241,6 +3242,15 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
       return (
         <svg {...common}>
           <path d="M6 4h12v16l-6-4-6 4V4z" />
+        </svg>
+      );
+    // 2026-10(13번째 라운드), 혜민님 요청("면색선색교체") — 일러스트레이터 면/선
+    // 색상 패널의 교체(swap) 아이콘과 같은 뜻의 굽은 양방향 화살표예요.
+    case "swapColors":
+      return (
+        <svg {...common}>
+          <path d="M7 7h10l-3-3" />
+          <path d="M17 17H7l3 3" />
         </svg>
       );
   }
@@ -4275,11 +4285,10 @@ function TextStyleFieldsPanel({
   const [scaleXDraft, setScaleXDraft] = useState(() => String(value.scaleXPct));
   const [scaleYDraft, setScaleYDraft] = useState(() => String(value.scaleYPct));
   const lastSyncedKeyRef = useRef<string | undefined>(undefined);
-  // 2026-10(12번째 라운드) — 맨 끝 색상표 1개가 지금 어떤 필드의 색을 보여주고/
-  // 고치는지 기억해요(굵게·기울임은 "color" 하나를 같이 써요). 박스를 바꿔
-  // 선택해도(syncKey) 굳이 안 되돌려요 — 매번 "글자색"으로 리셋되면 오히려
-  // 번거로울 수 있어서, 사용자가 마지막으로 고른 대상을 그대로 유지해요.
-  const [activeColorTarget, setActiveColorTarget] = useState<"color" | "underline" | "stroke" | "background">("color");
+  // 2026-10(13번째 라운드) — 면색/선색 패널에서 두 네모 중 어느 쪽이 "앞"(마지막
+  // 클릭, 지금 활성)인지만 기억해요(12번째 라운드의 activeColorTarget을 대신해요 —
+  // 이제 밑줄·배경은 각자 전용 색상표가 있어서 더 이상 이 상태가 필요 없어요).
+  const [fillStrokeActive, setFillStrokeActive] = useState<"fill" | "stroke">("fill");
 
   useEffect(() => {
     if (lastSyncedKeyRef.current === syncKey) return;
@@ -4477,32 +4486,22 @@ function TextStyleFieldsPanel({
           />
         </div>
       </div>
-      {/* 2026-10(12번째 라운드), 혜민님 요청("볼드, 기울기, 밑줄, 텍스트선, 배경,
-          색상표1개(선택한 부분을 색상 수정할수있게) 지금너무 색상이 여러가지
-          보여서 뭐가어떤색상인지 알수가 없습니다") — 이 줄을 정확히 6개(굵게/
-          기울임/밑줄/텍스트선/배경/색상표 1개)로 다시 짰어요. 전엔 밑줄·그림자·
-          배경마다 각자 옆에 따로 색상표가 붙어서(최대 4개 색상표가 동시에 보임)
-          "뭐가 어떤 색인지" 헷갈리셨다고 하셔서, 맨 끝 색상표 1개만 남기고 그
-          색상표가 "지금 막 누른 토글"의 색을 보여주고 고치도록 바꿨어요
-          (activeColorTarget 참고) — 굵게/기울임은 둘 다 글자색(value.color)을
-          같이 쓰고, 밑줄은 underlineColor, 텍스트선은 strokeColor, 배경은
-          background.backgroundColor를 각각 따로 가리켜요(토글을 안 누르고
-          색상표만 먼저 눌러도 마지막으로 누른 토글 기준 그대로예요, 기본값은
-          "글자색"). 그림자(섀도)는 이 6개 목록에서 빠졌어요 — 혜민님이 불러주신
-          6개 안에 그림자가 없어서예요. 기능 자체(그림자 켜기/끄기·투명도·번짐·
-          이동)는 안 지웠고, 바로 아래 "그림자" 작은 토글 버튼으로 자리만
-          옮겼어요(데이터·렌더링 코드 전혀 안 건드림). 텍스트선(stroke)은
-          11번째 라운드에서 이 줄에서 완전히 빠졌던 걸 요청대로 다시 넣었어요 —
-          strokeColor/strokeWidth 데이터·화면·인쇄 렌더링은 그때도 전혀 안
-          건드렸었어서 토글만 다시 보이면 바로 정상 동작해요. */}
+      {/* 2026-10(13번째 라운드), 혜민님 요청("볼드, 기울기, 밑줄, 텍스트배경,
+          그림자 이렇게 5개 구현해주시고 면색 선색은 색상패널로 대체할게요") — 이
+          줄을 정확히 5개(굵게/기울임/밑줄/텍스트배경/그림자)로 다시 짰어요.
+          텍스트선(stroke) 토글과 12번째 라운드의 "공용 색상표 1개"는 이 줄에서
+          빠지고, 바로 아래 새 "면색/선색" 패널(일러스트레이터 면·선 색상 패널
+          참고)로 대체됐어요 — activeColorTarget 상태는 더 이상 안 써요(지웠어요).
+          밑줄·배경은 색상표가 없어지면 정작 그 색을 바꿀 방법이 없어지므로,
+          11번째 라운드 이전처럼 토글 바로 옆에 "켜졌을 때만" 보이는 전용 색상표를
+          되살렸어요(펜·배경 각자 전용 색, 면색/선색 패널과는 무관). 그림자는 이번에
+          다시 이 5개 줄 안으로 들어왔고, 색은 전처럼 아래 "그림자 세부 설정"
+          헤더의 전용 색상표를 그대로 써요(안 건드림). */}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
           title="굵게"
-          onClick={() => {
-            setActiveColorTarget("color");
-            onChange({ bold: !value.bold });
-          }}
+          onClick={() => onChange({ bold: !value.bold })}
           className={`flex h-7 w-7 items-center justify-center border text-sm font-bold ${
             value.bold
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4514,10 +4513,7 @@ function TextStyleFieldsPanel({
         <button
           type="button"
           title="기울임"
-          onClick={() => {
-            setActiveColorTarget("color");
-            onChange({ italic: !value.italic });
-          }}
+          onClick={() => onChange({ italic: !value.italic })}
           className={`flex h-7 w-7 items-center justify-center border ${
             value.italic
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4529,10 +4525,7 @@ function TextStyleFieldsPanel({
         <button
           type="button"
           title="밑줄"
-          onClick={() => {
-            setActiveColorTarget("underline");
-            onChange({ underline: !value.underline });
-          }}
+          onClick={() => onChange({ underline: !value.underline })}
           className={`flex h-7 w-7 items-center justify-center border ${
             value.underline
               ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -4541,33 +4534,21 @@ function TextStyleFieldsPanel({
         >
           <LayerIcon name="underline" className="h-4 w-4" />
         </button>
-        <button
-          type="button"
-          title={value.strokeColor ? "텍스트선 끄기" : "텍스트선 켜기"}
-          aria-pressed={!!value.strokeColor}
-          onClick={() => {
-            setActiveColorTarget("stroke");
-            onChange(
-              value.strokeColor
-                ? { strokeColor: undefined }
-                : { strokeColor: value.color, strokeWidth: value.strokeWidth ?? 0.08 }
-            );
-          }}
-          className={`flex h-7 w-7 shrink-0 items-center justify-center border ${
-            value.strokeColor
-              ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-              : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/60"
-          }`}
-        >
-          <LayerIcon name="textStrokeToggle" className="h-4 w-4" />
-        </button>
+        {value.underline && (
+          <input
+            type="color"
+            value={value.underlineColor ?? value.color}
+            onChange={(e) => onChange({ underlineColor: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="밑줄 색(안 고르면 면색을 그대로 따라가요)"
+          />
+        )}
         {background && (
           <button
             type="button"
             title={background.backgroundColor ? "텍스트 배경 끄기" : "텍스트 배경 켜기"}
             aria-pressed={!!background.backgroundColor}
             onClick={() => {
-              setActiveColorTarget("background");
               if (background.backgroundColor) {
                 onBackgroundChange?.({ backgroundColor: undefined });
                 return;
@@ -4591,65 +4572,15 @@ function TextStyleFieldsPanel({
             <LayerIcon name="highlight" className="h-4 w-4" />
           </button>
         )}
-        <input
-          type="color"
-          value={
-            activeColorTarget === "underline"
-              ? value.underlineColor ?? value.color
-              : activeColorTarget === "stroke"
-                ? value.strokeColor ?? value.color
-                : activeColorTarget === "background"
-                  ? background?.backgroundColor ?? value.color
-                  : value.color
-          }
-          onChange={(e) => {
-            const hex = e.target.value;
-            if (activeColorTarget === "underline") onChange({ underlineColor: hex });
-            else if (activeColorTarget === "stroke") onChange({ strokeColor: hex });
-            else if (activeColorTarget === "background") onBackgroundChange?.({ backgroundColor: hex });
-            else onChange({ color: hex });
-          }}
-          className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
-          title={
-            activeColorTarget === "underline"
-              ? "색상표 — 지금은 밑줄 색을 고쳐요"
-              : activeColorTarget === "stroke"
-                ? "색상표 — 지금은 텍스트선 색을 고쳐요"
-                : activeColorTarget === "background"
-                  ? "색상표 — 지금은 텍스트 배경 색을 고쳐요"
-                  : "색상표 — 지금은 글자 색을 고쳐요(굵게/기울임 기본)"
-          }
-        />
-      </div>
-      {/* 텍스트선 세부 설정 — 켜졌을 때만, 토글 바로 위(색은 이제 위 서체 줄의
-          색상표 하나로 공유해요 — activeColorTarget이 "stroke"일 때). 여기엔
-          굵기 입력칸만 남아요. */}
-      {value.strokeColor && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선 굵기</label>
+        {background?.backgroundColor && (
           <input
-            type="number"
-            min={0}
-            max={100}
-            step={1}
-            value={Math.round((value.strokeWidth ?? 0.08) * 100)}
-            onChange={(e) =>
-              onChange({ strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
-            }
-            className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
-            title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
+            type="color"
+            value={background.backgroundColor}
+            onChange={(e) => onBackgroundChange?.({ backgroundColor: e.target.value })}
+            className="h-7 w-7 shrink-0 cursor-pointer appearance-none border border-[var(--color-hairline)] bg-transparent p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0"
+            title="텍스트 배경 색"
           />
-          <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
-        </div>
-      )}
-      {/* 그림자 — 2026-10(12번째 라운드)부터 위 6개 아이콘 줄에서 빠지고(혜민님이
-          불러주신 목록에 없음) 여기 작은 켜기/끄기 버튼으로 옮겨왔어요. 기능은
-          전혀 안 바꿨어요(그림자 켜질 때 기본값도 기존 그대로). 그림자 색은
-          위 공용 색상표가 아니라 여기 전용 색상표를 그대로 써요(그림자는
-          activeColorTarget 5종에 안 들어가요 — 요청 목록에 없던 항목이라
-          가장 낮은 위험으로 기존 전용 색상표를 유지했어요). */}
-      <div className="mt-1.5 flex items-center justify-between">
-        <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">그림자</label>
+        )}
         <button
           type="button"
           title={value.shadowColor ? "그림자 끄기" : "그림자 켜기(검정, 투명도·번짐·이동은 마지막에 쓰던 값)"}
@@ -4676,6 +4607,176 @@ function TextStyleFieldsPanel({
           <LayerIcon name="textShadowToggle" className="h-4 w-4" />
         </button>
       </div>
+      {/* 2026-10(13번째 라운드), 혜민님 요청("색상표 정리를 다시할게요... 면색
+          선택했을때 선색 선택했을때 면색선색교체, 면색없애기 선색없애기는
+          스크린샷과 똑같이 구현해줘요. 다만 스크린샷은 세로로 되어있지만 가로로
+          한줄로 만들어주세요") — 일러스트레이터 도구상자의 면(Fill)/선(Stroke)
+          색상 패널을 가로 한 줄로 재구성했어요.
+          매핑(제 판단, 작업 보고에 명시): 면색 = value.color(지금까지 "글자
+          색"으로 쓰던 바로 그 필드, Bold/Italic/일반 텍스트가 전부 이 색으로
+          그려져요) · 선색 = value.strokeColor(텍스트선). "선색 없음"이 곧
+          strokeColor가 undefined인 상태와 완전히 같아서, 이 패널이 이제 예전
+          "텍스트선 켜기/끄기" 토글 버튼을 대신해요 — 토글 버튼은 없앴고, 선색
+          쪽 네모(아래 fillStrokeActive==="stroke")나 "선색 없음" 미니 스와치를
+          누르는 게 곧 켜기/끄기예요(strokeWidth는 그대로 둬서 다시 켜면 마지막
+          굵기를 기억해요, 기존 토글과 동일한 동작).
+          "면색 없음"은 데이터상 선례가 없어서 새로 판단했어요 — value.color는
+          타입상 항상 string(필수)이라 undefined로 만들 수 없어서, CSS/캔버스가
+          그대로 이해하는 특수 문자열 "transparent"를 색상값으로 저장해요(화면
+          CSS·lib/printCompose.ts의 ctx.fillStyle 둘 다 "transparent"를 그대로
+          투명으로 처리해요 — 코드 변경 없이 값만으로 해결). 글자가 안 보이고
+          텍스트선만 보이는 "윤곽선만" 효과가 돼요(일러스트레이터에서 면 없음+선
+          있음과 같은 흔한 조합). 기존 저장 문서는 color가 전부 실제 색상값이라
+          이 상태가 될 일이 없어요(하위 호환 영향 없음).
+          앞/뒤 겹침: 네모 2개를 가로로 살짝 겹쳐 놓고(음수 마진), 마지막으로
+          누른 쪽(fillStrokeActive)이 z-index로 위에 와요 — 일러스트레이터의
+          "클릭한 쪽이 앞으로" 동작을 가로 배치로 옮긴 거예요. 다만 일러스트레이터
+          앱은 "먼저 클릭 = 앞으로만, 한 번 더 클릭 = 그제서야 색상 피커가 열림"
+          2단계인데, 기본 HTML <input type="color">는 누르는 즉시 항상 피커가
+          열려서 그 2단계를 그대로 흉내낼 수 없었어요 — 이 구현은 클릭 한 번에
+          "앞으로 오기"와 "피커 열기"가 동시에 일어나요(기능은 다 되지만 미세한
+          상호작용 차이가 있어요, 작업 보고에 명시). 교체(swap) 버튼은 면↔선을
+          그대로 바꿔요(둘 중 하나가 "없음"이면 그 "없음"도 같이 건너가요). */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          title="면색·선색 교체"
+          onClick={() => {
+            const oldFill = value.color;
+            const oldStroke = value.strokeColor;
+            if (oldStroke === undefined) {
+              onChange({
+                color: "transparent",
+                strokeColor: oldFill === "transparent" ? "#000000" : oldFill,
+                strokeWidth: value.strokeWidth ?? 0.08,
+              });
+            } else if (oldFill === "transparent") {
+              onChange({ color: oldStroke, strokeColor: undefined });
+            } else {
+              onChange({ color: oldStroke, strokeColor: oldFill });
+            }
+          }}
+          className="flex h-6 w-6 shrink-0 items-center justify-center border border-[var(--color-hairline)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-sky)]/10"
+        >
+          <LayerIcon name="swapColors" className="h-3.5 w-3.5" />
+        </button>
+        <div className="flex items-center">
+          {value.color === "transparent" ? (
+            <button
+              type="button"
+              title="면색 — 지금 없음(눌러서 색 지정)"
+              onClick={() => onChange({ color: "#1F2937" })}
+              className={`relative z-10 h-7 w-7 shrink-0 overflow-hidden border ${
+                fillStrokeActive === "fill" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+              }`}
+              style={{
+                backgroundImage:
+                  "linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)",
+                backgroundSize: "6px 6px",
+                backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
+                backgroundColor: "#ffffff",
+              }}
+            >
+              <svg viewBox="0 0 28 28" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+                <line x1="3" y1="25" x2="25" y2="3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          ) : (
+            <input
+              type="color"
+              value={value.color}
+              onMouseDown={() => setFillStrokeActive("fill")}
+              onChange={(e) => {
+                setFillStrokeActive("fill");
+                onChange({ color: e.target.value });
+              }}
+              title="면색(글자 색)"
+              className={`relative z-10 h-7 w-7 shrink-0 cursor-pointer appearance-none border p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0 ${
+                fillStrokeActive === "fill" ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+              }`}
+            />
+          )}
+          {!value.strokeColor ? (
+            <button
+              type="button"
+              title="선색 — 지금 없음(텍스트선 꺼짐, 눌러서 켜기)"
+              onClick={() => {
+                setFillStrokeActive("stroke");
+                onChange({ strokeColor: value.color === "transparent" ? "#000000" : value.color, strokeWidth: value.strokeWidth ?? 0.08 });
+              }}
+              className={`relative -ml-2 h-7 w-7 shrink-0 overflow-hidden border ${
+                fillStrokeActive === "stroke" ? "z-10 border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+              }`}
+              style={{
+                backgroundImage:
+                  "linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)",
+                backgroundSize: "6px 6px",
+                backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0px",
+                backgroundColor: "#ffffff",
+              }}
+            >
+              <svg viewBox="0 0 28 28" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+                <line x1="3" y1="25" x2="25" y2="3" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          ) : (
+            <input
+              type="color"
+              value={value.strokeColor}
+              onMouseDown={() => setFillStrokeActive("stroke")}
+              onChange={(e) => {
+                setFillStrokeActive("stroke");
+                onChange({ strokeColor: e.target.value });
+              }}
+              title="선색(텍스트선)"
+              className={`relative -ml-2 h-7 w-7 shrink-0 cursor-pointer appearance-none border p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:p-0 [&::-webkit-color-swatch-wrapper]:p-0 ${
+                fillStrokeActive === "stroke" ? "z-10 border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]" : "border-[var(--color-hairline)]"
+              }`}
+            />
+          )}
+        </div>
+        <NoneSwatchButton
+          active={value.color === "transparent"}
+          onClick={() => {
+            setFillStrokeActive("fill");
+            onChange({ color: value.color === "transparent" ? "#1F2937" : "transparent" });
+          }}
+          title="면색 없음(글자 자체가 안 보여요 — 선색과 같이 쓰면 윤곽선만 남아요)"
+          size={5}
+        />
+        <NoneSwatchButton
+          active={!value.strokeColor}
+          onClick={() =>
+            onChange(
+              value.strokeColor
+                ? { strokeColor: undefined }
+                : { strokeColor: value.color === "transparent" ? "#000000" : value.color, strokeWidth: value.strokeWidth ?? 0.08 }
+            )
+          }
+          title="선색 없음(텍스트선 꺼짐)"
+          size={5}
+        />
+      </div>
+      {/* 텍스트선 세부 설정 — 켜졌을 때만(= 위 "선색" 네모가 색을 갖고 있을 때).
+          색 자체는 이제 위 면색/선색 패널로 옮겨서 여기엔 굵기 입력칸만 남아요. */}
+      {value.strokeColor && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <label className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">텍스트선 굵기</label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round((value.strokeWidth ?? 0.08) * 100)}
+            onChange={(e) =>
+              onChange({ strokeWidth: Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100 })
+            }
+            className="w-14 shrink-0 border border-[var(--color-hairline)] bg-white px-1 py-1 text-xs outline-none focus:border-[var(--color-sky)]"
+            title="텍스트선 굵기를 숫자로 직접 입력(글자 크기 대비 0~100%)"
+          />
+          <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">%</span>
+        </div>
+      )}
       {value.shadowColor && (
         <div className="mt-1.5">
           <div className="flex items-center gap-1.5">
@@ -14980,17 +15081,18 @@ function UploadPageContent() {
                               {/* 2026-09-25, 혜민님 요청: "텍스트 메뉴 상단에는 글쓰기 / 표만들기
                                   / 이모티콘 메뉴를 만들고 싶습니다" — 글상자/타이틀 편집(기존
                                   화면)과 표·이모티콘 추가를 서브탭으로 나눠요. */}
-                              <div className="flex items-stretch gap-1.5 border-b border-[var(--color-hairline)] pb-2">
-                                {/* 2026-10(12번째 라운드), 혜민님 요청("복사,붙여넣기,삭제 아이콘을
-                                    텍스트추가 하단에 넣지말고 글쓰기,표만들기,이모티콘 오른쪽에 세로선
-                                    오른쪽에 배치") — 공통 버튼(박스 복사/붙여넣기/삭제)을 이 서브탭 줄
-                                    오른쪽, 세로 구분선 너머로 옮겼어요. 무엇을 복사/삭제할지는 지금
-                                    선택된 대상(일반 글상자/표지 제목/책등)에 따라 그대로 갈라져요 —
-                                    동작 자체(handleCopyActiveTextBox 등)는 전혀 안 건드렸고, 버튼이
-                                    보이는 자리만 TextBoxToolbar 안쪽에서 이 줄로 옮겼어요(아래
-                                    TextBoxToolbar 정의 쪽 주석 참고). 표지 제목·책등은 복사/붙여넣기
-                                    대상이 아니라서(기존 범위 밖) 삭제 아이콘만 보여요. */}
-                                <div className="grid flex-1 grid-cols-3 gap-1">
+                              <div className="border-b border-[var(--color-hairline)] pb-2">
+                                {/* 2026-10(13번째 라운드), 혜민님 요청("글쓰기, 표만들기, 이모티콘은
+                                    편집패널에 비율 맞춰서 이전으로 돌려주시고, 텍스트박스 복사,
+                                    붙여넣기, 삭제는 오른쪽으로 넣어주세요") — 12번째 라운드에서 이
+                                    3개 탭과 복사/붙여넣기/삭제 아이콘을 한 줄에 나란히 뒀더니, 패널
+                                    폭이 고정이라(~160~224px) 아이콘들이 차지한 만큼 탭 3개가 좁아져
+                                    글자가 눌려 보였어요. 탭 줄은 11번째 라운드 이전과 완전히 같은
+                                    grid-cols-3 한 줄(전체 폭)로 되돌리고, 복사/붙여넣기/삭제는 그
+                                    "바로 아래" 줄에서 오른쪽 정렬로 보여요 — 여전히 위쪽(탭 바로
+                                    밑)에 있고 여전히 오른쪽에 있지만, 탭과 같은 줄을 안 써서 탭
+                                    비율은 전혀 안 건드려요. */}
+                                <div className="grid grid-cols-3 gap-1">
                                   {(
                                     [
                                       { id: "write" as const, label: "글쓰기" },
@@ -15016,7 +15118,7 @@ function UploadPageContent() {
                                   ((activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover")) ||
                                     coverTitleSelected ||
                                     spineTitleSelected) && (
-                                  <div className="flex shrink-0 items-center gap-1 border-l border-[var(--color-hairline)] pl-1.5">
+                                  <div className="mt-1 flex items-center justify-end gap-1">
                                     {activeTextBox && (activeTextBox.ref.scope === "cover" || activeTextBox.ref.scope === "backCover") && (
                                       <>
                                         <button
@@ -15761,11 +15863,12 @@ function UploadPageContent() {
                                 }
                               >
                             {activeEditTab === "text" && (
-                              <div className="mb-1.5 flex items-stretch gap-1.5 border-b border-[var(--color-hairline)] pb-2">
-                                {/* 2026-10(12번째 라운드) — 표지 쪽과 같은 이유로, 박스 복사/붙여넣기/
-                                    삭제를 "+ 텍스트 추가" 아래가 아니라 이 서브탭 줄 오른쪽(세로
-                                    구분선 너머)으로 옮겼어요. */}
-                                <div className="grid flex-1 grid-cols-3 gap-1">
+                              <div className="mb-1.5 border-b border-[var(--color-hairline)] pb-2">
+                                {/* 2026-10(13번째 라운드) — 표지 쪽과 같은 이유로 되돌렸어요(탭 3개
+                                    비율을 11번째 라운드 이전과 같은 grid-cols-3 전체 폭으로 복구하고,
+                                    복사/붙여넣기/삭제는 바로 아래 줄에서 오른쪽 정렬로). 자세한 이유는
+                                    위 표지 패널 쪽 주석 참고. */}
+                                <div className="grid grid-cols-3 gap-1">
                                   {(
                                     [
                                       { id: "write" as const, label: "글쓰기" },
@@ -15788,7 +15891,7 @@ function UploadPageContent() {
                                   ))}
                                 </div>
                                 {textPanelSubTab === "write" && activeTextBox && activeTextBox.ref.scope === "spread" && (
-                                  <div className="flex shrink-0 items-center gap-1 border-l border-[var(--color-hairline)] pl-1.5">
+                                  <div className="mt-1 flex items-center justify-end gap-1">
                                     <button
                                       type="button"
                                       onClick={handleCopyActiveTextBox}
