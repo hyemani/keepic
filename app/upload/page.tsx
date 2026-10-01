@@ -1342,16 +1342,16 @@ function CoverGuideBox({
 // 이중선을 하나 긋고(책등 경계와 같은 시각 언어), 그 양옆으로 제본 때문에 주의가
 // 필요한 영역을 옅은 음영으로 보여줘요. 화면 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
 // 음영 진하기 변천: black/5(최초) → black/10(18-1차, 라벨과 함께 뚜렷하게) →
-// black/25(18-2차, 혜민님이 "더 진하게") → 2026-11(18번째 라운드 5차), 혜민님 재요청
-// ("접힘 여백 부분을 진하게 음영처리하지말아줘 전전에 적용된 수치값이 자연스러워
-// 흐리게해줘") — black/25가 너무 진했다고 하셔서 "전전" 값인 black/10으로 되돌렸어요.
-// "제본 여백" 텍스트 라벨은 이번에 다시 요청 안 하셔서(음영 진하기만 언급) 그대로
-// 뺀 채로 둬요. 양 끝 점선 테두리는 그대로 남겨서 구역 경계는 여전히 분명해요.
+// black/25(18-2차, 혜민님이 "더 진하게") → black/10(18-5차, 혜민님이 "전전 값이
+// 자연스러워"로 되돌림). 2026-11(18번째 라운드 9차), 혜민님 요청("접히는부분
+// 흐린배경만 남기고 선이 보이는데 선은 지워줘") — 양 끝에 있던 점선 테두리
+// (border-x, dotted)를 완전히 없앴어요. 이제 순수하게 옅은 음영(bg-black/10)
+// 하나로만 구역을 표시해요, 선은 전혀 없어요.
 function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number }) {
   return (
     <div
-      className="pointer-events-none absolute inset-y-0 z-10 border-x bg-black/10"
-      style={{ left: `${leftPct}%`, right: `${100 - rightPct}%`, borderStyle: "dotted", borderColor: GUIDE_LINE_COLOR }}
+      className="pointer-events-none absolute inset-y-0 z-10 bg-black/10"
+      style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
     />
   );
 }
@@ -14398,11 +14398,24 @@ function UploadPageContent() {
     // 안전영역 상/하 경계는 뒤표지·책등·앞표지 모두 같아요(위아래 도련은 세 구역이 공통).
     const coverSafetyTopPct = coverBleedYPct + coverSafetyYPct;
     const coverSafetyBottomPct = 100 - coverBleedYPct - coverSafetyYPct;
+    // 2026-11(18번째 라운드 8차), 혜민님 요청("제본부 안전선 20mm 적용 표지에도
+    // 적용해줘") — 책등 쪽 경계(coverBackSafetyRightPct/coverFrontSafetyLeftPct, 바로
+    // 아래)는 예전엔 coverSafetyXPct(=GUIDE_SAFETY_MM=15mm, 도련 안 더함)만 썼었는데,
+    // 내지 제본부(GUIDE_BINDING_MARGIN_MM, 이번 라운드 6차에서 15→20mm로 고침)와 같은
+    // 20mm를 책등 쪽에도 똑같이 맞췄어요. 하드커버의 coverBleedMm(20mm, 보드를 감싸는
+    // 실제 도련)을 그대로 더하면 책등 쪽만 35mm(20+15)가 돼서 너무 커지므로, 내지와
+    // 똑같이 "고정 20mm"(GUIDE_BINDING_MARGIN_MM, 하드/소프트 커버 구분 없이 동일)를
+    // 썼어요 — 표지 재질과 무관하게 책등 근처는 항상 20mm. (참고: 사진 슬롯을 실제로
+    // 당기는 computeCoverPanelSafetyPct()/clampSlotToCoverSafety는 책등 쪽 변을 원래부터
+    // 아예 안 건드려요 — "책등은 별도 안전영역 여백을 두지 않는다"는 이전 라운드 확인
+    // 그대로이고, 이번 수정은 화면 안내선·스냅 기준점에만 영향을 줘요, 바깥쪽 3면은
+    // 그대로 coverSafetyXPct=15mm.)
+    const coverSpineSafetyXPct = (GUIDE_BINDING_MARGIN_MM / coverTotalWmm) * 100;
     // 뒤표지 안전영역(재단선 안쪽으로 한 번 더 들어간 영역)
     const coverBackSafetyLeftPct = coverBleedXPct + coverSafetyXPct;
-    const coverBackSafetyRightPct = coverSpineStartPct - coverSafetyXPct;
+    const coverBackSafetyRightPct = coverSpineStartPct - coverSpineSafetyXPct;
     // 앞표지 안전영역
-    const coverFrontSafetyLeftPct = coverSpineEndPct + coverSafetyXPct;
+    const coverFrontSafetyLeftPct = coverSpineEndPct + coverSpineSafetyXPct;
     const coverFrontSafetyRightPct = 100 - coverBleedXPct - coverSafetyXPct;
 
     // 뒤표지·앞표지 이미지박스·표박스의 스냅 안내선이에요(2026-10 통합 스냅 —
