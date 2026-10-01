@@ -1340,25 +1340,20 @@ function CoverGuideBox({
 // 내지 펼침면 가운데의 "제본 경계"예요. 실제로 두 페이지가 만나는 정중앙(50%)에 검정
 // 이중선을 하나 긋고(책등 경계와 같은 시각 언어), 그 양옆으로 제본 때문에 주의가
 // 필요한 영역을 옅은 음영으로 보여줘요. 화면 전용 안내예요 — 인쇄 PDF에는 들어가지 않아요.
-// 2026-11(18번째 라운드), 혜민님 혼란 리포트("제본부 안전선이 바깥 안전선과 똑같이
+// 2026-11(18번째 라운드 1차), 혜민님 혼란 리포트("제본부 안전선이 바깥 안전선과 똑같이
 // 15mm라 구분이 안 돼서 혼란") 대응 — 수치(GUIDE_BINDING_MARGIN_MM 호출부 주석 참고,
 // 실제로 바깥 안전선과 같은 15mm가 맞음)는 안 바꾸고, 이 구역이 "바깥 안전선과는 별도
-// 성격의 제본 여백"임을 한눈에 알아보게 ① 음영을 더 뚜렷하게(black/5 → black/10),
-// ② 구역 양 끝에 가는 점선 테두리를 더해 경계를 분명히 하고, ③ 구역 위쪽 가운데에
-// 작게 라벨을 달았어요.
+// 성격의 제본 여백"임을 한눈에 알아보게 음영을 뚜렷하게 하고(black/5 → black/10) 라벨을
+// 달았었는데, 2026-11(18번째 라운드 2차) 혜민님 재요청("접힘 여백 부분을 더 진하게
+// 음영 처리하고 '제본 여백'이라는 라벨 삭제") — 음영을 한 번 더 진하게(black/10 →
+// black/25) 올리고, 텍스트 라벨은 완전히 제거했어요(순수하게 음영 차이만으로 구분).
+// 양 끝 점선 테두리는 그대로 남겨서 구역 경계는 여전히 분명해요.
 function BindingGuide({ leftPct, rightPct }: { leftPct: number; rightPct: number }) {
   return (
     <div
-      className="pointer-events-none absolute inset-y-0 z-10 border-x bg-black/10"
+      className="pointer-events-none absolute inset-y-0 z-10 border-x bg-black/25"
       style={{ left: `${leftPct}%`, right: `${100 - rightPct}%`, borderStyle: "dotted", borderColor: GUIDE_LINE_COLOR }}
-    >
-      <div
-        className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 whitespace-nowrap rounded-sm bg-white/80 px-1 text-[9px] leading-tight text-[#1a1a1a]"
-        style={{ fontFamily: "inherit" }}
-      >
-        제본 여백
-      </div>
-    </div>
+    />
   );
 }
 
