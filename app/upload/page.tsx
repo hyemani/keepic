@@ -1930,6 +1930,30 @@ function computeSnap({
   };
 }
 
+// 2026-11(18번째 라운드 10차), 혜민님 버그 리포트("사진이 뒤 레이어에 있으면
+// 패널메뉴와 선택박스가 안보이는데 선택박스와 패널메뉴는 레이어가 어디에있든
+// 보일수있게해줘") 대응 — 원인: 선택 테두리(outline)와 떠있는 "레이어" 툴바
+// (StackOrderToolbar, 복사/붙여넣기/삭제 등)는 각 박스 자신의 위치잡힌(position:
+// absolute + 인라인 zIndex) div의 자식으로 그려지는데, zIndex가 있는 position:
+// absolute 요소는 CSS 스펙상 자기만의 "쌓임 맥락(stacking context)"을 새로
+// 만들어요 — 그 안의 자식이 제아무리 큰 z-index를 가져도, 그 쌓임 맥락
+// 자체보다 z-index가 큰 "형제" 박스를 절대 넘어설 수 없어요(자식 z-index는
+// 부모의 쌓임 맥락 안에서만 유효). 그래서 사진이 레이어 순서상 "뒤"(zIndex가
+// 낮음)에 있으면, 그 사진을 선택해도 테두리·손잡이·툴바까지 전부 그 낮은
+// zIndex에 갇혀서 위에 있는 다른 레이어에 가려졌어요.
+// 수정: 지금 "활성 선택"인 박스 하나만, 정상적인 레이어 순서(effectiveZOrder)
+// 대신 이 고정 상수로 zIndex를 바꿔요 — 실제 저장되는 box.zOrder(레이어
+// 데이터)는 전혀 안 건드리고, 선택을 풀면 그 즉시 원래 레이어 순서로 돌아가요.
+// (부작용: 선택돼 있는 동안엔 테두리·툴바뿐 아니라 그 박스의 실제 내용(사진 등)도
+// 함께 맨 위로 보여요 — 테두리/툴바만 따로 떼어서 별도 오버레이 레이어로 그리는
+// 더 큰 구조 변경 없이 드래그·리사이즈 핸들의 기존 마우스 이벤트 연결을 그대로
+// 재사용할 수 있는 가장 낮은 위험의 방법이라 이렇게 했어요 — 선택 해제하면 바로
+// 원래 자리로 돌아가니 실제 레이어 순서 자체는 전혀 안 바뀌어요). 테이블 박스는
+// 원래도 9000+index로 항상 거의 최상단이었는데, 혹시 다른 레이어가 그보다 더 큰
+// zOrder를 직접 가지고 있는 극단적인 경우까지 대비해서 테이블도 선택 중엔 같이
+// 이 상수를 써요.
+const SELECTED_BOX_Z_INDEX = 100000;
+
 // 스냅 안내선 색이에요 — 선택 테두리(--color-sky, 파랑)·재단선/안전선(검정)과 확실히
 // 구분되도록, 일러스트레이터/피그마의 "스마트 가이드"에서 흔히 쓰는 마젠타 계열을 새로
 // 골랐어요(2026-10 통합 스냅에서 추가).
@@ -6906,7 +6930,7 @@ function TextBoxLayer({
           isMultiSelected={(multiSelectedBoxIds ?? []).includes(box.id)}
           onSelect={() => onSelect(box.id)}
           onShiftSelect={onShiftSelect ? () => onShiftSelect(box.id) : undefined}
-          zIndex={effectiveZOrder("text", box.zOrder, index)}
+          zIndex={box.id === activeBoxId ? SELECTED_BOX_Z_INDEX : effectiveZOrder("text", box.zOrder, index)}
           onDelete={onDelete ? () => onDelete(box.id) : undefined}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
           onSelectionRangeChange={onSelectionRangeChange}
@@ -8243,7 +8267,7 @@ function ImageBoxLayer({
           guidesX={guidesX}
           guidesY={guidesY}
           siblingTargets={siblingTargets}
-          zIndex={effectiveZOrder("image", box.zOrder, index)}
+          zIndex={box.id === activeBoxId ? SELECTED_BOX_Z_INDEX : effectiveZOrder("image", box.zOrder, index)}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
         />
       ))}
@@ -9709,7 +9733,7 @@ function TableBoxLayer({
           onDelete={() => onDelete(box.id)}
           isActive={box.id === activeBoxId}
           onSelect={() => onSelect(box.id)}
-          zIndex={9000 + index}
+          zIndex={box.id === activeBoxId ? SELECTED_BOX_Z_INDEX : 9000 + index}
           onSelectionChange={box.id === activeBoxId ? onSelectionChange : undefined}
           guidesX={guidesX}
           guidesY={guidesY}
