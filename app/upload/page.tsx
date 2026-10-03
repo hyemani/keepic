@@ -3538,11 +3538,11 @@ function ToolbarLabeledButton({
       type="button"
       title={title}
       onClick={onClick}
-      className={`flex w-10 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[9px] leading-none transition hover:bg-[var(--color-ivory)] ${
+      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none transition hover:bg-[var(--color-ivory)] ${
         danger ? "text-red-500" : active ? "bg-[var(--color-ivory)] text-[var(--color-charcoal)]" : "text-[var(--color-charcoal)]/80"
       }`}
     >
-      <LayerIcon name={icon} className="h-4 w-4" />
+      <LayerIcon name={icon} className="h-5 w-5" />
       <span>{label}</span>
     </button>
   );
@@ -3623,7 +3623,7 @@ function StackOrderToolbar({
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap rounded-2xl bg-white px-1.5 py-1 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
+      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
       // 2026-11(18번째 라운드 19차), 혜민님 요청("편집패널이 위쪽 상단에 배치되어있는데
       // 하단쪽에 배치되는게 좋을거같아요") — "화면 하단 공간 부족" fallback(flip, 박스가
       // 페이지 밑바닥에 가까울 때만 위로 띄움)은 그대로 안 건드렸어요. 바꾼 건
