@@ -20,7 +20,13 @@ import {
   type TextRun,
 } from "@/lib/textRuns";
 import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
-import { scallopedRectPoints } from "@/lib/frameShapes";
+import {
+  scallopedRectPoints,
+  borderPatternCenterPoints,
+  starShapePoints,
+  heartShapePoints,
+  BORDER_PATTERN_SHAPE_SIZE_PCT,
+} from "@/lib/frameShapes";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -180,6 +186,47 @@ function framedShapePath(
     scallopedPath(ctx, x, y, w, h);
   } else {
     roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
+  }
+}
+
+// 2026-11(18번째 라운드 18차), 혜민님 요청("점/별/하트무늬 테두리") — 화면
+// (ImageBoxOverlay의 SVG, viewBox 0~100 + preserveAspectRatio="none")과 정확히 같은
+// 결과가 나오도록, lib/frameShapes.ts의 borderPatternCenterPoints()(중심점 %)와
+// starShapePoints()/heartShapePoints()(모양의 -1~1 로컬 좌표)를 그대로 가져다, 박스의
+// 실제 px 폭/높이에 곱해서 canvas 경로로 그려요. 사각형 전용(frameShape가 기본값일
+// 때만 호출)이에요 — 호출하는 쪽(drawImageBoxOnCanvas/drawImageBoxesInPanel)에서
+// box.frameShape가 hexagon/scalloped가 아닐 때만 불러요.
+function drawBorderPattern(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  box: Pick<ImageBoxDef, "frameBorderPattern" | "borderColor">
+) {
+  if (!box.frameBorderPattern || box.frameBorderPattern === "none") return;
+  const rx = (BORDER_PATTERN_SHAPE_SIZE_PCT / 100 / 2) * w;
+  const ry = (BORDER_PATTERN_SHAPE_SIZE_PCT / 100 / 2) * h;
+  ctx.fillStyle = box.borderColor ?? "#ffffff";
+  for (const p of borderPatternCenterPoints()) {
+    const cx = x + (p.xPct / 100) * w;
+    const cy = y + (p.yPct / 100) * h;
+    if (box.frameBorderPattern === "dot") {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      continue;
+    }
+    const shapePts = box.frameBorderPattern === "star" ? starShapePoints() : heartShapePoints();
+    ctx.beginPath();
+    shapePts.forEach((sp, i) => {
+      const px = cx + sp.x * rx;
+      const py = cy + sp.y * ry;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+    ctx.fill();
   }
 }
 
@@ -364,6 +411,7 @@ function wrapTextForCanvas(ctx: CanvasRenderingContext2D, text: string, maxWidth
 // 가져다 써서(문자 패널의 "글자 크기(pt)" 입력), 화면에 보여주는 pt 숫자가 실제 인쇄
 // 결과와 어긋나지 않게 해요 — 값을 바꾸면 그쪽도 같이 바뀌어야 해요.
 export const TEXT_BOX_FONT_SCALE_BASE_RATIO = 0.032;
+
 
 // ── 문자 단위 서식(runs, 2026-10-06 추가) 인쇄 PDF 지원. box.runs가 없으면(예전
 // 텍스트박스 전부 + "문자 단위 서식을 한 번도 안 준" 새 텍스트박스) 아래
@@ -641,6 +689,7 @@ function drawTextBoxOnCanvasRuns(
   drawFillBoxBackground(textBlockHeight);
   drawLines(y);
 }
+
 
 function drawTextBoxOnCanvas(
   ctx: CanvasRenderingContext2D,
@@ -1009,6 +1058,12 @@ function drawImageBoxOnCanvas(
       box
     );
     ctx.stroke();
+    // 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트, 사각형 전용). 화면의
+    // SVG 오버레이가 박스 전체(inset-0, 테두리 두께로 안쪽을 줄이지 않음)를 기준으로
+    // 그려지는 것과 똑같이, 여기도 줄이지 않은 원래 박스 영역(boxLeftPagePx 등)을 써요.
+    if (box.frameShape !== "hexagon" && box.frameShape !== "scalloped") {
+      drawBorderPattern(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box);
+    }
   }
   ctx.restore();
 }
@@ -1071,6 +1126,9 @@ async function drawImageBoxesInPanel(
         box
       );
       ctx.stroke();
+      if (box.frameShape !== "hexagon" && box.frameShape !== "scalloped") {
+        drawBorderPattern(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box);
+      }
     }
     ctx.restore();
   }
@@ -1844,6 +1902,7 @@ function drawGuideOverlay(
   ctx.fillText(label, mmToPx(2), mmToPx(2) + fontPx * 1.3);
   ctx.restore();
 }
+
 
 // ---- 마지막 소개 페이지(발행 정보) ----
 // 표지 전체를 꽉 채우는 방식이 아니라, 왼쪽 하단 영역에 위에서부터 "작은 사진 → 제목 →

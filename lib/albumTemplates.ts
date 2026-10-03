@@ -274,6 +274,14 @@ export type ImageBoxDef = {
   // 곡선이 많이 필요한 모양은 화면 clip-path로는 쉽지만 인쇄 캔버스 경로로 정확히
   // 맞추기 어려워서 이번 범위에서 뺐어요).
   frameShape?: "rect" | "hexagon" | "scalloped";
+  // 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리 Tier 3 진행해주세요")
+  // — 테두리 선(borderWidthPx/borderColor) 위에 작은 무늬를 일정 간격으로 반복해서
+  // 찍는 장식이에요. "none"/undefined(기본값, 기존 저장된 사진박스는 전혀 안 바뀜),
+  // "dot"(점), "star"(별), "heart"(하트). lib/frameShapes.ts의 좌표 계산을 화면·인쇄
+  // 양쪽이 그대로 가져다 써서(숫자를 두 번 베끼지 않음) 위치가 어긋나지 않아요.
+  // frameShape가 "rect"(기본값)일 때만 의미가 있어요 — 육각형/톱니처럼 테두리선
+  // 자체가 사각형이 아니면 이 무늬 위치가 실제 선 위에 있지 않아 이번 범위에서 뺐어요.
+  frameBorderPattern?: "none" | "dot" | "star" | "heart";
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),

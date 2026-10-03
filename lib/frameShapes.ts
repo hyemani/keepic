@@ -81,3 +81,64 @@ export function scallopedRectPoints(): PerimeterPoint[] {
     ...scallopedEdgePoints({ xPct: 0, yPct: 100 }, { xPct: 0, yPct: 0 }, { xPct: 1, yPct: 0 }, n, d, k),
   ];
 }
+
+// ---- 2. 점/별/하트 무늬 테두리 ----
+
+// 변(위/아래/좌/우) 하나마다 몇 개의 무늬를 배치하는지 — 점/별/하트 모두 공통.
+export const BORDER_PATTERN_COUNT_PER_EDGE = 6;
+
+// 무늬 하나의 크기 — 박스 가로/세로 기준 %(지름). 테두리 두께(borderWidthPx)와는
+// 별개로 고정된 비율을 써요 — 화면(SVG viewBox 0~100)과 인쇄(canvas, 박스 실제
+// px폭/높이에 이 %를 곱함) 둘 다 "박스 크기 대비 %"라는 같은 기준으로 계산하기
+// 때문에 결과 크기가 항상 같아요.
+export const BORDER_PATTERN_SHAPE_SIZE_PCT = 3.2;
+
+// 테두리 선의 "중심선"을 따라 무늬 중심점들을 0~100% 좌표로 반환해요(네 변, 각 변의
+// 칸 가운데 — 모서리와 겹치지 않도록). frameShape가 기본(사각형)일 때만 쓰는
+// 전제예요 — 육각형/톱니처럼 테두리선 자체가 사각형이 아니면 이 좌표가 실제 선
+// 위에 있지 않아서 어긋나 보일 수 있어, 이번 라운드에선 사각형 전용으로 한정했어요.
+export function borderPatternCenterPoints(perEdge: number = BORDER_PATTERN_COUNT_PER_EDGE): PerimeterPoint[] {
+  const pts: PerimeterPoint[] = [];
+  const edges: [PerimeterPoint, PerimeterPoint][] = [
+    [{ xPct: 0, yPct: 0 }, { xPct: 100, yPct: 0 }],
+    [{ xPct: 100, yPct: 0 }, { xPct: 100, yPct: 100 }],
+    [{ xPct: 100, yPct: 100 }, { xPct: 0, yPct: 100 }],
+    [{ xPct: 0, yPct: 100 }, { xPct: 0, yPct: 0 }],
+  ];
+  for (const [start, end] of edges) {
+    for (let s = 0; s < perEdge; s++) {
+      const t = (s + 0.5) / perEdge;
+      pts.push({ xPct: lerp(start.xPct, end.xPct, t), yPct: lerp(start.yPct, end.yPct, t) });
+    }
+  }
+  return pts;
+}
+
+// 별(5각) 모양 — 바깥 꼭짓점 5개 + 안쪽 꼭짓점 5개, 표준 별 모양 공식. -1~1 로컬
+// 좌표라 어디서든 원하는 중심/크기로 옮기고 늘릴 수 있어요.
+export function starShapePoints(spikes: number = 5, outerR: number = 1, innerR: number = 0.45): UnitPoint[] {
+  const pts: UnitPoint[] = [];
+  const step = Math.PI / spikes;
+  for (let i = 0; i < spikes * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = i * step - Math.PI / 2; // 맨 위 꼭짓점부터 시작
+    pts.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+  }
+  return pts;
+}
+
+// 하트 모양 — 표준 하트 파라메트릭 곡선(x=16sin³t, y=-(13cos t-5cos2t-2cos3t-cos4t))을
+// -1~1 범위로 정규화했어요. sampleCount개의 점으로 근사한 폴리곤이라, 화면(SVG
+// polygon)·인쇄(canvas lineTo)가 똑같은 점들을 이어서 완전히 같은 모양이 나와요.
+export function heartShapePoints(sampleCount: number = 20): UnitPoint[] {
+  const raw: UnitPoint[] = [];
+  for (let i = 0; i < sampleCount; i++) {
+    const t = (i / sampleCount) * Math.PI * 2;
+    const x = 16 * Math.pow(Math.sin(t), 3);
+    const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+    raw.push({ x, y });
+  }
+  const maxX = Math.max(...raw.map((p) => Math.abs(p.x)));
+  const maxY = Math.max(...raw.map((p) => Math.abs(p.y)));
+  return raw.map((p) => ({ x: p.x / maxX, y: p.y / maxY }));
+}

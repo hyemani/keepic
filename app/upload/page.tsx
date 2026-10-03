@@ -37,7 +37,13 @@ import {
   printFileSpec,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
-import { scallopedRectPoints } from "@/lib/frameShapes";
+import {
+  scallopedRectPoints,
+  borderPatternCenterPoints,
+  starShapePoints,
+  heartShapePoints,
+  BORDER_PATTERN_SHAPE_SIZE_PCT,
+} from "@/lib/frameShapes";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
   readTableStylePresets,
@@ -7402,6 +7408,42 @@ function ImageBoxPanel({
                     />
                   </>
                 )}
+                {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") —
+                    테두리선 위에 점/별/하트 무늬를 일정 간격으로 찍어요. 좌표는
+                    lib/frameShapes.ts의 borderPatternCenterPoints()를 화면·인쇄
+                    양쪽이 그대로 가져다 써서 위치가 어긋나지 않아요. 사각형 전용
+                    기능이라(위 주석 참고) 육각형/톱니 모양일 땐 숨겨요. */}
+                {frameTargetBox.frameShape !== "hexagon" && frameTargetBox.frameShape !== "scalloped" && (
+                  <>
+                    <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
+                    <div className="mb-2 grid grid-cols-4 gap-1">
+                      {(
+                        [
+                          { key: "none" as const, label: "없음" },
+                          { key: "dot" as const, label: "점" },
+                          { key: "star" as const, label: "별" },
+                          { key: "heart" as const, label: "하트" },
+                        ]
+                      ).map((opt) => {
+                        const active = (frameTargetBox.frameBorderPattern ?? "none") === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => onFrameChange(frameTargetBox.id, { frameBorderPattern: opt.key })}
+                            className={`border px-1 py-1.5 text-[10.5px] transition ${
+                              active
+                                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
@@ -8232,6 +8274,30 @@ const ImageBoxOverlay = forwardRef<
             boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${box.borderColor ?? "#ffffff"}`,
           }}
         />
+      ) : null}
+      {/* 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트). viewBox가 0~100
+          정사각형이고 preserveAspectRatio="none"이라, 박스가 정사각형이 아니어도
+          박스 가로/세로 비율대로 늘어나며 그려져요(모서리 둥글기 타원 계산과 같은
+          원리) — borderPatternCenterPoints()/starShapePoints()/heartShapePoints()를
+          인쇄(lib/printCompose.ts)와 그대로 같이 가져다 써서 위치·모양이 똑같아요. */}
+      {box.url && box.borderWidthPx && box.frameBorderPattern && box.frameBorderPattern !== "none" ? (
+        <svg
+          className="pointer-events-none absolute inset-0"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ borderRadius: cssRadius }}
+        >
+          {borderPatternCenterPoints().map((p, i) => {
+            const r = BORDER_PATTERN_SHAPE_SIZE_PCT / 2;
+            const fill = box.borderColor ?? "#ffffff";
+            if (box.frameBorderPattern === "dot") {
+              return <ellipse key={i} cx={p.xPct} cy={p.yPct} rx={r} ry={r} fill={fill} />;
+            }
+            const shapePts = box.frameBorderPattern === "star" ? starShapePoints() : heartShapePoints();
+            const pointsAttr = shapePts.map((sp) => `${p.xPct + sp.x * r},${p.yPct + sp.y * r}`).join(" ");
+            return <polygon key={i} points={pointsAttr} fill={fill} />;
+          })}
+        </svg>
       ) : null}
       {!box.url && (
         // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면(또는
