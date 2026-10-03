@@ -1960,6 +1960,75 @@ const SELECTED_BOX_Z_INDEX = 100000;
 // 파일이 똑같은 모양으로 나와요 — 세로로 긴 좌우 평평한 면 + 위아래 뾰족한 육각형.
 const HEXAGON_CLIP_PATH = "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)";
 
+// 2026-11(18번째 라운드 17차), 혜민님이 지난 라운드의 "프레임 모양" 해석을 정정:
+// "프레임모양 이런식으로 만들어주라 사각형원형타형육각형 처럼 도형말구" — 스크린샷
+// (프리셋 갤러리)을 보니 원하신 건 사진을 다른 "도형"으로 자르는 클리핑(지난 라운드
+// 구현한 frameShape)이 아니라, "둥근 모서리 + 두꺼운 단색 테두리" 느낌의 장식용
+// 테두리 스타일을 색상별로 미리 만들어둔 "프리셋 갤러리"였어요. 스크린샷에 있던
+// 종류 중 이번 라운드에 실제로 구현 가능한 범위(아래 PHOTO_BORDER_PRESETS 설명
+// 참고)만 먼저 만들었어요 — 기존 borderWidthPx/borderColor/borderRadiusPct 필드에
+// 값 조합을 한 번에 세팅하는 것뿐이라 새 렌더링 로직이 전혀 필요 없고, 화면·인쇄
+// PDF(이미 이 세 필드를 반영하는 기존 경로)에 그대로 반영돼요.
+type PhotoBorderPreset = {
+  id: string;
+  label: string;
+  borderWidthPx: number;
+  borderColor: string | undefined;
+  borderRadiusPct: number;
+};
+const PHOTO_BORDER_PRESETS: PhotoBorderPreset[] = [
+  { id: "none", label: "기본", borderWidthPx: 0, borderColor: undefined, borderRadiusPct: 0 },
+  { id: "gray", label: "회색", borderWidthPx: 10, borderColor: "#9CA3AF", borderRadiusPct: 14 },
+  { id: "pink", label: "핑크", borderWidthPx: 10, borderColor: "#F2AFC4", borderRadiusPct: 14 },
+  { id: "beige", label: "베이지", borderWidthPx: 10, borderColor: "#E8DCC8", borderRadiusPct: 14 },
+  { id: "brown", label: "갈색", borderWidthPx: 10, borderColor: "#8B5E3C", borderRadiusPct: 14 },
+  { id: "orange", label: "주황", borderWidthPx: 10, borderColor: "#F08C3A", borderRadiusPct: 14 },
+  { id: "gold", label: "금색", borderWidthPx: 10, borderColor: "#D4AF37", borderRadiusPct: 14 },
+  { id: "red", label: "빨강", borderWidthPx: 10, borderColor: "#E53935", borderRadiusPct: 14 },
+  { id: "sky", label: "하늘", borderWidthPx: 10, borderColor: "#7EC8E3", borderRadiusPct: 14 },
+  { id: "blue", label: "파랑", borderWidthPx: 10, borderColor: "#3B6FD6", borderRadiusPct: 14 },
+  { id: "khaki", label: "카키", borderWidthPx: 10, borderColor: "#8A8F5C", borderRadiusPct: 14 },
+  { id: "peach", label: "연주황", borderWidthPx: 10, borderColor: "#F6C28B", borderRadiusPct: 14 },
+  { id: "yellow", label: "노랑", borderWidthPx: 10, borderColor: "#F5D547", borderRadiusPct: 14 },
+  // 2번: 스크린샷의 "얇은 파란 단색 라인(모서리 안 둥근)"도 같은 메커니즘
+  // (borderRadiusPct=0)이라 바로 포함했어요.
+  { id: "thinBlueLine", label: "얇은 파란선", borderWidthPx: 2, borderColor: "#2F6FED", borderRadiusPct: 0 },
+];
+
+// 프리셋 갤러리의 작은 미리보기 썸네일이에요 — 실제 사진박스 없이 검은 정사각형 +
+// 그 프리셋의 테두리만 보여줘서, 누르기 전에 어떤 모양인지 바로 알 수 있어요.
+function PhotoBorderPresetSwatch({
+  preset,
+  active,
+  onClick,
+}: {
+  preset: PhotoBorderPreset;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={preset.label}
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 rounded-md border p-1 transition ${
+        active ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10" : "border-transparent hover:bg-[var(--color-ivory)]"
+      }`}
+    >
+      <span
+        className="h-8 w-8 bg-[var(--color-charcoal)]"
+        style={{
+          borderRadius: `${preset.borderRadiusPct}%`,
+          boxShadow: preset.borderWidthPx
+            ? `inset 0 0 0 ${preset.borderWidthPx / 1.6}px ${preset.borderColor ?? "#ffffff"}`
+            : undefined,
+        }}
+      />
+      <span className="text-[9px] leading-none text-[var(--color-charcoal)]/70">{preset.label}</span>
+    </button>
+  );
+}
+
 // 스냅 안내선 색이에요 — 선택 테두리(--color-sky, 파랑)·재단선/안전선(검정)과 확실히
 // 구분되도록, 일러스트레이터/피그마의 "스마트 가이드"에서 흔히 쓰는 마젠타 계열을 새로
 // 골랐어요(2026-10 통합 스냅에서 추가).
@@ -7191,13 +7260,16 @@ function ImageBoxPanel({
               // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의 "테두리"
               // 조절판과 똑같은 기능이에요.
               <div className="border border-[var(--color-hairline)] bg-white p-2">
-                {/* 2026-11(18번째 라운드 15차), 혜민님 요청("프레임 모양도 있었으면
-                    좋겠어요") — "원형/타원"은 새 모양이 아니라 바로 아래 "모서리
-                    둥글게" 슬라이더를 최대치(50)로 맞추는 바로가기예요(정사각형
-                    박스면 원, 직사각형이면 타원 — 기존 기능 그대로). "육각형"만
-                    진짜 새 모양이라, 그걸 고르면 모서리 둥글기는 의미가 없어져서
-                    (둥근 모서리 개념이 없음) 슬라이더 자체를 숨겨요. */}
-                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">프레임 모양</p>
+                {/* 2026-11(18번째 라운드 17차), 혜민님이 "프레임 모양"이라는 말을
+                    이 섹션(사진을 다른 도형으로 자르는 클리핑)이 아니라 바로 아래
+                    "프레임 테두리 프리셋" 갤러리를 가리킨 거였다고 정정하셔서, 헷갈리지
+                    않도록 제목을 "사진 자르는 모양"으로 더 분명하게 바꿨어요(기능 자체는
+                    그대로). "원형/타원"은 새 모양이 아니라 바로 아래 "모서리 둥글게"
+                    슬라이더를 최대치(50)로 맞추는 바로가기예요(정사각형 박스면 원,
+                    직사각형이면 타원 — 기존 기능 그대로). "육각형"만 진짜 새 모양이라,
+                    그걸 고르면 모서리 둥글기는 의미가 없어져서(둥근 모서리 개념이 없음)
+                    슬라이더 자체를 숨겨요. */}
+                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">사진 자르는 모양</p>
                 <div className="mb-2 grid grid-cols-3 gap-1">
                   {(
                     [
@@ -7237,6 +7309,44 @@ function ImageBoxPanel({
                       >
                         {opt.label}
                       </button>
+                    );
+                  })}
+                </div>
+                {/* 2026-11(18번째 라운드 17차), 혜민님 요청("프레임모양 이런식으로
+                    만들어주라... 도형말구" + 프리셋 갤러리 스크린샷) — "둥근 모서리 +
+                    두꺼운 단색 테두리" 스타일의 색상별 프리셋 갤러리예요. 새 필드나
+                    새 렌더링 로직이 전혀 아니고, 이미 있던 borderWidthPx/borderColor/
+                    borderRadiusPct 세 필드에 미리 정해둔 조합(PHOTO_BORDER_PRESETS,
+                    위 정의)을 한 번에 세팅하는 바로가기라서 화면·인쇄 파일 모두 기존
+                    경로 그대로 반영돼요. frameShape도 "rect"로 같이 맞춰서(육각형
+                    클리핑 중이었다면 이 프리셋을 고르는 순간 사각형으로 돌아와요 —
+                    테두리 프리셋은 사각형 모양 전용이에요).
+                    스크린샷에 있던 패턴(별·점·하트무늬)·톱니(우표) 테두리·모서리 탭/
+                    클립 스타일·나뭇결 테두리는 이번 라운드에서는 구현하지 않았어요 —
+                    아래 조사 메모 참고(리포트에 자세히 적었어요: border-image/SVG
+                    패턴 타일링이 필요하고 인쇄 캔버스 쪽에서 화면과 정확히 맞추려면
+                    라이브 브라우저 검증 없이는 어긋날 위험이 커서 다음 라운드로 미뤘어요). */}
+                <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">프레임 테두리 프리셋</p>
+                <div className="mb-2 grid grid-cols-5 gap-1">
+                  {PHOTO_BORDER_PRESETS.map((preset) => {
+                    const active =
+                      (frameTargetBox.borderWidthPx ?? 0) === preset.borderWidthPx &&
+                      (preset.borderWidthPx === 0 || (frameTargetBox.borderColor ?? undefined) === preset.borderColor) &&
+                      (frameTargetBox.borderRadiusPct ?? 0) === preset.borderRadiusPct;
+                    return (
+                      <PhotoBorderPresetSwatch
+                        key={preset.id}
+                        preset={preset}
+                        active={active}
+                        onClick={() =>
+                          onFrameChange(frameTargetBox.id, {
+                            borderWidthPx: preset.borderWidthPx,
+                            borderColor: preset.borderColor,
+                            borderRadiusPct: preset.borderRadiusPct,
+                            frameShape: "rect",
+                          })
+                        }
+                      />
                     );
                   })}
                 </div>
