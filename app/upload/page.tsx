@@ -42,6 +42,8 @@ import {
   starShapePoints,
   heartShapePoints,
   BORDER_PATTERN_SHAPE_SIZE_PCT,
+  framePerimeterPoints,
+  type FrameShapeKey,
 } from "@/lib/frameShapes";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
@@ -1960,12 +1962,78 @@ function computeSnap({
 // 이 상수를 써요.
 const SELECTED_BOX_Z_INDEX = 100000;
 
-// 2026-11(18번째 라운드 19차), 혜민님 요청("사각형, 원형타원, 육각형, 톱니 메뉴
-// 삭제해주세요")로 여기 있던 HEXAGON_CLIP_PATH/SCALLOPED_CLIP_PATH(사진을 다른
-// 도형으로 자르는 클리핑용 CSS clip-path 상수)를 지웠어요 — 더 이상 화면 어디서도
-// box.frameShape를 읽지 않아서 쓸 데가 없어졌어요. lib/frameShapes.ts의
-// scallopedRectPoints()/lib/printCompose.ts의 hexagonPath·scallopedPath는 이제
-// 아무 데서도 안 불러요(ESLint unused 경고 방지를 위해 그 쪽도 같이 지웠어요).
+// 2026-11(18번째 라운드 20차), 혜민님이 다른 앱의 "프레임 모양" 갤러리 스크린샷을
+// 보내고 "이미지 보내주신 거 최대한 비슷하게 전부" 추가해달라고 요청해서, 19차에서
+// 지웠던 HEXAGON_CLIP_PATH/SCALLOPED_CLIP_PATH 같은 clip-path 상수를 다시 넣어요
+// (이번엔 안전함 — 그때 버그였던 frameTargetBox 오타겟 문제가 2351688에서 이미
+// 고쳐졌어요). 모양이 8종으로 늘어서 상수를 하나씩 손으로 적는 대신, frameShape
+// 값을 받아 lib/frameShapes.ts의 framePerimeterPoints()(화면·인쇄 공용 좌표 계산,
+// "rect"면 null)를 CSS clip-path: polygon(...) 문자열로 바꿔주는 함수 하나로
+// 통일했어요. 모양별로 점 배열이 고정이라(박스 크기에 안 바뀜, %값이라) 모듈 로드 시
+// 모양마다 한 번씩만 계산해서 캐시해둬요(박스가 몇 개든, 매 렌더마다 다시 계산 안
+// 함).
+const FRAME_CLIP_PATH_CACHE = new Map<FrameShapeKey, string | undefined>();
+function frameShapeClipPath(shape: FrameShapeKey | undefined): string | undefined {
+  const key = shape ?? "rect";
+  if (FRAME_CLIP_PATH_CACHE.has(key)) return FRAME_CLIP_PATH_CACHE.get(key);
+  const pts = framePerimeterPoints(key);
+  const value = pts ? "polygon(" + pts.map((p) => `${p.xPct}% ${p.yPct}%`).join(", ") + ")" : undefined;
+  FRAME_CLIP_PATH_CACHE.set(key, value);
+  return value;
+}
+
+// "사진 프레임 변경" 패널의 모양 선택 버튼 목록이에요. 레퍼런스 스크린샷(다른 앱의
+// "사진들 모양 변경" 갤러리)에 있던 것 중, 실제로 구현 가능한(그림/아이콘 에셋 없이
+// 벡터 좌표만으로 화면·인쇄 양쪽에서 정확히 같은 모양이 나오는) 항목만 담았어요 —
+// 작은 리본/곰돌이/서커스텐트 같은 일러스트 장식은 이번 범위에서 뺐어요(리포트 참고).
+// "원형"/"타원"은 새 frameShape 값이 아니라 기존 borderRadiusPct=50 바로가기예요
+// (2026-09-28부터 있던 기능, 1062899에서 이미 이렇게 처리).
+type FrameShapeOption = { key: FrameShapeKey | "circle"; label: string };
+const FRAME_SHAPE_OPTIONS: FrameShapeOption[] = [
+  { key: "rect", label: "사각형" },
+  { key: "circle", label: "원형·타원" },
+  { key: "hexagon", label: "육각형" },
+  { key: "scalloped", label: "톱니" },
+  { key: "scallopedCircle", label: "쿠키" },
+  { key: "flowerPetal", label: "꽃잎" },
+  { key: "organicScallop", label: "낙서" },
+  { key: "cloud", label: "구름" },
+  { key: "badge", label: "뱃지" },
+];
+
+// 모양 버튼 하나의 작은 미리보기예요 — PhotoBorderPresetSwatch(테두리 프리셋
+// 갤러리, 아래)와 같은 디자인(검은 정사각형 + 버튼 느낌)을 따르되, box-shadow
+// 대신 clip-path로 실제 외곽선 모양을 그대로 보여줘요.
+function FrameShapeSwatch({
+  option,
+  active,
+  onClick,
+}: {
+  option: FrameShapeOption;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const clipPath = option.key === "circle" ? undefined : frameShapeClipPath(option.key);
+  return (
+    <button
+      type="button"
+      title={option.label}
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 rounded-md border p-1 transition ${
+        active ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10" : "border-transparent hover:bg-[var(--color-ivory)]"
+      }`}
+    >
+      <span
+        className="h-8 w-8 bg-[var(--color-charcoal)]"
+        style={{
+          clipPath,
+          borderRadius: option.key === "circle" ? "50%" : undefined,
+        }}
+      />
+      <span className="text-[9px] leading-none text-[var(--color-charcoal)]/70">{option.label}</span>
+    </button>
+  );
+}
 
 // 2026-11(18번째 라운드 17차), 혜민님이 지난 라운드의 "프레임 모양" 해석을 정정:
 // "프레임모양 이런식으로 만들어주라 사각형원형타형육각형 처럼 도형말구" — 스크린샷
@@ -7279,31 +7347,53 @@ function ImageBoxPanel({
               // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의 "테두리"
               // 조절판과 똑같은 기능이에요.
               <div className="border border-[var(--color-hairline)] bg-white p-2">
-                {/* 2026-11(18번째 라운드 19차), 혜민님 요청("사각형, 원형타원, 육각형,
-                    톱니 메뉴 삭제해주세요. 너무이상해요") — "사진 자르는 모양" 선택
-                    버튼 4개(사각형/원형·타원/육각형/톱니)를 통째로 뺐어요. 이미 저장된
-                    사진박스에 frameShape가 "hexagon"/"scalloped"로 남아있어도(스키마
-                    필드 자체는 안 건드렸어요, 하위 호환), 아래 cssRadius/cssClipPath
-                    계산에서 frameShape를 더 이상 안 읽어서 항상 평범한 사각형(+모서리
-                    둥글기)으로만 그려져요 — lib/printCompose.ts의 framedShapePath도
-                    같은 이유로 항상 roundedRectPath만 쓰도록 맞췄어요(화면·인쇄 동일).
-                    "원형/타원"도 같은 요청으로 함께 뺐어요 — 모서리 둥글기를 최대치로
-                    올리는 단순 바로가기였을 뿐이라, 바로 아래 "모서리 둥글게" 슬라이더를
-                    50까지 직접 올리면 똑같이 원/타원이 돼요(기능 자체는 그대로 있음). */}
+                {/* 2026-11(18번째 라운드 20차), 혜민님이 다른 앱의 "프레임 모양"
+                    갤러리 스크린샷 3장을 보내고 "이미지 보내주신 거 최대한 비슷하게
+                    전부" 추가해달라고 요청해서, 19차에서 뺐던 "사진 자르는 모양" 선택
+                    버튼을 다시 넣고 모양 수를 9개(사각형/원형·타원/육각형/톱니/쿠키/
+                    꽃잎/낙서/구름/뱃지)로 늘렸어요 — 그때 버그였던 frameTargetBox
+                    오타겟 문제가 2351688에서 이미 고쳐졌으니 다시 넣어도 안전해요.
+                    rect가 아닌 모양은 모서리 둥글기 개념이 없어서 그 아래 슬라이더를
+                    숨기고(hexagon 때 하던 것과 같은 방식), borderRadiusPct는
+                    frameShapeClipPath()가 undefined를 돌려줄 때만(= rect/circle
+                    바로가기일 때만) 의미가 있어요. */}
+                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">사진 자르는 모양</p>
+                <div className="mb-2 grid grid-cols-5 gap-1">
+                  {FRAME_SHAPE_OPTIONS.map((opt) => {
+                    const currentKey: FrameShapeKey | "circle" =
+                      frameTargetBox.frameShape && frameTargetBox.frameShape !== "rect"
+                        ? frameTargetBox.frameShape
+                        : (frameTargetBox.borderRadiusPct ?? 0) >= 50
+                          ? "circle"
+                          : "rect";
+                    const active = currentKey === opt.key;
+                    return (
+                      <FrameShapeSwatch
+                        key={opt.key}
+                        option={opt}
+                        active={active}
+                        onClick={() => {
+                          if (opt.key === "circle") {
+                            onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 50 });
+                          } else if (opt.key === "rect") {
+                            onFrameChange(frameTargetBox.id, { frameShape: "rect" });
+                          } else {
+                            onFrameChange(frameTargetBox.id, { frameShape: opt.key });
+                          }
+                        }}
+                      />
+                    );
+                  })}
+                </div>
                 {/* 2026-11(18번째 라운드 17차), 혜민님 요청("프레임모양 이런식으로
                     만들어주라... 도형말구" + 프리셋 갤러리 스크린샷) — "둥근 모서리 +
                     두꺼운 단색 테두리" 스타일의 색상별 프리셋 갤러리예요. 새 필드나
                     새 렌더링 로직이 전혀 아니고, 이미 있던 borderWidthPx/borderColor/
                     borderRadiusPct 세 필드에 미리 정해둔 조합(PHOTO_BORDER_PRESETS,
                     위 정의)을 한 번에 세팅하는 바로가기라서 화면·인쇄 파일 모두 기존
-                    경로 그대로 반영돼요. frameShape도 "rect"로 같이 맞춰서(육각형
-                    클리핑 중이었다면 이 프리셋을 고르는 순간 사각형으로 돌아와요 —
-                    테두리 프리셋은 사각형 모양 전용이에요).
-                    스크린샷에 있던 패턴(별·점·하트무늬)·톱니(우표) 테두리·모서리 탭/
-                    클립 스타일·나뭇결 테두리는 이번 라운드에서는 구현하지 않았어요 —
-                    아래 조사 메모 참고(리포트에 자세히 적었어요: border-image/SVG
-                    패턴 타일링이 필요하고 인쇄 캔버스 쪽에서 화면과 정확히 맞추려면
-                    라이브 브라우저 검증 없이는 어긋날 위험이 커서 다음 라운드로 미뤘어요). */}
+                    경로 그대로 반영돼요. frameShape도 "rect"로 같이 맞춰서(위에서
+                    다른 모양을 클리핑 중이었다면 이 프리셋을 고르는 순간 사각형으로
+                    돌아와요 — 테두리 프리셋은 사각형 모양 전용이에요). */}
                 <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">프레임 테두리 프리셋</p>
                 <div className="mb-2 grid grid-cols-5 gap-1">
                   {PHOTO_BORDER_PRESETS.map((preset) => {
@@ -7350,32 +7440,37 @@ function ImageBoxPanel({
                     className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
                   />
                 </div>
-                <>
-                  <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
-                    모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
-                    {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
-                  </p>
-                  <input
-                    type="range"
-                    min={0}
-                    max={50}
-                    step={1}
-                    value={frameTargetBox.borderRadiusPct ?? 0}
-                    onChange={(e) =>
-                      onFrameChange(frameTargetBox.id, { borderRadiusPct: Number(e.target.value) })
-                    }
-                    className="w-full"
-                  />
-                </>
+                {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
+                  <>
+                    <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
+                      모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
+                      {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
+                    </p>
+                    <input
+                      type="range"
+                      min={0}
+                      max={50}
+                      step={1}
+                      value={frameTargetBox.borderRadiusPct ?? 0}
+                      onChange={(e) =>
+                        onFrameChange(frameTargetBox.id, { borderRadiusPct: Number(e.target.value) })
+                      }
+                      className="w-full"
+                    />
+                  </>
+                )}
                 {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") —
                     테두리선 위에 점/별/하트 무늬를 일정 간격으로 찍어요. 좌표는
                     lib/frameShapes.ts의 borderPatternCenterPoints()를 화면·인쇄
-                    양쪽이 그대로 가져다 써서 위치가 어긋나지 않아요. 2026-11(18번째
-                    라운드 19차) — "사진 자르는 모양" 메뉴를 없애면서(위 주석 참고)
-                    frameShape가 더 이상 사각형 외의 값으로 화면·인쇄에 반영되지
-                    않으니, 이 섹션을 숨기던 hexagon/scalloped 조건도 같이 뺐어요. */}
-                <>
-                  <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
+                    양쪽이 그대로 가져다 써서 위치가 어긋나지 않아요. borderPatternCenterPoints()의
+                    중심점은 "사각형 테두리선" 전제로 계산돼요(F 항목) — 그래서
+                    2026-11(18번째 라운드 20차)에 "사진 자르는 모양" 선택이 다시
+                    생기면서, hexagon/scalloped를 포함해 rect가 아닌 모양일 땐 이
+                    섹션 자체를 다시 숨겨요(19차에 없앴던 이 조건을 모양이 더 늘어난
+                    채로 복원). */}
+                {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
+                  <>
+                    <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
                     <div className="mb-2 grid grid-cols-4 gap-1">
                       {(
                         [
@@ -7403,6 +7498,7 @@ function ImageBoxPanel({
                       })}
                     </div>
                   </>
+                )}
               </div>
             ) : (
               <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
@@ -7578,15 +7674,14 @@ const ImageBoxOverlay = forwardRef<
   const isSticker = isStickerImageBox(box);
   // 모서리 둥글기를 %로 계산해요 — 0%는 사각형, 50%는 CSS border-radius:50%와 같은
   // 값이라 정사각형 박스면 정원, 직사각형이면 타원이 자연스럽게 나와요(2026-09-28,
-  // "둥글게를 최대치로 하면 원이 되도록"). 2026-11(18번째 라운드 19차), 혜민님
-  // 요청("사각형, 원형타원, 육각형, 톱니 메뉴 삭제해주세요. 너무이상해요")로 "프레임
-  // 모양"(frameShape) 클리핑 기능을 화면에서 완전히 뺐어요 — box.frameShape 값은
-  // (혹시 예전에 "hexagon"/"scalloped"로 저장된 박스가 있어도) 더 이상 전혀 읽지
-  // 않고, 항상 모서리 둥글기(borderRadiusPct)만 반영한 평범한 사각형으로 그려요.
-  // clip-path 자체를 안 쓰니(cssClipPath 없음) HEXAGON_CLIP_PATH/SCALLOPED_CLIP_PATH
-  // 상수도 같이 지웠어요 — lib/printCompose.ts의 framedShapePath도 같은 이유로
-  // 항상 roundedRectPath만 쓰도록 맞춰서 화면·인쇄가 여전히 똑같아요.
-  const cssRadius = box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
+  // "둥글게를 최대치로 하면 원이 되도록"). 2026-11(18번째 라운드 20차) — "프레임
+  // 모양"(frameShape) 클리핑 기능을 다시 넣으면서(위 FRAME_SHAPE_OPTIONS 주석
+  // 참고, 19차에서 지웠다가 복원), hexagon/scalloped를 포함해 "rect"가 아닌 모양은
+  // 전부 모서리 둥글기 개념이 없어서(윤곽선 자체가 이미 그 모양이라)
+  // borderRadiusPct를 무시해요 — frameShapeClipPath()가 "rect"일 때만 undefined를
+  // 돌려주니, cssClipPath 유무로 그 판단을 재사용해요.
+  const cssClipPath = frameShapeClipPath(box.frameShape);
+  const cssRadius = !cssClipPath && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -8144,6 +8239,7 @@ const ImageBoxOverlay = forwardRef<
         transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
         opacity: box.opacity ?? 1,
         borderRadius: cssRadius,
+        clipPath: cssClipPath,
       }}
     >
       {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
@@ -8181,7 +8277,7 @@ const ImageBoxOverlay = forwardRef<
           // "잘리는 부분이 생기지 않도록 이미지박스 적용은 안 하는 게 좋겠다" 요청).
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
-            style={{ borderRadius: cssRadius }}
+            style={{ borderRadius: cssRadius, clipPath: cssClipPath }}
           >
             <img
               src={box.url}
@@ -8194,7 +8290,7 @@ const ImageBoxOverlay = forwardRef<
         ) : (
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
-            style={{ borderRadius: cssRadius }}
+            style={{ borderRadius: cssRadius, clipPath: cssClipPath }}
           >
             <img
               src={box.url}
@@ -8222,6 +8318,7 @@ const ImageBoxOverlay = forwardRef<
           className="pointer-events-none absolute inset-0"
           style={{
             borderRadius: cssRadius,
+            clipPath: cssClipPath,
                 boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${box.borderColor ?? "#ffffff"}`,
           }}
         />
@@ -8236,7 +8333,7 @@ const ImageBoxOverlay = forwardRef<
           className="pointer-events-none absolute inset-0"
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
-          style={{ borderRadius: cssRadius }}
+          style={{ borderRadius: cssRadius, clipPath: cssClipPath }}
         >
           {borderPatternCenterPoints().map((p, i) => {
             const r = BORDER_PATTERN_SHAPE_SIZE_PCT / 2;
