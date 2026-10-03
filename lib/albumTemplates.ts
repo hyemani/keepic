@@ -1,4 +1,5 @@
 import type { TextRun } from "./textRuns";
+import type { FrameShapeKey } from "./frameShapes";
 
 export type PageTemplateId =
   | "full"
@@ -273,7 +274,15 @@ export type ImageBoxDef = {
   // (+둥근모서리/원/타원, 기존 기능)과 육각형(신규) 이렇게로 시작해요 — 하트처럼 베지어
   // 곡선이 많이 필요한 모양은 화면 clip-path로는 쉽지만 인쇄 캔버스 경로로 정확히
   // 맞추기 어려워서 이번 범위에서 뺐어요).
-  frameShape?: "rect" | "hexagon" | "scalloped";
+  // 2026-11(18번째 라운드 20차), 혜민님이 다른 앱의 "프레임 모양" 갤러리 스크린샷을
+  // 보내고 "이미지 보내주신 거 최대한 비슷하게 전부" 추가해달라고 요청해서, 19차에서
+  // 지웠던 화면 클리핑 메뉴를 다시 넣으면서 모양을 대거 늘렸어요(이번엔 안전함 — 그때
+  // 버그였던 frameTargetBox 오타겟 문제가 2351688에서 이미 고쳐졌어요). 새 값들
+  // (scallopedCircle/flowerPetal/organicScallop/cloud/badge)의 좌표 공식은 전부
+  // lib/frameShapes.ts에 있고, 그 파일이 export하는 FrameShapeKey 타입을 그대로 써요
+  // (모양 종류를 한 곳에서만 관리). hexagon일 때 borderRadiusPct가 무시되던 것과
+  // 같은 이유로, "rect"/"scalloped" 아닌 값은 모두 모서리 둥글기 개념이 없어요.
+  frameShape?: FrameShapeKey;
   // 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리 Tier 3 진행해주세요")
   // — 테두리 선(borderWidthPx/borderColor) 위에 작은 무늬를 일정 간격으로 반복해서
   // 찍는 장식이에요. "none"/undefined(기본값, 기존 저장된 사진박스는 전혀 안 바뀜),
