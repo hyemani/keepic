@@ -15971,10 +15971,25 @@ function UploadPageContent() {
                               // 있었는데, 사진 패널만 이 위험한 fallback이 남아있었어요.
                               // 지금은 못 찾으면 undefined(= 선택 없음, "사진 불러오기"
                               // 화면)로 떨어져서, 절대 다른 박스를 몰래 바꾸지 않아요.
+                              // 2026-11(18번째 라운드 20차), 혜민님 버그 리포트("사진프레임변경
+                              // 메뉴가 안눌립니다") 수정 — 지금 선택된 박스를 못 찾을 때(선택이
+                              // 아예 없을 때 등) undefined로만 떨어지니, 앞표지에 사진박스가 딱
+                              // 1장뿐인(스티커 제외) 아주 흔한 경우에도 "사진 프레임 변경" 탭이
+                              // 계속 비활성 상태로 남아 있었어요 — 선택 안 해도 대상이 뭔지 전혀
+                              // 헷갈릴 일이 없는(유일한 후보) 경우에만 안전하게 그 박스로
+                              // 대체해요. 2351688에서 없앤 "배열의 마지막 박스" fallback과는
+                              // 달라요 — 그건 박스가 여러 개여도 무조건 마지막 걸 가리켜서 다른
+                              // 박스가 몰래 바뀌는 사고가 났었는데, 이번엔 후보가 2개 이상이면
+                              // 절대 대체하지 않고 undefined 그대로 둬요(그 버그가 재발할 길이
+                              // 없어요).
                               frameTargetBox={
-                                activeCoverImageBox?.target === "front"
+                                (activeCoverImageBox?.target === "front"
                                   ? coverImageBoxes.find((b) => b.id === activeCoverImageBox.boxId)
-                                  : undefined
+                                  : undefined) ??
+                                (() => {
+                                  const candidates = coverImageBoxes.filter((b) => !isStickerImageBox(b));
+                                  return candidates.length === 1 ? candidates[0] : undefined;
+                                })()
                               }
                               topTab={coverPhotoTopTab}
                               onTopTabChange={setCoverPhotoTopTab}
@@ -16974,10 +16989,20 @@ function UploadPageContent() {
                                   // 변경되네요"). 예전엔 "?? (spread.imageBoxes ??
                                   // [])[length - 1]"로 이 스프레드의 "마지막" 사진박스에
                                   // 몰래 적용됐어요.
+                                  // 2026-11(18번째 라운드 20차) — 위 표지 패널과 같은 이유·같은
+                                  // 수정이에요(혜민님 버그 리포트: "사진프레임변경 메뉴가
+                                  // 안눌립니다"). 이 스프레드에 사진박스가 딱 1장뿐(스티커
+                                  // 제외)이면 선택 없이도 그 박스로 안전하게 대체해요 — 후보가
+                                  // 2개 이상이면 절대 대체하지 않아서, 2351688에서 없앤 "마지막
+                                  // 박스" fallback 버그는 재발하지 않아요.
                                   frameTargetBox={
-                                    activeImageBox?.spreadIndex === i
+                                    (activeImageBox?.spreadIndex === i
                                       ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId)
-                                      : undefined
+                                      : undefined) ??
+                                    (() => {
+                                      const candidates = (spread.imageBoxes ?? []).filter((b) => !isStickerImageBox(b));
+                                      return candidates.length === 1 ? candidates[0] : undefined;
+                                    })()
                                   }
                                   topTab={photoTopTab}
                                   onTopTabChange={setPhotoTopTab}
