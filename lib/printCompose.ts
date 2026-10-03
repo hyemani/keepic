@@ -158,9 +158,10 @@ function framedShapePath(
 // (ImageBoxOverlay의 SVG, viewBox 0~100 + preserveAspectRatio="none")과 정확히 같은
 // 결과가 나오도록, lib/frameShapes.ts의 borderPatternCenterPoints()(중심점 %)와
 // starShapePoints()/heartShapePoints()(모양의 -1~1 로컬 좌표)를 그대로 가져다, 박스의
-// 실제 px 폭/높이에 곱해서 canvas 경로로 그려요. 사각형 전용(frameShape가 기본값일
-// 때만 호출)이에요 — 호출하는 쪽(drawImageBoxOnCanvas/drawImageBoxesInPanel)에서
-// box.frameShape가 hexagon/scalloped가 아닐 때만 불러요.
+// 실제 px 폭/높이에 곱해서 canvas 경로로 그려요. 2026-11(18번째 라운드 19차) — "사진
+// 자르는 모양" 클리핑 메뉴가 없어지면서 frameShape는 화면·인쇄 어디서도 사각형 외의
+// 모양에 영향을 안 주니, 이 함수를 "frameShape가 사각형일 때만" 거르던 호출부 조건도
+// 함께 뺐어요(항상 호출돼요).
 function drawBorderPattern(
   ctx: CanvasRenderingContext2D,
   x: number,
