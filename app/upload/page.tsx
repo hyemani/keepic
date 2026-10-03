@@ -3018,15 +3018,14 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         </svg>
       );
     case "front":
-      // "맨 앞으로" — 두 사각형 중 앞(오른쪽 위)이 항상 진하게 채워져서 "이게 맨 앞으로
-      // 온다"는 뜻이에요. 2026-10(7차), 혜민님 요청("작은 툴바에서도 서로 다른 기능으로
-      // 읽히게") — 어두운 툴바 배경에서도 두 사각형이 뚜렷이 구분되도록 채움 진하기
-      // (fillOpacity)를 높였어요(0.15→0.55, 선 굵기·크기는 다른 3개 아이콘과 그대로
-      // 통일). 방향 화살표가 없는 게 forward와의 유일한 차이예요(맨 끝 vs 한 칸).
+      // "맨 앞으로" — 2026-11(18번째 라운드 16차), 혜민님 요청(새 플로팅 툴바
+      // 디자인): "점선 네모 뒤에 실선 네모가 겹친 아이콘". 뒤(왼쪽 아래) 사각형은
+      // 점선, 앞으로 오는 사각형(오른쪽 위, SVG에서 나중에 그려서 겹친 부분 위로
+      // 보임)은 실선이에요 — back과는 점선·실선 역할이 서로 반대예요.
       return (
         <svg {...common}>
-          <rect x="4" y="9" width="9" height="9" rx="1" opacity="0.45" />
-          <rect x="11" y="6" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.55" />
+          <rect x="4" y="9" width="9" height="9" rx="1.2" strokeDasharray="2.4 2.2" />
+          <rect x="11" y="6" width="9" height="9" rx="1.2" fill="white" />
         </svg>
       );
     // 2026-09-28(2차), 혜민님 요청("맨뒤/맨앞" 말고 "앞으로/뒤로" 한 칸씩 이동도):
@@ -3042,12 +3041,13 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         </svg>
       );
     case "back":
-      // "맨 뒤로" — front와 정반대로, 뒤(왼쪽 아래) 사각형이 진하게 채워져요. computeZOrderUpdates의
-      // "back" 액션(order[idx].z를 0으로, 나머지를 +1)과 방향이 일치함을 확인했어요.
+      // "맨 뒤로" — 2026-11(18번째 라운드 16차), 혜민님 요청: "실선 네모 뒤에 점선
+      // 네모가 겹친 아이콘(front와 쌍을 이루는 반대 방향)". front와 정반대로 뒤(왼쪽
+      // 아래) 사각형이 실선, 앞으로 겹쳐 보이는 사각형(오른쪽 위)이 점선이에요.
       return (
         <svg {...common}>
-          <rect x="11" y="6" width="9" height="9" rx="1" opacity="0.45" />
-          <rect x="4" y="9" width="9" height="9" rx="1" fill="currentColor" fillOpacity="0.55" />
+          <rect x="4" y="9" width="9" height="9" rx="1.2" fill="white" />
+          <rect x="11" y="6" width="9" height="9" rx="1.2" strokeDasharray="2.4 2.2" fill="white" />
         </svg>
       );
     case "backward":
@@ -3059,12 +3059,20 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         </svg>
       );
     case "fit":
+      // 2026-11(18번째 라운드 16차), 혜민님 요청: "네 모서리가 안쪽을 향하는 화살표
+      // 아이콘"(맞춤/fit) — 예전엔 네 모서리에서 바깥쪽으로 열린 "뷰파인더" 모양
+      // 괄호였는데, 네 귀퉁이에서 가운데를 향해 들어오는 짧은 화살표(대각선+화살촉)로
+      // 바꿨어요.
       return (
         <svg {...common}>
-          <path d="M9 4H5v4" />
-          <path d="M15 4h4v4" />
-          <path d="M9 20H5v-4" />
-          <path d="M15 20h4v-4" />
+          <path d="M3 3l5 5" />
+          <path d="M8 4.5V8H4.5" />
+          <path d="M21 3l-5 5" />
+          <path d="M16 4.5V8h3.5" />
+          <path d="M3 21l5-5" />
+          <path d="M8 19.5V16H4.5" />
+          <path d="M21 21l-5-5" />
+          <path d="M16 19.5V16h3.5" />
         </svg>
       );
     case "zoomIn":
@@ -3106,16 +3114,24 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
         </svg>
       );
     case "border":
+      // 2026-11(18번째 라운드 16차), 혜민님 요청: "가로줄 3개 쌓인 아이콘"(테두리) —
+      // 예전엔 네모+굵은 윗변 하나였는데, 수평선 3개가 쌓인 모양으로 바꿨어요.
       return (
         <svg {...common}>
-          <rect x="4.5" y="4.5" width="15" height="15" rx="1.2" />
-          <path d="M4.5 4.5h6" strokeWidth="3.2" />
+          <path d="M4 7h16" />
+          <path d="M4 12h16" />
+          <path d="M4 17h16" />
         </svg>
       );
     case "edit":
+      // 2026-11(18번째 라운드 16차), 혜민님 요청: "산/사진 모양 아이콘"(편집) — 예전엔
+      // 연필(펜) 아이콘이었는데, 흔히 쓰는 "사진" picto(사각 프레임+해/동그라미+산
+      // 모양)로 바꿨어요.
       return (
         <svg {...common}>
-          <path d="M15.5 5.5l3 3L8 19l-4 1 1-4z" />
+          <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+          <circle cx="8.5" cy="9.5" r="1.6" />
+          <path d="M4.5 16.5l4.5-4.5 3 3 4-4.5 5.5 5.5" />
         </svg>
       );
     case "alignLeft":
@@ -3426,6 +3442,53 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
 // 없이 이동+크기조절만 하니까). 박스 자신의 위치 기준(부모가 이미
 // xPct/yPct/widthPct/heightPct로 자리잡은 박스 div) 바로 아래(또는 위)에 CSS로만
 // 붙어서, 실제 화면 좌표를 따로 재지 않아도 항상 그 박스 가까이에 보여요.
+function ToolbarLabeledButton({
+  title,
+  label,
+  icon,
+  onClick,
+  danger,
+  active,
+}: {
+  title: string;
+  label: string;
+  icon: LayerIconName;
+  onClick: () => void;
+  danger?: boolean;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`flex w-10 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[9px] leading-none transition hover:bg-[var(--color-ivory)] ${
+        danger ? "text-red-500" : active ? "bg-[var(--color-ivory)] text-[var(--color-charcoal)]" : "text-[var(--color-charcoal)]/80"
+      }`}
+    >
+      <LayerIcon name={icon} className="h-4 w-4" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// 2026-11(18번째 라운드 16차), 혜민님 요청("하단 플로팅 툴바를 새 디자인으로") — 사진/
+// 텍스트박스/스티커를 선택했을 때 그 아래(또는 위) 뜨는 플로팅 툴바예요. 어두운 바탕에
+// 아이콘만 있던 예전 디자인을 흰 배경·둥근 모서리 가로 바 + 아이콘 아래 작은 라벨
+// 텍스트가 있는 디자인으로 통째로 새로 그렸어요. 아이콘 순서·구성은 혜민님이 스크린샷과
+// 함께 정확히 지정하신 11개(삭제/맨앞/맨뒤/맞춤/확대/축소/회전/좌우/투명도/테두리/편집)
+// 순서를 그대로 따라요. "맨앞"/"맨뒤"는 완전히 새로 만든 기능이 아니라, 이미 있던
+// onStackAction("front"/"back") 레이어 순서 로직(2026-09-28, computeZOrderUpdates·
+// applySpreadStackAction/applyCoverStackAction)을 그대로 재사용했어요 — 한 칸씩
+// 옮기는 "뒤로(한 칸)"/"앞으로(한 칸)"(backward/forward) 버튼은 새 11개 목록에
+// 없어서 이번 디자인에선 뺐어요(해당 기능 자체·onStackAction("backward"/"forward")
+// 호출 경로는 그대로 남아있어서 되돌리기는 쉬워요 — 다른 화면에는 이 두 액션을
+// 쓰는 UI가 없어서, 뺀 뒤로는 "한 칸씩 이동"은 더 이상 어디서도 쓸 수 없게 돼요 —
+// 혜민님께 보고 필요).
+// 사진 전용 기능(맞춤/확대/축소/좌우반전/편집)과 사진·스티커 공용 기능(회전/투명도/
+// 테두리)은 기존에 이미 있던 mediaKind 분기(photo/sticker/text)를 그대로 썼어요 —
+// 텍스트박스는 "맞춤" 같은 사진 전용 개념이 의미가 없어서 원래도 제외돼 있었고, 이번
+// 재디자인에서도 그 분기를 그대로 유지했습니다(텍스트박스는 삭제/맨앞/맨뒤 3개만 남아요).
 function StackOrderToolbar({
   flip,
   fillsFrame,
@@ -3473,29 +3536,10 @@ function StackOrderToolbar({
   borderRadiusPct?: number;
   onBorderChange?: (widthPx: number, color: string, radiusPct: number) => void;
 }) {
-  // "투명도"·"테두리" 아이콘을 누르면 그 아래 작은 조절판이 열려요 — 다시 누르면
-  // 닫혀요(2026-09-26 신규 기능이라 바깥 클릭 감지 같은 복잡한 처리는 넣지 않고, 아이콘
-  // 재클릭이나 박스 선택 해제로 닫히는 가장 단순한 방식으로 했어요).
+  // "투명도"·"테두리"·"회전" 아이콘을 누르면 그 아래 작은 조절판이 열려요 — 다시
+  // 누르면 닫혀요(2026-09-26 신규 기능이라 바깥 클릭 감지 같은 복잡한 처리는 넣지
+  // 않고, 아이콘 재클릭이나 박스 선택 해제로 닫히는 가장 단순한 방식으로 했어요).
   const [openPanel, setOpenPanel] = useState<"opacity" | "border" | "rotation" | null>(null);
-
-  const buttons: { key: string; title: string; icon: LayerIconName; onClick: () => void; danger?: boolean }[] = [];
-  if (onDelete) buttons.push({ key: "delete", title: "삭제", icon: "delete", onClick: onDelete, danger: true });
-  if (onStackAction) {
-    // 2026-09-28(2차): "맨 앞으로/맨 뒤로"만 있고 한 칸씩 옮기는 "앞으로/뒤로"가 없어서
-    // 여러 개가 겹쳤을 때 원하는 순서를 세밀하게 맞추기 어려웠어요 — 4개 다 추가.
-    buttons.push(
-      { key: "back", title: "맨 뒤로", icon: "back", onClick: () => onStackAction("back") },
-      { key: "backward", title: "뒤로(한 칸)", icon: "backward", onClick: () => onStackAction("backward") },
-      { key: "forward", title: "앞으로(한 칸)", icon: "forward", onClick: () => onStackAction("forward") },
-      { key: "front", title: "맨 앞으로", icon: "front", onClick: () => onStackAction("front") }
-    );
-  }
-  if (mediaKind !== "text") {
-    if (onFit) buttons.push({ key: "fit", title: "맞춤(사진 위치 초기화)", icon: "fit", onClick: onFit });
-    if (onZoomIn) buttons.push({ key: "zoomIn", title: "확대", icon: "zoomIn", onClick: onZoomIn });
-    if (onZoomOut) buttons.push({ key: "zoomOut", title: "축소", icon: "zoomOut", onClick: onZoomOut });
-    if (onFlip) buttons.push({ key: "flip", title: "좌우 반전", icon: "flip", onClick: onFlip });
-  }
 
   return (
     <div
@@ -3503,116 +3547,36 @@ function StackOrderToolbar({
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-50 flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap bg-[var(--color-charcoal)] px-1 py-1 text-white "
+      className="absolute left-1/2 z-50 flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap rounded-2xl bg-white px-1.5 py-1 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
       style={fillsFrame ? { top: 6 } : flip ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }}
     >
-      {buttons.map((b) => (
-        <button
-          key={b.key}
-          type="button"
-          title={b.title}
-          onClick={b.onClick}
-          className={`flex h-6 w-6 items-center justify-center text-xs transition hover:bg-white/20 ${
- b.danger ? "text-red-300" : ""
-          }`}
-        >
-          <LayerIcon name={b.icon} />
-        </button>
-      ))}
-      {mediaKind !== "text" && onOpacityChange && (
-        <div className="relative">
-          <button
-            type="button"
-            title="투명도"
-            onClick={() => setOpenPanel((v) => (v === "opacity" ? null : "opacity"))}
-            className={`flex h-6 w-6 items-center justify-center text-xs transition hover:bg-white/20 ${
- openPanel === "opacity" ? "bg-white/20" : ""
-            }`}
-          >
-            <LayerIcon name="opacity" />
-          </button>
-          {openPanel === "opacity" && (
-            <div
-              onMouseDown={(e) => e.stopPropagation()}
-              className="absolute left-1/2 top-full z-50 mt-1.5 w-32 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
-            >
-              <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">투명도 {Math.round((opacity ?? 1) * 100)}%</p>
-              <input
-                type="range"
-                min={10}
-                max={100}
-                step={5}
-                value={Math.round((opacity ?? 1) * 100)}
-                onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
-                className="w-full"
-              />
-            </div>
-          )}
-        </div>
+      {onDelete && (
+        <ToolbarLabeledButton title="삭제" label="삭제" icon="delete" onClick={onDelete} danger />
       )}
-      {mediaKind !== "text" && onBorderChange && (
-        <div className="relative">
-          <button
-            type="button"
-            title="테두리"
-            onClick={() => setOpenPanel((v) => (v === "border" ? null : "border"))}
-            className={`flex h-6 w-6 items-center justify-center text-xs transition hover:bg-white/20 ${
- openPanel === "border" ? "bg-white/20" : ""
-            }`}
-          >
-            <LayerIcon name="border" />
-          </button>
-          {openPanel === "border" && (
-            <div
-              onMouseDown={(e) => e.stopPropagation()}
-              className="absolute left-1/2 top-full z-50 mt-1.5 w-36 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
-            >
-              <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">테두리 두께 {borderWidthPx ?? 0}px</p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min={0}
-                  max={12}
-                  step={1}
-                  value={borderWidthPx ?? 0}
-                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff", borderRadiusPct ?? 0)}
-                  className="flex-1"
-                />
-                <input
-                  type="color"
-                  value={borderColor ?? "#ffffff"}
-                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value, borderRadiusPct ?? 0)}
-                  className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
-                />
-              </div>
-              <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
-                모서리 둥글게 {borderRadiusPct ?? 0}% {(borderRadiusPct ?? 0) >= 50 ? "(원)" : ""}
-              </p>
-              <input
-                type="range"
-                min={0}
-                max={50}
-                step={1}
-                value={borderRadiusPct ?? 0}
-                onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value))}
-                className="w-full"
-              />
-            </div>
-          )}
-        </div>
+      {onStackAction && (
+        <>
+          <ToolbarLabeledButton title="맨 앞으로" label="맨앞" icon="front" onClick={() => onStackAction("front")} />
+          <ToolbarLabeledButton title="맨 뒤로" label="맨뒤" icon="back" onClick={() => onStackAction("back")} />
+        </>
+      )}
+      {mediaKind !== "text" && onFit && (
+        <ToolbarLabeledButton title="맞춤(사진 위치 초기화)" label="맞춤" icon="fit" onClick={onFit} />
+      )}
+      {mediaKind !== "text" && onZoomIn && (
+        <ToolbarLabeledButton title="확대" label="확대" icon="zoomIn" onClick={onZoomIn} />
+      )}
+      {mediaKind !== "text" && onZoomOut && (
+        <ToolbarLabeledButton title="축소" label="축소" icon="zoomOut" onClick={onZoomOut} />
       )}
       {mediaKind !== "text" && onRotationChange && (
         <div className="relative">
-          <button
-            type="button"
-            title="정밀 회전"
+          <ToolbarLabeledButton
+            title="회전"
+            label="회전"
+            icon="rotate"
+            active={openPanel === "rotation"}
             onClick={() => setOpenPanel((v) => (v === "rotation" ? null : "rotation"))}
-            className={`flex h-6 w-6 items-center justify-center text-xs transition hover:bg-white/20 ${
- openPanel === "rotation" ? "bg-white/20" : ""
-            }`}
-          >
-            <LayerIcon name="rotate" />
-          </button>
+          />
           {openPanel === "rotation" && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
@@ -3656,17 +3620,87 @@ function StackOrderToolbar({
           )}
         </div>
       )}
+      {mediaKind !== "text" && onFlip && (
+        <ToolbarLabeledButton title="좌우 반전" label="좌우" icon="flip" onClick={onFlip} />
+      )}
+      {mediaKind !== "text" && onOpacityChange && (
+        <div className="relative">
+          <ToolbarLabeledButton
+            title="투명도"
+            label="투명도"
+            icon="opacity"
+            active={openPanel === "opacity"}
+            onClick={() => setOpenPanel((v) => (v === "opacity" ? null : "opacity"))}
+          />
+          {openPanel === "opacity" && (
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              className="absolute left-1/2 top-full z-50 mt-1.5 w-32 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
+            >
+              <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">투명도 {Math.round((opacity ?? 1) * 100)}%</p>
+              <input
+                type="range"
+                min={10}
+                max={100}
+                step={5}
+                value={Math.round((opacity ?? 1) * 100)}
+                onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
+                className="w-full"
+              />
+            </div>
+          )}
+        </div>
+      )}
+      {mediaKind !== "text" && onBorderChange && (
+        <div className="relative">
+          <ToolbarLabeledButton
+            title="테두리"
+            label="테두리"
+            icon="border"
+            active={openPanel === "border"}
+            onClick={() => setOpenPanel((v) => (v === "border" ? null : "border"))}
+          />
+          {openPanel === "border" && (
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              className="absolute left-1/2 top-full z-50 mt-1.5 w-36 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
+            >
+              <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">테두리 두께 {borderWidthPx ?? 0}px</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={12}
+                  step={1}
+                  value={borderWidthPx ?? 0}
+                  onChange={(e) => onBorderChange(Number(e.target.value), borderColor ?? "#ffffff", borderRadiusPct ?? 0)}
+                  className="flex-1"
+                />
+                <input
+                  type="color"
+                  value={borderColor ?? "#ffffff"}
+                  onChange={(e) => onBorderChange(borderWidthPx ?? 0, e.target.value, borderRadiusPct ?? 0)}
+                  className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
+                />
+              </div>
+              <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
+                모서리 둥글게 {borderRadiusPct ?? 0}% {(borderRadiusPct ?? 0) >= 50 ? "(원)" : ""}
+              </p>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={1}
+                value={borderRadiusPct ?? 0}
+                onChange={(e) => onBorderChange(borderWidthPx ?? 0, borderColor ?? "#ffffff", Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+          )}
+        </div>
+      )}
       {mediaKind === "photo" && onToggleEdit && (
-        <button
-          type="button"
-          title="편집(사진 위치 조정)"
-          onClick={onToggleEdit}
-          className={`flex h-6 w-6 items-center justify-center text-xs transition hover:bg-white/20 ${
- editActive ? "bg-[var(--color-brand-purple)]" : ""
-          }`}
-        >
-          <LayerIcon name="edit" />
-        </button>
+        <ToolbarLabeledButton title="편집(사진 위치 조정)" label="편집" icon="edit" active={editActive} onClick={onToggleEdit} />
       )}
     </div>
   );
