@@ -273,7 +273,7 @@ export type ImageBoxDef = {
   // (+둥근모서리/원/타원, 기존 기능)과 육각형(신규) 이렇게로 시작해요 — 하트처럼 베지어
   // 곡선이 많이 필요한 모양은 화면 clip-path로는 쉽지만 인쇄 캔버스 경로로 정확히
   // 맞추기 어려워서 이번 범위에서 뺐어요).
-  frameShape?: "rect" | "hexagon";
+  frameShape?: "rect" | "hexagon" | "scalloped";
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),

@@ -20,6 +20,7 @@ import {
   type TextRun,
 } from "@/lib/textRuns";
 import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
+import { scallopedRectPoints } from "@/lib/frameShapes";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -148,6 +149,23 @@ function hexagonPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
 // 육각형, 그 외(기본값 "rect" 포함)엔 기존처럼 모서리 둥글기(roundedRectPath)를 써요.
 // 클리핑(사진 자르기)·테두리(선 그리기) 둘 다 이 함수 하나로 통일해서, 두 군데가
 // 서로 다른 모양으로 어긋날 일이 없게 했어요.
+// 2026-11(18번째 라운드 18차), 혜민님 요청("톱니/물결 모양(우표 스타일) 테두리") —
+// lib/frameShapes.ts의 scallopedRectPoints()(화면 app/upload/page.tsx의
+// SCALLOPED_CLIP_PATH와 완전히 같은 함수)를 그대로 가져다, 그 % 좌표를 박스의 실제
+// px 폭/높이에 곱해서 canvas 경로로 그려요 — 화면·인쇄가 같은 숫자 배열을 쓰기
+// 때문에 두 쪽 모양이 어긋날 수가 없어요.
+function scallopedPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  const pts = scallopedRectPoints();
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const px = x + (p.xPct / 100) * w;
+    const py = y + (p.yPct / 100) * h;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  ctx.closePath();
+}
+
 function framedShapePath(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -158,6 +176,8 @@ function framedShapePath(
 ) {
   if (box.frameShape === "hexagon") {
     hexagonPath(ctx, x, y, w, h);
+  } else if (box.frameShape === "scalloped") {
+    scallopedPath(ctx, x, y, w, h);
   } else {
     roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
   }
@@ -344,7 +364,6 @@ function wrapTextForCanvas(ctx: CanvasRenderingContext2D, text: string, maxWidth
 // 가져다 써서(문자 패널의 "글자 크기(pt)" 입력), 화면에 보여주는 pt 숫자가 실제 인쇄
 // 결과와 어긋나지 않게 해요 — 값을 바꾸면 그쪽도 같이 바뀌어야 해요.
 export const TEXT_BOX_FONT_SCALE_BASE_RATIO = 0.032;
-
 
 // ── 문자 단위 서식(runs, 2026-10-06 추가) 인쇄 PDF 지원. box.runs가 없으면(예전
 // 텍스트박스 전부 + "문자 단위 서식을 한 번도 안 준" 새 텍스트박스) 아래
@@ -622,7 +641,6 @@ function drawTextBoxOnCanvasRuns(
   drawFillBoxBackground(textBlockHeight);
   drawLines(y);
 }
-
 
 function drawTextBoxOnCanvas(
   ctx: CanvasRenderingContext2D,
@@ -1826,7 +1844,6 @@ function drawGuideOverlay(
   ctx.fillText(label, mmToPx(2), mmToPx(2) + fontPx * 1.3);
   ctx.restore();
 }
-
 
 // ---- 마지막 소개 페이지(발행 정보) ----
 // 표지 전체를 꽉 채우는 방식이 아니라, 왼쪽 하단 영역에 위에서부터 "작은 사진 → 제목 →

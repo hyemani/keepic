@@ -37,6 +37,7 @@ import {
   printFileSpec,
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
+import { scallopedRectPoints } from "@/lib/frameShapes";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
   readTableStylePresets,
@@ -1959,6 +1960,13 @@ const SELECTED_BOX_Z_INDEX = 100000;
 // hexagonPath가 정확히 같은 6개 꼭짓점(박스 가로/세로 기준 %)을 써서, 화면과 인쇄
 // 파일이 똑같은 모양으로 나와요 — 세로로 긴 좌우 평평한 면 + 위아래 뾰족한 육각형.
 const HEXAGON_CLIP_PATH = "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)";
+
+// 2026-11(18번째 라운드 18차), 혜민님 요청("톱니/물결 모양(우표 스타일) 테두리") —
+// lib/frameShapes.ts의 scallopedRectPoints()(화면·인쇄 공용 좌표 계산)를 그대로
+// CSS clip-path: polygon(...) 문자열로 바꿔요. 모듈 로드 시 한 번만 계산해요(박스마다
+// 다시 계산할 필요 없음 — 박스 크기가 달라도 %값은 항상 같아서 박스별로 다를 게 없어요).
+const SCALLOPED_CLIP_PATH =
+  "polygon(" + scallopedRectPoints().map((p) => `${p.xPct}% ${p.yPct}%`).join(", ") + ")";
 
 // 2026-11(18번째 라운드 17차), 혜민님이 지난 라운드의 "프레임 모양" 해석을 정정:
 // "프레임모양 이런식으로 만들어주라 사각형원형타형육각형 처럼 도형말구" — 스크린샷
@@ -7270,28 +7278,31 @@ function ImageBoxPanel({
                     그걸 고르면 모서리 둥글기는 의미가 없어져서(둥근 모서리 개념이 없음)
                     슬라이더 자체를 숨겨요. */}
                 <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">사진 자르는 모양</p>
-                <div className="mb-2 grid grid-cols-3 gap-1">
+                <div className="mb-2 grid grid-cols-4 gap-1">
                   {(
                     [
                       { key: "rect" as const, label: "사각형" },
                       { key: "circle" as const, label: "원형/타원" },
                       { key: "hexagon" as const, label: "육각형" },
+                      { key: "scalloped" as const, label: "톱니(우표)" },
                     ]
                   ).map((opt) => {
-                    const currentShape: "rect" | "circle" | "hexagon" =
+                    const currentShape: "rect" | "circle" | "hexagon" | "scalloped" =
                       frameTargetBox.frameShape === "hexagon"
                         ? "hexagon"
-                        : (frameTargetBox.borderRadiusPct ?? 0) >= 50
-                          ? "circle"
-                          : "rect";
+                        : frameTargetBox.frameShape === "scalloped"
+                          ? "scalloped"
+                          : (frameTargetBox.borderRadiusPct ?? 0) >= 50
+                            ? "circle"
+                            : "rect";
                     const active = currentShape === opt.key;
                     return (
                       <button
                         key={opt.key}
                         type="button"
                         onClick={() => {
-                          if (opt.key === "hexagon") {
-                            onFrameChange(frameTargetBox.id, { frameShape: "hexagon" });
+                          if (opt.key === "hexagon" || opt.key === "scalloped") {
+                            onFrameChange(frameTargetBox.id, { frameShape: opt.key });
                           } else if (opt.key === "circle") {
                             onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 50 });
                           } else {
@@ -7372,7 +7383,7 @@ function ImageBoxPanel({
                     className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
                   />
                 </div>
-                {frameTargetBox.frameShape !== "hexagon" && (
+                {frameTargetBox.frameShape !== "hexagon" && frameTargetBox.frameShape !== "scalloped" && (
                   <>
                     <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
                       모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
@@ -7569,9 +7580,18 @@ const ImageBoxOverlay = forwardRef<
   // "둥글게를 최대치로 하면 원이 되도록"). 2026-11(18번째 라운드 15차) — "프레임
   // 모양" 새 기능: frameShape가 "hexagon"이면 모서리 둥글기 개념 자체가 없어서(육각형
   // 윤곽선으로 통째로 대체) borderRadiusPct는 무시해요.
+  // 2026-11(18번째 라운드 18차) — "톱니(우표)" 모양도 hexagon과 똑같이 모서리
+  // 둥글기 개념이 없어요(윤곽선 자체가 이미 파여 있는 모양이라).
   const cssRadius =
-    box.frameShape !== "hexagon" && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
-  const cssClipPath = box.frameShape === "hexagon" ? HEXAGON_CLIP_PATH : undefined;
+    box.frameShape !== "hexagon" && box.frameShape !== "scalloped" && box.borderRadiusPct
+      ? `${box.borderRadiusPct}%`
+      : undefined;
+  const cssClipPath =
+    box.frameShape === "hexagon"
+      ? HEXAGON_CLIP_PATH
+      : box.frameShape === "scalloped"
+        ? SCALLOPED_CLIP_PATH
+        : undefined;
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
