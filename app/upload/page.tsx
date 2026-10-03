@@ -16005,10 +16005,25 @@ function UploadPageContent() {
                               handlesRef={coverImageBoxHandlesRef}
                               backCoverLogoSelected={backCoverLogoSelected}
                               onBackCoverLogoBack={() => setBackCoverLogoSelected(false)}
+                              // 2026-11(18번째 라운드 19차), 혜민님 버그 리포트("선택한
+                              // 이미지 프레임변경이 안되고 오른쪽의 이미지 프레임이
+                              // 변경되네요") 수정 — 예전엔 지금 선택된 박스를 못 찾으면
+                              // (activeCoverImageBox가 없거나 "front"가 아닐 때)
+                              // "?? coverImageBoxes[coverImageBoxes.length - 1]"로 그냥
+                              // 배열의 "마지막" 박스를 대신 보여줬어요. 사진을 추가한
+                              // 순서상 마지막 박스가 화면에서 오른쪽/위에 있는 경우가
+                              // 많아서, "분명히 다른 사진을 선택했는데 오른쪽 사진이
+                              // 바뀐다"는 증상으로 나타났어요 — 선택이 하나도 없을 때도
+                              // 패널이 "선택된 것처럼" 마지막 박스를 보여주면서 그 박스를
+                              // 조용히 바꿔버린 거예요. TableBoxToolbar(바로 아래 다른
+                              // 패널)는 같은 상황에서 이미 안전하게 "null"을 쓰고
+                              // 있었는데, 사진 패널만 이 위험한 fallback이 남아있었어요.
+                              // 지금은 못 찾으면 undefined(= 선택 없음, "사진 불러오기"
+                              // 화면)로 떨어져서, 절대 다른 박스를 몰래 바꾸지 않아요.
                               frameTargetBox={
-                                (activeCoverImageBox?.target === "front"
+                                activeCoverImageBox?.target === "front"
                                   ? coverImageBoxes.find((b) => b.id === activeCoverImageBox.boxId)
-                                  : undefined) ?? coverImageBoxes[coverImageBoxes.length - 1]
+                                  : undefined
                               }
                               topTab={coverPhotoTopTab}
                               onTopTabChange={setCoverPhotoTopTab}
@@ -17002,10 +17017,16 @@ function UploadPageContent() {
                                   activeBoxId={activeImageBox?.spreadIndex === i ? activeImageBox.boxId : null}
                                   onBack={() => setActiveImageBox(null)}
                                   handlesRef={imageBoxHandlesRef}
+                                  // 2026-11(18번째 라운드 19차) — 위 표지 패널과 같은
+                                  // 버그·같은 수정이에요(혜민님 버그 리포트: "선택한
+                                  // 이미지 프레임변경이 안되고 오른쪽의 이미지 프레임이
+                                  // 변경되네요"). 예전엔 "?? (spread.imageBoxes ??
+                                  // [])[length - 1]"로 이 스프레드의 "마지막" 사진박스에
+                                  // 몰래 적용됐어요.
                                   frameTargetBox={
-                                    (activeImageBox?.spreadIndex === i
+                                    activeImageBox?.spreadIndex === i
                                       ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId)
-                                      : undefined) ?? (spread.imageBoxes ?? [])[(spread.imageBoxes ?? []).length - 1]
+                                      : undefined
                                   }
                                   topTab={photoTopTab}
                                   onTopTabChange={setPhotoTopTab}
