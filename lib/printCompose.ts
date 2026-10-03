@@ -25,6 +25,7 @@ import {
   starShapePoints,
   heartShapePoints,
   BORDER_PATTERN_SHAPE_SIZE_PCT,
+  framePerimeterPoints,
 } from "@/lib/frameShapes";
 import {
   PhotobookCoverId,
@@ -134,24 +135,38 @@ function roundedRectPath(
   ctx.closePath();
 }
 
-// 2026-11(18번째 라운드 19차), 혜민님 요청("사각형, 원형타원, 육각형, 톱니 메뉴
-// 삭제해주세요. 너무이상해요") — "프레임 모양"(ImageBoxDef.frameShape) 클리핑
-// 기능을 화면·인쇄 양쪽에서 완전히 뺐어요. 여기 있던 hexagonPath/scallopedPath와
-// frameShape 분기를 지우고, framedShapePath는 이제 box.frameShape 값을 전혀 안
-// 읽고 항상 roundedRectPath(모서리 둥글기)만 써요 — 혹시 예전에 frameShape가
-// "hexagon"/"scalloped"로 저장된 박스가 있어도(스키마 필드 자체는 안 건드렸어요,
-// 하위 호환) 항상 평범한 사각형(+모서리 둥글기)으로만 그려져요. 클리핑(사진
-// 자르기)·테두리(선 그리기) 둘 다 이 함수 하나로 통일해서, 두 군데가 서로 다른
-// 모양으로 어긋날 일이 없게 했어요.
+// 2026-11(18번째 라운드 20차), 혜민님이 다른 앱의 "프레임 모양" 갤러리 스크린샷을
+// 보내고 "이미지 보내주신 거 최대한 비슷하게 전부" 추가해달라고 요청해서, 19차에서
+// 뺐던 "프레임 모양" 클리핑을 다시 넣어요(이번엔 안전함 — 그때 버그였던
+// frameTargetBox 오타겟 문제가 2351688에서 이미 고쳐졌어요). lib/frameShapes.ts의
+// framePerimeterPoints(box.frameShape)가 "rect"(기본값)면 null을, 그 외엔 그 모양의
+// 외곽선 점 배열(0~100%, 박스 기준)을 돌려줘요 — null이면 기존처럼
+// roundedRectPath(모서리 둥글기)를, 점 배열이 있으면 그 % 좌표를 박스의 실제 px
+// 폭/높이에 곱해서 canvas 경로로 그려요. 화면(app/upload/page.tsx)도 같은
+// framePerimeterPoints()를 그대로 가져다 CSS clip-path로 바꿔서 쓰기 때문에, 모양
+// 공식이 양쪽에서 어긋날 수 없어요(숫자 자체가 한 군데). 클리핑(사진 자르기)·테두리
+// (선 그리기) 둘 다 이 함수 하나로 통일하는 것도 그대로 유지해요.
 function framedShapePath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  box: Pick<ImageBoxDef, "borderRadiusPct">
+  box: Pick<ImageBoxDef, "borderRadiusPct" | "frameShape">
 ) {
-  roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
+  const pts = framePerimeterPoints(box.frameShape);
+  if (!pts) {
+    roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
+    return;
+  }
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const px = x + (p.xPct / 100) * w;
+    const py = y + (p.yPct / 100) * h;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  ctx.closePath();
 }
 
 // 2026-11(18번째 라운드 18차), 혜민님 요청("점/별/하트무늬 테두리") — 화면
