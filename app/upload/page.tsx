@@ -15877,19 +15877,19 @@ function UploadPageContent() {
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(44px,9cqw,56px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(50px,10cqw,64px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveCoverEditTab(tab.id)}
-                                className={`flex shrink-0 flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] transition ${
+                                className={`flex shrink-0 flex-col items-center gap-1 px-1.5 py-2 text-[11px] transition ${
                                   activeCoverEditTab === tab.id
                                     ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                     : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                 }`}
                               >
-                                <MenuTabIcon name={tab.icon} />
+                                <MenuTabIcon name={tab.icon} className="h-5 w-5" />
                                 <span className="whitespace-nowrap">{tab.label}</span>
                               </button>
                             ))}
@@ -16862,7 +16862,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(44px,9cqw,56px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(50px,10cqw,64px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
@@ -16871,13 +16871,13 @@ function UploadPageContent() {
                                     key={tab.id}
                                     type="button"
                                     onClick={() => setActiveEditTab(tab.id)}
-                                    className={`flex shrink-0 flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] transition ${
+                                    className={`flex shrink-0 flex-col items-center gap-1 px-1.5 py-2 text-[11px] transition ${
                                       activeEditTab === tab.id
                                         ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                         : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                     }`}
                                   >
-                                    <MenuTabIcon name={tab.icon} />
+                                    <MenuTabIcon name={tab.icon} className="h-5 w-5" />
                                     <span className="whitespace-nowrap">{tab.label}</span>
                                   </button>
                                 ))}
