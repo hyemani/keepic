@@ -1954,6 +1954,12 @@ function computeSnap({
 // 이 상수를 써요.
 const SELECTED_BOX_Z_INDEX = 100000;
 
+// 2026-11(18번째 라운드 15차), 혜민님 요청("프레임 모양도 있었으면 좋겠어요") — 사진
+// 프레임의 "육각형" 모양이에요. CSS clip-path: polygon(...)과 lib/printCompose.ts의
+// hexagonPath가 정확히 같은 6개 꼭짓점(박스 가로/세로 기준 %)을 써서, 화면과 인쇄
+// 파일이 똑같은 모양으로 나와요 — 세로로 긴 좌우 평평한 면 + 위아래 뾰족한 육각형.
+const HEXAGON_CLIP_PATH = "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)";
+
 // 스냅 안내선 색이에요 — 선택 테두리(--color-sky, 파랑)·재단선/안전선(검정)과 확실히
 // 구분되도록, 일러스트레이터/피그마의 "스마트 가이드"에서 흔히 쓰는 마젠타 계열을 새로
 // 골랐어요(2026-10 통합 스냅에서 추가).
@@ -7151,6 +7157,55 @@ function ImageBoxPanel({
               // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의 "테두리"
               // 조절판과 똑같은 기능이에요.
               <div className="border border-[var(--color-hairline)] bg-white p-2">
+                {/* 2026-11(18번째 라운드 15차), 혜민님 요청("프레임 모양도 있었으면
+                    좋겠어요") — "원형/타원"은 새 모양이 아니라 바로 아래 "모서리
+                    둥글게" 슬라이더를 최대치(50)로 맞추는 바로가기예요(정사각형
+                    박스면 원, 직사각형이면 타원 — 기존 기능 그대로). "육각형"만
+                    진짜 새 모양이라, 그걸 고르면 모서리 둥글기는 의미가 없어져서
+                    (둥근 모서리 개념이 없음) 슬라이더 자체를 숨겨요. */}
+                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">프레임 모양</p>
+                <div className="mb-2 grid grid-cols-3 gap-1">
+                  {(
+                    [
+                      { key: "rect" as const, label: "사각형" },
+                      { key: "circle" as const, label: "원형/타원" },
+                      { key: "hexagon" as const, label: "육각형" },
+                    ]
+                  ).map((opt) => {
+                    const currentShape: "rect" | "circle" | "hexagon" =
+                      frameTargetBox.frameShape === "hexagon"
+                        ? "hexagon"
+                        : (frameTargetBox.borderRadiusPct ?? 0) >= 50
+                          ? "circle"
+                          : "rect";
+                    const active = currentShape === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          if (opt.key === "hexagon") {
+                            onFrameChange(frameTargetBox.id, { frameShape: "hexagon" });
+                          } else if (opt.key === "circle") {
+                            onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 50 });
+                          } else {
+                            onFrameChange(frameTargetBox.id, {
+                              frameShape: "rect",
+                              borderRadiusPct: (frameTargetBox.borderRadiusPct ?? 0) >= 50 ? 0 : frameTargetBox.borderRadiusPct,
+                            });
+                          }
+                        }}
+                        className={`border px-1 py-1.5 text-[10.5px] transition ${
+                          active
+                            ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                            : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
                 <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
                   테두리 두께 {frameTargetBox.borderWidthPx ?? 0}px
                 </p>
@@ -7173,21 +7228,25 @@ function ImageBoxPanel({
                     className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
                   />
                 </div>
-                <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
-                  모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
-                  {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
-                </p>
-                <input
-                  type="range"
-                  min={0}
-                  max={50}
-                  step={1}
-                  value={frameTargetBox.borderRadiusPct ?? 0}
-                  onChange={(e) =>
-                    onFrameChange(frameTargetBox.id, { borderRadiusPct: Number(e.target.value) })
-                  }
-                  className="w-full"
-                />
+                {frameTargetBox.frameShape !== "hexagon" && (
+                  <>
+                    <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
+                      모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
+                      {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
+                    </p>
+                    <input
+                      type="range"
+                      min={0}
+                      max={50}
+                      step={1}
+                      value={frameTargetBox.borderRadiusPct ?? 0}
+                      onChange={(e) =>
+                        onFrameChange(frameTargetBox.id, { borderRadiusPct: Number(e.target.value) })
+                      }
+                      className="w-full"
+                    />
+                  </>
+                )}
               </div>
             ) : (
               <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
@@ -7363,8 +7422,12 @@ const ImageBoxOverlay = forwardRef<
   const isSticker = isStickerImageBox(box);
   // 모서리 둥글기를 %로 계산해요 — 0%는 사각형, 50%는 CSS border-radius:50%와 같은
   // 값이라 정사각형 박스면 정원, 직사각형이면 타원이 자연스럽게 나와요(2026-09-28,
-  // "둥글게를 최대치로 하면 원이 되도록").
-  const cssRadius = box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
+  // "둥글게를 최대치로 하면 원이 되도록"). 2026-11(18번째 라운드 15차) — "프레임
+  // 모양" 새 기능: frameShape가 "hexagon"이면 모서리 둥글기 개념 자체가 없어서(육각형
+  // 윤곽선으로 통째로 대체) borderRadiusPct는 무시해요.
+  const cssRadius =
+    box.frameShape !== "hexagon" && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
+  const cssClipPath = box.frameShape === "hexagon" ? HEXAGON_CLIP_PATH : undefined;
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -7922,6 +7985,7 @@ const ImageBoxOverlay = forwardRef<
         transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
         opacity: box.opacity ?? 1,
         borderRadius: cssRadius,
+        clipPath: cssClipPath,
       }}
     >
       {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
@@ -7959,7 +8023,7 @@ const ImageBoxOverlay = forwardRef<
           // "잘리는 부분이 생기지 않도록 이미지박스 적용은 안 하는 게 좋겠다" 요청).
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
-            style={{ borderRadius: cssRadius }}
+            style={{ borderRadius: cssRadius, clipPath: cssClipPath }}
           >
             <img
               src={box.url}
@@ -7972,7 +8036,7 @@ const ImageBoxOverlay = forwardRef<
         ) : (
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
-            style={{ borderRadius: cssRadius }}
+            style={{ borderRadius: cssRadius, clipPath: cssClipPath }}
           >
             <img
               src={box.url}
@@ -8000,6 +8064,7 @@ const ImageBoxOverlay = forwardRef<
           className="pointer-events-none absolute inset-0"
           style={{
             borderRadius: cssRadius,
+            clipPath: cssClipPath,
             boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${box.borderColor ?? "#ffffff"}`,
           }}
         />

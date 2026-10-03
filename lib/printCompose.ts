@@ -128,6 +128,41 @@ function roundedRectPath(
   ctx.closePath();
 }
 
+// 2026-11(18번째 라운드 15차), 혜민님 요청("프레임 모양도 있었으면 좋겠어요") — 사진
+// 프레임 "육각형" 모양이에요. 화면(app/upload/page.tsx의 HEXAGON_CLIP_PATH, CSS
+// clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%))과 정확히
+// 같은 6개 꼭짓점(박스 가로/세로 기준 %)이에요 — 좌우는 평평한 수직면, 위아래는
+// 뾰족한 모양.
+function hexagonPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.25, y);
+  ctx.lineTo(x + w * 0.75, y);
+  ctx.lineTo(x + w, y + h * 0.5);
+  ctx.lineTo(x + w * 0.75, y + h);
+  ctx.lineTo(x + w * 0.25, y + h);
+  ctx.lineTo(x, y + h * 0.5);
+  ctx.closePath();
+}
+
+// 사진박스의 "프레임 모양"(ImageBoxDef.frameShape)에 맞는 경로를 그려요 — hexagon이면
+// 육각형, 그 외(기본값 "rect" 포함)엔 기존처럼 모서리 둥글기(roundedRectPath)를 써요.
+// 클리핑(사진 자르기)·테두리(선 그리기) 둘 다 이 함수 하나로 통일해서, 두 군데가
+// 서로 다른 모양으로 어긋날 일이 없게 했어요.
+function framedShapePath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  box: Pick<ImageBoxDef, "frameShape" | "borderRadiusPct">
+) {
+  if (box.frameShape === "hexagon") {
+    hexagonPath(ctx, x, y, w, h);
+  } else {
+    roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
+  }
+}
+
 // 그라데이션 글자색(2026-11, 15번째 라운드, 새 기능) — 화면의 CSS
 // background-clip:text(linear-gradient(각도deg, 시작, 끝))와 같은 각도 규칙을
 // canvas 2D의 createLinearGradient(x0,y0,x1,y1)로 옮겨요. CSS 각도(0deg=위쪽,
@@ -922,7 +957,7 @@ function drawImageBoxOnCanvas(
   // 2026-11(18번째 라운드 15차) — 화면의 border-radius(%)와 같은 모양으로 둥글게
   // 잘라요(roundedRectPath, 위 정의). radiusPct가 0/undefined면 평범한 직각 사각형
   // 경로라 기존과 완전히 동일해요(하위 호환).
-  roundedRectPath(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box.borderRadiusPct);
+  framedShapePath(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box);
   ctx.clip();
   // 투명도(2026-09-26 "편집툴 투명도" 요청으로 추가) — save()/restore() 안에서만
   // 바꿔서, 이 박스를 다 그리고 나면 자동으로 원래 값(1)으로 돌아가요.
@@ -947,13 +982,13 @@ function drawImageBoxOnCanvas(
     const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
     ctx.lineWidth = printBorderPx;
     ctx.strokeStyle = box.borderColor ?? "#ffffff";
-    roundedRectPath(
+    framedShapePath(
       ctx,
       boxLeftPagePx + printBorderPx / 2,
       boxTopPx + printBorderPx / 2,
       boxWidthSpreadPx - printBorderPx,
       boxHeightPx - printBorderPx,
-      box.borderRadiusPct
+      box
     );
     ctx.stroke();
   }
@@ -992,7 +1027,7 @@ async function drawImageBoxesInPanel(
     ctx.save();
     // 2026-11(18번째 라운드 15차) — drawImageBoxOnCanvas와 같은 이유로, 둥근 모서리로
     // 잘라요(roundedRectPath).
-    roundedRectPath(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box.borderRadiusPct);
+    framedShapePath(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box);
     ctx.clip();
     // 투명도·테두리(2026-09-26 추가) — drawImageBoxOnCanvas와 같은 방식이에요.
     ctx.globalAlpha = box.opacity ?? 1;
@@ -1009,13 +1044,13 @@ async function drawImageBoxesInPanel(
       const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
       ctx.lineWidth = printBorderPx;
       ctx.strokeStyle = box.borderColor ?? "#ffffff";
-      roundedRectPath(
+      framedShapePath(
         ctx,
         boxLeftPx + printBorderPx / 2,
         boxTopPx + printBorderPx / 2,
         boxWidthPx - printBorderPx,
         boxHeightPx - printBorderPx,
-        box.borderRadiusPct
+        box
       );
       ctx.stroke();
     }
