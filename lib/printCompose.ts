@@ -86,6 +86,48 @@ function fillRoundedRect(
   ctx.fill();
 }
 
+// 2026-11(18번째 라운드 15차), 혜민님 버그 리포트("사진 프레임 변경시 적용안되는
+// 부분 확인됩니다") 조사 결과 — 사진박스(ImageBoxDef)의 테두리 두께(borderWidthPx)는
+// 이미 인쇄 파일에 반영되고 있었지만(아래 drawImageBoxOnCanvas의 strokeRect),
+// "모서리 둥글게"(borderRadiusPct)는 화면(ImageBoxOverlay의 CSS border-radius)에만
+// 적용되고 인쇄 파일 쪽에는 전혀 반영되는 코드가 없었어요(lib/albumTemplates.ts의
+// borderRadiusPct 필드 주석에도 "인쇄 파일 쪽 클리핑은 아직 반영 안 함"이라고 이미
+// 적혀 있었음 — 미완성 상태였던 게 맞음). 그래서 화면에서 슬라이더로 둥글게 만들어도
+// 실제 인쇄되는 사진은 항상 직각 사각형으로 나왔던 거예요.
+// 화면의 `border-radius: {pct}%`(가로/세로 각각 다른 비율로 둥글게 — 정사각형이면
+// 원, 직사각형이면 타원)과 똑같은 모양을 만들기 위해, 가로반지름(rx)은 너비의 pct%,
+// 세로반지름(ry)은 높이의 pct%로 따로 계산해서 타원 모서리 경로를 그려요(fillRoundedRect
+// 처럼 "짧은 변 기준 하나의 원형 반지름"을 쓰면 직사각형에서 화면과 다른 모양이 나와요).
+// pct가 0/undefined면 반지름이 0이라 평범한 직각 사각형 경로가 되어 기존 동작과 완전히
+// 같아요(하위 호환) — 기존에 저장된 사진박스(borderRadiusPct 없음)는 전혀 안 바뀌어요.
+function roundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radiusPct: number | undefined
+) {
+  const pct = Math.max(0, Math.min(50, radiusPct ?? 0));
+  const rx = (pct / 100) * Math.abs(w);
+  const ry = (pct / 100) * Math.abs(h);
+  ctx.beginPath();
+  if (!rx || !ry) {
+    ctx.rect(x, y, w, h);
+    return;
+  }
+  ctx.moveTo(x + rx, y);
+  ctx.lineTo(x + w - rx, y);
+  ctx.ellipse(x + w - rx, y + ry, rx, ry, 0, -Math.PI / 2, 0);
+  ctx.lineTo(x + w, y + h - ry);
+  ctx.ellipse(x + w - rx, y + h - ry, rx, ry, 0, 0, Math.PI / 2);
+  ctx.lineTo(x + rx, y + h);
+  ctx.ellipse(x + rx, y + h - ry, rx, ry, 0, Math.PI / 2, Math.PI);
+  ctx.lineTo(x, y + ry);
+  ctx.ellipse(x + rx, y + ry, rx, ry, 0, Math.PI, Math.PI * 1.5);
+  ctx.closePath();
+}
+
 // 그라데이션 글자색(2026-11, 15번째 라운드, 새 기능) — 화면의 CSS
 // background-clip:text(linear-gradient(각도deg, 시작, 끝))와 같은 각도 규칙을
 // canvas 2D의 createLinearGradient(x0,y0,x1,y1)로 옮겨요. CSS 각도(0deg=위쪽,
@@ -877,8 +919,10 @@ function drawImageBoxOnCanvas(
   ctx.beginPath();
   ctx.rect(0, 0, pageW, pageH);
   ctx.clip();
-  ctx.beginPath();
-  ctx.rect(boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
+  // 2026-11(18번째 라운드 15차) — 화면의 border-radius(%)와 같은 모양으로 둥글게
+  // 잘라요(roundedRectPath, 위 정의). radiusPct가 0/undefined면 평범한 직각 사각형
+  // 경로라 기존과 완전히 동일해요(하위 호환).
+  roundedRectPath(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box.borderRadiusPct);
   ctx.clip();
   // 투명도(2026-09-26 "편집툴 투명도" 요청으로 추가) — save()/restore() 안에서만
   // 바꿔서, 이 박스를 다 그리고 나면 자동으로 원래 값(1)으로 돌아가요.
@@ -903,12 +947,15 @@ function drawImageBoxOnCanvas(
     const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
     ctx.lineWidth = printBorderPx;
     ctx.strokeStyle = box.borderColor ?? "#ffffff";
-    ctx.strokeRect(
+    roundedRectPath(
+      ctx,
       boxLeftPagePx + printBorderPx / 2,
       boxTopPx + printBorderPx / 2,
       boxWidthSpreadPx - printBorderPx,
-      boxHeightPx - printBorderPx
+      boxHeightPx - printBorderPx,
+      box.borderRadiusPct
     );
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -943,8 +990,9 @@ async function drawImageBoxesInPanel(
       box.innerScale ?? 1
     );
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx);
+    // 2026-11(18번째 라운드 15차) — drawImageBoxOnCanvas와 같은 이유로, 둥근 모서리로
+    // 잘라요(roundedRectPath).
+    roundedRectPath(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box.borderRadiusPct);
     ctx.clip();
     // 투명도·테두리(2026-09-26 추가) — drawImageBoxOnCanvas와 같은 방식이에요.
     ctx.globalAlpha = box.opacity ?? 1;
@@ -961,12 +1009,15 @@ async function drawImageBoxesInPanel(
       const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
       ctx.lineWidth = printBorderPx;
       ctx.strokeStyle = box.borderColor ?? "#ffffff";
-      ctx.strokeRect(
+      roundedRectPath(
+        ctx,
         boxLeftPx + printBorderPx / 2,
         boxTopPx + printBorderPx / 2,
         boxWidthPx - printBorderPx,
-        boxHeightPx - printBorderPx
+        boxHeightPx - printBorderPx,
+        box.borderRadiusPct
       );
+      ctx.stroke();
     }
     ctx.restore();
   }
