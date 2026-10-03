@@ -3623,8 +3623,20 @@ function StackOrderToolbar({
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-50 flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap rounded-2xl bg-white px-1.5 py-1 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
-      style={fillsFrame ? { top: 6 } : flip ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }}
+      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 items-center gap-0.5 whitespace-nowrap rounded-2xl bg-white px-1.5 py-1 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
+      // 2026-11(18번째 라운드 19차), 혜민님 요청("편집패널이 위쪽 상단에 배치되어있는데
+      // 하단쪽에 배치되는게 좋을거같아요") — "화면 하단 공간 부족" fallback(flip, 박스가
+      // 페이지 밑바닥에 가까울 때만 위로 띄움)은 그대로 안 건드렸어요. 바꾼 건
+      // fillsFrame(박스가 위아래로 대지를 꽉 채워서 바깥에 뗄 자리가 전혀 없는 경우)
+      // 뿐이에요 — 예전엔 이때 박스 "안쪽 위" 가장자리에 겹쳐 띄웠는데(top: 6), 전면
+      // 사진처럼 박스가 페이지를 거의 다 채우는 레이아웃에서 이 경우가 아주 흔해서
+      // "툴바가 늘 사진 위쪽을 덮는다"로 보였어요. 바깥에 공간이 없는 건 마찬가지라
+      // 어차피 "안쪽"에 겹쳐야 하지만, 아래쪽(bottom: 6)에 겹치도록 바꿔서 요청하신
+      // "하단 배치"를 이 경우에도 지켜요. z-index도 z-50 → z-[100001]로 올렸어요(아래
+      // "테두리" 두께 조절판 등 이 툴바의 하위 패널이 사진에 가려 보이던 문제 대응,
+      // SELECTED_BOX_Z_INDEX=100000보다 한 단계 위로 — 그 어떤 다른 박스보다도 항상
+      // 위에 그려지도록 구조적으로 보장).
+      style={fillsFrame ? { bottom: 6 } : flip ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }}
     >
       {onDelete && (
         <ToolbarLabeledButton title="삭제" label="삭제" icon="delete" onClick={onDelete} danger />
@@ -3656,7 +3668,7 @@ function StackOrderToolbar({
           {openPanel === "rotation" && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
-              className="absolute left-1/2 top-full z-50 mt-1.5 w-40 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
+              className="absolute left-1/2 top-full z-[100001] mt-1.5 w-40 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
             >
               {/* 2026-10-06, 혜민님 요청: "미세한 회전조절이 안되더라고요, 회전툴도
                   추가해주세요" — 기존 90도 단위 회전 버튼과 별개로, 슬라이더(1도
@@ -3711,7 +3723,7 @@ function StackOrderToolbar({
           {openPanel === "opacity" && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
-              className="absolute left-1/2 top-full z-50 mt-1.5 w-32 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
+              className="absolute left-1/2 top-full z-[100001] mt-1.5 w-32 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
             >
               <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">투명도 {Math.round((opacity ?? 1) * 100)}%</p>
               <input
@@ -3739,7 +3751,7 @@ function StackOrderToolbar({
           {openPanel === "border" && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
-              className="absolute left-1/2 top-full z-50 mt-1.5 w-36 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
+              className="absolute left-1/2 top-full z-[100001] mt-1.5 w-36 -translate-x-1/2 border border-[var(--color-hairline)] bg-white p-2 text-[var(--color-charcoal)] "
             >
               <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">테두리 두께 {borderWidthPx ?? 0}px</p>
               <div className="flex items-center gap-2">
@@ -17185,7 +17197,23 @@ function UploadPageContent() {
                                 <div className="pointer-events-none absolute inset-8 bg-white shadow-[0_25px_55px_-12px_rgba(0,0,0,0.5)] sm:inset-12" />
                               )}
                               <div
-                                className="relative overflow-hidden"
+                                // 2026-11(18번째 라운드 19차), 혜민님 버그 리포트("선택박스
+                                // 오른쪽 부분 보면 파란 네모가 대지 넘어가서그런지 잘려서
+                                // 보여요") 조사 — 원인: 리사이즈 손잡이(SelectionHandles)는
+                                // 디자인상 항상 박스 경계에 6px씩 걸치게 그려지는데(-right-1.5
+                                // 등, 핸들 절반이 박스 바깥으로 나가요 — 일러스트레이터/피그마와
+                                // 같은 방식), 박스가 대지(스프레드) 가장자리에 딱 붙어있으면
+                                // (전체 사진처럼 아주 흔해요) 그 바깥으로 나간 절반이 바로 이
+                                // overflow-hidden에 잘려요. 389ac58(선택 박스 z-index 수정)과는
+                                // 무관해요 — 그 커밋은 쌓임 순서만 바꿨고 이 overflow 속성은
+                                // 손대지 않았어요(git show 389ac58로 직접 확인). 수정: 인쇄
+                                // 미리보기(isPrintPreview)는 도련(bleed) 잘림이 실제 인쇄
+                                // 결과와 정확히 같아야 해서 그대로 overflow-hidden을 유지하고,
+                                // 편집 화면에서만 overflow-visible로 바꿔서 손잡이가 안 잘리게
+                                // 했어요 — 편집 중 사진이 대지 밖으로 일부 나가 있는 것을 보여주는
+                                // 용도로도 쓰이던 속성이라(도련 미리보기용), 인쇄 미리보기 쪽은
+                                // 전혀 안 건드려서 그 동작은 바뀌지 않아요.
+                                className={`relative ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                                 style={
                                   !isPrintPreview && SHOW_RULER
                                     ? {
