@@ -21,7 +21,6 @@ import {
 } from "@/lib/textRuns";
 import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
 import {
-  scallopedRectPoints,
   borderPatternCenterPoints,
   starShapePoints,
   heartShapePoints,
@@ -135,58 +134,24 @@ function roundedRectPath(
   ctx.closePath();
 }
 
-// 2026-11(18번째 라운드 15차), 혜민님 요청("프레임 모양도 있었으면 좋겠어요") — 사진
-// 프레임 "육각형" 모양이에요. 화면(app/upload/page.tsx의 HEXAGON_CLIP_PATH, CSS
-// clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%))과 정확히
-// 같은 6개 꼭짓점(박스 가로/세로 기준 %)이에요 — 좌우는 평평한 수직면, 위아래는
-// 뾰족한 모양.
-function hexagonPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + w * 0.25, y);
-  ctx.lineTo(x + w * 0.75, y);
-  ctx.lineTo(x + w, y + h * 0.5);
-  ctx.lineTo(x + w * 0.75, y + h);
-  ctx.lineTo(x + w * 0.25, y + h);
-  ctx.lineTo(x, y + h * 0.5);
-  ctx.closePath();
-}
-
-// 사진박스의 "프레임 모양"(ImageBoxDef.frameShape)에 맞는 경로를 그려요 — hexagon이면
-// 육각형, 그 외(기본값 "rect" 포함)엔 기존처럼 모서리 둥글기(roundedRectPath)를 써요.
-// 클리핑(사진 자르기)·테두리(선 그리기) 둘 다 이 함수 하나로 통일해서, 두 군데가
-// 서로 다른 모양으로 어긋날 일이 없게 했어요.
-// 2026-11(18번째 라운드 18차), 혜민님 요청("톱니/물결 모양(우표 스타일) 테두리") —
-// lib/frameShapes.ts의 scallopedRectPoints()(화면 app/upload/page.tsx의
-// SCALLOPED_CLIP_PATH와 완전히 같은 함수)를 그대로 가져다, 그 % 좌표를 박스의 실제
-// px 폭/높이에 곱해서 canvas 경로로 그려요 — 화면·인쇄가 같은 숫자 배열을 쓰기
-// 때문에 두 쪽 모양이 어긋날 수가 없어요.
-function scallopedPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-  const pts = scallopedRectPoints();
-  ctx.beginPath();
-  pts.forEach((p, i) => {
-    const px = x + (p.xPct / 100) * w;
-    const py = y + (p.yPct / 100) * h;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  });
-  ctx.closePath();
-}
-
+// 2026-11(18번째 라운드 19차), 혜민님 요청("사각형, 원형타원, 육각형, 톱니 메뉴
+// 삭제해주세요. 너무이상해요") — "프레임 모양"(ImageBoxDef.frameShape) 클리핑
+// 기능을 화면·인쇄 양쪽에서 완전히 뺐어요. 여기 있던 hexagonPath/scallopedPath와
+// frameShape 분기를 지우고, framedShapePath는 이제 box.frameShape 값을 전혀 안
+// 읽고 항상 roundedRectPath(모서리 둥글기)만 써요 — 혹시 예전에 frameShape가
+// "hexagon"/"scalloped"로 저장된 박스가 있어도(스키마 필드 자체는 안 건드렸어요,
+// 하위 호환) 항상 평범한 사각형(+모서리 둥글기)으로만 그려져요. 클리핑(사진
+// 자르기)·테두리(선 그리기) 둘 다 이 함수 하나로 통일해서, 두 군데가 서로 다른
+// 모양으로 어긋날 일이 없게 했어요.
 function framedShapePath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  box: Pick<ImageBoxDef, "frameShape" | "borderRadiusPct">
+  box: Pick<ImageBoxDef, "borderRadiusPct">
 ) {
-  if (box.frameShape === "hexagon") {
-    hexagonPath(ctx, x, y, w, h);
-  } else if (box.frameShape === "scalloped") {
-    scallopedPath(ctx, x, y, w, h);
-  } else {
-    roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
-  }
+  roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
 }
 
 // 2026-11(18번째 라운드 18차), 혜민님 요청("점/별/하트무늬 테두리") — 화면
@@ -1058,12 +1023,12 @@ function drawImageBoxOnCanvas(
       box
     );
     ctx.stroke();
-    // 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트, 사각형 전용). 화면의
-    // SVG 오버레이가 박스 전체(inset-0, 테두리 두께로 안쪽을 줄이지 않음)를 기준으로
-    // 그려지는 것과 똑같이, 여기도 줄이지 않은 원래 박스 영역(boxLeftPagePx 등)을 써요.
-    if (box.frameShape !== "hexagon" && box.frameShape !== "scalloped") {
-      drawBorderPattern(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box);
-    }
+    // 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트). 화면의 SVG 오버레이가
+    // 박스 전체(inset-0, 테두리 두께로 안쪽을 줄이지 않음)를 기준으로 그려지는 것과
+    // 똑같이, 여기도 줄이지 않은 원래 박스 영역(boxLeftPagePx 등)을 써요. 2026-11
+    // (18번째 라운드 19차) — "프레임 모양" 클리핑 기능을 없애면서(위 framedShapePath
+    // 주석 참고) frameShape 분기도 같이 뺐어요.
+    drawBorderPattern(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box);
   }
   ctx.restore();
 }
@@ -1126,9 +1091,7 @@ async function drawImageBoxesInPanel(
         box
       );
       ctx.stroke();
-      if (box.frameShape !== "hexagon" && box.frameShape !== "scalloped") {
-        drawBorderPattern(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box);
-      }
+      drawBorderPattern(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box);
     }
     ctx.restore();
   }
