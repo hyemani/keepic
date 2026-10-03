@@ -11078,9 +11078,19 @@ function CanvasStage({
           기준 세로 중앙에 떠요)도 책의 실제 세로 중앙과 다시 맞아떨어져요(혜민님,
           "화살표가 너무 아래에 치우쳐있고"). baseFit이 항상 availW/availH 안에 딱
           맞게 계산하니 실제로 넘칠 일은 없어서 overflow-auto는 안전망일 뿐이에요. */}
+      {/* 2026-11(18번째 라운드 20차), 혜민님 버그 리포트("선택박스 선택시 파란네모가
+          잘려서 보입니다" / "하단패널 누르면 메뉴가 잘려서 안보입니다") 조사 — 표지·
+          스프레드 안쪽 컨테이너들의 overflow-hidden을 편집 화면에서 overflow-visible로
+          바꿔도, 그 바깥을 감싸는 이 뷰포트(viewportRef)에 overflow-auto가 걸려 있어서
+          handle/팝업이 여기서 다시 한번 잘릴 수 있었어요. baseFit이 zoom=1 기준으로
+          항상 꽉 맞게 계산되니(바로 위 주석 참고) zoom<=1일 때는 스크롤이 필요한 경우가
+          없어서 overflow-visible로 안전하게 둬요. zoom>1(확대)일 때는 내용이 실제로
+          뷰포트보다 커질 수 있어서 스크롤 기능(overflow-auto)을 그대로 유지해요 — 이
+          경우엔 확대 중인 한 손잡이/팝업이 가끔 잘릴 수 있는데, 혜민님이 보고하신
+          증상은 zoom=1(기본 배율) 화면이라 이 변경으로 해결돼요. */}
       <div
         ref={viewportRef}
-        className="flex h-full w-full items-center justify-center overflow-auto"
+        className={`flex h-full w-full items-center justify-center ${zoom > 1 ? "overflow-auto" : "overflow-visible"}`}
       >
         <div
           className="shrink-0"
@@ -16402,12 +16412,23 @@ function UploadPageContent() {
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
                             좌표로 그려서 책등에서 끊기지 않게 해요. (화면 전용 — 인쇄 PDF에는
                             포함되지 않아요) */}
+                        {/* 2026-11(18번째 라운드 20차), 혜민님 버그 리포트("선택박스 선택시
+                            파란네모가 잘려서 보입니다" / "하단패널 누르면 메뉴가 잘려서 안보입니다")
+                            — 표지 편집 캔버스(이 아래 바깥 테두리 div + 뒤표지/책등/앞표지 패널
+                            3개)엔 전부 overflow-hidden이 걸려 있었는데, d3110d3(지난 라운드)에서
+                            "편집 화면에서만 overflow-visible로" 고친 범위가 내지(스프레드) 쪽
+                            한 곳뿐이라 표지 쪽은 그대로 안 고쳐져 있었어요 — 선택 손잡이
+                            (SelectionHandles)와 StackOrderToolbar의 테두리/투명도/회전 팝업이
+                            박스 경계를 넘어가면 바로 이 overflow-hidden들에 잘렸습니다. 내지와
+                            똑같은 패턴으로, 인쇄 미리보기(isPrintPreview, 도련 잘림을 실제
+                            인쇄와 똑같이 보여줘야 함)는 그대로 overflow-hidden을 유지하고,
+                            편집 화면에서만 overflow-visible로 바꿨어요. */}
                         <div
-                          className="relative mt-4 flex w-full overflow-hidden border border-[var(--color-hairline)] bg-white "
+                          className={`relative mt-4 flex w-full border border-[var(--color-hairline)] bg-white ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                           style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size" }}
                         >
                           <div
-                            className="group relative flex h-full items-center justify-center overflow-hidden"
+                            className={`group relative flex h-full items-center justify-center ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                             style={{
                               width: `${coverBackPct}%`,
                               background: coverPatternId
@@ -16591,7 +16612,7 @@ function UploadPageContent() {
                             )}
                           </div>
                           <div
-                            className="group relative h-full overflow-hidden"
+                            className={`group relative h-full ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                             style={{
                               width: `${coverFrontPct}%`,
                               background: coverPatternId
