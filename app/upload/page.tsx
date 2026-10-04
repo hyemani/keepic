@@ -45,7 +45,13 @@ import {
   framePerimeterPoints,
   type FrameShapeKey,
 } from "@/lib/frameShapes";
-import { buildFrameDecorLayout, frameDecorSvgInner } from "@/lib/frameDecorations";
+import {
+  buildFrameDecorLayout,
+  frameDecorSvgInner,
+  decorWindowPathD,
+  FRAME_DECOR_PRESETS,
+  type FrameDecorPreset,
+} from "@/lib/frameDecorations";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
   readTableStylePresets,
@@ -2040,6 +2046,59 @@ function FrameShapeSwatch({
         }}
       />
       <span className="text-[9px] leading-none text-[var(--color-charcoal)]/70">{option.label}</span>
+    </button>
+  );
+}
+
+// "장식 프레임" 버튼 하나의 작은 미리보기예요 — FrameShapeSwatch/PhotoBorderPresetSwatch와
+// 같은 버튼 디자인이고, 실제 박스에 쓰는 것과 똑같은 그림 설계도(buildFrameDecorLayout,
+// lib/frameDecorations.ts)를 정사각형 48px로 만들어서 그려요(사진 창 자리는 검은 칸).
+// 프리셋은 고정이라 설계도 → SVG 문자열 변환을 한 번만 하고 캐시해요.
+const FRAME_DECOR_THUMB_PX = 48;
+const FRAME_DECOR_THUMB_CACHE = new Map<string, { windowD: string; inner: string } | null>();
+function frameDecorThumb(preset: FrameDecorPreset): { windowD: string; inner: string } | null {
+  if (FRAME_DECOR_THUMB_CACHE.has(preset.id)) return FRAME_DECOR_THUMB_CACHE.get(preset.id) ?? null;
+  const layout = buildFrameDecorLayout(preset.decor, preset.variant, FRAME_DECOR_THUMB_PX, FRAME_DECOR_THUMB_PX);
+  const value = layout
+    ? { windowD: decorWindowPathD(layout.window), inner: frameDecorSvgInner(layout, `thumb-${preset.id}`) }
+    : null;
+  FRAME_DECOR_THUMB_CACHE.set(preset.id, value);
+  return value;
+}
+
+function FrameDecorSwatch({
+  preset,
+  active,
+  onClick,
+}: {
+  preset: FrameDecorPreset;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const thumb = frameDecorThumb(preset);
+  return (
+    <button
+      type="button"
+      title={preset.label}
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 rounded-md border p-1 transition ${
+        active ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10" : "border-transparent hover:bg-[var(--color-ivory)]"
+      }`}
+    >
+      {thumb ? (
+        <svg
+          width={FRAME_DECOR_THUMB_PX}
+          height={FRAME_DECOR_THUMB_PX}
+          viewBox={`0 0 ${FRAME_DECOR_THUMB_PX} ${FRAME_DECOR_THUMB_PX}`}
+          className="shrink-0"
+        >
+          <path d={thumb.windowD} style={{ fill: "var(--color-charcoal)" }} />
+          <g dangerouslySetInnerHTML={{ __html: thumb.inner }} />
+        </svg>
+      ) : (
+        <span className="h-12 w-12 bg-[var(--color-charcoal)]" />
+      )}
+      <span className="text-[9px] leading-none text-[var(--color-charcoal)]/70">{preset.label}</span>
     </button>
   );
 }
@@ -7366,11 +7425,14 @@ function ImageBoxPanel({
                     숨기고(hexagon 때 하던 것과 같은 방식), borderRadiusPct는
                     frameShapeClipPath()가 undefined를 돌려줄 때만(= rect/circle
                     바로가기일 때만) 의미가 있어요. */}
-                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">사진 자르는 모양</p>
-                <div className="mb-2 grid grid-cols-5 gap-1">
+                <p className="mb-0.5 text-[11px] font-semibold text-[var(--color-charcoal)]">사진 모양</p>
+                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/50">사진 자체를 이 모양으로 잘라요</p>
+                <div className="mb-3 grid grid-cols-5 gap-1">
                   {FRAME_SHAPE_OPTIONS.map((opt) => {
-                    const currentKey: FrameShapeKey | "circle" =
-                      frameTargetBox.frameShape && frameTargetBox.frameShape !== "rect"
+                    // 장식 프레임이 켜져 있으면 모양 버튼은 어느 것도 선택 표시가 안 돼요.
+                    const currentKey: FrameShapeKey | "circle" | null = frameTargetBox.frameDecor
+                      ? null
+                      : frameTargetBox.frameShape && frameTargetBox.frameShape !== "rect"
                         ? frameTargetBox.frameShape
                         : (frameTargetBox.borderRadiusPct ?? 0) >= 50
                           ? "circle"
@@ -7382,18 +7444,60 @@ function ImageBoxPanel({
                         option={opt}
                         active={active}
                         onClick={() => {
+                          // 사진 모양을 고르면 장식 프레임은 꺼져요(둘은 같이 못 써요). 사진(url)·
+                          // 확대·위치·박스 좌표는 건드리지 않고 프레임 관련 값만 바꿔요.
+                          const noDecor = { frameDecor: undefined, frameDecorVariant: undefined };
                           if (opt.key === "circle") {
-                            onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 50 });
+                            onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 50, ...noDecor });
                           } else if (opt.key === "rect") {
-                            onFrameChange(frameTargetBox.id, { frameShape: "rect" });
+                            onFrameChange(frameTargetBox.id, { frameShape: "rect", ...noDecor });
                           } else {
-                            onFrameChange(frameTargetBox.id, { frameShape: opt.key });
+                            onFrameChange(frameTargetBox.id, { frameShape: opt.key, ...noDecor });
                           }
                         }}
                       />
                     );
                   })}
                 </div>
+                {/* 2026-11, 혜민님 요청("장식 프레임") — 사진 둘레에 그림(귀·얼굴·꽃·줄무늬·꽃잎 테두리)을
+                    두르는 프레임이에요(lib/frameDecorations.ts). 버튼을 누르면 "선택한 사진 한 장"
+                    (frameTargetBox)에만 적용되고, 사진 파일·확대·위치·회전·박스 좌표는 그대로예요
+                    (frameDecor/frameDecorVariant 두 필드만 바뀜). 위 "사진 모양"과는 같이 못 써서
+                    장식을 고르면 모양 선택이 해제되고, 아래 테두리 컨트롤은 숨겨요. */}
+                <p className="mb-0.5 text-[11px] font-semibold text-[var(--color-charcoal)]">장식 프레임</p>
+                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/50">사진 둘레에 그림을 둘러요</p>
+                {(
+                  [
+                    { group: "border" as const, title: "테두리 무늬" },
+                    { group: "character" as const, title: "캐릭터" },
+                    { group: "wreath" as const, title: "꽃 화환" },
+                  ]
+                ).map((g) => (
+                  <div key={g.group} className="mb-2">
+                    <p className="mb-0.5 text-[9.5px] text-[var(--color-charcoal)]/45">{g.title}</p>
+                    <div className="grid grid-cols-4 gap-1">
+                      {FRAME_DECOR_PRESETS.filter((pr) => pr.group === g.group).map((pr) => (
+                        <FrameDecorSwatch
+                          key={pr.id}
+                          preset={pr}
+                          active={
+                            frameTargetBox.frameDecor === pr.decor && (frameTargetBox.frameDecorVariant ?? "") === pr.variant
+                          }
+                          onClick={() =>
+                            onFrameChange(frameTargetBox.id, { frameDecor: pr.decor, frameDecorVariant: pr.variant })
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {frameTargetBox.frameDecor ? (
+                  <p className="mt-1 text-[10px] leading-snug text-[var(--color-charcoal)]/50">
+                    장식 프레임을 쓰는 동안은 테두리·둥글기 설정이 필요 없어서 숨겼어요. 위에서 &quot;사진 모양&quot;을
+                    누르면 장식이 해제돼요.
+                  </p>
+                ) : (
+                  <>
                 {/* 2026-11(18번째 라운드 17차), 혜민님 요청("프레임모양 이런식으로
                     만들어주라... 도형말구" + 프리셋 갤러리 스크린샷) — "둥근 모서리 +
                     두꺼운 단색 테두리" 스타일의 색상별 프리셋 갤러리예요. 새 필드나
@@ -7421,6 +7525,8 @@ function ImageBoxPanel({
                             borderColor: preset.borderColor,
                             borderRadiusPct: preset.borderRadiusPct,
                             frameShape: "rect",
+                            frameDecor: undefined,
+                            frameDecorVariant: undefined,
                           })
                         }
                       />
@@ -7506,6 +7612,8 @@ function ImageBoxPanel({
                         );
                       })}
                     </div>
+                  </>
+                )}
                   </>
                 )}
               </div>
