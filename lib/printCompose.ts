@@ -154,7 +154,7 @@ function framedShapePath(
   h: number,
   box: Pick<ImageBoxDef, "borderRadiusPct" | "frameShape">
 ) {
-  const pts = framePerimeterPoints(box.frameShape);
+  const pts = framePerimeterPoints(box.frameShape, w / (h || 1));
   if (!pts) {
     roundedRectPath(ctx, x, y, w, h, box.borderRadiusPct);
     return;

@@ -277,6 +277,119 @@ export function badgeRibbonPoints(): PerimeterPoint[] {
   return [...arc, ...tail].map(unitToPct);
 }
 
+// ---- 4. 사진 자르는 모양 추가 4종 — 하트 / 아치 / 곰돌이 머리 / 고양이 머리 ----
+// 2026-11, 혜민님이 스위트북 "사진틀 모양 변경" 화면을 참고로 보내서, 사진 자체를
+// 실루엣으로 자르는 모양을 더 늘렸어요. 그림 파일을 가져온 게 아니라 아래 좌표 공식으로
+// 직접 만든 키픽 고유 모양이에요. 기존 모양들과 똑같이 0~100%(박스 기준) 좌표 배열을
+// 돌려줘서 화면(CSS clip-path)과 인쇄(canvas 경로)가 같은 함수를 공유해요.
+// 비율 규칙(공통): 박스 가로/세로에 맞춰 늘어나요(기존 모양들과 같은 방식) — 단 "아치"는
+// 아래 설명대로 윗부분 반원이 찌그러지지 않게 박스 가로세로 비율(aspect)을 받아요.
+
+// -1~1이 아닌 임의 좌표 점들을 박스 안(여백 marginPct%)에 꽉 차게 맞춰서 0~100%로 바꿔요.
+function fitPointsToBox(points: UnitPoint[], marginPct: number = 1.5): PerimeterPoint[] {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const span = 100 - marginPct * 2;
+  return points.map((p) => ({
+    xPct: marginPct + ((p.x - minX) / (maxX - minX || 1)) * span,
+    yPct: marginPct + ((p.y - minY) / (maxY - minY || 1)) * span,
+  }));
+}
+
+// 하트 — 위쪽 두 봉우리 + 아래쪽 뾰족한 끝. 점/별/하트 테두리 무늬에 쓰는
+// heartShapePoints()와 같은 곡선 공식이고, 사진을 자르는 용도라 점 개수를 72개로
+// 늘려 곡선이 매끈하게 보이게 했어요.
+export function heartClipPoints(): PerimeterPoint[] {
+  return fitPointsToBox(heartShapePoints(72), 1.5);
+}
+
+// 아치 — 아래는 직사각형, 위는 반원(창문/문 모양). 반원이 박스가 가로로 길든 세로로
+// 길든 "진짜 반원"으로 보이도록 aspect(박스 가로px ÷ 세로px)를 받아서 반원의 세로
+// 반지름을 정해요: 반지름(px)=가로의 절반 → 세로 % = 50 × aspect (박스가 아주 납작해서
+// 50%를 넘으면 50%로 제한 — 그땐 반타원). aspect를 안 주면 정사각형(1)으로 계산해요.
+export function archPoints(aspect: number = 1): PerimeterPoint[] {
+  const ryPct = Math.min(50, Math.max(5, 50 * (aspect > 0 ? aspect : 1)));
+  const pts: PerimeterPoint[] = [];
+  const segs = 40;
+  // 왼쪽 아래 → 왼쪽 위(반원 시작) → 반원 → 오른쪽 위 → 오른쪽 아래 (시계방향)
+  pts.push({ xPct: 0, yPct: 100 });
+  for (let i = 0; i <= segs; i++) {
+    const a = Math.PI + (Math.PI * i) / segs; // π → 2π
+    pts.push({ xPct: 50 + 50 * Math.cos(a), yPct: ryPct + ryPct * Math.sin(a) });
+  }
+  pts.push({ xPct: 100, yPct: 100 });
+  return pts;
+}
+
+// 원 여러 개를 합친 실루엣의 바깥 윤곽선 — 기준점(origin)에서 각도 θ로 쏜 광선이
+// 원들을 빠져나가는 가장 먼 거리를 각도마다 하나씩 구해서 이어요(별 모양/극좌표 방식이라
+// 선이 꼬이지 않아요). 원들이 서로 겹쳐 있고 기준점이 그 안에 있을 때만 정확해요.
+function unionOfCirclesOutline(
+  circles: { cx: number; cy: number; r: number }[],
+  origin: UnitPoint,
+  segments: number
+): UnitPoint[] {
+  const out: UnitPoint[] = [];
+  for (let i = 0; i < segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    const dx = Math.cos(theta);
+    const dy = Math.sin(theta);
+    let best = 0;
+    for (const c of circles) {
+      const fx = origin.x - c.cx;
+      const fy = origin.y - c.cy;
+      const b = fx * dx + fy * dy;
+      const disc = b * b - (fx * fx + fy * fy - c.r * c.r);
+      if (disc < 0) continue;
+      const far = -b + Math.sqrt(disc);
+      if (far > best) best = far;
+    }
+    out.push({ x: origin.x + best * dx, y: origin.y + best * dy });
+  }
+  return out;
+}
+
+// 곰돌이 머리 — 큰 동그란 얼굴 + 위쪽 양옆의 동그란 귀 두 개를 합친 실루엣이에요.
+export function bearHeadPoints(): PerimeterPoint[] {
+  const pts = unionOfCirclesOutline(
+    [
+      { cx: 0, cy: 0.12, r: 0.78 }, // 얼굴
+      { cx: -0.62, cy: -0.58, r: 0.33 }, // 왼쪽 귀
+      { cx: 0.62, cy: -0.58, r: 0.33 }, // 오른쪽 귀
+    ],
+    { x: 0, y: 0.12 },
+    180
+  );
+  return fitPointsToBox(pts, 1.5);
+}
+
+// 고양이 머리 — 약간 납작한 타원 얼굴 + 위쪽의 뾰족한 삼각형 귀 두 개를 한 줄의 외곽선으로
+// 이었어요(왼쪽 귀 끝 → 귀 안쪽 뿌리 → 머리 윗선 → 오른쪽 귀 → 오른쪽 아래 둥근 턱 →
+// 왼쪽 귀 바깥 뿌리). 귀 뿌리 위치는 타원의 각도(도)로 정해서 얼굴선과 매끈하게 이어져요.
+export function catHeadPoints(): PerimeterPoint[] {
+  const cx = 0;
+  const cy = 0.14;
+  const rx = 0.9;
+  const ry = 0.76;
+  const ell = (deg: number): UnitPoint => ({
+    x: cx + rx * Math.cos((deg * Math.PI) / 180),
+    y: cy + ry * Math.sin((deg * Math.PI) / 180),
+  });
+  const pts: UnitPoint[] = [];
+  const arc = (fromDeg: number, toDeg: number, steps: number) => {
+    for (let i = 0; i <= steps; i++) pts.push(ell(fromDeg + ((toDeg - fromDeg) * i) / steps));
+  };
+  pts.push({ x: -0.74, y: -0.95 }); // 왼쪽 귀 끝
+  arc(-112, -68, 14); // 왼쪽 귀 안쪽 뿌리 → 머리 윗선 → 오른쪽 귀 안쪽 뿌리
+  pts.push({ x: 0.74, y: -0.95 }); // 오른쪽 귀 끝
+  arc(-24, 204, 60); // 오른쪽 귀 바깥 뿌리 → 턱(아래) → 왼쪽 귀 바깥 뿌리
+  return fitPointsToBox(pts, 1.5);
+}
+
 // ImageBoxDef.frameShape가 가질 수 있는 값이에요 — lib/albumTemplates.ts가 이 타입을
 // 그대로 가져다 써서(아래), "프레임 모양" 값의 종류를 이 파일 한 곳에서만 관리해요.
 export type FrameShapeKey =
@@ -287,14 +400,19 @@ export type FrameShapeKey =
   | "flowerPetal"
   | "organicScallop"
   | "cloud"
-  | "badge";
+  | "badge"
+  | "heart"
+  | "arch"
+  | "bear"
+  | "cat";
 
 // frameShape 값 하나를 받아서, 그 모양의 외곽선 점 배열을 돌려줘요. "rect"(기본값)나
 // 모르는 값이면 null — null이면 화면/인쇄 양쪽 다 "클리핑 없음, borderRadiusPct로
 // 모서리만 둥글게"라는 뜻으로 써요. 화면(app/upload/page.tsx)과 인쇄
 // (lib/printCompose.ts)가 이 함수 하나만 호출하면 되니, 새 모양을 추가해도 분기
 // 코드를 두 파일에 각각 안 적어도 돼요(이 switch 하나만 고치면 양쪽에 다 반영).
-export function framePerimeterPoints(shape: FrameShapeKey | undefined): PerimeterPoint[] | null {
+// aspect(박스 가로px ÷ 세로px)는 "arch"의 윗부분 반원 비율에만 쓰여요(나머지 모양은 무시).
+export function framePerimeterPoints(shape: FrameShapeKey | undefined, aspect?: number): PerimeterPoint[] | null {
   switch (shape) {
     case "hexagon":
       return hexagonPoints();
@@ -310,6 +428,14 @@ export function framePerimeterPoints(shape: FrameShapeKey | undefined): Perimete
       return cloudBlobPoints();
     case "badge":
       return badgeRibbonPoints();
+    case "heart":
+      return heartClipPoints();
+    case "arch":
+      return archPoints(aspect);
+    case "bear":
+      return bearHeadPoints();
+    case "cat":
+      return catHeadPoints();
     default:
       return null;
   }

@@ -1973,12 +1973,15 @@ const SELECTED_BOX_Z_INDEX = 100000;
 // 모양마다 한 번씩만 계산해서 캐시해둬요(박스가 몇 개든, 매 렌더마다 다시 계산 안
 // 함).
 const FRAME_CLIP_PATH_CACHE = new Map<FrameShapeKey, string | undefined>();
-function frameShapeClipPath(shape: FrameShapeKey | undefined): string | undefined {
+// aspect(박스 가로px÷세로px)는 "아치"(윗부분 반원이 박스 비율에 따라 달라지는 모양)에만
+// 영향을 줘서, 아치만 캐시 없이 매번 계산해요(점 40여 개라 부담 없음).
+function frameShapeClipPath(shape: FrameShapeKey | undefined, aspect?: number): string | undefined {
   const key = shape ?? "rect";
-  if (FRAME_CLIP_PATH_CACHE.has(key)) return FRAME_CLIP_PATH_CACHE.get(key);
-  const pts = framePerimeterPoints(key);
+  const aspectDependent = key === "arch";
+  if (!aspectDependent && FRAME_CLIP_PATH_CACHE.has(key)) return FRAME_CLIP_PATH_CACHE.get(key);
+  const pts = framePerimeterPoints(key, aspect);
   const value = pts ? "polygon(" + pts.map((p) => `${p.xPct}% ${p.yPct}%`).join(", ") + ")" : undefined;
-  FRAME_CLIP_PATH_CACHE.set(key, value);
+  if (!aspectDependent) FRAME_CLIP_PATH_CACHE.set(key, value);
   return value;
 }
 
@@ -1999,6 +2002,11 @@ const FRAME_SHAPE_OPTIONS: FrameShapeOption[] = [
   { key: "organicScallop", label: "낙서" },
   { key: "cloud", label: "구름" },
   { key: "badge", label: "뱃지" },
+  // 2026-11 추가 — 사진 자체를 실루엣으로 자르는 4종(lib/frameShapes.ts)
+  { key: "heart", label: "하트" },
+  { key: "arch", label: "아치" },
+  { key: "bear", label: "곰돌이" },
+  { key: "cat", label: "고양이" },
 ];
 
 // 모양 버튼 하나의 작은 미리보기예요 — PhotoBorderPresetSwatch(테두리 프리셋
@@ -7680,8 +7688,6 @@ const ImageBoxOverlay = forwardRef<
   // 전부 모서리 둥글기 개념이 없어서(윤곽선 자체가 이미 그 모양이라)
   // borderRadiusPct를 무시해요 — frameShapeClipPath()가 "rect"일 때만 undefined를
   // 돌려주니, cssClipPath 유무로 그 판단을 재사용해요.
-  const cssClipPath = frameShapeClipPath(box.frameShape);
-  const cssRadius = !cssClipPath && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
   const [mouseDownActive, setMouseDownActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -7692,6 +7698,9 @@ const ImageBoxOverlay = forwardRef<
   const [photoEditMode, setPhotoEditMode] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [boxSizePx, setBoxSizePx] = useState({ w: 1, h: 1 });
+  // (아치 모양만 박스 가로세로 비율을 써요 — 그래서 boxSizePx 선언 뒤에 계산해요)
+  const cssClipPath = frameShapeClipPath(box.frameShape, boxSizePx.w / (boxSizePx.h || 1));
+  const cssRadius = !cssClipPath && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
   // 박스를 끌 때 스프레드 가로 중앙(책등)·페이지 세로 중앙에 딱 붙는 느낌을 주는 안내선이에요
   // (텍스트박스에 이미 있던 것과 같은 방식, 2026-09-23 이미지박스에도 추가).
   const [snapGuide, setSnapGuide] = useState<{ xPct: number | null; yPct: number | null; rect: DOMRect | null }>({
