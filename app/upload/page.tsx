@@ -7284,6 +7284,7 @@ function ImageBoxPanel({
   fullPhotoManager?: ImageBoxPanelFullPhotoManager;
 }) {
   const canFrame = !!frameTargetBox;
+  const [frameHintShown, setFrameHintShown] = useState(false);
   const effectiveTab = topTab === "frame" && !canFrame ? "add" : topTab;
   // 2026-09-28, 혜민님 요청: "상단은 보라,블루 색이 아니고 검은계열의 글쓰기
   // 표만들기 이모티콘 버튼과 동일하게 해주세요" — 탭(선택 상태를 보여주는 요소)은
@@ -7404,13 +7405,27 @@ function ImageBoxPanel({
               </button>
               <button
                 type="button"
-                disabled={!canFrame}
-                onClick={() => onTopTabChange("frame")}
-                className={tabButtonClass(effectiveTab === "frame")}
+                aria-disabled={!canFrame}
+                title={canFrame ? undefined : "사진을 먼저 선택해 주세요"}
+                onClick={() => {
+                  // 비활성일 때 눌러도 조용히 아무 일도 없지 않게, 안내 문구를 보여줘요.
+                  if (!canFrame) {
+                    setFrameHintShown(true);
+                    return;
+                  }
+                  setFrameHintShown(false);
+                  onTopTabChange("frame");
+                }}
+                className={`${tabButtonClass(effectiveTab === "frame")} ${canFrame ? "" : "cursor-not-allowed opacity-40"}`}
               >
                 사진 프레임 변경
               </button>
             </div>
+            {!canFrame && frameHintShown ? (
+              <p className="text-[11px] leading-snug text-[var(--color-charcoal)]/70">
+                사진을 먼저 선택해 주세요 — 화면에서 사진을 클릭하면 모양·프레임을 바꿀 수 있어요.
+              </p>
+            ) : null}
             {effectiveTab === "frame" && frameTargetBox ? (
               // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의 "테두리"
               // 조절판과 똑같은 기능이에요.
@@ -16252,18 +16267,35 @@ function UploadPageContent() {
                               // 박스가 몰래 바뀌는 사고가 났었는데, 이번엔 후보가 2개 이상이면
                               // 절대 대체하지 않고 undefined 그대로 둬요(그 버그가 재발할 길이
                               // 없어요).
+                              // 2026-11(21차), 혜민님 두 번째 버그 리포트("사진프레임변경 메뉴가
+                              // 안눌려요") 진짜 원인: 예전 조회는 선택된 박스가 "앞면(front)"일
+                              // 때만 찾았어요(target === "front"). 뒤표지(back) 쪽 박스는
+                              // backCoverImageBoxes라는 다른 배열에 있는데 여기서는 그 배열을
+                              // 아예 안 봐서, 뒤표지 사진을 분명히 선택했는데도 undefined가 되어
+                              // 탭이 계속 꺼져 있었어요(바로 위 앞면 1장 fallback도 앞면 배열만
+                              // 보니 소용없었고요). 이제 선택된 쪽(front/back) 배열에서 찾고,
+                              // 선택이 "전혀 없을" 때만 앞면 유일 후보 fallback을 써요(선택이
+                              // 있는데 못 찾으면 절대 다른 박스로 대체하지 않아요 — 2351688 유지).
                               frameTargetBox={
-                                (activeCoverImageBox?.target === "front"
-                                  ? coverImageBoxes.find((b) => b.id === activeCoverImageBox.boxId)
-                                  : undefined) ??
-                                (() => {
-                                  const candidates = coverImageBoxes.filter((b) => !isStickerImageBox(b));
-                                  return candidates.length === 1 ? candidates[0] : undefined;
-                                })()
+                                activeCoverImageBox
+                                  ? (activeCoverImageBox.target === "back" ? backCoverImageBoxes : coverImageBoxes).find(
+                                      (b) => b.id === activeCoverImageBox.boxId
+                                    )
+                                  : (() => {
+                                      const candidates = coverImageBoxes.filter((b) => !isStickerImageBox(b));
+                                      return candidates.length === 1 && backCoverImageBoxes.every(isStickerImageBox)
+                                        ? candidates[0]
+                                        : undefined;
+                                    })()
                               }
                               topTab={coverPhotoTopTab}
                               onTopTabChange={setCoverPhotoTopTab}
-                              onFrameChange={handleCoverImageBoxChange}
+                              onFrameChange={(boxId, changes) =>
+                                // 박스 id는 UUID라 앞/뒤 어느 배열에 있는지로 정확히 갈라요.
+                                backCoverImageBoxes.some((b) => b.id === boxId)
+                                  ? handleBackCoverImageBoxChange(boxId, changes)
+                                  : handleCoverImageBoxChange(boxId, changes)
+                              }
                               onAddPhotoFile={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
                             />
                           )}
