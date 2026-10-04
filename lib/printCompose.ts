@@ -27,6 +27,7 @@ import {
   BORDER_PATTERN_SHAPE_SIZE_PCT,
   framePerimeterPoints,
 } from "@/lib/frameShapes";
+import { buildFrameDecorLayout, decorWindowPathD, drawFrameDecorLayout } from "@/lib/frameDecorations";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -958,6 +959,54 @@ async function drawPage(
   }
 }
 
+// 2026-11 "장식 프레임"(lib/frameDecorations.ts) — box.frameDecor가 있는 박스는 "바깥 프레임
+// (그림 포함) + 안쪽 사진 창" 구조예요. 화면(ImageBoxOverlay)과 똑같은 설계도
+// (buildFrameDecorLayout, 박스 인쇄 px 크기 기준)를 만들고, 사진은 창 크기 기준으로
+// computeImageBoxCoverRect(같은 innerScale/offset)로 창 안에만 그린 뒤 그림을 위에 얹어요.
+// frameDecor가 없거나 모르는 값이면 null을 돌려줘서 호출부가 기존 경로(frameShape 등)를
+// 그대로 쓰게 해요(하위 호환). 인쇄 파일엔 원래도 회전이 반영되지 않아요(미리보기 전용).
+function drawDecoratedImageBox(
+  ctx: CanvasRenderingContext2D,
+  box: ImageBoxDef,
+  img: HTMLImageElement,
+  boxLeftPx: number,
+  boxTopPx: number,
+  boxWidthPx: number,
+  boxHeightPx: number
+): boolean {
+  const layout = buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxWidthPx, boxHeightPx);
+  if (!layout) return false;
+  const win = layout.window;
+  const rect = computeImageBoxCoverRect(
+    win.w,
+    win.h,
+    img.naturalWidth || box.naturalWidth,
+    img.naturalHeight || box.naturalHeight,
+    box.innerOffsetXPct ?? 0,
+    box.innerOffsetYPct ?? 0,
+    box.innerScale ?? 1
+  );
+  ctx.save();
+  ctx.translate(boxLeftPx, boxTopPx);
+  ctx.clip(new Path2D(decorWindowPathD(win)));
+  ctx.globalAlpha = box.opacity ?? 1;
+  if (box.flipX) {
+    ctx.save();
+    ctx.translate(win.x + rect.x + rect.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, win.y + rect.y, rect.width, rect.height);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, win.x + rect.x, win.y + rect.y, rect.width, rect.height);
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = box.opacity ?? 1;
+  drawFrameDecorLayout(ctx, layout, boxLeftPx, boxTopPx);
+  ctx.restore();
+  return true;
+}
+
 // 자유 배치 이미지박스 하나를 이 낱장(페이지)에 그려요. 박스 좌표는 "스프레드 전체 폭"을
 // 100%로 보는 좌표라서, 이 페이지의 오프셋(pageOffsetPx: 왼쪽 낱장은 0, 오른쪽 낱장은
 // spreadWidthPx의 절반)만큼 빼서 이 낱장 기준 좌표로 바꿔요. 박스가 페이지 경계를
@@ -1002,6 +1051,11 @@ function drawImageBoxOnCanvas(
   ctx.beginPath();
   ctx.rect(0, 0, pageW, pageH);
   ctx.clip();
+  // 장식 프레임이면 위 도우미가 사진+그림을 다 그려요(기존 모양/테두리 경로는 건너뜀).
+  if (drawDecoratedImageBox(ctx, box, img, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx)) {
+    ctx.restore();
+    return;
+  }
   // 2026-11(18번째 라운드 15차) — 화면의 border-radius(%)와 같은 모양으로 둥글게
   // 잘라요(roundedRectPath, 위 정의). radiusPct가 0/undefined면 평범한 직각 사각형
   // 경로라 기존과 완전히 동일해요(하위 호환).
@@ -1079,6 +1133,10 @@ async function drawImageBoxesInPanel(
       box.innerScale ?? 1
     );
     ctx.save();
+    if (drawDecoratedImageBox(ctx, box, img, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx)) {
+      ctx.restore();
+      continue;
+    }
     // 2026-11(18번째 라운드 15차) — drawImageBoxOnCanvas와 같은 이유로, 둥근 모서리로
     // 잘라요(roundedRectPath).
     framedShapePath(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box);

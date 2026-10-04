@@ -1,5 +1,6 @@
 import type { TextRun } from "./textRuns";
 import type { FrameShapeKey } from "./frameShapes";
+import type { FrameDecorKey } from "./frameDecorations";
 
 export type PageTemplateId =
   | "full"
@@ -291,6 +292,17 @@ export type ImageBoxDef = {
   // frameShape가 "rect"(기본값)일 때만 의미가 있어요 — 육각형/톱니처럼 테두리선
   // 자체가 사각형이 아니면 이 무늬 위치가 실제 선 위에 있지 않아 이번 범위에서 뺐어요.
   frameBorderPattern?: "none" | "dot" | "star" | "heart";
+  // 2026-11, 혜민님 요청("장식 프레임") — 사진 둘레에 귀·얼굴·꽃·줄무늬·꽃잎 테두리 같은
+  // 그림을 둘러주는 프레임이에요(lib/frameDecorations.ts). 없으면(기존 저장본 전부) 아무
+  // 장식 없음 — 하위 호환. frameDecorVariant는 색상 종류("pink"/"gray"/"redBlue" 등)예요.
+  // 값이 있으면 이 박스는 "바깥 프레임(장식 포함) + 안쪽 사진 창" 구조가 돼요: 이동/크기/
+  // 회전은 바깥 프레임 하나가 한 덩어리로 하고, 사진 위치 조정 모드에선 안쪽 사진만
+  // 움직여요. 프레임을 바꿔도 사진(url)·확대(innerScale)·위치(innerOffsetXPct/YPct)·
+  // 박스 좌표는 그대로고 이 두 필드(와 frameShape 등 프레임 관련 값)만 바뀌어요. 장식이
+  // 켜져 있는 동안엔 frameShape/borderRadiusPct/테두리/테두리 무늬는 화면·인쇄 모두
+  // 무시돼요(충돌 방지 — 패널에서도 그 컨트롤들을 숨겨요).
+  frameDecor?: FrameDecorKey;
+  frameDecorVariant?: string;
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),

@@ -45,6 +45,7 @@ import {
   framePerimeterPoints,
   type FrameShapeKey,
 } from "@/lib/frameShapes";
+import { buildFrameDecorLayout, frameDecorSvgInner } from "@/lib/frameDecorations";
 import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
 import {
   readTableStylePresets,
@@ -7698,9 +7699,22 @@ const ImageBoxOverlay = forwardRef<
   const [photoEditMode, setPhotoEditMode] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [boxSizePx, setBoxSizePx] = useState({ w: 1, h: 1 });
+  // 장식 프레임(box.frameDecor, lib/frameDecorations.ts) — 박스 실제 px 크기로 "그림 설계도"를
+  // 만들어요. 있으면 이 박스는 "바깥 프레임(그림 포함) + 안쪽 사진 창" 구조라서, 사진은 창
+  // 크기 기준으로 계산하고(photoAreaPx) 기존 모양/둥글기/테두리는 무시해요. 스티커는 장식
+  // 프레임을 쓰지 않아요.
+  const decorLayout = useMemo(
+    () => (isSticker ? null : buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxSizePx.w, boxSizePx.h)),
+    [isSticker, box.frameDecor, box.frameDecorVariant, boxSizePx.w, boxSizePx.h]
+  );
+  // 사진이 실제로 보이는 영역의 크기(px) — 장식이 없으면 박스 전체, 있으면 안쪽 창이에요.
+  const photoAreaPx = useMemo(
+    () => (decorLayout ? { w: decorLayout.window.w, h: decorLayout.window.h } : boxSizePx),
+    [decorLayout, boxSizePx]
+  );
   // (아치 모양만 박스 가로세로 비율을 써요 — 그래서 boxSizePx 선언 뒤에 계산해요)
-  const cssClipPath = frameShapeClipPath(box.frameShape, boxSizePx.w / (boxSizePx.h || 1));
-  const cssRadius = !cssClipPath && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
+  const cssClipPath = decorLayout ? undefined : frameShapeClipPath(box.frameShape, boxSizePx.w / (boxSizePx.h || 1));
+  const cssRadius = !decorLayout && !cssClipPath && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
   // 박스를 끌 때 스프레드 가로 중앙(책등)·페이지 세로 중앙에 딱 붙는 느낌을 주는 안내선이에요
   // (텍스트박스에 이미 있던 것과 같은 방식, 2026-09-23 이미지박스에도 추가).
   const [snapGuide, setSnapGuide] = useState<{ xPct: number | null; yPct: number | null; rect: DOMRect | null }>({
@@ -7900,18 +7914,18 @@ const ImageBoxOverlay = forwardRef<
     if (!isPanning) return;
     function handleMouseMove(e: MouseEvent) {
       const rect = computeImageBoxCoverRect(
-        boxSizePx.w,
-        boxSizePx.h,
+        photoAreaPx.w,
+        photoAreaPx.h,
         box.naturalWidth,
         box.naturalHeight,
         0,
         0,
         box.innerScale ?? 1
       );
-      const dxPct = ((e.clientX - panStart.current.mouseX) / boxSizePx.w) * 100;
-      const dyPct = ((e.clientY - panStart.current.mouseY) / boxSizePx.h) * 100;
-      const nextOffsetX = clampImageBoxInnerOffset(panStart.current.offsetX + dxPct, boxSizePx.w, rect.width);
-      const nextOffsetY = clampImageBoxInnerOffset(panStart.current.offsetY + dyPct, boxSizePx.h, rect.height);
+      const dxPct = ((e.clientX - panStart.current.mouseX) / photoAreaPx.w) * 100;
+      const dyPct = ((e.clientY - panStart.current.mouseY) / photoAreaPx.h) * 100;
+      const nextOffsetX = clampImageBoxInnerOffset(panStart.current.offsetX + dxPct, photoAreaPx.w, rect.width);
+      const nextOffsetY = clampImageBoxInnerOffset(panStart.current.offsetY + dyPct, photoAreaPx.h, rect.height);
       onChange({ innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
     }
     function handleMouseUp() {
@@ -7923,7 +7937,7 @@ const ImageBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isPanning, boxSizePx, box.naturalWidth, box.naturalHeight, box.innerScale]);
+  }, [isPanning, photoAreaPx, box.naturalWidth, box.naturalHeight, box.innerScale]);
 
   // 모서리 4개(가로·세로 동시) + 변 4개(한쪽만), 텍스트박스와 똑같은 8방향 손잡이예요
   // ("포토샵처럼 박스 조절이 가능해야 한다"는 요청, 2026-09-22). 왼쪽/위쪽 손잡이는
@@ -8136,9 +8150,9 @@ const ImageBoxOverlay = forwardRef<
 
   function handleZoom(delta: number) {
     const nextScale = Math.min(3, Math.max(1, (box.innerScale ?? 1) + delta));
-    const rect = computeImageBoxCoverRect(boxSizePx.w, boxSizePx.h, box.naturalWidth, box.naturalHeight, 0, 0, nextScale);
-    const nextOffsetX = clampImageBoxInnerOffset(box.innerOffsetXPct ?? 0, boxSizePx.w, rect.width);
-    const nextOffsetY = clampImageBoxInnerOffset(box.innerOffsetYPct ?? 0, boxSizePx.h, rect.height);
+    const rect = computeImageBoxCoverRect(photoAreaPx.w, photoAreaPx.h, box.naturalWidth, box.naturalHeight, 0, 0, nextScale);
+    const nextOffsetX = clampImageBoxInnerOffset(box.innerOffsetXPct ?? 0, photoAreaPx.w, rect.width);
+    const nextOffsetY = clampImageBoxInnerOffset(box.innerOffsetYPct ?? 0, photoAreaPx.h, rect.height);
     onChange({ innerScale: nextScale, innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
   }
 
@@ -8183,8 +8197,8 @@ const ImageBoxOverlay = forwardRef<
   }));
 
   const coverRect = computeImageBoxCoverRect(
-    boxSizePx.w,
-    boxSizePx.h,
+    photoAreaPx.w,
+    photoAreaPx.h,
     box.naturalWidth,
     box.naturalHeight,
     box.innerOffsetXPct ?? 0,
@@ -8299,7 +8313,20 @@ const ImageBoxOverlay = forwardRef<
         ) : (
           <div
             className="pointer-events-none absolute inset-0 overflow-hidden"
-            style={{ borderRadius: cssRadius, clipPath: cssClipPath }}
+            style={
+              decorLayout
+                ? {
+                    // 장식 프레임: 사진은 안쪽 "창"에만 보여요(창 위치/크기/모서리는 설계도가 정해요).
+                    right: "auto",
+                    bottom: "auto",
+                    left: decorLayout.window.x,
+                    top: decorLayout.window.y,
+                    width: decorLayout.window.w,
+                    height: decorLayout.window.h,
+                    borderRadius: decorLayout.window.r,
+                  }
+                : { borderRadius: cssRadius, clipPath: cssClipPath }
+            }
           >
             <img
               src={box.url}
@@ -8322,7 +8349,22 @@ const ImageBoxOverlay = forwardRef<
           </div>
         )
       ) : null}
-      {box.url && box.borderWidthPx ? (
+      {/* 장식 프레임 그림(귀·얼굴·꽃·줄무늬 등) — 사진 창 위에 얹혀요. 같은 박스 div 안이라
+          이동/크기/회전을 박스와 한 덩어리로 따라가고, 사진 위치 조정 모드에서도 안 움직여요.
+          viewBox가 박스 실제 px 크기라 가로세로를 따로 늘리지 않고(찌그러짐 없음) 인쇄와
+          같은 설계도로 그려져요. */}
+      {box.url && decorLayout ? (
+        <svg
+          className="pointer-events-none absolute inset-0"
+          width={decorLayout.w}
+          height={decorLayout.h}
+          viewBox={`0 0 ${decorLayout.w} ${decorLayout.h}`}
+          dangerouslySetInnerHTML={{
+            __html: frameDecorSvgInner(decorLayout, `fd${box.id.replace(/[^a-zA-Z0-9]/g, "")}`),
+          }}
+        />
+      ) : null}
+      {box.url && !decorLayout && box.borderWidthPx ? (
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -8337,7 +8379,7 @@ const ImageBoxOverlay = forwardRef<
           박스 가로/세로 비율대로 늘어나며 그려져요(모서리 둥글기 타원 계산과 같은
           원리) — borderPatternCenterPoints()/starShapePoints()/heartShapePoints()를
           인쇄(lib/printCompose.ts)와 그대로 같이 가져다 써서 위치·모양이 똑같아요. */}
-      {box.url && box.borderWidthPx && box.frameBorderPattern && box.frameBorderPattern !== "none" ? (
+      {box.url && !decorLayout && box.borderWidthPx && box.frameBorderPattern && box.frameBorderPattern !== "none" ? (
         <svg
           className="pointer-events-none absolute inset-0"
           viewBox="0 0 100 100"
@@ -8527,8 +8569,12 @@ const ImageBoxOverlay = forwardRef<
               borderWidthPx={box.borderWidthPx ?? 0}
               borderColor={box.borderColor ?? "#ffffff"}
               borderRadiusPct={box.borderRadiusPct ?? 0}
-              onBorderChange={(widthPx, color, radiusPct) =>
-                onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPct: radiusPct })
+              // 장식 프레임이 켜져 있으면 일반 테두리/둥글기 조절은 의미가 없어서 숨겨요(충돌 방지).
+              onBorderChange={
+                decorLayout
+                  ? undefined
+                  : (widthPx, color, radiusPct) =>
+                      onChange({ borderWidthPx: widthPx, borderColor: color, borderRadiusPct: radiusPct })
               }
             />
           </div>
