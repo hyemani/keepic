@@ -92,7 +92,22 @@ import {
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
 import { buildInnerPrintPdfLib, buildCoverPrintPdfLib, computeSpineLogoLayout } from "@/lib/printPdfLib";
 import { mmToPt } from "@/lib/printGeometry";
-import { computeImageBoxCoverRect, clampImageBoxInnerOffset, expandCoverRectForBleed } from "@/lib/imageBoxGeometry";
+import {
+  computeImageBoxCoverRect,
+  clampImageBoxInnerOffset,
+  expandCoverRectForBleed,
+  normalizePhotoQuarterTurn,
+  orientedNaturalSize,
+} from "@/lib/imageBoxGeometry";
+import { BoxPhotoView } from "./photoEditHooks";
+import {
+  PhotoEditPanel,
+  PhotoPositionToolbar,
+  PhotoReplaceDialog,
+  PhotoToolIcon,
+  type PhotoEditSection,
+  type ReplaceLibraryPhoto,
+} from "./photoEditPanels";
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
@@ -7252,6 +7267,10 @@ function clampPct(min: number, max: number, value: number): number {
 type ImageBoxOverlayHandle = {
   zoomIn: () => void;
   zoomOut: () => void;
+  // 확대 배율(1~3)을 직접 지정(왼쪽 패널 슬라이더용) — 오프셋은 새 배율에서 빈 여백이 안 생기게 잘라요.
+  zoomTo: (scale: number) => void;
+  // "원본과 비교": true 면 보정 없는 원본을 보여줘요(저장값은 안 바뀜).
+  setCompareOriginal: (on: boolean) => void;
   resetPhotoPosition: () => void;
   toggleFlip: () => void;
   exitPhotoEditMode: () => void;
@@ -7354,6 +7373,9 @@ function ImageBoxPanel({
   onTopTabChange,
   onFrameChange,
   onAddPhotoFile,
+  photoEditSection,
+  onPhotoEditSectionChange,
+  onRequestPhotoReplace,
   fullPhotoManager,
 }: {
   // 사진박스를 선택하고 사진 위치 조정 모드(더블클릭)에도 들어가 있는지 — 이때만
@@ -7366,17 +7388,24 @@ function ImageBoxPanel({
   backCoverLogoSelected?: boolean;
   onBackCoverLogoBack?: () => void;
   frameTargetBox: ImageBoxDef | undefined;
-  topTab: "add" | "frame";
-  onTopTabChange: (tab: "add" | "frame") => void;
+  topTab: "add" | "frame" | "edit";
+  onTopTabChange: (tab: "add" | "frame" | "edit") => void;
   onFrameChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
   onAddPhotoFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  // 사진 편집(사진 변경 / 위치·크롭 / 필터 / 보정) — 구역 선택값과 "사진 변경" 선택창 열기.
+  photoEditSection: PhotoEditSection;
+  onPhotoEditSectionChange: (section: PhotoEditSection) => void;
+  onRequestPhotoReplace: (boxId: string) => void;
   // "전체 사진 관리" 섹션 — 내지에만 있어요. 이 값을 넘기지 않으면(표지) 섹션 자체가
   // 렌더되지 않아요.
   fullPhotoManager?: ImageBoxPanelFullPhotoManager;
 }) {
   const canFrame = !!frameTargetBox;
+  // 사진 편집(변경·크롭·필터·보정)은 진짜 사진(스티커·빈 프레임 제외)에만 있어요.
+  const canEdit = !!frameTargetBox && !isStickerImageBox(frameTargetBox) && !!frameTargetBox.url;
   const [frameHintShown, setFrameHintShown] = useState(false);
-  const effectiveTab = topTab === "frame" && !canFrame ? "add" : topTab;
+  const effectiveTab =
+    topTab === "frame" && !canFrame ? "add" : topTab === "edit" && !canEdit ? "add" : topTab;
   // 2026-09-28, 혜민님 요청: "상단은 보라,블루 색이 아니고 검은계열의 글쓰기
   // 표만들기 이모티콘 버튼과 동일하게 해주세요" — 탭(선택 상태를 보여주는 요소)은
   // 그라데이션이 아니라 다른 카테고리 탭들과 같은 차콜/아이보리 톤으로. 그라데이션은
@@ -7412,53 +7441,37 @@ function ImageBoxPanel({
           </div>
           {/* "꽉 채우기"·"변형 (mm)" 패널 — 혜민님 요청으로 제거(2026-09-24,
               캔버스 위 드래그·손잡이로도 위치·크기 조절이 되니 중복이라는 판단). */}
-          <div className=" border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-1.5">
-            <p className="text-xs font-medium text-[var(--color-brand-purple)]">사진 위치 조정 중</p>
-            <p className="mt-1 text-[11px] text-[var(--color-charcoal)]/50 break-keep">
-              박스 안에서 사진의 위치·확대·반전을 조정해요(박스 자체 크기는 캔버스에서
-              손잡이로 조절해주세요).
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {/* 2026-11, 혜민님 요청("사진 변경 / 위치·크롭 / 필터 / 보정") — 예전엔 여기 확대/축소/반전/초기화/완료 아이콘 몇 개뿐이었어요
+              (글자 11px·28px 버튼). 이제 PhotoEditPanel(맨 위 "사진 변경" + 4개 구역)이 같은 기능을 24px 아이콘·13px 글자·
+              40px 이상 버튼으로 모두 가지고 있어요. */}
+          <div className="border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="whitespace-nowrap text-[13px] font-semibold text-[var(--color-brand-purple)]">사진 위치 조정 중</p>
               <button
                 type="button"
-                title="축소"
-                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.zoomOut()}
-                className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-              >
-                −
-              </button>
-              <button
-                type="button"
-                title="확대"
-                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.zoomIn()}
-                className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-              >
-                +
-              </button>
-              <button
-                type="button"
-                title="좌우 반전"
-                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.toggleFlip()}
-                className="flex h-7 w-7 items-center justify-center bg-white text-sm text-[var(--color-charcoal)]/70 "
-              >
-                ⇌
-              </button>
-              <button
-                type="button"
-                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.resetPhotoPosition()}
-                className=" bg-white px-1.5 py-1 text-[11px] text-[var(--color-charcoal)]/70 "
-              >
-                초기화
-              </button>
-              <button
-                type="button"
+                title="완료 (박스 조절 모드로 돌아가기)"
+                aria-label="완료"
                 onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.exitPhotoEditMode()}
-                className=" bg-[var(--color-charcoal)] px-1.5 py-1 text-[11px] text-white"
+                className="flex min-h-[40px] items-center gap-1 bg-[var(--color-charcoal)] px-3 text-[13px] font-medium text-white"
               >
-                완료
+                <PhotoToolIcon name="check" className="h-6 w-6 shrink-0" />
+                <span className="whitespace-nowrap">완료</span>
               </button>
             </div>
+            <p className="mt-1 text-[12px] leading-snug text-[var(--color-charcoal)]/55 break-keep">
+              박스 안에서 사진의 위치·확대·반전을 조정해요(박스 자체 크기는 캔버스에서 손잡이로 조절해주세요).
+            </p>
           </div>
+          {frameTargetBox && !isStickerImageBox(frameTargetBox) ? (
+            <PhotoEditPanel
+              box={frameTargetBox}
+              onChange={(c) => onFrameChange(frameTargetBox.id, c)}
+              getHandle={() => handlesRef.current.get(frameTargetBox.id)}
+              onRequestReplace={() => onRequestPhotoReplace(frameTargetBox.id)}
+              section={photoEditSection}
+              onSectionChange={onPhotoEditSectionChange}
+            />
+          ) : null}
         </>
       ) : backCoverLogoSelected ? (
         <>
@@ -7486,7 +7499,7 @@ function ImageBoxPanel({
               전부 글상자 추가 버튼으로 디자인 통일해주세요" — 상단 2개를 파일을
               바로 여는 버튼이 아니라 서로 배타적으로 고르는 탭으로 바꿨어요. */}
           <div className="flex flex-col gap-1.5">
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 type="button"
                 onClick={() => onTopTabChange("add")}
@@ -7511,13 +7524,38 @@ function ImageBoxPanel({
               >
                 사진 프레임 변경
               </button>
+              <button
+                type="button"
+                aria-disabled={!canEdit}
+                title={canEdit ? "사진 변경·위치·필터·보정" : "사진을 먼저 선택해 주세요"}
+                onClick={() => {
+                  if (!canEdit) {
+                    setFrameHintShown(true);
+                    return;
+                  }
+                  setFrameHintShown(false);
+                  onTopTabChange("edit");
+                }}
+                className={`${tabButtonClass(effectiveTab === "edit")} ${canEdit ? "" : "cursor-not-allowed opacity-40"}`}
+              >
+                사진 편집
+              </button>
             </div>
-            {!canFrame && frameHintShown ? (
+            {(!canFrame || !canEdit) && frameHintShown ? (
               <p className="text-[11px] leading-snug text-[var(--color-charcoal)]/70">
                 사진을 먼저 선택해 주세요 — 화면에서 사진을 클릭하면 모양·프레임을 바꿀 수 있어요.
               </p>
             ) : null}
-            {effectiveTab === "frame" && frameTargetBox ? (
+            {effectiveTab === "edit" && frameTargetBox ? (
+              <PhotoEditPanel
+                box={frameTargetBox}
+                onChange={(c) => onFrameChange(frameTargetBox.id, c)}
+                getHandle={() => handlesRef.current.get(frameTargetBox.id)}
+                onRequestReplace={() => onRequestPhotoReplace(frameTargetBox.id)}
+                section={photoEditSection}
+                onSectionChange={onPhotoEditSectionChange}
+              />
+            ) : effectiveTab === "frame" && frameTargetBox ? (
               // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의 "테두리"
               // 조절판과 똑같은 기능이에요.
               <div className="border border-[var(--color-hairline)] bg-white p-2">
@@ -7917,6 +7955,8 @@ const ImageBoxOverlay = forwardRef<
     // 이 박스의 xPct/widthPct가 기준으로 삼는 영역(스프레드 전체 또는 표지 패널)의 실제 종이 크기(mm).
     // 꽃 화환의 꽃·잎 크기를 박스가 아닌 "문서 단위(mm)"로 정하는 데 써요(없으면 예전 방식).
     docMm?: { w: number; h: number };
+    // "사진 변경" — 이 박스의 사진을 라이브러리/새 업로드로 바꾸는 선택창을 상위에서 열어요(사진 위치 조정 도구 막대의 첫 버튼).
+    onRequestPhotoReplace?: () => void;
   }
 >(function ImageBoxOverlay(
   {
@@ -7935,6 +7975,7 @@ const ImageBoxOverlay = forwardRef<
     zIndex,
     onStackAction,
     docMm,
+    onRequestPhotoReplace,
   },
   ref
 ) {
@@ -7942,6 +7983,11 @@ const ImageBoxOverlay = forwardRef<
   // 없이 이동+비율유지 크기조절만 가능하게 다르게 다뤄요(2026-09-24, "스티커는
   // 이미지박스(crop) 적용은 안 하는 게 좋겠다"는 요청 반영).
   const isSticker = isStickerImageBox(box);
+  // 사진 안쪽 90도 회전(box.photoRotation) — 돌린 뒤 화면에 보이는 가로·세로로 cover 를 계산해요(인쇄도 같은 규칙).
+  const photoTurn = normalizePhotoQuarterTurn(box.photoRotation);
+  const orientedNat = orientedNaturalSize(box.naturalWidth, box.naturalHeight, photoTurn);
+  // "원본과 비교" — 누르고 있는 동안(또는 토글) 보정 없는 원본 사진을 보여줘요(저장값은 안 바뀜).
+  const [compareOriginal, setCompareOriginal] = useState(false);
   // 모서리 둥글기를 %로 계산해요 — 0%는 사각형, 50%는 CSS border-radius:50%와 같은
   // 값이라 정사각형 박스면 정원, 직사각형이면 타원이 자연스럽게 나와요(2026-09-28,
   // "둥글게를 최대치로 하면 원이 되도록"). 2026-11(18번째 라운드 20차) — "프레임
@@ -8216,8 +8262,8 @@ const ImageBoxOverlay = forwardRef<
       const rect = computeImageBoxCoverRect(
         photoAreaPx.w,
         photoAreaPx.h,
-        box.naturalWidth,
-        box.naturalHeight,
+        orientedNat.w,
+        orientedNat.h,
         0,
         0,
         box.innerScale ?? 1
@@ -8237,7 +8283,7 @@ const ImageBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isPanning, photoAreaPx, box.naturalWidth, box.naturalHeight, box.innerScale]);
+  }, [isPanning, photoAreaPx, orientedNat.w, orientedNat.h, box.innerScale]);
 
   // 모서리 4개(가로·세로 동시) + 변 4개(한쪽만), 텍스트박스와 똑같은 8방향 손잡이예요
   // ("포토샵처럼 박스 조절이 가능해야 한다"는 요청, 2026-09-22). 왼쪽/위쪽 손잡이는
@@ -8448,9 +8494,19 @@ const ImageBoxOverlay = forwardRef<
     };
   }, [isResizing, guidesX, guidesY, siblingTargets, box.id]);
 
+  function handleZoomTo(scale: number) {
+    const nextScale = Math.min(3, Math.max(1, scale));
+    const rect = computeImageBoxCoverRect(photoAreaPx.w, photoAreaPx.h, orientedNat.w, orientedNat.h, 0, 0, nextScale);
+    onChange({
+      innerScale: nextScale,
+      innerOffsetXPct: clampImageBoxInnerOffset(box.innerOffsetXPct ?? 0, photoAreaPx.w, rect.width),
+      innerOffsetYPct: clampImageBoxInnerOffset(box.innerOffsetYPct ?? 0, photoAreaPx.h, rect.height),
+    });
+  }
+
   function handleZoom(delta: number) {
     const nextScale = Math.min(3, Math.max(1, (box.innerScale ?? 1) + delta));
-    const rect = computeImageBoxCoverRect(photoAreaPx.w, photoAreaPx.h, box.naturalWidth, box.naturalHeight, 0, 0, nextScale);
+    const rect = computeImageBoxCoverRect(photoAreaPx.w, photoAreaPx.h, orientedNat.w, orientedNat.h, 0, 0, nextScale);
     const nextOffsetX = clampImageBoxInnerOffset(box.innerOffsetXPct ?? 0, photoAreaPx.w, rect.width);
     const nextOffsetY = clampImageBoxInnerOffset(box.innerOffsetYPct ?? 0, photoAreaPx.h, rect.height);
     onChange({ innerScale: nextScale, innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
@@ -8490,6 +8546,8 @@ const ImageBoxOverlay = forwardRef<
   useImperativeHandle(ref, () => ({
     zoomIn: () => handleZoom(0.1),
     zoomOut: () => handleZoom(-0.1),
+    zoomTo: handleZoomTo,
+    setCompareOriginal,
     resetPhotoPosition: handleResetPhotoPosition,
     toggleFlip: () => onChange({ flipX: !box.flipX }),
     exitPhotoEditMode: () => setPhotoEditMode(false),
@@ -8500,8 +8558,8 @@ const ImageBoxOverlay = forwardRef<
   const baseCoverRect = computeImageBoxCoverRect(
     photoAreaPx.w,
     photoAreaPx.h,
-    box.naturalWidth,
-    box.naturalHeight,
+    orientedNat.w,
+    orientedNat.h,
     box.innerOffsetXPct ?? 0,
     box.innerOffsetYPct ?? 0,
     box.innerScale ?? 1
@@ -8641,25 +8699,26 @@ const ImageBoxOverlay = forwardRef<
                 : { borderRadius: cssRadius, clipPath: cssClipPath }
             }
           >
-            <img
-              src={box.url}
-              alt=""
-              draggable={false}
-              // max-w-none/max-h-none: Tailwind 기본 스타일(img { max-width: 100% })이
-              // 없으면, 사진이 박스보다 크게(cover 계산 결과) 커져야 할 때도 브라우저가
-              // 폭을 박스 크기로 강제로 줄여버려서(높이는 style로 고정) 사진이 박스를
-              // 다 못 채우고 한쪽에 빈 공간이 생겨요 — 특히 책등 쪽에서 보였던 문제의
-              // 진짜 원인이에요(2026-09).
-              className="pointer-events-none absolute max-w-none max-h-none select-none"
-              style={{
+            {/* BoxPhotoView(app/upload/photoEditHooks.tsx): 예전 <img>와 같은 위치·크기(max-w-none 포함)로 그리되,
+                보정(필터/조정)이 있으면 같은 픽셀 파이프라인으로 계산한 캔버스를, 반전·90도 회전은 rect 중심 기준 CSS
+                transform 으로 그려요(인쇄 drawBoxPhoto 와 같은 규칙). 액자·테두리·장식은 이 위에 따로 그려져서 안 물들어요. */}
+            <BoxPhotoView
+              url={box.url}
+              rect={{
                 // 장식 프레임이면 위 사진 영역(photoClipWin)이 창보다 photoBleed만큼 커서, 그 안에서
                 // 사진 위치를 같은 만큼 되돌려 줘요(창 기준 cover 위치는 그대로).
-                left: coverRect.x + (photoClipWin ? decorLayout!.window.x - photoClipWin.x : 0),
-                top: coverRect.y + (photoClipWin ? decorLayout!.window.y - photoClipWin.y : 0),
+                x: coverRect.x + (photoClipWin ? decorLayout!.window.x - photoClipWin.x : 0),
+                y: coverRect.y + (photoClipWin ? decorLayout!.window.y - photoClipWin.y : 0),
                 width: coverRect.width,
                 height: coverRect.height,
-                transform: box.flipX ? "scaleX(-1)" : undefined,
               }}
+              turn={photoTurn}
+              flipX={box.flipX}
+              flipY={box.flipY}
+              filter={box.photoFilter}
+              adjust={box.photoAdjust}
+              // 선택이 풀린 박스는 "원본과 비교"가 남아 있어도 보정된 모습으로 보여요.
+              compareOriginal={compareOriginal && isActive}
             />
           </div>
         )
@@ -8809,52 +8868,24 @@ const ImageBoxOverlay = forwardRef<
         </>
       )}
       {isActive && photoEditMode && (
-        <div
-          onMouseDown={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute -bottom-9 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 "
-        >
-          <span className="px-1 text-[10px] font-medium text-[var(--color-brand-purple)]">사진 위치 조정 중</span>
-          <button
-            type="button"
-            title="축소"
-            onClick={() => handleZoom(-0.1)}
-            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
-          >
-            <LayerIcon name="zoomOut" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="확대"
-            onClick={() => handleZoom(0.1)}
-            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
-          >
-            <LayerIcon name="zoomIn" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="좌우 반전"
-            onClick={() => onChange({ flipX: !box.flipX })}
-            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
-          >
-            <LayerIcon name="flip" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="사진 위치 초기화"
-            onClick={handleResetPhotoPosition}
-            className="flex h-6 w-6 items-center justify-center bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
-          >
-            <LayerIcon name="fit" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="박스 조절 모드로 돌아가기(완료)"
-            onClick={() => setPhotoEditMode(false)}
-            className="ml-0.5 flex h-6 w-6 items-center justify-center bg-[var(--color-charcoal)] text-white"
-          >
-            <LayerIcon name="check" className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        // 2026-11, 혜민님 요청("사진 위치 조정 중 글씨가 두 줄로 꺾이고 아이콘이 너무 작아요") — 예전엔 이 막대가 박스 div 안에
+        // (absolute left-1/2 -translate-x-1/2) 있어서 박스 폭의 절반까지만 가로로 늘어날 수 있었고(그래서 작은 박스에서
+        // "사진 위치 조정 중"이 두 줄로 꺾임), 박스 회전도 같이 받고, 캔버스 가장자리에서 잘렸어요. 이제 body 에 position:fixed 로
+        // 띄우는 PhotoPositionToolbar 가 박스 크기와 상관없는 고정 크기(아이콘 24px·글자 13px·버튼 40px)로 그리고,
+        // 캔버스 영역 안으로 위치를 잘라줘요.
+        <PhotoPositionToolbar
+          anchorRef={boxRef}
+          flipX={box.flipX}
+          flipY={box.flipY}
+          onReplace={() => onRequestPhotoReplace?.()}
+          onZoomOut={() => handleZoom(-0.1)}
+          onZoomIn={() => handleZoom(0.1)}
+          onFit={handleResetPhotoPosition}
+          onFlipX={() => onChange({ flipX: !box.flipX })}
+          onFlipY={() => onChange({ flipY: !box.flipY })}
+          onRotate={() => onChange({ photoRotation: (photoTurn + 90) % 360, innerOffsetXPct: 0, innerOffsetYPct: 0 })}
+          onDone={() => setPhotoEditMode(false)}
+        />
       )}
       {/* 더블클릭으로 "사진 위치 조정 중" 모드에 들어가면 바로 아래에 확대/축소·반전·
           초기화·완료 전용 바가 따로 떠요(이 아래) — 이 레이어 툴바에도 같은 기능(맞춤·
@@ -8934,6 +8965,7 @@ function ImageBoxLayer({
   onPhotoEditModeChange,
   registerBoxRef,
   docMm,
+  onRequestPhotoReplace,
 }: {
   boxes: ImageBoxDef[];
   // 박스 %좌표의 기준 영역(스프레드 전체 / 표지 앞·뒤 패널)의 실제 종이 크기(mm) — ImageBoxOverlay.docMm 참고.
@@ -8966,6 +8998,8 @@ function ImageBoxLayer({
   // 상위가 각 박스의 사진 위치 조정 동작(확대/축소/반전/초기화/완료)을 ref로 직접 호출할
   // 수 있도록 박스 id별 핸들을 등록해요.
   registerBoxRef?: (boxId: string, handle: ImageBoxOverlayHandle | null) => void;
+  // "사진 변경" 선택창 열기(박스 id) — 사진 위치 조정 도구 막대의 첫 버튼이 호출해요.
+  onRequestPhotoReplace?: (boxId: string) => void;
 }) {
   // 사진 추가·스티커 추가 버튼은 2026-09-19부터 캔버스 위 숨은 버튼이 아니라 왼쪽
   // 아이콘 메뉴("사진"/"스티커" 탭)로 옮겨졌어요 — 이 레이어는 이제 박스 렌더링만 해요.
@@ -8990,6 +9024,7 @@ function ImageBoxLayer({
           zIndex={box.id === activeBoxId ? SELECTED_BOX_Z_INDEX : effectiveZOrder("image", box.zOrder, index)}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
           docMm={docMm}
+          onRequestPhotoReplace={onRequestPhotoReplace ? () => onRequestPhotoReplace(box.id) : undefined}
         />
       ))}
     </>
@@ -11676,7 +11711,7 @@ function CanvasStage({
   }, [displayW, widthMm, onActualSizePercentChange]);
 
   return (
-    <div ref={measureRef} className={`relative flex min-h-0 min-w-0 flex-1 ${className ?? ""}`}>
+    <div ref={measureRef} data-canvas-stage className={`relative flex min-h-0 min-w-0 flex-1 ${className ?? ""}`}>
       {/* 2026-09-24 items-start -> items-center: 책 비율(aspect)이 컨테이너 비율과
           다르면 항상 위/아래 또는 좌/우 중 한쪽에 여백이 남는데(레터박싱, 스위트북도
           마찬가지), items-start였을 때는 그 여백이 전부 "아래쪽"에만 몰려서 옅은
@@ -12256,10 +12291,14 @@ function UploadPageContent() {
   // 상단메뉴에요" — 토글 버튼 하나 대신, 상단 2개를 서로 배타적으로 선택하는
   // 탭으로 바꾸고, 어느 탭이 선택됐는지에 따라 하단 바의 내용(파일 선택 vs
   // 프레임 슬라이더)이 바뀌게 했어요.
-  const [coverPhotoTopTab, setCoverPhotoTopTab] = useState<"add" | "frame">("add");
+  const [coverPhotoTopTab, setCoverPhotoTopTab] = useState<"add" | "frame" | "edit">("add");
   // 내지 사진 탭도 표지와 같은 "사진 추가/사진 프레임 변경" 상단 탭을 써요
   // (2026-09-28, 혜민님 요청: "표지편집툴과 내지편집툴을 동일하게 제작해주세요").
-  const [photoTopTab, setPhotoTopTab] = useState<"add" | "frame">("add");
+  const [photoTopTab, setPhotoTopTab] = useState<"add" | "frame" | "edit">("add");
+  // "사진 편집" 패널의 구역(사진 변경 / 위치·크롭 / 필터 / 보정) — 표지·내지 패널이 같이 써요.
+  const [photoEditSection, setPhotoEditSection] = useState<PhotoEditSection>("replace");
+  // "사진 변경" 선택창이 열려 있는 이미지박스 id(없으면 닫힘) — 사진 위치 조정 도구 막대와 왼쪽 패널 둘 다 여기로 열어요.
+  const [photoReplaceBoxId, setPhotoReplaceBoxId] = useState<string | null>(null);
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -14183,6 +14222,123 @@ function UploadPageContent() {
   function handleCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
     setCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
   }
+  // ---- 사진 변경 (2026-11, 혜민님 요청 "사진 변경 버튼") ----
+  // 선택한 사진박스의 "사진만" 다른 사진(이미 올린 사진 또는 새로 올린 사진)으로 바꿔요. 박스 위치·크기·회전·
+  // 모양(frameShape 등)·캐릭터/꽃 액자(frameDecor*)·테두리·투명도·쌓임 순서는 한 글자도 안 건드리고, 사진 관련
+  // 값(url·원본 크기·확대/이동·반전·90도 회전·필터·보정)만 새 사진 기준 기본값으로 바꿔요 — 새 사진은 틈 없이
+  // 꽉 채워(cover) 가운데에 놓이고(확대 1·이동 0), 이후 사진 위치 조정으로 다시 옮길 수 있어요. 한 번의
+  // setState 묶음이라 실행취소 한 번에 이전 사진과 그 사진의 편집값이 통째로 돌아와요. 이전 사진은 사진 목록(photos)에서
+  // 지우지 않아요.
+  function findImageBoxById(boxId: string): { box: ImageBoxDef; scope: "front" | "back" | number } | null {
+    const front = coverImageBoxes.find((b) => b.id === boxId);
+    if (front) return { box: front, scope: "front" };
+    const back = backCoverImageBoxes.find((b) => b.id === boxId);
+    if (back) return { box: back, scope: "back" };
+    for (let i = 0; i < customSpreads.length; i++) {
+      const found = (customSpreads[i].imageBoxes ?? []).find((b) => b.id === boxId);
+      if (found) return { box: found, scope: i };
+    }
+    return null;
+  }
+
+  function isRealPhotoBox(b: ImageBoxDef) {
+    return !!b.url && !isStickerImageBox(b);
+  }
+
+  // 선택창에 보여줄 "이미 올린 사진" 목록 — 사진 목록(photos)을 기본으로, 표지 사진·지금 박스들이 쓰는 사진도 같이(중복 제거).
+  function buildReplaceLibrary(): ReplaceLibraryPhoto[] {
+    const seen = new Set<string>();
+    const out: ReplaceLibraryPhoto[] = [];
+    const add = (url: string | undefined, width: number, height: number) => {
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      out.push({ url, width, height });
+    };
+    photos.forEach((p) => add(p.url, p.width, p.height));
+    if (coverPhoto) add(coverPhoto.url, coverPhoto.width, coverPhoto.height);
+    if (backCoverPhoto) add(backCoverPhoto.url, backCoverPhoto.width, backCoverPhoto.height);
+    [...coverImageBoxes, ...backCoverImageBoxes, ...customSpreads.flatMap((s) => s.imageBoxes ?? [])]
+      .filter(isRealPhotoBox)
+      .forEach((b) => add(b.url, b.naturalWidth, b.naturalHeight));
+    return out;
+  }
+
+  // 새 사진 업로드(선택창 안) — 원본 파일 그대로 objectURL 로 쓰고(인쇄도 이 원본), "AI 맞춤 레이아웃"에서는 사진 목록에도 넣어요
+  // (목록=사진 보관함이라). 그 외 상품은 photos 가 템플릿 칸 순서 배정에 쓰여서 개수가 어긋나면 안 되니 목록엔 안 넣어요.
+  async function uploadPhotoForReplace(file: File): Promise<ReplaceLibraryPhoto | null> {
+    const url = URL.createObjectURL(file);
+    const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+    if (!dims) {
+      URL.revokeObjectURL(url);
+      return null;
+    }
+    if (isAiAuto) {
+      setPhotos((prev) => [
+        ...prev,
+        {
+          url,
+          caption: "",
+          x: 0,
+          y: 0,
+          scale: 1,
+          width: dims.w,
+          height: dims.h,
+          fontFamily: fontOptions[0].id,
+          size: "sm",
+          bold: false,
+          color: "#2B2B2B",
+          align: "left",
+          position: "below",
+          containerW: 0,
+          containerH: 0,
+          rotation: 0,
+          flipX: false,
+        },
+      ]);
+    }
+    return { url, width: dims.w, height: dims.h };
+  }
+
+  function applyPhotoReplace(boxId: string, photo: ReplaceLibraryPhoto) {
+    const found = findImageBoxById(boxId);
+    setPhotoReplaceBoxId(null);
+    if (!found) return;
+    const width = photo.width || 1;
+    const height = photo.height || 1;
+    const patch: Partial<ImageBoxDef> = {
+      url: photo.url,
+      naturalWidth: width,
+      naturalHeight: height,
+      innerOffsetXPct: 0,
+      innerOffsetYPct: 0,
+      innerScale: 1,
+      flipX: undefined,
+      flipY: undefined,
+      photoRotation: undefined,
+      photoFilter: undefined,
+      photoAdjust: undefined,
+    };
+    if (found.scope === "front") {
+      handleCoverImageBoxChange(boxId, patch);
+      // 앞표지 첫 칸의 사진은 "마지막 소개 페이지" 미리보기·인쇄가 쓰는 coverPhoto 와 짝이라 같이 맞춰요.
+      if (coverImageBoxes[0]?.id === boxId) {
+        setCoverPhoto((prev) => (prev ? { ...prev, url: photo.url, width, height, x: 0, y: 0, scale: 1, rotation: 0, flipX: false } : prev));
+      }
+    } else if (found.scope === "back") {
+      handleBackCoverImageBoxChange(boxId, patch);
+      if (backCoverImageBoxes[0]?.id === boxId) {
+        setBackCoverPhoto((prev) => (prev ? { ...prev, url: photo.url, width, height, x: 0, y: 0, scale: 1, rotation: 0, flipX: false } : prev));
+      }
+    } else {
+      handleImageBoxChange(found.scope, boxId, patch);
+    }
+  }
+
   function handleDeleteCoverImageBox(boxId: string) {
     setCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
     setActiveCoverImageBox((prev) => (prev && prev.target === "front" && prev.boxId === boxId ? null : prev));
@@ -16885,6 +17041,9 @@ function UploadPageContent() {
                               }
                               topTab={coverPhotoTopTab}
                               onTopTabChange={setCoverPhotoTopTab}
+                              photoEditSection={photoEditSection}
+                              onPhotoEditSectionChange={setPhotoEditSection}
+                              onRequestPhotoReplace={setPhotoReplaceBoxId}
                               onFrameChange={(boxId, changes) =>
                                 // 박스 id는 UUID라 앞/뒤 어느 배열에 있는지로 정확히 갈라요.
                                 backCoverImageBoxes.some((b) => b.id === boxId)
@@ -17346,6 +17505,7 @@ function UploadPageContent() {
                                   activeCoverImageBox?.target === "back" ? activeCoverImageBox.boxId : null
                                 }
                                 onSelect={(boxId) => selectCoverImageBox("back", boxId)}
+                                onRequestPhotoReplace={setPhotoReplaceBoxId}
                                 onPhotoEditModeChange={setCoverImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
@@ -17525,6 +17685,7 @@ function UploadPageContent() {
                                   activeCoverImageBox?.target === "front" ? activeCoverImageBox.boxId : null
                                 }
                                 onSelect={(boxId) => selectCoverImageBox("front", boxId)}
+                                onRequestPhotoReplace={setPhotoReplaceBoxId}
                                 onPhotoEditModeChange={setCoverImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
@@ -17919,6 +18080,9 @@ function UploadPageContent() {
                                   }
                                   topTab={photoTopTab}
                                   onTopTabChange={setPhotoTopTab}
+                                  photoEditSection={photoEditSection}
+                                  onPhotoEditSectionChange={setPhotoEditSection}
+                                  onRequestPhotoReplace={setPhotoReplaceBoxId}
                                   onFrameChange={(boxId, changes) => handleImageBoxChange(i, boxId, changes)}
                                   onAddPhotoFile={(e) => {
                                     const file = e.target.files?.[0];
@@ -18350,6 +18514,7 @@ function UploadPageContent() {
                                 multiSelectedBoxIds={
                                   multiImageSelection?.spreadIndex === i ? multiImageSelection.boxIds : undefined
                                 }
+                                onRequestPhotoReplace={setPhotoReplaceBoxId}
                                 onPhotoEditModeChange={setImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) imageBoxHandlesRef.current.set(boxId, handle);
@@ -18463,6 +18628,22 @@ function UploadPageContent() {
             빈 껍데기가 차지한 만큼 높이를 못 받았던 거예요. 이제 경고 문구가 실제로
             보일 때만 이 섹션 자체를 렌더링해서, 평소엔 캔버스가 남은 세로 공간을 전부
             쓰게 했어요. */}
+        {photoReplaceBoxId && findImageBoxById(photoReplaceBoxId) ? (
+          <PhotoReplaceDialog
+            library={buildReplaceLibrary()}
+            usedUrls={
+              new Set(
+                [...coverImageBoxes, ...backCoverImageBoxes, ...customSpreads.flatMap((sp) => sp.imageBoxes ?? [])]
+                  .filter(isRealPhotoBox)
+                  .map((b) => b.url)
+              )
+            }
+            currentUrl={findImageBoxById(photoReplaceBoxId)!.box.url}
+            onUploadFile={uploadPhotoForReplace}
+            onApply={(photo) => applyPhotoReplace(photoReplaceBoxId, photo)}
+            onClose={() => setPhotoReplaceBoxId(null)}
+          />
+        ) : null}
         {photos.length > 0 && !isPhotoCountValid && (
           <section className="mx-auto w-full max-w-5xl shrink-0 px-1.5 pb-3 pt-1.5 sm:px-10">
             <p className="text-sm text-red-500">
