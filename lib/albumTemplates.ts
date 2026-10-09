@@ -2,6 +2,7 @@ import type { TextRun } from "./textRuns";
 import type { FrameShapeKey } from "./frameShapes";
 import type { FrameDecorKey } from "./frameDecorations";
 import type { PhotoAdjust, PhotoFilter } from "./photoAdjust";
+import type { EdgeFade } from "./edgeFade";
 
 export type PageTemplateId =
   | "full"
@@ -325,6 +326,9 @@ export type ImageBoxDef = {
   photoRotation?: number;
   photoFilter?: PhotoFilter;
   photoAdjust?: PhotoAdjust;
+  // 가장자리 페이드(lib/edgeFade.ts) — 사진 가운데는 또렷하게, 가장자리는 서서히 투명하게(배경에 스며듦). 없으면(기존 저장본 전부)
+  // 꺼짐이라 예전과 똑같아요. width 는 박스 짧은 변 대비 "비율"(px 아님), 알파 마스크로 사진에만 적용돼요(테두리·장식은 그 위에 그대로).
+  edgeFade?: EdgeFade;
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),

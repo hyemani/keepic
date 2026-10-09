@@ -26,6 +26,7 @@ import {
   orientedNaturalSize,
   type ImageBoxCoverRect,
 } from "@/lib/imageBoxGeometry";
+import { isEdgeFadeActive, renderEdgeFadeMask } from "@/lib/edgeFade";
 import { isPhotoEditIdentity, renderPhotoEditCanvas, renderPhotoEditOrientedCanvas, type PhotoAdjust, type PhotoFilter } from "@/lib/photoAdjust";
 import {
   frameBorderMarks,
@@ -33,6 +34,7 @@ import {
   starShapePoints,
   heartShapePoints,
   framePerimeterPoints,
+  frameOutlinePathD,
 } from "@/lib/frameShapes";
 import { buildFrameDecorLayout, decorPhotoClipWindow, decorWindowPathD, drawFrameDecorLayout } from "@/lib/frameDecorations";
 import {
@@ -1070,6 +1072,65 @@ function drawBoxPhoto(
   ctx.restore();
 }
 
+// 가장자리 페이드(lib/edgeFade.ts) — 페이드가 켜진 박스는 사진을 "박스 크기의 임시 캔버스"에 먼저 그리고, 같은 알파 마스크
+// (화면 CSS mask 와 같은 renderEdgeFadeMask)를 destination-in 으로 곱해서 투명하게 만든 다음 페이지 캔버스에 올려요.
+// 페이지 캔버스에는 흰색으로 미리 합치지 않고 알파 그대로 얹어서(그 아래 배경·다른 사진과 합성) 화면과 같은 결과가 돼요.
+// 테두리·무늬는 이 뒤에 따로 그려져서 페이드에 영향받지 않아요. 꺼져 있으면 예전 drawBoxPhoto 한 번이에요.
+function drawBoxPhotoWithFade(
+  ctx: CanvasRenderingContext2D,
+  photo: BoxPhotoSource,
+  rect: ImageBoxCoverRect,
+  boxLeftPx: number,
+  boxTopPx: number,
+  boxWidthPx: number,
+  boxHeightPx: number,
+  box: ImageBoxDef
+) {
+  if (isStickerImageBox(box) || !isEdgeFadeActive(box.edgeFade)) {
+    drawBoxPhoto(ctx, photo, rect, boxLeftPx, boxTopPx, box);
+    return;
+  }
+  const tw = Math.max(1, Math.round(boxWidthPx));
+  const th = Math.max(1, Math.round(boxHeightPx));
+  const tmp = document.createElement("canvas");
+  tmp.width = tw;
+  tmp.height = th;
+  const t = tmp.getContext("2d")!;
+  const sx = tw / boxWidthPx;
+  const sy = th / boxHeightPx;
+  t.scale(sx, sy);
+  drawBoxPhoto(t, photo, rect, 0, 0, box);
+  t.setTransform(1, 0, 0, 1, 0, 0);
+  t.globalCompositeOperation = "destination-in";
+  const mask = renderEdgeFadeMask(
+    frameOutlinePathD(box.frameShape, boxWidthPx, boxHeightPx, box.borderRadiusPct ?? 0, {
+      archTopPct: box.frameArchTopPct,
+      archBottomRadiusPct: box.frameArchBottomRadiusPct,
+    }),
+    boxWidthPx,
+    boxHeightPx,
+    box.edgeFade!,
+    1400
+  );
+  t.drawImage(mask, 0, 0, tw, th);
+  ctx.drawImage(tmp, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx);
+  tmp.width = 0;
+  tmp.height = 0;
+  mask.width = 0;
+  mask.height = 0;
+}
+
+// 박스 회전(ImageBoxDef.rotation, 시계방향 도) — 화면(CSS rotate, 박스 중심 기준)과 같이 박스 그리기 전체(사진·테두리·장식)를
+// 중심 기준으로 돌려요. 페이지 클립은 이 호출 앞에서 이미 걸려 있어서 페이지 경계는 그대로예요. 0/없음이면 아무것도 안 해요.
+function applyBoxRotation(ctx: CanvasRenderingContext2D, box: ImageBoxDef, left: number, top: number, w: number, h: number) {
+  if (!box.rotation) return;
+  const cx = left + w / 2;
+  const cy = top + h / 2;
+  ctx.translate(cx, cy);
+  ctx.rotate((box.rotation * Math.PI) / 180);
+  ctx.translate(-cx, -cy);
+}
+
 // 2026-11 "장식 프레임"(lib/frameDecorations.ts) — box.frameDecor가 있는 박스는 "바깥 프레임
 // (그림 포함) + 안쪽 사진 창" 구조예요. 화면(ImageBoxOverlay)과 똑같은 설계도
 // (buildFrameDecorLayout, 박스 인쇄 px 크기 기준)를 만들고, 사진은 창 크기 기준으로
@@ -1168,6 +1229,7 @@ function drawImageBoxOnCanvas(
   ctx.beginPath();
   ctx.rect(0, 0, pageW, pageH);
   ctx.clip();
+  applyBoxRotation(ctx, box, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx);
   // 장식 프레임이면 위 도우미가 사진+그림을 다 그려요(기존 모양/테두리 경로는 건너뜀).
   if (drawDecoratedImageBox(ctx, box, photo, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx)) {
     ctx.restore();
@@ -1182,7 +1244,7 @@ function drawImageBoxOnCanvas(
   // 바꿔서, 이 박스를 다 그리고 나면 자동으로 원래 값(1)으로 돌아가요.
   ctx.globalAlpha = box.opacity ?? 1;
   // 반전·90도 회전은 화면 미리보기(CSS transform)와 같은 규칙으로 rect 중심 기준 — drawBoxPhoto 참고.
-  drawBoxPhoto(ctx, photo, rect, boxLeftPagePx, boxTopPx, box);
+  drawBoxPhotoWithFade(ctx, photo, rect, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box);
   // 테두리(2026-09-26 요청; 이번에 모양 따라가는 띠로 교체, drawFrameBorderBand) — 화면(ImageBoxOverlay)에서
   // inset box-shadow로 박스 안쪽에 그린 것과 같은 결과가 되도록, strokeRect도 선
   // 두께의 절반만큼 안쪽으로 밀어서 그려요(그냥 박스 경계에 그리면 선의 바깥 절반이
@@ -1226,6 +1288,7 @@ async function drawImageBoxesInPanel(
       box.innerScale ?? 1
     );
     ctx.save();
+    applyBoxRotation(ctx, box, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx);
     if (drawDecoratedImageBox(ctx, box, photo, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx)) {
       ctx.restore();
       photo.release();
@@ -1237,7 +1300,7 @@ async function drawImageBoxesInPanel(
     ctx.clip();
     // 투명도·테두리(2026-09-26 추가) — drawImageBoxOnCanvas와 같은 방식이에요.
     ctx.globalAlpha = box.opacity ?? 1;
-    drawBoxPhoto(ctx, photo, rect, boxLeftPx, boxTopPx, box);
+    drawBoxPhotoWithFade(ctx, photo, rect, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box);
     if (box.borderWidthPx && box.borderWidthPx > 0) {
       const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
       drawFrameBorderBand(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, printBorderPx, box);

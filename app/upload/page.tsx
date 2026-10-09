@@ -57,6 +57,7 @@ import {
   ARCH_BOTTOM_RADIUS_PCT_RANGE,
   type FrameShapeKey,
 } from "@/lib/frameShapes";
+import { edgeFadeMaskUrl, isEdgeFadeActive } from "@/lib/edgeFade";
 import {
   buildFrameDecorLayout,
   DECOR_SCALE_RANGE,
@@ -106,6 +107,7 @@ import {
   normalizePhotoQuarterTurn,
   orientedNaturalSize,
 } from "@/lib/imageBoxGeometry";
+import { EdgeFadePanel } from "./edgeFadePanel";
 import { BoxPhotoView, EditedPhotoThumb, type PhotoEditValues } from "./photoEditHooks";
 import {
   PhotoEditPanel,
@@ -7781,6 +7783,8 @@ function ImageBoxPanel({
                       </div>
                     </>
                   )}
+                  {/* 가장자리 페이드 — 사진 모양·테두리와 같은 "기본 설정" 안에 둬요(장식 프레임이 켜져 있으면 숨겨요). */}
+                  {!frameTargetBox.frameDecor && <EdgeFadePanel box={frameTargetBox} onChange={(c) => onFrameChange(frameTargetBox.id, c)} />}
                 </div>
                 {/* 2026-11, 혜민님 요청("장식 프레임") — 사진 둘레에 그림(귀·얼굴·꽃·줄무늬·꽃잎 테두리)을
                     두르는 프레임이에요(lib/frameDecorations.ts). 버튼을 누르면 "선택한 사진 한 장"
@@ -8071,6 +8075,21 @@ const ImageBoxOverlay = forwardRef<
         ? frameBorderMarks(box.frameShape, boxSizePx.w, boxSizePx.h, borderBandPx, box.borderRadiusPct ?? 0, borderShapeParams)
         : null,
     [borderBandPx, borderHasPattern, box.frameShape, boxSizePx.w, boxSizePx.h, box.borderRadiusPct, borderShapeParams]
+  );
+  // 가장자리 페이드(lib/edgeFade.ts) — 사진을 자르는 외곽선(frameOutlinePathD)을 기준으로 만든 알파 마스크를 사진 래퍼에만 걸어요.
+  // 테두리 띠·무늬·장식은 마스크 바깥의 별도 레이어라 그대로예요. 장식 프레임(decorLayout)·스티커에는 쓰지 않아요.
+  const fadeActive = !isSticker && !decorLayout && isEdgeFadeActive(box.edgeFade);
+  const fadeMaskUrl = useMemo(
+    () =>
+      fadeActive
+        ? edgeFadeMaskUrl(
+            frameOutlinePathD(box.frameShape, boxSizePx.w, boxSizePx.h, box.borderRadiusPct ?? 0, borderShapeParams),
+            boxSizePx.w,
+            boxSizePx.h,
+            box.edgeFade!
+          )
+        : null,
+    [fadeActive, box.frameShape, boxSizePx.w, boxSizePx.h, box.borderRadiusPct, borderShapeParams, box.edgeFade]
   );
   // 박스를 끌 때 스프레드 가로 중앙(책등)·페이지 세로 중앙에 딱 붙는 느낌을 주는 안내선이에요
   // (텍스트박스에 이미 있던 것과 같은 방식, 2026-09-23 이미지박스에도 추가).
@@ -8712,8 +8731,22 @@ const ImageBoxOverlay = forwardRef<
                     height: photoClipWin!.h,
                     borderRadius: photoClipWin!.r,
                   }
-                : { borderRadius: cssRadius, clipPath: cssClipPath }
+                : {
+                    borderRadius: cssRadius,
+                    clipPath: cssClipPath,
+                    ...(fadeMaskUrl
+                      ? {
+                          WebkitMaskImage: `url(${fadeMaskUrl})`,
+                          maskImage: `url(${fadeMaskUrl})`,
+                          WebkitMaskSize: "100% 100%",
+                          maskSize: "100% 100%",
+                          WebkitMaskRepeat: "no-repeat",
+                          maskRepeat: "no-repeat",
+                        }
+                      : null),
+                  }
             }
+            data-edge-fade={fadeMaskUrl ? "1" : undefined}
           >
             {/* BoxPhotoView(app/upload/photoEditHooks.tsx): 예전 <img>와 같은 위치·크기(max-w-none 포함)로 그리되,
                 보정(필터/조정)이 있으면 같은 픽셀 파이프라인으로 계산한 캔버스를, 반전·90도 회전은 rect 중심 기준 CSS
