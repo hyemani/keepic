@@ -651,7 +651,9 @@ function buildWreath(w: number, h: number, opts?: DecorBuildOpts): DecorLayout {
   const rh = Math.max(1, h - 2 * center);
   const rc = Math.min(0.1 * u, rw / 2, rh / 2);
   const perim = 2 * (rw - 2 * rc) + 2 * (rh - 2 * rc) + 2 * Math.PI * rc;
-  const n = Math.min(1500, Math.max(8, Math.round(perim / (0.075 * u))));
+  // 개수는 6의 배수로 맞춰요: 꽃이 3칸에 하나(i%3), 잎이 2칸마다 번갈아(i%2)라서 둘레가 한 바퀴 돌아 이어지는
+  // 자리(마지막 칸 → 첫 칸)에서도 규칙이 끊기지 않아야 꽃 두 송이가 바로 붙어 겹치지 않아요.
+  const n = Math.min(1500, Math.max(6, Math.round(perim / (0.075 * u) / 6) * 6));
   const leavesA: string[] = [];
   const leavesB: string[] = [];
   const veins: string[] = [];
@@ -1436,7 +1438,9 @@ function buildWreathKind(kind: WreathKind, w: number, h: number, opts?: DecorBui
   const rh = Math.max(1, h - 2 * c0);
   const rc = Math.min(0.1 * u, rw / 2, rh / 2);
   const perim = 2 * (rw - 2 * rc) + 2 * (rh - 2 * rc) + 2 * Math.PI * rc;
-  const n = Math.min(1500, Math.max(8, Math.round(perim / (spec.spacing * u))));
+  // 개수는 짝수로 맞춰요: 꽃이 한 칸 걸러(i%2===0) 놓이고 잎·가지는 좌우가 번갈아라서, 홀수면 둘레가 이어지는
+  // 자리(마지막 칸 → 첫 칸)에서 꽃 두 송이가 바로 붙어 겹쳐요.
+  const n = Math.min(1500, Math.max(8, 2 * Math.round(perim / (spec.spacing * u) / 2)));
   const L = new Layers();
   const green = ["#8DCB78", "#A8DB8B", "#7DBF6C"];
   // 잎 색 세 가지를 먼저 등록해서, 어느 칸의 잎이든 항상 모든 꽃보다 "뒤"에 그려지게 해요(그리는 순서 = 등록 순서)
