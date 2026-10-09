@@ -209,6 +209,7 @@ export function renderEdgeFadeMask(
   }
   // 2-2) 거리 "지도"를 살짝 흐려서(폭의 약 35%) 톱니 홈·구름 골처럼 작은 요철 하나하나가 페이드 가장자리에 톱니무늬 얼룩을
   //      만들지 않게 해요(윤곽선 전체의 큰 흐름은 그대로 따라가요).
+  const rawDist = Float32Array.from(dist); // 흐리기 전 "진짜" 외곽선까지 거리 — 아래에서 외곽선 바로 위를 완전 투명으로 만드는 데 써요
   const rb = Math.round(Math.max(0, Math.min(fade.width * Math.min(boxW, boxH) * k * 0.35, Math.min(gw, gh) / 6)));
   if (rb >= 1) {
     const tmp = new Float32Array(gw * gh);
@@ -223,8 +224,16 @@ export function renderEdgeFadeMask(
   const out = makeCanvas(gw, gh);
   const octx = out.getContext("2d")!;
   const img = octx.createImageData(gw, gh);
+  // 외곽선 가장자리가 "하얀 테두리 띠"로 보이던 원인: 거리 지도를 흐리면 외곽선 바로 안쪽에서도 값이 0이 아니라(폭의 약 9%),
+  // 알파가 1~5% 정도 남아 있었고 그 위를 clip-path 가 딱딱하게 잘라서 흰/어두운 배경 위에 옅은 윤곽선 띠가 생겼어요.
+  // 그래서 (1) 곡선이 시작하는 거리를 폭의 11% 만큼 바깥으로 밀어(그 구간은 알파 정확히 0), (2) 흐리기 전 진짜 거리로도
+  // 외곽선에서 0 → 1 로 부드럽게 올라가게 한 번 더 곱해요(흐림 때문에 생기는 오차와 무관하게 외곽선 위는 항상 0).
+  const d0 = 0.11 * wpx;
+  const rampW = Math.max(2, 0.1 * wpx);
   for (let i = 0; i < gw * gh; i++) {
-    const a = 1 - s * (1 - smooth(dist[i] / wpx));
+    const t = Math.max(0, dist[i] - d0) / Math.max(1e-6, wpx - d0);
+    const edge = smooth((rawDist[i] - 0.5) / rampW);
+    const a = 1 - s * (1 - smooth(t) * edge);
     img.data[i * 4 + 3] = Math.round(Math.min(1, Math.max(0, a)) * 255);
   }
   octx.putImageData(img, 0, 0);
