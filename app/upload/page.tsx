@@ -64,6 +64,7 @@ import {
   frameDecorSvgInner,
   decorWindowPathD,
   decorPhotoClipWindow,
+  decorSupportsPhotoFade,
   FRAME_DECOR_PRESETS,
   type FrameDecorPreset,
 } from "@/lib/frameDecorations";
@@ -2051,7 +2052,6 @@ const FRAME_SHAPE_OPTIONS: FrameShapeOption[] = [
   { key: "flowerPetal", label: "꽃잎" },
   { key: "organicScallop", label: "낙서" },
   { key: "cloud", label: "구름" },
-  { key: "badge", label: "뱃지" },
   // 2026-11 추가 — 사진 자체를 실루엣으로 자르는 4종(lib/frameShapes.ts)
   { key: "heart", label: "하트" },
   { key: "arch", label: "아치" },
@@ -7645,7 +7645,7 @@ function ImageBoxPanel({
                     </>
                   )}
                   {/* 가장자리 페이드 — 사진 모양·테두리와 같은 "기본 설정" 안에 둬요(장식 프레임이 켜져 있으면 숨겨요). */}
-                  {!frameTargetBox.frameDecor && <EdgeFadePanel box={frameTargetBox} onChange={(c) => onFrameChange(frameTargetBox.id, c)} />}
+                  {(!frameTargetBox.frameDecor || decorSupportsPhotoFade(frameTargetBox.frameDecor)) && <EdgeFadePanel box={frameTargetBox} onChange={(c) => onFrameChange(frameTargetBox.id, c)} />}
                 </div>
                 {/* 2026-11, 혜민님 요청("장식 프레임") — 사진 둘레에 그림(귀·얼굴·꽃·줄무늬·꽃잎 테두리)을
                     두르는 프레임이에요(lib/frameDecorations.ts). 버튼을 누르면 "선택한 사진 한 장"
@@ -7657,6 +7657,7 @@ function ImageBoxPanel({
                 {(
                   [
                     { group: "border" as const, title: "테두리 무늬" },
+                    { group: "badge" as const, title: "리본 뱃지" },
                     { group: "character" as const, title: "캐릭터" },
                     { group: "wreath" as const, title: "꽃 화환" },
                   ]
@@ -7952,6 +7953,14 @@ const ImageBoxOverlay = forwardRef<
   // 가장자리 페이드(lib/edgeFade.ts) — 사진을 자르는 외곽선(frameOutlinePathD)을 기준으로 만든 알파 마스크를 사진 래퍼에만 걸어요.
   // 테두리 띠·무늬·장식은 마스크 바깥의 별도 레이어라 그대로예요. 장식 프레임(decorLayout)·스티커에는 쓰지 않아요.
   const fadeActive = !isSticker && !decorLayout && isEdgeFadeActive(box.edgeFade);
+  // 리본 뱃지처럼 창(window)이 매끈한 도형인 장식 프레임은 페이드를 "사진 창"에만 걸어요(프레임 그림은 그대로).
+  const decorFadeMaskUrl = useMemo(() => {
+    if (isSticker || !decorLayout?.fadeWindow || !isEdgeFadeActive(box.edgeFade)) return null;
+    const cw = decorPhotoClipWindow(decorLayout);
+    const e = decorLayout.photoBleed;
+    const win = decorLayout.window;
+    return edgeFadeMaskUrl(decorWindowPathD({ x: e, y: e, w: win.w, h: win.h, r: win.r }), cw.w, cw.h, box.edgeFade!);
+  }, [isSticker, decorLayout, box.edgeFade]);
   const fadeMaskUrl = useMemo(
     () =>
       fadeActive
@@ -8603,6 +8612,16 @@ const ImageBoxOverlay = forwardRef<
                     width: photoClipWin!.w,
                     height: photoClipWin!.h,
                     borderRadius: photoClipWin!.r,
+                    ...(decorFadeMaskUrl
+                      ? {
+                          WebkitMaskImage: `url(${decorFadeMaskUrl})`,
+                          maskImage: `url(${decorFadeMaskUrl})`,
+                          WebkitMaskSize: "100% 100%",
+                          maskSize: "100% 100%",
+                          WebkitMaskRepeat: "no-repeat",
+                          maskRepeat: "no-repeat",
+                        }
+                      : null),
                   }
                 : {
                     borderRadius: cssRadius,
@@ -8619,7 +8638,7 @@ const ImageBoxOverlay = forwardRef<
                       : null),
                   }
             }
-            data-edge-fade={fadeMaskUrl ? "1" : undefined}
+            data-edge-fade={fadeMaskUrl || decorFadeMaskUrl ? "1" : undefined}
           >
             {/* BoxPhotoView(app/upload/photoEditHooks.tsx): 예전 <img>와 같은 위치·크기(max-w-none 포함)로 그리되,
                 보정(필터/조정)이 있으면 같은 픽셀 파이프라인으로 계산한 캔버스를, 반전·90도 회전은 rect 중심 기준 CSS

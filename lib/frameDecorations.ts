@@ -42,6 +42,7 @@ export type FrameDecorKey =
   | "pastelDots"
   | "softWave"
   | "doubleLine"
+  | "badge"
   | WreathKind
   | AnimalKind;
 
@@ -76,6 +77,9 @@ export type DecorLayout = {
   // 비치는 현상(이음새)을 막는 장치예요 — 늘어난 부분은 프레임 그림 아래에 숨어요. 프레임이
   // 창 둘레를 덮지 않는 꽃 화환은 0이에요.
   photoBleed: number;
+  // true면 "가장자리 페이드"(lib/edgeFade.ts)가 사진 창(window)을 기준으로 사진에만 적용돼요(리본 뱃지처럼 창이
+  // 매끈한 도형이고 프레임 그림은 따로 그려지는 프레임). 없으면(대부분의 장식 프레임) 예전처럼 페이드를 쓰지 않아요.
+  fadeWindow?: boolean;
 };
 
 // ---- 꽃·잎 크기를 "문서 단위(mm)"로 정하기 위한 입력 ----
@@ -108,7 +112,7 @@ export type FrameDecorPreset = {
   decor: FrameDecorKey;
   variant: string;
   label: string;
-  group: "border" | "character" | "wreath";
+  group: "border" | "character" | "wreath" | "badge";
 };
 
 // ---- 프리셋(썸네일 목록) ----
@@ -152,6 +156,11 @@ export const FRAME_DECOR_PRESETS: FrameDecorPreset[] = [
   { id: "pastel-dots", decor: "pastelDots", variant: "default", label: "파스텔 도트", group: "border" },
   { id: "soft-wave", decor: "softWave", variant: "default", label: "부드러운 물결", group: "border" },
   { id: "double-line", decor: "doubleLine", variant: "default", label: "심플 이중선", group: "border" },
+  // 리본 뱃지(로제트 + 리본 꼬리 두 갈래) — 사진은 둥근 창에만, 리본은 사진과 따로 그려요
+  { id: "badge-red", decor: "badge", variant: "red", label: "빨강 뱃지", group: "badge" },
+  { id: "badge-teal", decor: "badge", variant: "teal", label: "민트 뱃지", group: "badge" },
+  { id: "badge-pink", decor: "badge", variant: "pink", label: "핑크 뱃지", group: "badge" },
+  { id: "badge-gold", decor: "badge", variant: "gold", label: "골드 뱃지", group: "badge" },
   // 새 캐릭터 10종 (variant는 한 가지뿐이라 "default")
   { id: "dog", decor: "dog", variant: "default", label: "강아지", group: "character" },
   { id: "chick", decor: "chick", variant: "default", label: "병아리", group: "character" },
@@ -1608,6 +1617,93 @@ function buildWreathKind(kind: WreathKind, w: number, h: number, opts?: DecorBui
   return { w, h, window: win, photoBleed: 0, groups: [{ prims: L.prims() }] };
 }
 
+// ---- 리본 뱃지 (badge) ----
+// "사진 모양"의 옛 뱃지(사진이 리본 꼬리까지 이어지던 한 덩어리 모양) 대신, 장식 프레임으로 새로 만들었어요.
+//   · 사진 창 = 넓은 "원"(지름 0.71D). 사진은 이 창에만 보이고 리본 쪽으로는 절대 안 내려가요.
+//   · 창 둘레 = 부드러운 물결(플루티드 로제트) 테두리 고리(바깥 지름 D, 물결 24개) + 흰 안쪽 선.
+//   · 아래 = 좌우 대칭 리본 꼬리 두 갈래(끝은 V자 홈, 모서리는 둥글게). 꼬리는 사진과 따로 그려요 — 윗부분은 고리 뒤로
+//     들어가고, 사진 창 위로는 한 픽셀도 안 올라와요.
+// 비율 규칙(찌그러지지 않음): 로제트는 항상 "정원"이고 지름 D는 박스 안에 로제트+리본이 통째로 들어가게 정해요 —
+// 전체 높이 = 1.3D(리본이 고리 아래로 0.3D 더 내려옴) → D = min(가로, 세로 ÷ 1.3) × 0.985. 그래서 박스를 가로·세로·정사각형으로
+// 어떻게 바꿔도 리본이 박스 밖으로 잘리지 않고(아래쪽에 리본 자리를 항상 확보), 전체 그림은 박스 가운데에 맞춰 놓여요.
+const BADGE_PALETTES: Record<string, { ring: string; ribbon: string; ribbonEdge: string; line: string }> = {
+  red: { ring: "#E8605A", ribbon: "#D24B48", ribbonEdge: "#B83A3A", line: "#FFFFFF" },
+  teal: { ring: "#44BBAD", ribbon: "#2F9F92", ribbonEdge: "#238376", line: "#FFFFFF" },
+  pink: { ring: "#F396B5", ribbon: "#E57BA0", ribbonEdge: "#CC628A", line: "#FFFFFF" },
+  gold: { ring: "#EDBE4F", ribbon: "#DBA337", ribbonEdge: "#BF8A26", line: "#FFFFFF" },
+};
+
+// 꼭짓점을 둥글게 깎은 다각형 path — 각 꼭짓점에서 양쪽 변으로 r만큼 떨어진 두 점을 2차 곡선으로 이어요.
+function roundedPolyD(pts: { x: number; y: number }[], r: number): string {
+  const n = pts.length;
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    const a = pts[(i - 1 + n) % n];
+    const b = pts[(i + 1) % n];
+    const la = Math.hypot(a.x - p.x, a.y - p.y) || 1;
+    const lb = Math.hypot(b.x - p.x, b.y - p.y) || 1;
+    const ra = Math.min(r, la / 2.2);
+    const rb = Math.min(r, lb / 2.2);
+    const p1 = { x: p.x + ((a.x - p.x) / la) * ra, y: p.y + ((a.y - p.y) / la) * ra };
+    const p2 = { x: p.x + ((b.x - p.x) / lb) * rb, y: p.y + ((b.y - p.y) / lb) * rb };
+    d += `${i === 0 ? "M" : "L"}${f(p1.x)} ${f(p1.y)}Q${f(p.x)} ${f(p.y)} ${f(p2.x)} ${f(p2.y)}`;
+  }
+  return d + "Z";
+}
+
+function buildBadge(variant: string, w: number, h: number): DecorLayout {
+  const pal = BADGE_PALETTES[variant] ?? BADGE_PALETTES.red;
+  const D = Math.max(1, Math.min(w, h / 1.3) * 0.985);
+  const cx = w / 2;
+  const top = (h - 1.3 * D) / 2;
+  const cy = top + D / 2;
+  const rw = 0.355 * D; // 사진 창 반지름
+  const win = safeWindow(cx - rw, cy - rw, 2 * rw, 2 * rw, rw, w, h);
+  // 물결 로제트 바깥 윤곽: r(θ) = 0.5D × (0.94 + 0.06 cos 24θ) — 봉우리 0.5D, 골 0.44D
+  const NB = 24;
+  const seg = NB * 14;
+  const scal: { x: number; y: number }[] = [];
+  for (let i = 0; i < seg; i++) {
+    const t = (i / seg) * Math.PI * 2;
+    const r = 0.5 * D * (0.94 + 0.06 * Math.cos(NB * t));
+    scal.push({ x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) });
+  }
+  const ringD = polyD(scal) + decorWindowPathD(win); // evenodd → 가운데 창이 뚫려요
+  // 리본 꼬리(왼쪽) — 로제트 중심 기준 D 단위 좌표, 오른쪽은 x 반전. 윗변은 고리(창 반지름 0.355D 바깥) 안쪽에 들어가서
+  // 창 위로는 안 올라와요. 끝(아래)은 V자 홈.
+  const tailPts = [
+    { x: -0.06, y: 0.4 },
+    { x: -0.29, y: 0.34 },
+    { x: -0.46, y: 0.8 },
+    { x: -0.335, y: 0.68 },
+    { x: -0.21, y: 0.8 },
+  ];
+  const toBox = (q: { x: number; y: number }, sx: number) => ({ x: cx + sx * q.x * D, y: cy + q.y * D });
+  const tailL = roundedPolyD(tailPts.map((q) => toBox(q, 1)), 0.035 * D);
+  const tailR = roundedPolyD(tailPts.map((q) => toBox(q, -1)), 0.035 * D);
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(D),
+    fadeWindow: true,
+    groups: [
+      {
+        prims: [
+          // 리본(고리 뒤)
+          { d: tailL + tailR, fill: pal.ribbon, stroke: pal.ribbonEdge, strokeWidth: 0.008 * D },
+          // 로제트 고리(창 자리는 뚫림)
+          { d: ringD, fill: pal.ring, fillRule: "evenodd" },
+          // 안쪽 흰 선 두 줄(창 가장자리, 고리 한가운데)
+          { d: circleD(cx, cy, rw + 0.004 * D), stroke: pal.line, strokeWidth: 0.014 * D },
+          { d: circleD(cx, cy, 0.405 * D), stroke: pal.line, strokeWidth: 0.006 * D, opacity: 0.75 },
+        ],
+      },
+    ],
+  };
+}
+
 // ---- 공개 함수 ----
 
 // 종류/색상/박스 크기(px) → 그림 설계도. 인식 못 하는 종류면 null이에요(옛 문서 안전). opts는 꽃 화환의
@@ -1662,6 +1758,8 @@ export function buildFrameDecorLayout(
       return buildSoftWave(w, h);
     case "doubleLine":
       return buildDoubleLine(w, h);
+    case "badge":
+      return buildBadge(v, w, h);
     case "dog":
     case "chick":
     case "tiger":
@@ -1676,6 +1774,11 @@ export function buildFrameDecorLayout(
     default:
       return null;
   }
+}
+
+// 가장자리 페이드(lib/edgeFade.ts)를 "사진 창" 기준으로 쓰는 장식 프레임인지(리본 뱃지) — 화면 패널이 페이드 칸을 보여줄지 정해요.
+export function decorSupportsPhotoFade(decor: FrameDecorKey | undefined): boolean {
+  return decor === "badge";
 }
 
 // 설계도 → <svg> 안쪽에 넣을 문자열(화면용). idPrefix는 같은 페이지의 다른 프레임과

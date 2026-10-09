@@ -1181,9 +1181,42 @@ function drawDecoratedImageBox(
   ctx.translate(boxLeftPx, boxTopPx);
   // 사진은 창보다 photoBleed만큼 사방으로 더 크게 잘라 그려요(화면과 같은 규칙, 프레임 그림 아래에서
   // 창 가장자리 이음새를 덮음). 위치/확대 계산은 원래 창(win) 기준 그대로예요.
-  ctx.clip(new Path2D(decorWindowPathD(decorPhotoClipWindow(layout))));
-  ctx.globalAlpha = box.opacity ?? 1;
-  drawBoxPhoto(ctx, photo, rect, win.x, win.y, box);
+  if (layout.fadeWindow && isEdgeFadeActive(box.edgeFade)) {
+    // 페이드(리본 뱃지): 사진을 "사진 영역(창+bleed)" 크기의 임시 캔버스에 그리고 창 기준 알파 마스크를 곱해서 올려요
+    // (화면 ImageBoxOverlay의 decorFadeMaskUrl과 같은 외곽선·같은 마스크 함수). 프레임 그림은 이 뒤에 그대로 그려요.
+    const cw = decorPhotoClipWindow(layout);
+    const e = layout.photoBleed;
+    const tw = Math.max(1, Math.round(cw.w));
+    const th = Math.max(1, Math.round(cw.h));
+    const tmp = document.createElement("canvas");
+    tmp.width = tw;
+    tmp.height = th;
+    const t = tmp.getContext("2d")!;
+    t.scale(tw / cw.w, th / cw.h);
+    t.beginPath();
+    t.clip(new Path2D(decorWindowPathD({ x: 0, y: 0, w: cw.w, h: cw.h, r: cw.r })));
+    drawBoxPhoto(t, photo, rect, win.x - cw.x, win.y - cw.y, box);
+    t.setTransform(1, 0, 0, 1, 0, 0);
+    t.globalCompositeOperation = "destination-in";
+    const mask = renderEdgeFadeMask(
+      decorWindowPathD({ x: e, y: e, w: win.w, h: win.h, r: win.r }),
+      cw.w,
+      cw.h,
+      box.edgeFade!,
+      1400
+    );
+    t.drawImage(mask, 0, 0, tw, th);
+    ctx.globalAlpha = box.opacity ?? 1;
+    ctx.drawImage(tmp, cw.x, cw.y, cw.w, cw.h);
+    tmp.width = 0;
+    tmp.height = 0;
+    mask.width = 0;
+    mask.height = 0;
+  } else {
+    ctx.clip(new Path2D(decorWindowPathD(decorPhotoClipWindow(layout))));
+    ctx.globalAlpha = box.opacity ?? 1;
+    drawBoxPhoto(ctx, photo, rect, win.x, win.y, box);
+  }
   ctx.restore();
   ctx.save();
   ctx.globalAlpha = box.opacity ?? 1;
