@@ -40,8 +40,15 @@ export function computeImageBoxCoverRect(
   const safeScale = Math.max(1, innerScale || 1);
   const width = baseWidth * safeScale;
   const height = baseHeight * safeScale;
-  const x = (safeBoxWidth - width) / 2 + (innerOffsetXPct / 100) * safeBoxWidth;
-  const y = (safeBoxHeight - height) / 2 + (innerOffsetYPct / 100) * safeBoxHeight;
+  // 저장된 옮김(innerOffset)이 "지금 이 영역" 기준으로는 사진이 영역을 못 덮을 만큼 클 수 있어요
+  // (예: 사진을 옮겨 놓은 뒤 장식 프레임을 씌우면 사진이 놓이는 영역이 박스 → 더 작은 "창"으로
+  // 바뀌어서 같은 %가 허용 범위를 넘어요) — 그러면 영역 한쪽에 뒤 배경이 비치는 띠가 생겨요.
+  // 그려질 때마다 허용 범위 안으로 잘라서(clampImageBoxInnerOffset) 사진이 항상 영역을 꽉 채우게
+  // 해요. 이미 범위 안인 값은 그대로라 기존 문서의 모습은 안 바뀌어요.
+  const offX = clampImageBoxInnerOffset(innerOffsetXPct, safeBoxWidth, width);
+  const offY = clampImageBoxInnerOffset(innerOffsetYPct, safeBoxHeight, height);
+  const x = (safeBoxWidth - width) / 2 + (offX / 100) * safeBoxWidth;
+  const y = (safeBoxHeight - height) / 2 + (offY / 100) * safeBoxHeight;
 
   return { x, y, width, height };
 }

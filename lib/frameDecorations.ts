@@ -60,6 +60,12 @@ export type DecorLayout = {
   h: number;
   window: DecorWindow;
   groups: DecorGroup[];
+  // 사진을 창보다 "사방으로 이만큼(px) 더 크게" 깔아요(프레임 그림이 창 가장자리를 덮고
+  // 있을 때만 > 0). 창 가장자리가 소수점 px 위치일 때 "프레임의 안티앨리어싱 가장자리"와
+  // "사진의 안티앨리어싱 가장자리"가 서로 반씩만 덮어서 뒤 배경(회색/흰색)이 가는 선처럼
+  // 비치는 현상(이음새)을 막는 장치예요 — 늘어난 부분은 프레임 그림 아래에 숨어요. 프레임이
+  // 창 둘레를 덮지 않는 꽃 화환은 0이에요.
+  photoBleed: number;
 };
 
 export type FrameDecorPreset = {
@@ -139,6 +145,22 @@ export function decorWindowPathD(win: DecorWindow): string {
   return rrectD(win.x, win.y, win.w, win.h, win.r);
 }
 
+// 사진이 실제로 그려지는(잘리는) 영역 = 창 + photoBleed. 화면(ImageBoxOverlay)과 인쇄
+// (drawDecoratedImageBox)가 똑같이 이 함수를 써요. 사진 위치/확대 계산(cover)은 여전히 "원래
+// 창" 기준이라 사진이 움직이거나 확대되는 느낌은 그대로예요.
+export function decorPhotoClipWindow(layout: DecorLayout): DecorWindow {
+  const e = layout.photoBleed;
+  const win = layout.window;
+  if (!(e > 0)) return win;
+  return { x: win.x - e, y: win.y - e, w: win.w + 2 * e, h: win.h + 2 * e, r: win.r > 0 ? win.r + e : 0 };
+}
+
+// 사진 가장자리 이음새 방지용 여유(px): 짧은 변의 0.6%(최소 1px). 프레임 띠 두께(≥6%)보다
+// 훨씬 작아서 늘어난 사진은 항상 띠 아래에 숨어요.
+function photoBleedFor(u: number): number {
+  return Math.max(1, 0.006 * u);
+}
+
 // 결과가 항상 같은(결정적인) 0~1 의사난수 — 화면/인쇄/다시 열기에서 꽃 위치·각도가 매번
 // 똑같아야 해서 Math.random()은 쓰지 않아요.
 function hash01(i: number, salt: number = 0): number {
@@ -192,6 +214,7 @@ function buildPetalBorder(variant: string, w: number, h: number): DecorLayout {
     w,
     h,
     window: win,
+    photoBleed: photoBleedFor(u),
     groups: [
       {
         prims: [
@@ -235,6 +258,7 @@ function buildAirmail(variant: string, w: number, h: number): DecorLayout {
     w,
     h,
     window: win,
+    photoBleed: photoBleedFor(u),
     groups: [
       { prims: [{ d: ringD, fill: pal.bg, fillRule: "evenodd" }] },
       {
@@ -243,11 +267,6 @@ function buildAirmail(variant: string, w: number, h: number): DecorLayout {
         prims: [
           { d: stripesA.join(""), fill: pal.a },
           { d: stripesB.join(""), fill: pal.b },
-        ],
-      },
-      {
-        prims: [
-          { d: rectD(0.003 * u, 0.003 * u, w - 0.006 * u, h - 0.006 * u), stroke: "#D9DCE1", strokeWidth: 0.006 * u },
         ],
       },
     ],
@@ -299,6 +318,7 @@ function patternRingLayout(
     w,
     h,
     window: win,
+    photoBleed: photoBleedFor(u),
     groups: [
       { prims: [{ d: ringD, fill: bg, fillRule: "evenodd" }] },
       { clipD: ringD, clipRule: "evenodd", prims: [{ d: marks.join(""), fill: outline }] },
@@ -469,6 +489,7 @@ function buildCharacter(kind: "bear" | "frog" | "bunny" | "cat", variant: string
     w,
     h,
     window: win,
+    photoBleed: photoBleedFor(u),
     groups: [
       { prims: back },
       {
@@ -607,6 +628,7 @@ function buildWreath(w: number, h: number): DecorLayout {
     w,
     h,
     window: win,
+    photoBleed: 0,
     groups: [
       {
         prims: [

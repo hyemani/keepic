@@ -49,6 +49,7 @@ import {
   buildFrameDecorLayout,
   frameDecorSvgInner,
   decorWindowPathD,
+  decorPhotoClipWindow,
   FRAME_DECOR_PRESETS,
   type FrameDecorPreset,
 } from "@/lib/frameDecorations";
@@ -8319,6 +8320,7 @@ const ImageBoxOverlay = forwardRef<
     fillSpread: handleFillSpread,
   }));
 
+  const photoClipWin = decorLayout ? decorPhotoClipWindow(decorLayout) : null;
   const coverRect = computeImageBoxCoverRect(
     photoAreaPx.w,
     photoAreaPx.h,
@@ -8440,13 +8442,15 @@ const ImageBoxOverlay = forwardRef<
               decorLayout
                 ? {
                     // 장식 프레임: 사진은 안쪽 "창"에만 보여요(창 위치/크기/모서리는 설계도가 정해요).
+                    // (사진 영역은 창보다 photoBleed만큼 사방으로 더 커서, 프레임 그림 아래에서
+                    // 창 가장자리 이음새(안티앨리어싱 틈)를 덮어요 — decorPhotoClipWindow 참고)
                     right: "auto",
                     bottom: "auto",
-                    left: decorLayout.window.x,
-                    top: decorLayout.window.y,
-                    width: decorLayout.window.w,
-                    height: decorLayout.window.h,
-                    borderRadius: decorLayout.window.r,
+                    left: photoClipWin!.x,
+                    top: photoClipWin!.y,
+                    width: photoClipWin!.w,
+                    height: photoClipWin!.h,
+                    borderRadius: photoClipWin!.r,
                   }
                 : { borderRadius: cssRadius, clipPath: cssClipPath }
             }
@@ -8462,8 +8466,10 @@ const ImageBoxOverlay = forwardRef<
               // 진짜 원인이에요(2026-09).
               className="pointer-events-none absolute max-w-none max-h-none select-none"
               style={{
-                left: coverRect.x,
-                top: coverRect.y,
+                // 장식 프레임이면 위 사진 영역(photoClipWin)이 창보다 photoBleed만큼 커서, 그 안에서
+                // 사진 위치를 같은 만큼 되돌려 줘요(창 기준 cover 위치는 그대로).
+                left: coverRect.x + (photoClipWin ? decorLayout!.window.x - photoClipWin.x : 0),
+                top: coverRect.y + (photoClipWin ? decorLayout!.window.y - photoClipWin.y : 0),
                 width: coverRect.width,
                 height: coverRect.height,
                 transform: box.flipX ? "scaleX(-1)" : undefined,

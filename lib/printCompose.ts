@@ -27,7 +27,7 @@ import {
   BORDER_PATTERN_SHAPE_SIZE_PCT,
   framePerimeterPoints,
 } from "@/lib/frameShapes";
-import { buildFrameDecorLayout, decorWindowPathD, drawFrameDecorLayout } from "@/lib/frameDecorations";
+import { buildFrameDecorLayout, decorPhotoClipWindow, decorWindowPathD, drawFrameDecorLayout } from "@/lib/frameDecorations";
 import {
   PhotobookCoverId,
   printFileSpec,
@@ -988,7 +988,9 @@ function drawDecoratedImageBox(
   );
   ctx.save();
   ctx.translate(boxLeftPx, boxTopPx);
-  ctx.clip(new Path2D(decorWindowPathD(win)));
+  // 사진은 창보다 photoBleed만큼 사방으로 더 크게 잘라 그려요(화면과 같은 규칙, 프레임 그림 아래에서
+  // 창 가장자리 이음새를 덮음). 위치/확대 계산은 원래 창(win) 기준 그대로예요.
+  ctx.clip(new Path2D(decorWindowPathD(decorPhotoClipWindow(layout))));
   ctx.globalAlpha = box.opacity ?? 1;
   if (box.flipX) {
     ctx.save();
