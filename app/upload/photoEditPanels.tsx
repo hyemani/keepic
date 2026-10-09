@@ -19,6 +19,7 @@ import {
   type PhotoAdjust,
 } from "@/lib/photoAdjust";
 import { usePhotoFilterThumbs } from "./photoEditHooks";
+import { PrimaryActionButton } from "./primaryActionButton";
 
 export type PhotoEditSection = "crop" | "filter" | "adjust";
 
@@ -355,16 +356,14 @@ export function PhotoEditPanel({
 
   return (
     <div className="flex flex-col gap-2" data-photo-edit-panel>
-      <button
-        type="button"
+      <PrimaryActionButton
         title="이 사진을 다른 사진으로 바꿔요 (모양·액자·테두리·위치·크기는 그대로)"
-        aria-label="사진 변경"
+        ariaLabel="사진 변경"
         onClick={onRequestReplace}
-        className="flex min-h-[34px] w-full items-center justify-center gap-1.5 bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-3 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-90"
       >
         <PhotoToolIcon name="replace" className="h-5 w-5 shrink-0" />
         <span className="whitespace-nowrap">사진 변경</span>
-      </button>
+      </PrimaryActionButton>
 
       <div role="tablist" aria-label="사진 편집 구역" className="grid grid-cols-3">
         {SECTION_TABS.map((t) => (

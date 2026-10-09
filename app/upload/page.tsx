@@ -119,6 +119,7 @@ import {
   type PhotoEditSection,
   type ReplaceLibraryPhoto,
 } from "./photoEditPanels";
+import { PrimaryActionButton, PrimaryFileButton } from "./primaryActionButton";
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
@@ -7357,7 +7358,7 @@ function ImageBoxPanel({
   // 그라데이션이 아니라 다른 카테고리 탭들과 같은 차콜/아이보리 톤으로. 그라데이션은
   // 진짜 실행 버튼(아래 "사진 불러오기")에만 남김.
   const tabButtonClass = (active: boolean) =>
-    `px-2 py-1.5 text-xs font-medium transition ${
+    `flex min-h-[34px] items-center justify-center whitespace-nowrap px-1 text-xs font-medium transition ${
       active
         ? "bg-[var(--color-charcoal)] text-white"
         : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
@@ -7465,7 +7466,7 @@ function ImageBoxPanel({
                 }}
                 className={`${tabButtonClass(effectiveTab === "frame")} ${canFrame ? "" : "cursor-not-allowed opacity-40"}`}
               >
-                사진 프레임 변경
+                프레임 변경
               </button>
               <button
                 type="button"
@@ -7689,10 +7690,22 @@ function ImageBoxPanel({
                 ))}
               </div>
             ) : (
-              <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
-                사진 불러오기
-                <input type="file" accept="image/*" onChange={onAddPhotoFile} className="hidden" />
-              </label>
+              <div className="flex flex-col gap-1.5">
+                {/* 사진 변경 — 사진을 골라 둔 상태에서만 보여요. 사진 불러오기와 같은 부품(PrimaryActionButton)·같은 모양이에요. */}
+                {canEdit && frameTargetBox ? (
+                  <PrimaryActionButton
+                    title="이 사진을 다른 사진으로 바꿔요 (모양·액자·테두리·위치·크기는 그대로)"
+                    ariaLabel="사진 변경"
+                    onClick={() => onRequestPhotoReplace(frameTargetBox.id)}
+                  >
+                    <PhotoToolIcon name="replace" className="h-5 w-5 shrink-0" />
+                    <span>사진 변경</span>
+                  </PrimaryActionButton>
+                ) : null}
+                <PrimaryFileButton onFiles={onAddPhotoFile}>
+                  <span>사진 불러오기</span>
+                </PrimaryFileButton>
+              </div>
             )}
           </div>
           {/* "전체 사진 관리"(사진 더 올리기·전체 목록·삭제)는 내지에만 있는
