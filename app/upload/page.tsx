@@ -86,7 +86,7 @@ import {
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
 import { buildInnerPrintPdfLib, buildCoverPrintPdfLib, computeSpineLogoLayout } from "@/lib/printPdfLib";
 import { mmToPt } from "@/lib/printGeometry";
-import { computeImageBoxCoverRect, clampImageBoxInnerOffset } from "@/lib/imageBoxGeometry";
+import { computeImageBoxCoverRect, clampImageBoxInnerOffset, expandCoverRectForBleed } from "@/lib/imageBoxGeometry";
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
@@ -8329,7 +8329,7 @@ const ImageBoxOverlay = forwardRef<
   }));
 
   const photoClipWin = decorLayout ? decorPhotoClipWindow(decorLayout) : null;
-  const coverRect = computeImageBoxCoverRect(
+  const baseCoverRect = computeImageBoxCoverRect(
     photoAreaPx.w,
     photoAreaPx.h,
     box.naturalWidth,
@@ -8338,6 +8338,10 @@ const ImageBoxOverlay = forwardRef<
     box.innerOffsetYPct ?? 0,
     box.innerScale ?? 1
   );
+  // 장식 프레임이면 사진을 창 가운데 기준으로 photoBleed만큼 더 키워서 창 바깥 이음새 띠까지 덮어요.
+  const coverRect = decorLayout
+    ? expandCoverRectForBleed(baseCoverRect, photoAreaPx.w, photoAreaPx.h, decorLayout.photoBleed)
+    : baseCoverRect;
 
   return (
     <div

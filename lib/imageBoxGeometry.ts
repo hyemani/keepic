@@ -66,3 +66,25 @@ export function clampImageBoxInnerOffset(
   const maxOffsetPct = (maxOffsetPx / safeBoxSize) * 100;
   return Math.min(maxOffsetPct, Math.max(-maxOffsetPct, offsetPct));
 }
+
+// 장식 프레임 이음새 방지용 — 창 기준 cover 사각형(rect)을 창 가운데를 중심으로 "균일하게" 살짝
+// 키워서, 창보다 bleedPx만큼 더 큰 사진 영역(창+사방 bleedPx)도 사진이 빈틈없이 덮게 해요.
+// (cover가 창의 한 축에 딱 맞는 경우, 그 축 방향 창 바깥쪽엔 사진 픽셀이 없어서 bleed가 소용없었어요.)
+// 확대 비율은 1+2×bleed÷창 크기(≈1~2%)라 눈에 띄는 변화는 없고, 화면과 인쇄가 같은 함수를 써요.
+export function expandCoverRectForBleed(
+  rect: ImageBoxCoverRect,
+  winWidthPx: number,
+  winHeightPx: number,
+  bleedPx: number
+): ImageBoxCoverRect {
+  if (!(bleedPx > 0)) return rect;
+  const s = Math.max((winWidthPx + 2 * bleedPx) / winWidthPx, (winHeightPx + 2 * bleedPx) / winHeightPx);
+  const cx = winWidthPx / 2;
+  const cy = winHeightPx / 2;
+  return {
+    x: cx + (rect.x - cx) * s,
+    y: cy + (rect.y - cy) * s,
+    width: rect.width * s,
+    height: rect.height * s,
+  };
+}

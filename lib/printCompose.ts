@@ -19,7 +19,7 @@ import {
   type ResolvedRunStyle,
   type TextRun,
 } from "@/lib/textRuns";
-import { computeImageBoxCoverRect } from "@/lib/imageBoxGeometry";
+import { computeImageBoxCoverRect, expandCoverRectForBleed } from "@/lib/imageBoxGeometry";
 import {
   borderPatternCenterPoints,
   starShapePoints,
@@ -977,14 +977,19 @@ function drawDecoratedImageBox(
   const layout = buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxWidthPx, boxHeightPx);
   if (!layout) return false;
   const win = layout.window;
-  const rect = computeImageBoxCoverRect(
+  const rect = expandCoverRectForBleed(
+    computeImageBoxCoverRect(
+      win.w,
+      win.h,
+      img.naturalWidth || box.naturalWidth,
+      img.naturalHeight || box.naturalHeight,
+      box.innerOffsetXPct ?? 0,
+      box.innerOffsetYPct ?? 0,
+      box.innerScale ?? 1
+    ),
     win.w,
     win.h,
-    img.naturalWidth || box.naturalWidth,
-    img.naturalHeight || box.naturalHeight,
-    box.innerOffsetXPct ?? 0,
-    box.innerOffsetYPct ?? 0,
-    box.innerScale ?? 1
+    layout.photoBleed
   );
   ctx.save();
   ctx.translate(boxLeftPx, boxTopPx);
