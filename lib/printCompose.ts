@@ -26,7 +26,7 @@ import {
   orientedNaturalSize,
   type ImageBoxCoverRect,
 } from "@/lib/imageBoxGeometry";
-import { isPhotoEditIdentity, renderPhotoEditCanvas } from "@/lib/photoAdjust";
+import { isPhotoEditIdentity, renderPhotoEditCanvas, renderPhotoEditOrientedCanvas, type PhotoAdjust, type PhotoFilter } from "@/lib/photoAdjust";
 import {
   frameBorderMarks,
   BORDER_PATTERN_BAND_ALPHA,
@@ -314,7 +314,7 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
 // object-fit: cover + translate(x,y) + scale(s)를 캔버스에 그대로 재현해요.
 export function drawPhotoInCell(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   photo: PrintPhoto,
   cellX: number,
   cellY: number,
@@ -326,7 +326,8 @@ export function drawPhotoInCell(
   ctx.rect(cellX, cellY, cellW, cellH);
   ctx.clip();
 
-  const imgRatio = img.naturalWidth / img.naturalHeight;
+  const imgRatio =
+    img instanceof HTMLCanvasElement ? img.width / img.height : img.naturalWidth / img.naturalHeight;
   const cellRatio = cellW / cellH;
   // "프레임 채우기"(cover, 칸을 꽉 채우고 넘치는 부분은 잘림)가 아니라 "사진 전체
   // 맞추기"(contain, 원본 전체가 보이고 남는 공간은 여백)를 기본 배치로 써요. 사용자가
@@ -2025,6 +2026,15 @@ function drawGuideOverlay(
 // public/logo.svg의 원본 가로:세로 비율이에요 (lib/printPdfLib.ts의 KEEPIC_LOGO_ASPECT와 같은 값).
 const KEEPIC_LOGO_ASPECT = 1155 / 367; // public/logo.svg의 실제 그림(투명 여백 제외) 가로:세로 비율 — 2026-09-22, 여백 없이 벡터가 꽉 찬 기준으로 변경
 
+/** 소개 페이지 작은 표지 사진에 적용할 편집값(앞표지 첫 사진 박스의 값) — 화면(IntroPhotoMirror)·인쇄가 같이 써요. */
+export type IntroCoverEdit = {
+  photoFilter?: PhotoFilter;
+  photoAdjust?: PhotoAdjust;
+  flipY?: boolean;
+  photoRotation?: number;
+};
+const INTRO_EDIT_MAX_PIXELS = 6_000_000;
+
 export async function drawIntroPage(
   ctx: CanvasRenderingContext2D,
   pageW: number,
@@ -2032,7 +2042,8 @@ export async function drawIntroPage(
   coverPhoto: PrintPhoto | null,
   coverTitle: string,
   introDate: string,
-  introMaker: string
+  introMaker: string,
+  coverEdit?: IntroCoverEdit | null
 ): Promise<void> {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, pageW, pageH);
@@ -2078,7 +2089,26 @@ export async function drawIntroPage(
   const photoYpx = cursorY - photoHpx;
   if (coverPhoto?.url) {
     const img = await loadImage(coverPhoto.url);
-    drawPhotoInCell(ctx, img, coverPhoto, stackXpx, photoYpx, stackWpx, photoHpx);
+    // 앞표지 첫 사진 박스의 필터·보정·90도 회전·상하반전을 소개 페이지의 작은 사진에도 똑같이 적용해요
+    // (화면 IntroPhotoMirror 와 같은 함수 renderPhotoEditOrientedCanvas). 이 칸은 인쇄 폭의 약 32%뿐이라
+    // 600만 화소(예: 3000×2000)까지만 써요 — 이 칸 크기(약 1200px)의 두 배 이상이라 화질 손실이 없어요.
+    const edited = coverEdit
+      ? renderPhotoEditOrientedCanvas(
+          img,
+          img.naturalWidth,
+          img.naturalHeight,
+          coverEdit.photoFilter,
+          coverEdit.photoAdjust,
+          normalizePhotoQuarterTurn(coverEdit.photoRotation),
+          !!coverEdit.flipY,
+          { maxPixels: INTRO_EDIT_MAX_PIXELS }
+        )
+      : null;
+    drawPhotoInCell(ctx, edited ?? img, coverPhoto, stackXpx, photoYpx, stackWpx, photoHpx);
+    if (edited) {
+      edited.width = 0;
+      edited.height = 0;
+    }
   }
 }
 
@@ -2106,6 +2136,7 @@ export async function buildInnerPrintPdf({
     coverTitle: string;
     introDate: string;
     introMaker: string;
+    coverEdit?: IntroCoverEdit | null;
   } | null;
 }): Promise<PrintPdfResult> {
   const { w: workW, h: workH } = parseWorkSizeMm(productionFileSizeMm);
@@ -2203,7 +2234,8 @@ export async function buildInnerPrintPdf({
       introPage.coverPhoto,
       introPage.coverTitle,
       introPage.introDate,
-      introPage.introMaker
+      introPage.introMaker,
+      introPage.coverEdit
     );
     const introCleanDataUrl = canvasToJpegDataUrl(canvas);
     drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label);

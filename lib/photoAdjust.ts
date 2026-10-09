@@ -235,11 +235,15 @@ function applyPointOps(data: Uint8ClampedArray, plan: Plan, fromPx: number, toPx
 
 /**
  * 선명도(언샤프 마스크): out = v + amount × (v − 박스블러(v)). 블록(strip) 안의 [rowFrom,rowTo) 행에만 써요.
- * 블록 가장자리는 edge-clamp 라서, 이웃이 필요한 만큼(radius 행)의 여분(halo)을 포함해 호출해야 정확해요.
+ * 블록 가장자리는 edge-clamp 라서, 이웃이 필요한 만큼(ceil(radius) 행)의 여분(halo)을 포함해 호출해야 정확해요.
+ * radius 는 소수도 돼요(예: 1.17) — 정수 부분 r0 만큼은 한 칸씩 똑같이, 바깥 한 칸(r0+1)은 소수 부분(frac)만큼의
+ * 가중치로 섞는 "소수 반경 박스블러"라서, 사진 크기가 달라도 반경이 정수로 반올림되며 어긋나지 않아요.
  */
 function unsharp(data: Uint8ClampedArray, w: number, h: number, radius: number, amount: number, rowFrom: number, rowTo: number): void {
-  if (amount <= 0 || radius < 1 || w < 1 || h < 1) return;
-  const n = 2 * radius + 1;
+  if (amount <= 0 || radius <= 0 || w < 1 || h < 1) return;
+  const r0 = Math.floor(radius);
+  const fr = radius - r0;
+  const n = 2 * r0 + 1 + 2 * fr;
   // 가로 박스블러 (Float32, RGB)
   const hb = new Float32Array(w * h * 3);
   for (let y = 0; y < h; y++) {
@@ -247,11 +251,15 @@ function unsharp(data: Uint8ClampedArray, w: number, h: number, radius: number, 
     const out = y * w * 3;
     for (let c = 0; c < 3; c++) {
       let sum = 0;
-      for (let k = -radius; k <= radius; k++) sum += data[row + Math.min(w - 1, Math.max(0, k)) * 4 + c];
+      for (let k = -r0; k <= r0; k++) sum += data[row + Math.min(w - 1, Math.max(0, k)) * 4 + c];
       for (let x = 0; x < w; x++) {
-        hb[out + x * 3 + c] = sum / n;
-        const add = Math.min(w - 1, x + 1 + radius);
-        const sub = Math.max(0, x - radius);
+        let v = sum;
+        if (fr > 0) {
+          v += fr * (data[row + Math.max(0, x - r0 - 1) * 4 + c] + data[row + Math.min(w - 1, x + r0 + 1) * 4 + c]);
+        }
+        hb[out + x * 3 + c] = v / n;
+        const add = Math.min(w - 1, x + 1 + r0);
+        const sub = Math.max(0, x - r0);
         sum += data[row + add * 4 + c] - data[row + sub * 4 + c];
       }
     }
@@ -259,33 +267,49 @@ function unsharp(data: Uint8ClampedArray, w: number, h: number, radius: number, 
   // 세로 박스블러(행 단위 슬라이딩) + 언샤프 적용
   const sumRow = new Float32Array(w * 3);
   const at = (yy: number) => Math.min(h - 1, Math.max(0, yy)) * w * 3;
-  for (let k = -radius; k <= radius; k++) {
+  for (let k = -r0; k <= r0; k++) {
     const base = at(k);
     for (let j = 0; j < w * 3; j++) sumRow[j] += hb[base + j];
   }
   for (let y = 0; y < h; y++) {
     if (y >= rowFrom && y < rowTo) {
       const row = y * w * 4;
+      const up = at(y - r0 - 1);
+      const dn = at(y + r0 + 1);
       for (let x = 0; x < w; x++) {
         const p = row + x * 4;
         const q = x * 3;
-        const r0 = data[p];
+        const r0v = data[p];
         const g0 = data[p + 1];
         const b0 = data[p + 2];
-        data[p] = r0 + amount * (r0 - sumRow[q] / n);
-        data[p + 1] = g0 + amount * (g0 - sumRow[q + 1] / n);
-        data[p + 2] = b0 + amount * (b0 - sumRow[q + 2] / n);
+        let sr = sumRow[q];
+        let sg = sumRow[q + 1];
+        let sb = sumRow[q + 2];
+        if (fr > 0) {
+          sr += fr * (hb[up + q] + hb[dn + q]);
+          sg += fr * (hb[up + q + 1] + hb[dn + q + 1]);
+          sb += fr * (hb[up + q + 2] + hb[dn + q + 2]);
+        }
+        data[p] = r0v + amount * (r0v - sr / n);
+        data[p + 1] = g0 + amount * (g0 - sg / n);
+        data[p + 2] = b0 + amount * (b0 - sb / n);
       }
     }
-    const addB = at(y + 1 + radius);
-    const subB = at(y - radius);
+    const addB = at(y + 1 + r0);
+    const subB = at(y - r0);
     for (let j = 0; j < w * 3; j++) sumRow[j] += hb[addB + j] - hb[subB + j];
   }
 }
 
-/** 선명도 반경(px) — 사진 긴 변의 1/1200(최소 1px). 화면용 축소본과 인쇄용 원본이 "같은 상대 크기"로 선명해져요. */
+/**
+ * 선명도 반경(px, 소수) — "사진 긴 변의 1/1200" 이라는 상대 기준이에요(최소 0.5px).
+ * 화면 작업본(긴 변 ≤1400px)과 인쇄용 원본(수천 px)은 해상도가 달라도 같은 사진이라서, 반경이 사진 크기에 비례하면
+ * 같은 크기로 확대해 놓고 볼 때 선명해지는 "굵기"가 같아요(같은 사진 위의 같은 비율 반경). 예전엔 이 값을
+ * 정수로 반올림해서(작업본 1400px → 1px, 인쇄 2400px → 2px) 비율이 어긋났는데, 지금은 소수 그대로
+ * 쓰고(unsharp 가 소수 반경을 지원) 반올림하지 않아요.
+ */
 export function sharpRadiusFor(width: number, height: number): number {
-  return Math.max(1, Math.round(Math.max(width, height) / 1200));
+  return Math.max(0.5, Math.max(width, height) / 1200);
 }
 
 /**
@@ -341,7 +365,7 @@ export function renderPhotoEditCanvas(
   srcH: number,
   filter?: Partial<PhotoFilter> | null,
   adjust?: Partial<PhotoAdjust> | null,
-  opts?: { maxPixels?: number }
+  opts?: { maxPixels?: number; sharpRadius?: number }
 ): HTMLCanvasElement {
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
   const f = resolvePhotoFilter(filter);
@@ -361,8 +385,8 @@ export function renderPhotoEditCanvas(
   out.width = w;
   out.height = h;
   const octx = out.getContext("2d")!;
-  const radius = sharpRadiusFor(w, h);
-  const halo = plan.sharpAmount > 0 ? radius : 0;
+  const radius = opts?.sharpRadius ?? sharpRadiusFor(w, h);
+  const halo = plan.sharpAmount > 0 ? Math.ceil(radius) : 0;
   const strip = document.createElement("canvas");
   strip.width = w;
   strip.height = Math.min(h, STRIP_ROWS + 2 * halo);
@@ -396,5 +420,56 @@ export function renderPhotoEditCanvas(
     ms: (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0,
   });
   if (photoEditRenderLog.length > 30) photoEditRenderLog.shift();
+  return out;
+}
+
+/**
+ * 필터·보정에 "사진 90도 회전(turn)"과 "상하 반전(flipY)"까지 굽는 캔버스 — 박스가 아닌 곳(마지막 소개 페이지의 작은 표지 사진,
+ * 하단 페이지 썸네일)에서 박스(BoxPhotoView / printCompose.drawBoxPhoto)와 같은 규칙으로 사진을 보여주기 위한 거예요.
+ * 규칙은 박스와 같아요: 먼저 turn 만큼 돌리고, 그 다음 "화면 기준"으로 상하 반전.
+ * 아무 것도 안 바꾸는 값이면(보정 없음·회전 0·반전 없음) null 을 돌려줘요 → 호출부는 원본을 그대로 그려요.
+ * src 는 안 바뀌어요. 결과의 크기는 회전을 반영한 "보이는" 크기(90/270 이면 가로·세로가 바뀜)예요.
+ */
+export function renderPhotoEditOrientedCanvas(
+  src: CanvasImageSource,
+  srcW: number,
+  srcH: number,
+  filter: Partial<PhotoFilter> | null | undefined,
+  adjust: Partial<PhotoAdjust> | null | undefined,
+  turn: 0 | 90 | 180 | 270,
+  flipY: boolean,
+  opts?: { maxPixels?: number }
+): HTMLCanvasElement | null {
+  const identity = isPhotoEditIdentity(filter, adjust);
+  if (identity && turn === 0 && !flipY) return null;
+  let base: CanvasImageSource = src;
+  let bw = srcW;
+  let bh = srcH;
+  let tmp: HTMLCanvasElement | null = null;
+  if (!identity) {
+    tmp = renderPhotoEditCanvas(src, srcW, srcH, filter, adjust, opts);
+    base = tmp;
+    bw = tmp.width;
+    bh = tmp.height;
+  } else if (opts?.maxPixels && srcW * srcH > opts.maxPixels) {
+    const s = Math.sqrt(opts.maxPixels / (srcW * srcH));
+    bw = Math.max(1, Math.floor(srcW * s));
+    bh = Math.max(1, Math.floor(srcH * s));
+  }
+  if (turn === 0 && !flipY && tmp) return tmp;
+  const swap = turn === 90 || turn === 270;
+  const out = document.createElement("canvas");
+  out.width = swap ? bh : bw;
+  out.height = swap ? bw : bh;
+  const ctx = out.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.scale(1, flipY ? -1 : 1);
+  ctx.rotate((turn * Math.PI) / 180);
+  ctx.drawImage(base, -bw / 2, -bh / 2, bw, bh);
+  if (tmp) {
+    tmp.width = 0;
+    tmp.height = 0;
+  }
   return out;
 }

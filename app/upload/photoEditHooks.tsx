@@ -10,11 +10,12 @@ import {
   photoEditKey,
   PHOTO_FILTER_OPTIONS,
   renderPhotoEditCanvas,
+  renderPhotoEditOrientedCanvas,
   type PhotoAdjust,
   type PhotoFilter,
   type PhotoFilterId,
 } from "@/lib/photoAdjust";
-import type { PhotoQuarterTurn } from "@/lib/imageBoxGeometry";
+import { normalizePhotoQuarterTurn, type PhotoQuarterTurn } from "@/lib/imageBoxGeometry";
 
 /** 화면 미리보기용 작업 해상도(긴 변 px). 박스가 화면에서 이보다 크게 보이는 일은 드물어요. */
 export const PREVIEW_MAX_LONG_PX = 1400;
@@ -197,4 +198,99 @@ export function BoxPhotoView({
     // eslint-disable-next-line @next/next/no-img-element
     <img src={url} alt="" draggable={false} className={cls} style={style} />
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// 박스가 아닌 곳(하단 페이지 썸네일, 마지막 소개 페이지의 작은 표지 사진)에서 쓰는 "편집 반영" 사진.
+// 박스(BoxPhotoView)·인쇄(printCompose)와 같은 편집값(필터·보정·90도 회전·상하/좌우 반전)을 같은 함수
+// (lib/photoAdjust.ts)로 계산해서, 큰 편집 화면·미리보기·썸네일·PDF 가 같은 값으로 보이게 해요.
+
+export type PhotoEditValues = {
+  photoFilter?: PhotoFilter;
+  photoAdjust?: PhotoAdjust;
+  flipX?: boolean;
+  flipY?: boolean;
+  photoRotation?: number;
+};
+
+const orientedCache = new Map<string, HTMLCanvasElement | null>();
+
+/**
+ * 보정·회전·상하반전이 구워진 화면용 캔버스. 아무 것도 안 바꾸는 값이면 null(→ 호출부는 원본 <img>), 계산 중에도 null.
+ * maxLong 은 작업본 긴 변(px) — 썸네일은 작게(≈240), 소개 페이지 사진은 조금 크게(≈700).
+ */
+export function usePhotoOrientedCanvas(
+  url: string,
+  filter: PhotoFilter | undefined,
+  adjust: PhotoAdjust | undefined,
+  rotation: number | undefined,
+  flipY: boolean | undefined,
+  maxLong: number
+): HTMLCanvasElement | null {
+  const turn = normalizePhotoQuarterTurn(rotation);
+  const fy = !!flipY;
+  const identity = !url || (isPhotoEditIdentity(filter, adjust) && turn === 0 && !fy);
+  const key = `${url}|${maxLong}|${photoEditKey(filter, adjust)}|${turn}|${fy ? 1 : 0}`;
+  const [, bump] = useState(0);
+  const hit = identity ? null : (orientedCache.get(key) ?? null);
+  useEffect(() => {
+    if (identity || orientedCache.has(key)) return;
+    let cancelled = false;
+    getWorkingSource(url, maxLong)
+      .then((ws) => {
+        if (cancelled) return;
+        const canvas = renderPhotoEditOrientedCanvas(ws.canvas, ws.w, ws.h, filter, adjust, turn, fy);
+        orientedCache.set(key, canvas);
+        if (orientedCache.size > 60) {
+          const oldest = orientedCache.keys().next().value;
+          if (oldest !== undefined) orientedCache.delete(oldest);
+        }
+        bump((n) => n + 1);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [identity, key, url, maxLong, filter, adjust, turn, fy]);
+  return hit;
+}
+
+/**
+ * 썸네일/미니 사진: 편집값이 없으면 예전과 똑같은 <img>(object-cover), 있으면 편집이 구워진 <canvas>(object-cover).
+ * 좌우 반전(flipX)은 CSS scaleX(-1) — 큰 편집 화면과 같은 "화면 기준" 규칙이에요. fit 으로 contain 도 고를 수 있어요.
+ */
+export function EditedPhotoThumb({
+  url,
+  edit,
+  className,
+  style,
+  maxLong = 240,
+  fit = "cover",
+}: {
+  url: string;
+  edit?: PhotoEditValues | null;
+  className?: string;
+  style?: React.CSSProperties;
+  maxLong?: number;
+  fit?: "cover" | "contain";
+}) {
+  const edited = usePhotoOrientedCanvas(url, edit?.photoFilter, edit?.photoAdjust, edit?.photoRotation, edit?.flipY, maxLong);
+  const ref = useRef<HTMLCanvasElement>(null);
+  useLayoutEffect(() => {
+    const c = ref.current;
+    if (!c || !edited) return;
+    c.width = edited.width;
+    c.height = edited.height;
+    c.getContext("2d")!.drawImage(edited, 0, 0);
+  }, [edited]);
+  const wantsEdit = !!edit && (!isPhotoEditIdentity(edit.photoFilter, edit.photoAdjust) || normalizePhotoQuarterTurn(edit.photoRotation) !== 0 || !!edit.flipY);
+  const st: React.CSSProperties = {
+    ...style,
+    objectFit: fit,
+    transform: [style?.transform, edit?.flipX ? "scaleX(-1)" : ""].filter(Boolean).join(" ") || undefined,
+  };
+  // 계산 중에는(캔버스 없음) 원본 <img> 를 그대로 보여줘요 — 깜빡임/빈칸 방지(계산이 끝나면 편집본으로 바뀌어요).
+  if (wantsEdit && edited) return <canvas ref={ref} data-photo-edited="1" className={className} style={st} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="" draggable={false} className={className} style={st} />;
 }

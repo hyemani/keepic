@@ -99,7 +99,7 @@ import {
   normalizePhotoQuarterTurn,
   orientedNaturalSize,
 } from "@/lib/imageBoxGeometry";
-import { BoxPhotoView } from "./photoEditHooks";
+import { BoxPhotoView, EditedPhotoThumb, type PhotoEditValues } from "./photoEditHooks";
 import {
   PhotoEditPanel,
   PhotoPositionToolbar,
@@ -1756,7 +1756,7 @@ function formatKoreanDate(date: Date): string {
 // drawPhotoInCell/embedPhotoCell과 같은 계산이라, 화면과 실제 PDF의 크롭이 항상 같아요.
 // 지금 단계는 읽기 전용(표지를 그대로 미러링)이에요 — 이 칸을 따로 드래그/확대할 수는
 // 없고, 표지 사진·제목이 바뀌면 자동으로 같이 바뀌어요.
-function IntroPhotoMirror({ photo }: { photo: Photo | null }) {
+function IntroPhotoMirror({ photo, edit }: { photo: Photo | null; edit?: PhotoEditValues | null }) {
   const cellRef = useRef<HTMLDivElement>(null);
   const [cellSize, setCellSize] = useState({ w: 0, h: 0 });
 
@@ -1780,16 +1780,18 @@ function IntroPhotoMirror({ photo }: { photo: Photo | null }) {
 
   return (
     <div ref={cellRef} className="relative h-full w-full overflow-hidden bg-[var(--color-ivory)]">
-      <img
-        src={photo.url}
-        draggable={false}
+      {/* 앞표지 첫 사진 박스의 필터·보정·90도 회전·상하반전(edit)도 같이 적용해요 — 인쇄(drawIntroPage)와 같은 값·같은 함수. */}
+      <EditedPhotoThumb
+        url={photo.url}
+        edit={edit}
+        fit="contain"
+        maxLong={700}
         style={{
           transform: `translate(${photo.x * fx}px, ${photo.y * fy}px) rotate(${photo.rotation}deg) scale(${
             photo.flipX ? -photo.scale : photo.scale
           }, ${photo.scale})`,
         }}
-        className="pointer-events-none h-full w-full select-none object-contain"
-        alt=""
+        className="pointer-events-none h-full w-full select-none"
       />
     </div>
   );
@@ -1803,8 +1805,10 @@ function IntroPagePreview({
   coverTitle,
   introPublishDate,
   introMakerName,
+  coverEdit,
 }: {
   coverPhoto: Photo | null;
+  coverEdit?: PhotoEditValues | null;
   coverTitle: string;
   introPublishDate: string;
   introMakerName: string;
@@ -1812,7 +1816,7 @@ function IntroPagePreview({
   return (
     <div className="flex h-full w-full flex-col justify-end gap-2 bg-white p-[8%]">
       <div className="aspect-square w-[34%] overflow-hidden -sm ">
-        <IntroPhotoMirror photo={coverPhoto} />
+        <IntroPhotoMirror photo={coverPhoto} edit={coverEdit} />
       </div>
       {coverTitle.trim() && (
         <p className="break-keep text-sm font-bold text-[var(--color-charcoal)]">{coverTitle}</p>
@@ -15392,6 +15396,19 @@ function UploadPageContent() {
     backCoverImageBoxes,
   ]);
 
+  // 앞표지 첫 사진 박스의 편집값 — "마지막 소개 페이지"의 작은 표지 사진(화면 IntroPhotoMirror·인쇄 drawIntroPage)과
+  // 하단 페이지 썸네일이 같이 써요. 그 사진(coverPhoto)이 실제로 이 박스의 사진일 때만 적용해요.
+  const introCoverBox = coverImageBoxes[0];
+  const introCoverEdit: PhotoEditValues | undefined =
+    introCoverBox && coverPhoto?.url && coverPhoto.url === introCoverBox.url
+      ? {
+          photoFilter: introCoverBox.photoFilter,
+          photoAdjust: introCoverBox.photoAdjust,
+          flipY: introCoverBox.flipY,
+          photoRotation: introCoverBox.photoRotation,
+        }
+      : undefined;
+
   const editCommandItems = buildEditCommandItems();
 
   async function uploadPhotoToStorage(photo: Photo): Promise<string> {
@@ -15429,7 +15446,7 @@ function UploadPageContent() {
       photos,
       productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
       // "마지막 소개 페이지"를 내지 맨 마지막 장으로 자동으로 붙여요.
-      introPage: { coverPhoto, coverTitle, introDate: introPublishDate, introMaker: introMakerName },
+      introPage: { coverPhoto, coverTitle, introDate: introPublishDate, introMaker: introMakerName, coverEdit: introCoverEdit },
     });
     const { printBlob: coverBlob, guideBlob: coverGuideBlob } = await buildCoverPrintPdf({
       cover: photobookCover === "hard" ? "hard" : "soft",
@@ -16721,10 +16738,14 @@ function UploadPageContent() {
                           }}
                         >
                           {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
-                            <img
-                              src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
-                              alt=""
-                              className="h-full w-full object-cover"
+                            <EditedPhotoThumb
+                              url={(coverPhoto?.url ?? coverImageBoxes[0]?.url) as string}
+                              edit={
+                                coverImageBoxes[0] && (coverPhoto?.url ?? coverImageBoxes[0].url) === coverImageBoxes[0].url
+                                  ? coverImageBoxes[0]
+                                  : undefined
+                              }
+                              className="h-full w-full"
                             />
                           )}
                         </div>
@@ -16787,17 +16808,16 @@ function UploadPageContent() {
                             // 똑같이 안 보여야 해서 제외해요(2026-09-23).
                             .filter((box) => box.url)
                             .map((box) => (
-                              <img
+                              <EditedPhotoThumb
                                 key={box.id}
-                                src={box.url}
-                                alt=""
-                                className="pointer-events-none absolute -[1px] border border-white/70 object-cover"
+                                url={box.url}
+                                edit={box}
+                                className="pointer-events-none absolute -[1px] border border-white/70"
                                 style={{
                                   left: `${box.xPct}%`,
                                   top: `${box.yPct}%`,
                                   width: `${box.widthPct}%`,
                                   height: `${box.heightPct}%`,
-                                  transform: box.flipX ? "scaleX(-1)" : undefined,
                                 }}
                               />
                             ))}
@@ -16818,10 +16838,10 @@ function UploadPageContent() {
                     >
                       <div className="pointer-events-none flex h-14 items-end overflow-hidden bg-white p-1 lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
                         {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
-                          <img
-                            src={coverPhoto?.url ?? coverImageBoxes[0]?.url}
-                            alt=""
-                            className="h-1/2 w-1/2 -sm object-cover"
+                          <EditedPhotoThumb
+                            url={(coverPhoto?.url ?? coverImageBoxes[0]?.url) as string}
+                            edit={introCoverEdit}
+                            className="h-1/2 w-1/2 -sm"
                           />
                         )}
                       </div>
@@ -17864,6 +17884,7 @@ function UploadPageContent() {
                           <div className="aspect-square w-1/2">
                             <IntroPagePreview
                               coverPhoto={coverPhoto}
+                              coverEdit={introCoverEdit}
                               coverTitle={coverTitle}
                               introPublishDate={introPublishDate}
                               introMakerName={introMakerName}
