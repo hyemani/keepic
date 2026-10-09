@@ -552,7 +552,7 @@ export function drawBackgroundArt(
   mmToPxFn: (mm: number) => number,
   fullSpan?: Rect
 ) {
-  const ppm = mmToPxFn(1);
+  const ppm = mmToPxFn(1000) / 1000;
   const r: Rect = { x, y, w, h };
   const span = fullSpan ?? r;
   if (ART_GRAPHIC_KINDS.includes(p.kind)) drawGraphic(ctx, p, r, span, ppm);
