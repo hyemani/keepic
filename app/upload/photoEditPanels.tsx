@@ -20,7 +20,7 @@ import {
 } from "@/lib/photoAdjust";
 import { usePhotoFilterThumbs } from "./photoEditHooks";
 
-export type PhotoEditSection = "replace" | "crop" | "filter" | "adjust";
+export type PhotoEditSection = "crop" | "filter" | "adjust";
 
 /** 이미지박스 컴포넌트가 밖으로 열어주는 동작 중 이 패널이 쓰는 것들(ImageBoxOverlayHandle 의 부분집합). */
 export type PhotoEditHandle = {
@@ -142,7 +142,7 @@ export function PhotoToolIcon({ name, className }: { name: PhotoToolIconName; cl
 
 const TEXT_MAIN = "text-[var(--color-charcoal)]";
 
-/** 왼쪽 패널용 도구 버튼: 24px 아이콘 + 12.5px 글자, 눌리는 영역 세로 52px(≥40px). */
+/** 왼쪽 패널용 도구 버튼: 20px 아이콘 + 12px 글자를 한 줄로(아이콘 왼쪽), 눌리는 영역 세로 34px. */
 function PanelToolButton({
   icon,
   label,
@@ -166,13 +166,13 @@ function PanelToolButton({
       aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-h-[52px] min-w-[44px] flex-col items-center justify-center gap-0.5 border px-1 py-1.5 text-[12.5px] leading-tight transition disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`flex min-h-[34px] min-w-[44px] items-center justify-center gap-1 border px-1 py-1 text-[12px] leading-tight transition disabled:cursor-not-allowed disabled:opacity-40 ${
         active
           ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
           : `border-[var(--color-hairline)] bg-white ${TEXT_MAIN} hover:bg-[var(--color-ivory)]`
       }`}
     >
-      <PhotoToolIcon name={icon} className="h-6 w-6 shrink-0" />
+      <PhotoToolIcon name={icon} className="h-5 w-5 shrink-0" />
       <span className="whitespace-nowrap">{label}</span>
     </button>
   );
@@ -199,9 +199,9 @@ function AdjustSlider({
   const [draft, setDraft] = useState<string | null>(null);
   const snap = (v: number) => Math.min(max, Math.max(min, Math.round(v)));
   return (
-    <div className="mb-3">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <span className={`text-[12.5px] font-medium ${TEXT_MAIN}/80`}>{label}</span>
+    <div className="mb-2">
+      <div className="mb-0.5 flex items-center justify-between gap-2">
+        <span className={`text-[12px] font-medium ${TEXT_MAIN}/80`}>{label}</span>
         <span className="flex items-center gap-1">
           <input
             type="number"
@@ -217,7 +217,7 @@ function AdjustSlider({
               if (Number.isFinite(n)) onChange(snap(n));
             }}
             onBlur={() => setDraft(null)}
-            className="h-8 w-16 border border-[var(--color-hairline)] bg-white px-1 text-right text-[12.5px] tabular-nums disabled:opacity-40"
+            className="h-7 w-16 border border-[var(--color-hairline)] bg-white px-1 text-right text-[12px] tabular-nums disabled:opacity-40"
           />
           {unit ? <span className="w-4 text-[12px] text-[var(--color-charcoal)]/50">{unit}</span> : null}
         </span>
@@ -238,7 +238,6 @@ function AdjustSlider({
 }
 
 const SECTION_TABS: { id: PhotoEditSection; label: string }[] = [
-  { id: "replace", label: "사진 변경" },
   { id: "crop", label: "위치·크롭" },
   { id: "filter", label: "필터" },
   { id: "adjust", label: "보정" },
@@ -317,9 +316,9 @@ export function PhotoEditPanel({
         onKeyUp={(e) => {
           if (e.key === " " || e.key === "Enter") setHolding(false);
         }}
-        className="flex min-h-[40px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12.5px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex min-h-[34px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-40"
       >
-        <PhotoToolIcon name="compare" className="h-6 w-6 shrink-0" />
+        <PhotoToolIcon name="compare" className="h-5 w-5 shrink-0" />
         <span className="whitespace-nowrap">원본과 비교 (누르고 있기)</span>
       </button>
       <button
@@ -329,7 +328,7 @@ export function PhotoEditPanel({
         aria-pressed={pinned}
         disabled={!hasEdit}
         onClick={() => setPinned((v) => !v)}
-        className={`min-h-[40px] w-full border px-2 text-[12.5px] transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`min-h-[34px] w-full border px-2 text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 ${
           pinned
             ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
             : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]"
@@ -347,9 +346,9 @@ export function PhotoEditPanel({
       aria-label="보정 초기화"
       disabled={!hasEdit}
       onClick={resetEdits}
-      className="flex min-h-[40px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12.5px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex min-h-[34px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-40"
     >
-      <PhotoToolIcon name="reset" className="h-6 w-6 shrink-0" />
+      <PhotoToolIcon name="reset" className="h-5 w-5 shrink-0" />
       <span className="whitespace-nowrap">보정 초기화</span>
     </button>
   );
@@ -361,13 +360,13 @@ export function PhotoEditPanel({
         title="이 사진을 다른 사진으로 바꿔요 (모양·액자·테두리·위치·크기는 그대로)"
         aria-label="사진 변경"
         onClick={onRequestReplace}
-        className="flex min-h-[44px] w-full items-center justify-center gap-2 bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-3 text-[13px] font-semibold text-white shadow-sm transition hover:opacity-90"
+        className="flex min-h-[34px] w-full items-center justify-center gap-1.5 bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-3 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-90"
       >
-        <PhotoToolIcon name="replace" className="h-6 w-6 shrink-0" />
+        <PhotoToolIcon name="replace" className="h-5 w-5 shrink-0" />
         <span className="whitespace-nowrap">사진 변경</span>
       </button>
 
-      <div role="tablist" aria-label="사진 편집 구역" className="grid grid-cols-4">
+      <div role="tablist" aria-label="사진 편집 구역" className="grid grid-cols-3">
         {SECTION_TABS.map((t) => (
           <button
             key={t.id}
@@ -375,7 +374,7 @@ export function PhotoEditPanel({
             role="tab"
             aria-selected={section === t.id}
             onClick={() => onSectionChange(t.id)}
-            className={`min-h-[40px] px-1 text-[12.5px] font-medium whitespace-nowrap transition ${
+            className={`min-h-[34px] px-1 text-[12px] font-medium whitespace-nowrap transition ${
               section === t.id
                 ? "bg-[var(--color-charcoal)] text-white"
                 : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:text-[var(--color-charcoal)]"
@@ -386,25 +385,12 @@ export function PhotoEditPanel({
         ))}
       </div>
 
-      {section === "replace" && (
-        <div className="border border-[var(--color-hairline)] bg-white p-2">
-          <p className="mb-1 text-[12.5px] font-semibold text-[var(--color-charcoal)]">사진 바꾸기</p>
-          <p className="text-[12px] leading-snug text-[var(--color-charcoal)]/60 break-keep">
-            위의 &quot;사진 변경&quot;을 누르면 이미 올린 사진 중에서 고르거나 새 사진을 올릴 수 있어요. 바꿔도 사진 모양·
-            캐릭터/꽃 액자·테두리·박스 위치와 크기는 그대로예요. 새 사진은 틈 없이 꽉 채워 가운데에 놓여요.
-          </p>
-          <p className="mt-2 text-[11.5px] text-[var(--color-charcoal)]/50">
-            현재 사진: {box.naturalWidth} × {box.naturalHeight}px
-          </p>
-        </div>
-      )}
-
       {section === "crop" && (
         <div className="border border-[var(--color-hairline)] bg-white p-2">
           <p className="mb-2 text-[12px] leading-snug text-[var(--color-charcoal)]/60 break-keep">
             사진 위에서 끌면 안쪽 사진만 움직여요. 박스 크기는 캔버스의 손잡이로 조절해요.
           </p>
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             <PanelToolButton icon="zoomOut" label="축소" onClick={() => getHandle()?.zoomOut()} />
             <PanelToolButton icon="zoomIn" label="확대" onClick={() => getHandle()?.zoomIn()} />
             <PanelToolButton icon="fit" label="맞춤" title="맞춤 (확대·위치만 처음으로)" onClick={() => getHandle()?.resetPhotoPosition()} />
@@ -446,9 +432,9 @@ export function PhotoEditPanel({
             title="위치·확대·회전·반전만 처음으로 (필터와 보정은 그대로)"
             aria-label="위치 초기화"
             onClick={resetPosition}
-            className="flex min-h-[40px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12.5px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)]"
+            className="flex min-h-[34px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)]"
           >
-            <PhotoToolIcon name="reset" className="h-6 w-6 shrink-0" />
+            <PhotoToolIcon name="reset" className="h-5 w-5 shrink-0" />
             <span className="whitespace-nowrap">위치 초기화</span>
           </button>
         </div>
@@ -472,7 +458,7 @@ export function PhotoEditPanel({
                       photoFilter: opt.id === "original" ? undefined : { id: opt.id, strength: filter.id === opt.id ? filter.strength || 100 : 100 },
                     })
                   }
-                  className={`flex flex-col items-stretch border p-1 text-[12.5px] transition ${
+                  className={`flex flex-col items-stretch border p-1 text-[12px] transition ${
                     active
                       ? "border-[var(--color-charcoal)] ring-1 ring-[var(--color-charcoal)]"
                       : "border-[var(--color-hairline)] hover:border-[var(--color-charcoal)]/50"
@@ -611,11 +597,11 @@ export function PhotoReplaceDialog({
           </button>
         </div>
         <div className="overflow-y-auto px-4 py-3">
-          <p className="mb-3 text-[12.5px] leading-snug text-[var(--color-charcoal)]/65 break-keep">
+          <p className="mb-3 text-[12px] leading-snug text-[var(--color-charcoal)]/65 break-keep">
             이미 올린 사진 중에서 고르거나 새 사진을 올리세요. 사진만 바뀌고 모양·액자·테두리·위치·크기는 그대로예요.
           </p>
           <label
-            className={`mb-3 inline-flex min-h-[40px] cursor-pointer items-center justify-center gap-1.5 border border-[var(--color-charcoal)] px-3 text-[12.5px] font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] ${
+            className={`mb-3 inline-flex min-h-[34px] cursor-pointer items-center justify-center gap-1.5 border border-[var(--color-charcoal)] px-3 text-[12px] font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] ${
               busy ? "pointer-events-none opacity-50" : ""
             }`}
           >
@@ -633,7 +619,7 @@ export function PhotoReplaceDialog({
             />
           </label>
           {items.length === 0 ? (
-            <p className="py-6 text-center text-[12.5px] text-[var(--color-charcoal)]/50">아직 올린 사진이 없어요. 새 사진을 올려보세요.</p>
+            <p className="py-6 text-center text-[12px] text-[var(--color-charcoal)]/50">아직 올린 사진이 없어요. 새 사진을 올려보세요.</p>
           ) : (
             <div className="grid grid-cols-4 gap-2" data-replace-grid>
               {visible.map((p) => {
@@ -664,12 +650,12 @@ export function PhotoReplaceDialog({
             </div>
           )}
           {pageCount > 1 && (
-            <div className="mt-3 flex items-center justify-between text-[12.5px] text-[var(--color-charcoal)]/65">
+            <div className="mt-3 flex items-center justify-between text-[12px] text-[var(--color-charcoal)]/65">
               <button
                 type="button"
                 disabled={curPage === 0}
                 onClick={() => setPage(curPage - 1)}
-                className="min-h-[40px] border border-[var(--color-hairline)] px-3 disabled:opacity-30"
+                className="min-h-[34px] border border-[var(--color-hairline)] px-3 disabled:opacity-30"
               >
                 ‹ 이전
               </button>
@@ -680,7 +666,7 @@ export function PhotoReplaceDialog({
                 type="button"
                 disabled={curPage >= pageCount - 1}
                 onClick={() => setPage(curPage + 1)}
-                className="min-h-[40px] border border-[var(--color-hairline)] px-3 disabled:opacity-30"
+                className="min-h-[34px] border border-[var(--color-hairline)] px-3 disabled:opacity-30"
               >
                 다음 ›
               </button>
@@ -691,7 +677,7 @@ export function PhotoReplaceDialog({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[40px] border border-[var(--color-hairline)] px-4 text-[13px] text-[var(--color-charcoal)] hover:bg-[var(--color-ivory)]"
+            className="min-h-[34px] border border-[var(--color-hairline)] px-4 text-[13px] text-[var(--color-charcoal)] hover:bg-[var(--color-ivory)]"
           >
             취소
           </button>
@@ -699,7 +685,7 @@ export function PhotoReplaceDialog({
             type="button"
             disabled={!selected || selected.url === currentUrl}
             onClick={() => selected && onApply(selected)}
-            className="min-h-[40px] bg-[var(--color-charcoal)] px-5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35"
+            className="min-h-[34px] bg-[var(--color-charcoal)] px-5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-35"
           >
             적용
           </button>
@@ -738,8 +724,8 @@ function ToolbarIconButton({
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`flex h-10 shrink-0 items-center justify-center gap-1 text-[13px] transition ${
-        withText ? "min-w-[40px] px-2.5" : "w-10"
+      className={`flex h-8 shrink-0 items-center justify-center gap-1 text-[12px] transition ${
+        withText ? "min-w-[32px] px-2" : "w-8"
       } ${
         primary
           ? "bg-[var(--color-charcoal)] text-white hover:opacity-90"
@@ -748,15 +734,15 @@ function ToolbarIconButton({
             : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/80 hover:bg-[var(--color-hairline)]"
       }`}
     >
-      <PhotoToolIcon name={icon} className="h-6 w-6 shrink-0" />
+      <PhotoToolIcon name={icon} className="h-5 w-5 shrink-0" />
       {withText ? <span className="whitespace-nowrap font-medium">{label}</span> : null}
     </button>
   );
 }
 
 /**
- * 사진 위치 조정 중에 사진 근처에 뜨는 도구 막대 — 박스(회전·작은 크기)와 상관없이 항상 같은 크기(아이콘 24px,
- * 글자 13px, 버튼 40px)이고, 화면 맨 위(body) 에 position:fixed 로 띄워서 박스가 작아도 줄어들지 않아요.
+ * 사진 위치 조정 중에 사진 근처에 뜨는 도구 막대 — 박스(회전·작은 크기)와 상관없이 항상 같은 크기(아이콘 20px,
+ * 글자 12px, 버튼 32px)이고, 화면 맨 위(body) 에 position:fixed 로 띄워서 박스가 작아도 줄어들지 않아요.
  * 사진 아래(없으면 위, 그것도 안 되면 사진 안쪽 아래)에 놓고, 캔버스 영역 [data-canvas-stage] 안으로 위치를 잘라
  * 가장자리에서 잘리지 않게 해요.
  */
@@ -845,7 +831,7 @@ export function PhotoPositionToolbar({
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="fixed z-[100002] flex w-max flex-wrap items-center gap-1 border border-[var(--color-hairline)] bg-white px-2 py-1.5 shadow-md"
+      className="fixed z-[100002] flex w-max flex-wrap items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 shadow-md"
       style={{
         left: pos?.left ?? 0,
         top: pos?.top ?? 0,
@@ -853,7 +839,7 @@ export function PhotoPositionToolbar({
         visibility: pos ? "visible" : "hidden",
       }}
     >
-      <span className="whitespace-nowrap px-1.5 text-[13px] font-semibold text-[var(--color-brand-purple)]">사진 위치 조정 중</span>
+      <span className="whitespace-nowrap px-1.5 text-[12px] font-semibold text-[var(--color-brand-purple)]">사진 위치 조정 중</span>
       <ToolbarIconButton icon="replace" label="사진 변경" withText onClick={onReplace} />
       <ToolbarIconButton icon="zoomOut" label="축소" onClick={onZoomOut} />
       <ToolbarIconButton icon="zoomIn" label="확대" onClick={onZoomIn} />

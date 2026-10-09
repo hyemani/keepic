@@ -7391,21 +7391,18 @@ function ImageBoxPanel({
               40px 이상 버튼으로 모두 가지고 있어요. */}
           <div className="border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="whitespace-nowrap text-[13px] font-semibold text-[var(--color-brand-purple)]">사진 위치 조정 중</p>
+              <p className="whitespace-nowrap text-[12px] font-semibold text-[var(--color-brand-purple)]">사진 위치 조정 중</p>
               <button
                 type="button"
                 title="완료 (박스 조절 모드로 돌아가기)"
                 aria-label="완료"
                 onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.exitPhotoEditMode()}
-                className="flex min-h-[40px] items-center gap-1 bg-[var(--color-charcoal)] px-3 text-[13px] font-medium text-white"
+                className="flex min-h-[34px] items-center gap-1 bg-[var(--color-charcoal)] px-3 text-[12px] font-medium text-white"
               >
-                <PhotoToolIcon name="check" className="h-6 w-6 shrink-0" />
+                <PhotoToolIcon name="check" className="h-5 w-5 shrink-0" />
                 <span className="whitespace-nowrap">완료</span>
               </button>
             </div>
-            <p className="mt-1 text-[12px] leading-snug text-[var(--color-charcoal)]/55 break-keep">
-              박스 안에서 사진의 위치·확대·반전을 조정해요(박스 자체 크기는 캔버스에서 손잡이로 조절해주세요).
-            </p>
           </div>
           {frameTargetBox && !isStickerImageBox(frameTargetBox) ? (
             <PhotoEditPanel
@@ -12210,7 +12207,7 @@ function UploadPageContent() {
   // (2026-09-28, 혜민님 요청: "표지편집툴과 내지편집툴을 동일하게 제작해주세요").
   const [photoTopTab, setPhotoTopTab] = useState<"add" | "frame" | "edit">("add");
   // "사진 편집" 패널의 구역(사진 변경 / 위치·크롭 / 필터 / 보정) — 표지·내지 패널이 같이 써요.
-  const [photoEditSection, setPhotoEditSection] = useState<PhotoEditSection>("replace");
+  const [photoEditSection, setPhotoEditSection] = useState<PhotoEditSection>("crop");
   // "사진 변경" 선택창이 열려 있는 이미지박스 id(없으면 닫힘) — 사진 위치 조정 도구 막대와 왼쪽 패널 둘 다 여기로 열어요.
   const [photoReplaceBoxId, setPhotoReplaceBoxId] = useState<string | null>(null);
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
