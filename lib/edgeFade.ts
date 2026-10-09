@@ -82,6 +82,25 @@ function dt1d(f: Float32Array, n: number, out: Float32Array, v: Int32Array, z: F
   }
 }
 
+// 한 축 방향 상자 흐림(반폭 rb, 바깥은 0으로 취급) — 합계를 굴리며 계산해서 O(N)이에요.
+function blurAxis(src: Float32Array, dst: Float32Array, gw: number, gh: number, rb: number, horizontal: boolean) {
+  const len = horizontal ? gw : gh;
+  const lines = horizontal ? gh : gw;
+  const inv = 1 / (2 * rb + 1);
+  for (let l = 0; l < lines; l++) {
+    const at = (i: number) => (horizontal ? l * gw + i : i * gw + l);
+    let sum = 0;
+    for (let i = 0; i <= rb && i < len; i++) sum += src[at(i)];
+    for (let i = 0; i < len; i++) {
+      dst[at(i)] = sum * inv;
+      const add = i + rb + 1;
+      const rem = i - rb;
+      if (add < len) sum += src[at(add)];
+      if (rem >= 0) sum -= src[at(rem)];
+    }
+  }
+}
+
 function smooth(t: number): number {
   const c = t <= 0 ? 0 : t >= 1 ? 1 : t;
   return c * c * (3 - 2 * c);
@@ -186,6 +205,16 @@ export function renderEdgeFadeMask(
           }
         }
       }
+    }
+  }
+  // 2-2) 거리 "지도"를 살짝 흐려서(폭의 약 35%) 톱니 홈·구름 골처럼 작은 요철 하나하나가 페이드 가장자리에 톱니무늬 얼룩을
+  //      만들지 않게 해요(윤곽선 전체의 큰 흐름은 그대로 따라가요).
+  const rb = Math.round(Math.max(0, Math.min(fade.width * Math.min(boxW, boxH) * k * 0.35, Math.min(gw, gh) / 6)));
+  if (rb >= 1) {
+    const tmp = new Float32Array(gw * gh);
+    for (let pass = 0; pass < 2; pass++) {
+      blurAxis(dist, tmp, gw, gh, rb, true);
+      blurAxis(tmp, dist, gw, gh, rb, false);
     }
   }
   // 3) 거리 → 알파. 폭 = 박스 짧은 변 × width (마스크 px). 방향이 있을 땐 한 방향 거리라서 같은 폭을 그대로 써요.
