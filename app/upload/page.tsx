@@ -1980,16 +1980,24 @@ const SELECTED_BOX_Z_INDEX = 100000;
 // 통일했어요. 모양별로 점 배열이 고정이라(박스 크기에 안 바뀜, %값이라) 모듈 로드 시
 // 모양마다 한 번씩만 계산해서 캐시해둬요(박스가 몇 개든, 매 렌더마다 다시 계산 안
 // 함).
-const FRAME_CLIP_PATH_CACHE = new Map<FrameShapeKey, string | undefined>();
-// aspect(박스 가로px÷세로px)는 "아치"(윗부분 반원이 박스 비율에 따라 달라지는 모양)에만
-// 영향을 줘서, 아치만 캐시 없이 매번 계산해요(점 40여 개라 부담 없음).
+// 2026-11(22차) — 모든 모양이 박스 가로세로 비율(aspect)에 맞춰 "짧은 변 기준 크기"로 다듬어지게
+// 바뀌어서(lib/frameShapes.ts framePerimeterPoints 주석 참고), 캐시 키도 모양 + aspect(소수 둘째
+// 자리)로 해요. 같은 비율의 박스가 여러 개거나 다시 그려질 때는 문자열을 다시 안 만들어요.
+// 목록 썸네일(FrameShapeSwatch)도 이 함수를 aspect 없이(=정사각형) 불러서, 실제 박스와 "같은
+// 함수·같은 기준"으로 그려져요(따로 손으로 만든 썸네일 경로가 없어요).
+const FRAME_CLIP_PATH_CACHE = new Map<string, string | undefined>();
 function frameShapeClipPath(shape: FrameShapeKey | undefined, aspect?: number): string | undefined {
   const key = shape ?? "rect";
-  const aspectDependent = key === "arch";
-  if (!aspectDependent && FRAME_CLIP_PATH_CACHE.has(key)) return FRAME_CLIP_PATH_CACHE.get(key);
-  const pts = framePerimeterPoints(key, aspect);
-  const value = pts ? "polygon(" + pts.map((p) => `${p.xPct}% ${p.yPct}%`).join(", ") + ")" : undefined;
-  if (!aspectDependent) FRAME_CLIP_PATH_CACHE.set(key, value);
+  const a = aspect !== undefined && isFinite(aspect) && aspect > 0 ? aspect : 1;
+  const cacheKey = `${key}|${a.toFixed(2)}`;
+  if (FRAME_CLIP_PATH_CACHE.has(cacheKey)) return FRAME_CLIP_PATH_CACHE.get(cacheKey);
+  const pts = framePerimeterPoints(key, a);
+  const value = pts
+    ? "polygon(" + pts.map((p) => `${+p.xPct.toFixed(3)}% ${+p.yPct.toFixed(3)}%`).join(", ") + ")"
+    : undefined;
+  // 박스를 끌어 크기를 바꾸는 동안 비율이 계속 달라지므로 캐시가 무한히 커지지 않게 상한을 둬요.
+  if (FRAME_CLIP_PATH_CACHE.size > 300) FRAME_CLIP_PATH_CACHE.clear();
+  FRAME_CLIP_PATH_CACHE.set(cacheKey, value);
   return value;
 }
 
