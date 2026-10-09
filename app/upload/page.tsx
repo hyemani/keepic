@@ -6,6 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { supabase } from "@/lib/supabase";
 import {
+  LoadOverlay,
+  SaveControls,
+  PROJECT_SCHEMA_VERSION,
+  useProjectPersistence,
+  type PersistedDoc,
+} from "./projectPersistence";
+import {
   albumTemplates,
   pageTemplates,
   PageTemplateId,
@@ -14936,6 +14943,46 @@ function UploadPageContent() {
     backCoverTableBoxes,
   ]);
 
+  // ---- 작업 저장·불러오기(app/upload/projectPersistence.tsx, lib/projectStore.ts) ----
+  // 저장하는 내용 = 위 실행취소 스냅샷(문서를 이루는 모든 상태) + 사진 라이브러리(photos) +
+  // 소개 페이지 발행 정보 + 요청사항. 불러올 땐 restoreHistorySnapshot을 그대로 재사용해요.
+  const persistence = useProjectPersistence({
+    enabled: config.maxPhotos > 1 && !!template,
+    productName,
+    searchParams,
+    getChangeKey: () =>
+      `${lastHistorySnapshotRef.current ?? ""}|${JSON.stringify([photos, introPublishDate, introMakerName, requestNote])}`,
+    getDoc: (): PersistedDoc => ({
+      schemaVersion: PROJECT_SCHEMA_VERSION,
+      snapshot: JSON.parse(lastHistorySnapshotRef.current ?? buildHistorySnapshot()),
+      photos,
+      introPublishDate,
+      introMakerName,
+      requestNote,
+    }),
+    getAutoName: () => {
+      const d = new Date();
+      const date = `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}`;
+      return coverTitle.trim() ? coverTitle.trim().replace(/\n/g, " ") : `제목 없는 포토북 · ${date}`;
+    },
+    getThumbnailUrl: () =>
+      coverPhoto?.url || coverImageBoxes.find((b) => b.url)?.url || photos[0]?.url || undefined,
+    applyDoc: (doc) => {
+      undoStackRef.current = [];
+      redoStackRef.current = [];
+      burstBaseSnapshotRef.current = null;
+      if (!doc.snapshot || !Array.isArray((doc.snapshot as { customSpreads?: unknown }).customSpreads)) {
+        throw new Error("저장된 작업 데이터가 올바르지 않아요.");
+      }
+      setPhotos((doc.photos ?? []) as Photo[]);
+      setIntroPublishDate(doc.introPublishDate ?? "");
+      setIntroMakerName(doc.introMakerName ?? "");
+      setRequestNote(doc.requestNote ?? "");
+      restoreHistorySnapshot(JSON.stringify(doc.snapshot ?? {}));
+      syncHistoryAvail();
+    },
+  });
+
   function handleUndo() {
     flushPendingHistoryBurst();
     const prevSnap = undoStackRef.current.pop();
@@ -16414,6 +16461,15 @@ function UploadPageContent() {
             좁은 화면에서는 flex-wrap으로 줄바꿈돼서 버튼이 겹치지 않아요. 실제로 동작하지
             않는 "저장" 버튼/상태 표시는 일부러 넣지 않았어요(혜민님 확인, 2026-09-23 —
             자동저장 기능은 이번 범위 밖). */}
+        <LoadOverlay
+          phase={persistence.loadPhase}
+          message={persistence.loadMessage}
+          startNewHref={(() => {
+            const q = new URLSearchParams(searchParams.toString());
+            q.delete("project");
+            return `/upload?${q.toString()}`;
+          })()}
+        />
         <header
           className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur"
         >
@@ -16513,6 +16569,12 @@ function UploadPageContent() {
                     +
                   </button>
                 </div>
+                <SaveControls
+                  phase={persistence.phase}
+                  savedAt={persistence.savedAt}
+                  errorMessage={persistence.errorMessage}
+                  onSave={persistence.saveNow}
+                />
                 {isPhotoCountValid ? (
                   <button
                     type="button"
