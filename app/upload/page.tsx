@@ -8120,10 +8120,15 @@ const ImageBoxOverlay = forwardRef<
   useEffect(() => {
     if (!photoEditMode) return;
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setPhotoEditMode(false);
+      if (e.key === "Escape") {
+        // 값(위치·확대)은 그대로 두고 모드만 끝내요. 캡처 단계에서 먼저 받고 전파를 막아서
+        // 전역 ESC 처리(선택 해제)가 같이 일어나지 않게 해요.
+        e.stopPropagation();
+        setPhotoEditMode(false);
+      }
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [photoEditMode]);
 
   // 부모(왼쪽 "사진" 편집 메뉴)에게 지금 이 박스가 사진 위치 조정 모드인지 알려줘요.
@@ -15237,28 +15242,43 @@ function UploadPageContent() {
       const meta = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
 
-      // ESC: 텍스트박스가 선택돼 있으면(글자를 입력하는 중이어도) 바로 지워요 — ESC는
-      // 원래 "취소/빠져나가기" 용도라 텍스트 입력 중에 눌러도 글자가 지워질 걱정이 없어요.
-      // 백스페이스는 입력 중이 아닐 때(=박스만 선택된 상태)만 지워요 — 입력 중에는 글자
-      // 지우기 동작을 그대로 둬야 해요.
-      if (!meta && key === "escape" && activeTextBox) {
-        e.preventDefault();
-        deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
+      // ESC는 절대 아무것도 지우지 않아요(혜민님 요청: "Esc를 눌러 사진이나 글자 박스가
+      // 삭제되는 동작을 제거"). ESC = "취소/빠져나가기"만:
+      //  - 사진 변경 창이 열려 있으면: 그 창이 직접 닫아요(PhotoReplaceDialog 자체 핸들러).
+      //  - 사진 위치 조정 모드면: 그 박스가 직접 모드만 끝내요(값은 그대로, 캡처 단계에서
+      //    처리하고 여기까지 안 올라와요).
+      //  - 글자/표 칸 입력 중이면: 입력 칸의 포커스만 빼요(입력한 내용은 그대로).
+      //  - 그 외(박스가 그냥 선택된 상태)면: 선택만 풀어요.
+      // 삭제는 삭제 버튼, 또는 입력 중이 아닐 때의 Delete/Backspace로만 해요.
+      if (!meta && key === "escape") {
+        if (isTypingTarget(e.target)) {
+          (e.target as HTMLElement).blur();
+          return;
+        }
+        setActiveTextBox(null);
+        setMultiTextSelection(null);
+        setActiveImageBox(null);
+        setMultiImageSelection(null);
+        setActiveCoverImageBox(null);
+        setBackCoverLogoSelected(false);
+        setActiveTableBox(null);
+        setSpineTitleSelected(false);
+        setCoverTitleSelected(false);
         return;
       }
-      // 이미지박스도 텍스트박스와 같은 방식으로 ESC/백스페이스로 지워요.
-      if (!meta && key === "escape" && activeImageBox) {
-        e.preventDefault();
-        handleDeleteImageBox(activeImageBox.spreadIndex, activeImageBox.boxId);
-        return;
-      }
-      if (!meta && key === "backspace" && !isTypingTarget(e.target)) {
+      // Delete/Backspace: 입력 중(input·textarea·contenteditable)이 아닐 때만 선택된 박스를
+      // 지워요. 입력 중에는 입력 내용에만 영향을 줘요(브라우저 기본 동작).
+      if (!meta && (key === "backspace" || key === "delete") && !isTypingTarget(e.target)) {
         if (activeTextBox) {
           e.preventDefault();
           deleteTextBoxByRef(activeTextBox.ref, activeTextBox.boxId);
         } else if (activeImageBox) {
           e.preventDefault();
           handleDeleteImageBox(activeImageBox.spreadIndex, activeImageBox.boxId);
+        } else if (selectedPageKey === "cover" && activeCoverImageBox) {
+          e.preventDefault();
+          if (activeCoverImageBox.target === "back") handleDeleteBackCoverImageBox(activeCoverImageBox.boxId);
+          else handleDeleteCoverImageBox(activeCoverImageBox.boxId);
         }
         return;
       }
