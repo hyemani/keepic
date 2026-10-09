@@ -309,6 +309,10 @@ export type ImageBoxDef = {
   // 무시돼요(충돌 방지 — 패널에서도 그 컨트롤들을 숨겨요).
   frameDecor?: FrameDecorKey;
   frameDecorVariant?: string;
+  // 꽃 화환(frameDecor가 꽃 화환 종류일 때)의 "꽃·잎 크기" 배율 0.5~2.5(기본 1) — 없으면 1(기존 저장본 전부).
+  // 꽃/잎의 실제 크기는 "문서 단위(mm)"로 정해져서(lib/frameDecorations.ts DecorBuildOpts) 사진 틀을 키워도
+  // 그대로고 개수만 늘어나요. 이 값은 그 기준 크기에 곱하는 배율이에요. 화환이 아닌 장식은 무시해요.
+  frameDecorScale?: number;
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),

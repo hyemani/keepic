@@ -973,7 +973,12 @@ function drawDecoratedImageBox(
   boxWidthPx: number,
   boxHeightPx: number
 ): boolean {
-  const layout = buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxWidthPx, boxHeightPx);
+  // 꽃 화환의 꽃·잎 크기는 문서 단위(mm)로 정해요 — 인쇄 캔버스는 PRINT_DPI에서 1mm = PRINT_DPI/25.4 px예요
+  // (화면은 편집기 확대율을 반영한 px/mm를 같은 방식으로 넘겨요, ImageBoxOverlay.decorPxPerMm).
+  const layout = buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxWidthPx, boxHeightPx, {
+    pxPerMm: PRINT_DPI / MM_PER_INCH,
+    elementScale: box.frameDecorScale,
+  });
   if (!layout) return false;
   const win = layout.window;
   const rect = expandCoverRectForBleed(

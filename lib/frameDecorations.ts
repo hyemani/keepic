@@ -78,6 +78,31 @@ export type DecorLayout = {
   photoBleed: number;
 };
 
+// ---- 꽃·잎 크기를 "문서 단위(mm)"로 정하기 위한 입력 ----
+// 꽃 화환(벚꽃·데이지·튤립·장미·해바라기·라벤더·수국·안개꽃·유칼립투스)의 꽃/잎 크기는 박스 크기가 아니라
+// "종이 위의 실제 크기(mm)"로 정해요. 그래서 사진 틀을 키워도 꽃·잎은 그대로고 개수만 늘어나요.
+//   pxPerMm: 이 박스가 그려지는 곳의 1mm가 몇 px인지(화면: 편집기 확대율까지 반영된 현재 px/mm,
+//            인쇄: PRINT_DPI÷25.4). 이 값만 다르고 문서 기준 크기는 같으니 화면과 인쇄가 똑같아요.
+//   elementScale: "꽃·잎 크기" 슬라이더(ImageBoxDef.frameDecorScale, 기본 1, 0.5~2.5).
+// 둘 다 안 주면(구버전 호출·모르는 경우) 예전처럼 박스 짧은 변 기준으로 그려요(안전한 폴백).
+export type DecorBuildOpts = { pxPerMm?: number; elementScale?: number };
+
+// 꽃/잎 기준 길이 "50mm"가 곧 예전 설계식의 u(짧은 변)예요 — 기본(배율 1) 꽃·잎은 지름 4~9mm쯤의 작고
+// 섬세한 크기(예: 데이지 꽃 반지름 2.2mm, 칸 간격 3.5mm)이고 슬라이더로 0.5~2.5배까지 바꿔요.
+export const DECOR_ELEMENT_REF_MM = 50;
+export const DECOR_SCALE_RANGE = { min: 0.5, max: 2.5, default: 1 } as const;
+// 박스가 아주 작아서 화환 띠가 사진 창을 다 먹는 경우만 막는 상한(박스 짧은 변의 1.2배까지)
+const DECOR_ELEMENT_MAX_VS_BOX = 1.2;
+
+function wreathElementUnit(boxShortSidePx: number, opts?: DecorBuildOpts): number {
+  if (!opts || !(opts.pxPerMm !== undefined && opts.pxPerMm > 0)) return boxShortSidePx;
+  const scale = Math.min(
+    DECOR_SCALE_RANGE.max,
+    Math.max(DECOR_SCALE_RANGE.min, opts.elementScale ?? DECOR_SCALE_RANGE.default)
+  );
+  return Math.min(DECOR_ELEMENT_REF_MM * opts.pxPerMm * scale, boxShortSidePx * DECOR_ELEMENT_MAX_VS_BOX);
+}
+
 export type FrameDecorPreset = {
   id: string;
   decor: FrameDecorKey;
@@ -616,8 +641,9 @@ function leafD(cx: number, cy: number, angleRad: number, len: number, wid: numbe
   return `M${P(-len / 2, 0)}Q${P(0, -wid)} ${P(len / 2, 0)}Q${P(0, wid)} ${P(-len / 2, 0)}Z`;
 }
 
-function buildWreath(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildWreath(w: number, h: number, opts?: DecorBuildOpts): DecorLayout {
+  // u = "꽃·잎 기준 길이"(문서 단위 mm 기반, wreathElementUnit 참고) — 박스 크기가 아니에요.
+  const u = wreathElementUnit(Math.min(w, h), opts);
   const bandInset = 0.13 * u;
   const win = safeWindow(bandInset, bandInset, w - 2 * bandInset, h - 2 * bandInset, 0.03 * u, w, h);
   const center = 0.065 * u;
@@ -625,7 +651,7 @@ function buildWreath(w: number, h: number): DecorLayout {
   const rh = Math.max(1, h - 2 * center);
   const rc = Math.min(0.1 * u, rw / 2, rh / 2);
   const perim = 2 * (rw - 2 * rc) + 2 * (rh - 2 * rc) + 2 * Math.PI * rc;
-  const n = Math.max(12, Math.round(perim / (0.075 * u)));
+  const n = Math.min(1500, Math.max(8, Math.round(perim / (0.075 * u))));
   const leavesA: string[] = [];
   const leavesB: string[] = [];
   const veins: string[] = [];
@@ -1399,9 +1425,10 @@ function petalD(cx: number, cy: number, a: number, len: number, wid: number, sta
   return `M${P(start, 0)}Q${P(start + len * 0.45, -wid)} ${P(start + len, 0)}Q${P(start + len * 0.45, wid)} ${P(start, 0)}Z`;
 }
 
-function buildWreathKind(kind: WreathKind, w: number, h: number): DecorLayout {
+function buildWreathKind(kind: WreathKind, w: number, h: number, opts?: DecorBuildOpts): DecorLayout {
   const spec = WREATH_SPECS[kind];
-  const u = Math.min(w, h);
+  // u = "꽃·잎 기준 길이"(문서 단위 mm 기반, wreathElementUnit 참고) — 박스 크기가 아니에요.
+  const u = wreathElementUnit(Math.min(w, h), opts);
   const inset = spec.inset * u;
   const win = safeWindow(inset, inset, w - 2 * inset, h - 2 * inset, 0.03 * u, w, h);
   const c0 = spec.center * u;
@@ -1409,7 +1436,7 @@ function buildWreathKind(kind: WreathKind, w: number, h: number): DecorLayout {
   const rh = Math.max(1, h - 2 * c0);
   const rc = Math.min(0.1 * u, rw / 2, rh / 2);
   const perim = 2 * (rw - 2 * rc) + 2 * (rh - 2 * rc) + 2 * Math.PI * rc;
-  const n = Math.max(12, Math.round(perim / (spec.spacing * u)));
+  const n = Math.min(1500, Math.max(8, Math.round(perim / (spec.spacing * u))));
   const L = new Layers();
   const green = ["#8DCB78", "#A8DB8B", "#7DBF6C"];
   // 잎 색 세 가지를 먼저 등록해서, 어느 칸의 잎이든 항상 모든 꽃보다 "뒤"에 그려지게 해요(그리는 순서 = 등록 순서)
@@ -1572,12 +1599,14 @@ function buildWreathKind(kind: WreathKind, w: number, h: number): DecorLayout {
 
 // ---- 공개 함수 ----
 
-// 종류/색상/박스 크기(px) → 그림 설계도. 인식 못 하는 종류면 null이에요(옛 문서 안전).
+// 종류/색상/박스 크기(px) → 그림 설계도. 인식 못 하는 종류면 null이에요(옛 문서 안전). opts는 꽃 화환의
+// 문서 단위 크기 입력이에요(DecorBuildOpts 참고) — 화환이 아닌 장식(캐릭터·테두리)은 안 써요.
 export function buildFrameDecorLayout(
   decor: FrameDecorKey | undefined,
   variant: string | undefined,
   w: number,
-  h: number
+  h: number,
+  opts?: DecorBuildOpts
 ): DecorLayout | null {
   if (!decor || !(w > 0) || !(h > 0)) return null;
   const v = variant ?? "";
@@ -1596,7 +1625,7 @@ export function buildFrameDecorLayout(
     case "cat":
       return buildCharacter(decor, v, w, h);
     case "wreath":
-      return buildWreath(w, h);
+      return buildWreath(w, h, opts);
     case "daisy":
     case "tulip":
     case "rose":
@@ -1605,7 +1634,7 @@ export function buildFrameDecorLayout(
     case "hydrangea":
     case "babysBreath":
     case "eucalyptus":
-      return buildWreathKind(decor, w, h);
+      return buildWreathKind(decor, w, h, opts);
     case "instant":
       return buildInstant(w, h);
     case "film":

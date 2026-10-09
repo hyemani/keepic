@@ -50,6 +50,7 @@ import {
 } from "@/lib/frameShapes";
 import {
   buildFrameDecorLayout,
+  DECOR_SCALE_RANGE,
   frameDecorSvgInner,
   decorWindowPathD,
   decorPhotoClipWindow,
@@ -2076,7 +2077,10 @@ const FRAME_DECOR_THUMB_PX = 48;
 const FRAME_DECOR_THUMB_CACHE = new Map<string, { windowD: string; inner: string } | null>();
 function frameDecorThumb(preset: FrameDecorPreset): { windowD: string; inner: string } | null {
   if (FRAME_DECOR_THUMB_CACHE.has(preset.id)) return FRAME_DECOR_THUMB_CACHE.get(preset.id) ?? null;
-  const layout = buildFrameDecorLayout(preset.decor, preset.variant, FRAME_DECOR_THUMB_PX, FRAME_DECOR_THUMB_PX);
+  // 썸네일(48px)은 60mm짜리 사진 틀을 그린 것으로 쳐요(꽃·잎이 실제 기본 크기 비율로 보이게).
+  const layout = buildFrameDecorLayout(preset.decor, preset.variant, FRAME_DECOR_THUMB_PX, FRAME_DECOR_THUMB_PX, {
+    pxPerMm: FRAME_DECOR_THUMB_PX / 60,
+  });
   const value = layout
     ? { windowD: decorWindowPathD(layout.window), inner: frameDecorSvgInner(layout, `thumb-${preset.id}`) }
     : null;
@@ -7577,6 +7581,18 @@ function ImageBoxPanel({
                         장식 프레임을 쓰는 동안은 테두리·모서리 설정이 적용되지 않아요. 위 &quot;사진 모양&quot;을 누르면 장식이
                         해제돼요.
                       </p>
+                      {FRAME_DECOR_PRESETS.find((pr) => pr.decor === frameTargetBox.frameDecor)?.group === "wreath" && (
+                        <SliderNumberField
+                          label="꽃·잎 크기"
+                          unit="배"
+                          hint="틀을 키우면 개수가 늘어요"
+                          min={DECOR_SCALE_RANGE.min}
+                          max={DECOR_SCALE_RANGE.max}
+                          step={0.05}
+                          value={frameTargetBox.frameDecorScale ?? DECOR_SCALE_RANGE.default}
+                          onChange={(v) => onFrameChange(frameTargetBox.id, { frameDecorScale: v })}
+                        />
+                      )}
                     </>
                   ) : (
                     <>
@@ -7903,6 +7919,9 @@ const ImageBoxOverlay = forwardRef<
     // 내려줘요.
     zIndex: number;
     onStackAction?: (action: StackOrderAction) => void;
+    // 이 박스의 xPct/widthPct가 기준으로 삼는 영역(스프레드 전체 또는 표지 패널)의 실제 종이 크기(mm).
+    // 꽃 화환의 꽃·잎 크기를 박스가 아닌 "문서 단위(mm)"로 정하는 데 써요(없으면 예전 방식).
+    docMm?: { w: number; h: number };
   }
 >(function ImageBoxOverlay(
   {
@@ -7920,6 +7939,7 @@ const ImageBoxOverlay = forwardRef<
     onPhotoEditModeChange,
     zIndex,
     onStackAction,
+    docMm,
   },
   ref
 ) {
@@ -7949,9 +7969,19 @@ const ImageBoxOverlay = forwardRef<
   // 만들어요. 있으면 이 박스는 "바깥 프레임(그림 포함) + 안쪽 사진 창" 구조라서, 사진은 창
   // 크기 기준으로 계산하고(photoAreaPx) 기존 모양/둥글기/테두리는 무시해요. 스티커는 장식
   // 프레임을 쓰지 않아요.
+  // 지금 화면에서 종이 1mm가 몇 px인지 — 박스 실제 폭(px, 편집기 확대율 반영)을 박스 폭(mm = widthPct × 영역 mm)으로
+  // 나눠요. 꽃 화환의 꽃·잎 크기(문서 단위)가 확대/축소에 따라 사진과 함께 커지고 작아지게 해요.
+  const decorPxPerMm =
+    docMm && box.widthPct > 0 ? boxSizePx.w / ((box.widthPct / 100) * docMm.w) : undefined;
   const decorLayout = useMemo(
-    () => (isSticker ? null : buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxSizePx.w, boxSizePx.h)),
-    [isSticker, box.frameDecor, box.frameDecorVariant, boxSizePx.w, boxSizePx.h]
+    () =>
+      isSticker
+        ? null
+        : buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxSizePx.w, boxSizePx.h, {
+            pxPerMm: decorPxPerMm,
+            elementScale: box.frameDecorScale,
+          }),
+    [isSticker, box.frameDecor, box.frameDecorVariant, box.frameDecorScale, boxSizePx.w, boxSizePx.h, decorPxPerMm]
   );
   // 사진이 실제로 보이는 영역의 크기(px) — 장식이 없으면 박스 전체, 있으면 안쪽 창이에요.
   const photoAreaPx = useMemo(
@@ -8880,8 +8910,11 @@ function ImageBoxLayer({
   siblingTargets,
   onPhotoEditModeChange,
   registerBoxRef,
+  docMm,
 }: {
   boxes: ImageBoxDef[];
+  // 박스 %좌표의 기준 영역(스프레드 전체 / 표지 앞·뒤 패널)의 실제 종이 크기(mm) — ImageBoxOverlay.docMm 참고.
+  docMm?: { w: number; h: number };
   onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
   onDelete: (boxId: string) => void;
   // 캔버스에 뜨는 "레이어" 작은 툴바(2026-09-25 추가)의 앞뒤 순서 버튼용이에요. 안
@@ -8933,6 +8966,7 @@ function ImageBoxLayer({
           siblingTargets={siblingTargets}
           zIndex={box.id === activeBoxId ? SELECTED_BOX_Z_INDEX : effectiveZOrder("image", box.zOrder, index)}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
+          docMm={docMm}
         />
       ))}
     </>
@@ -17293,6 +17327,7 @@ function UploadPageContent() {
                                 guidesX={coverBackGuidesX}
                                 guidesY={coverGuidesY}
                                 siblingTargets={backCoverSiblingTargets}
+                                docMm={{ w: (coverBackPct / 100) * coverTotalWmm, h: coverTotalHmm }}
                               />
                             ) : backCoverPhoto ? (
                               <img
@@ -17471,6 +17506,7 @@ function UploadPageContent() {
                                 guidesX={coverFrontGuidesX}
                                 guidesY={coverGuidesY}
                                 siblingTargets={frontCoverSiblingTargets}
+                                docMm={{ w: (coverFrontPct / 100) * coverTotalWmm, h: coverTotalHmm }}
                               />
                             ) : coverPhoto ? (
                               <PhotoCell
@@ -18295,6 +18331,7 @@ function UploadPageContent() {
                                 guidesX={imageBoxGuidesX}
                                 guidesY={imageBoxGuidesY}
                                 siblingTargets={spreadSiblingTargets}
+                                docMm={{ w: guideSpreadWorkMm, h: guidePageWorkMm }}
                               />
                               {/* 자유 배치 표(테이블) 박스도 이미지박스와 같은 스프레드 전체
                                   좌표계를 써요(기본형, 2026-09-25 "표 만들기" 요청). */}
