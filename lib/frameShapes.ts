@@ -379,18 +379,90 @@ export function organicScallopedBlobPoints(): PerimeterPoint[] {
   );
 }
 
-// "구름" 느낌의 둥근 블롭 — 크고 둥근 굴곡 5개(구름의 뭉친 부분들) + 살짝의 잔물결로
-// 너무 기계적으로 똑같지 않게 했어요. 아래쪽을 평평하게 깎지는 않았어요(작업 지시서
-// 메모대로 "4~6개 돌기의 둥근 블롭으로 근사" 쪽을 택함 — 평평한 바닥까지 요구하면
-// 바닥 쪽 사진이 네모나게 잘려서 오히려 부자연스러워요).
-export function cloudBlobPoints(): PerimeterPoint[] {
-  const BASE = 0.78;
-  return polarLoopPoints(
-    0,
-    0,
-    (t) => BASE + 0.16 * Math.cos(5 * t) + 0.05 * Math.cos(11 * t + 1.3),
-    360
-  );
+// 구름 — "윗면은 크기가 조금씩 다른 둥근 봉우리 여러 개, 옆면은 부드러운 곡선, 아랫면은 거의 평평하게
+// 이어지는 윤곽"인 익숙한 구름 실루엣이에요. 예전 구름은 극좌표 블롭(5개 굴곡 + 잔물결)이라 별/얼룩처럼
+// 길게 튀어나온 돌기와 깊게 파인 홈이 생겼어요. 지금은 "원 여러 개의 윗 윤곽"을 그대로 이어서 만들어서
+// 돌기/깊은 홈이 구조적으로 생길 수 없어요(홈 깊이는 봉우리 반지름의 약 0.37배로 고정).
+// 크기 규칙(짧은 변 u=1, 박스가 가로 W×세로 H u일 때 — aspectDims와 같은 기준):
+//   · 봉우리 개수는 정수: n = max(3, round(((윗면 길이 L ÷ 0.2) − 2) ÷ 1.44) + 1) — L = W − 2m.
+//     목표 봉우리 반지름이 약 0.2u라서, 가로로 길어지면 같은 크기의 봉우리가 "더 많이" 놓여요
+//     (늘어나서 길쭉해지거나 뾰족해지지 않아요). 정사각형은 3개, 3:1 가로 박스는 10개쯤이에요.
+//   · 봉우리 반지름은 R × 크기계수(가운데가 큰 종 모양 0.78~1.20 + 아주 작은 고정 흔들림)이고, R은
+//     "봉우리들이 윗면 길이 L을 정확히 채우도록" 위 식에서 풀어서 정해요 — 봉우리끼리 중심 거리는
+//     0.72×(반지름 합)이라 서로 겹쳐 이어져요. 계산이 모두 u 기준이라 가로세로를 따로 늘려도 봉우리는 동그래요.
+//   · 모든 봉우리의 "아래쪽 끝"을 같은 높이에 맞춰서, 큰 봉우리(가운데)는 높게 작은 봉우리(가장자리)는
+//     낮게 — 전형적인 구름의 둥근 지붕 모양이 돼요. 맨 왼쪽/오른쪽 봉우리는 박스 가장자리에 접하고,
+//     거기서 옆면이 아래로 곧게 내려와 아래 모서리를 둥글게(가로 0.3u·세로 0.34u 이하) 돌아 바닥으로 이어져요.
+//   · 바닥은 평평한 선이고 양 끝은 큰 둥근 호로 옆면과 이어져서 각진 모서리가 없어요(얕게 볼록하게 만들어 보니 S자 물결처럼 보여서 평평하게 뒀어요).
+// 화면(clip-path)·인쇄(canvas)·목록 썸네일이 모두 이 함수(framePerimeterPoints → finishOutline)를 써요.
+export function cloudPoints(aspect: number = 1): PerimeterPoint[] {
+  const { W, H } = aspectDims(aspect);
+  const m = 0.01; // 박스 가장자리 여유
+  const K = 0.72; // 이웃 봉우리 중심 거리 / 반지름 합
+  const L = W - 2 * m;
+  const n = Math.max(3, Math.round((L / 0.2 - 2) / (2 * K)) + 1);
+  const fac: number[] = [];
+  for (let i = 0; i < n; i++) fac.push((0.78 + 0.42 * Math.sin((Math.PI * (i + 0.5)) / n)) * (1 + 0.05 * Math.sin(2.7 * i + 1)));
+  let sumPairs = 0;
+  for (let i = 0; i < n - 1; i++) sumPairs += fac[i] + fac[i + 1];
+  const R = L / (fac[0] + fac[n - 1] + K * sumPairs);
+  const r = fac.map((f) => f * R);
+  const rMax = Math.max(...r);
+  const base = m + 2 * rMax; // 모든 봉우리의 아래쪽 끝 높이
+  const cx: number[] = [m + r[0]];
+  for (let i = 1; i < n; i++) cx.push(cx[i - 1] + K * (r[i - 1] + r[i]));
+  const cy = r.map((ri) => base - ri);
+  const pts: UPt[] = [];
+  const arcSteps = 40;
+  // 이웃한 두 원의 윗쪽 교점
+  const upperIntersection = (i: number): UPt => {
+    const dx = cx[i + 1] - cx[i];
+    const dy = cy[i + 1] - cy[i];
+    const d = Math.hypot(dx, dy);
+    const a = (r[i] * r[i] - r[i + 1] * r[i + 1] + d * d) / (2 * d);
+    const hh = Math.sqrt(Math.max(0, r[i] * r[i] - a * a));
+    const mx = cx[i] + (dx * a) / d;
+    const my = cy[i] + (dy * a) / d;
+    const c1 = { x: mx + (hh * dy) / d, y: my - (hh * dx) / d };
+    const c2 = { x: mx - (hh * dy) / d, y: my + (hh * dx) / d };
+    return c1.y < c2.y ? c1 : c2;
+  };
+  const ang = (i: number, p: UPt): number => {
+    let t = Math.atan2(p.y - cy[i], p.x - cx[i]);
+    if (t < 0) t += Math.PI * 2; // 윗쪽 호는 π ~ 2π
+    return t;
+  };
+  for (let i = 0; i < n; i++) {
+    const a0 = i === 0 ? Math.PI : ang(i, upperIntersection(i - 1));
+    const a1 = i === n - 1 ? Math.PI * 2 : ang(i, upperIntersection(i));
+    for (let t = 0; t <= arcSteps; t++) {
+      const a = a0 + ((a1 - a0) * t) / arcSteps;
+      pts.push({ x: cx[i] + r[i] * Math.cos(a), y: cy[i] + r[i] * Math.sin(a) });
+    }
+  }
+  // 오른쪽 옆면 → 오른쪽 아래 모서리 → 얕게 볼록한 바닥 → 왼쪽 아래 모서리 → 왼쪽 옆면(맨 위 점으로 닫힘)
+  const sag = 0; // 바닥은 평평(모서리는 둥글게) — 아주 얕은 볼록 곡선은 S자 물결처럼 보여서 뺐어요
+  const rbx = Math.min(0.3, L / 3);
+  const yBot = H - m;
+  const rby = Math.min(0.34, Math.max(0.05, (yBot - sag - Math.min(cy[0], cy[n - 1])) * 0.85));
+  const xr = W - m;
+  const xl = m;
+  const yCorner = yBot - sag; // 모서리 호가 끝나는 높이(바닥 곡선의 양끝)
+  const cornerSteps = 14;
+  for (let t = 0; t <= cornerSteps; t++) {
+    const a = (Math.PI / 2) * (t / cornerSteps);
+    pts.push({ x: xr - rbx + rbx * Math.cos(a), y: yCorner - rby + rby * Math.sin(a) });
+  }
+  const bottomSteps = 60;
+  for (let t = 1; t < bottomSteps; t++) {
+    const u = -1 + (2 * (bottomSteps - t)) / bottomSteps; // 오른쪽(1) → 왼쪽(-1)
+    pts.push({ x: (xl + xr) / 2 + ((xr - xl) / 2 - rbx) * u, y: yBot - (sag * (1 - Math.cos(Math.PI * u))) / 2 });
+  }
+  for (let t = 0; t <= cornerSteps; t++) {
+    const a = Math.PI / 2 + (Math.PI / 2) * (t / cornerSteps);
+    pts.push({ x: xl + rbx + rbx * Math.cos(a), y: yCorner - rby + rby * Math.sin(a) });
+  }
+  return uToPct(pts, W, H);
 }
 
 // "뱃지(메달)+리본" 모양 — 원(스캘럽 없는 평범한 원, 중심을 위쪽 (0,-0.3)으로 옮겨서
@@ -577,7 +649,7 @@ export function framePerimeterPoints(shape: FrameShapeKey | undefined, aspect?: 
     case "organicScallop":
       return finishOutline(organicScallopedBlobPoints(), aspect, 0.012, false);
     case "cloud":
-      return finishOutline(cloudBlobPoints(), aspect, 0.012, false);
+      return finishOutline(cloudPoints(aspect), aspect, 0.025, true);
     case "badge":
       return finishOutline(badgeRibbonPoints(), aspect, 0.045, true);
     case "heart":
