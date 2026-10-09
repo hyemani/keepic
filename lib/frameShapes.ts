@@ -14,10 +14,6 @@ export type PerimeterPoint = { xPct: number; yPct: number };
 // 무늬 하나의 "모양"을 정의하는 로컬 좌표예요(-1~1, 중심이 0,0, 반지름이 1).
 export type UnitPoint = { x: number; y: number };
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
 // ---- 0. 공통 도우미: 박스 비율(aspect) → 짧은 변 u=1 단위 좌표, 외곽선 다듬기 ----
 // 모든 "프레임 모양" 크기 규칙은 박스의 "짧은 변"(u)을 1로 본 단위로 정해요 — 그래서 박스가
 // 가로로 길든 세로로 길든, 화면(작은 박스)이든 인쇄(큰 박스)든 톱니·귀·둥근 모서리의
@@ -230,35 +226,80 @@ export function scallopedRectPoints(aspect: number = 1): PerimeterPoint[] {
 }
 
 // ---- 2. 점/별/하트 무늬 테두리 ----
+// 무늬는 "테두리 띠(두께 bandPx) 안쪽"에 통째로 들어가게 배치해요(예전엔 무늬 중심을 박스 맨 가장자리 선
+// 위에 놓아서 박스 경계에서 절반이 잘려 반쪽만 보이고, 무늬 색이 띠 색과 같아서 띠 위에서는 보이지도
+// 않았어요). 크기·간격·위치 규칙은 전부 "테두리 두께" 기준이에요(화면 px/인쇄 px 어느 쪽이든 같은 비율):
+//   · 무늬 지름 d = bandPx × 0.64 → 띠(0 ~ bandPx) 안에서 위아래로 각각 0.18×bandPx 여유가 남아요.
+//   · 무늬 중심선 = 박스 가장자리에서 bandPx/2 안쪽(띠의 정중앙) → 무늬는 박스 밖으로 나가지도, 띠 밖으로
+//     나가지도 않아요(박스 클리핑에 잘릴 일이 없어요).
+//   · 간격(피치) ≈ d × 2.3 — 변마다 정수 개로 딱 맞게 나눠서(변 길이 ÷ 피치를 반올림) 끝에서 어정쩡하게
+//     끊기지 않아요. 모서리가 직각이면 네 모서리에 무늬가 정확히 하나씩(두 변이 같이 쓰는 점이라 중복 없음)
+//     놓이고, 모서리가 둥글면(원/둥근 사각형) 중심선 전체 길이를 정수 등분해서 놓아요.
+//   · 띠 자체는 무늬와 같은 색의 연한(35%) 톤으로 깔려서, 무늬(진한 색)가 항상 띠 위에서 또렷이 보여요.
+// 화면(SVG, 박스 px 크기 viewBox)과 인쇄(canvas)가 같은 함수를 px 단위로 불러서 결과가 같아요.
+export const BORDER_PATTERN_MARK_RATIO = 0.64;
+export const BORDER_PATTERN_PITCH_RATIO = 2.3;
+export const BORDER_PATTERN_BAND_ALPHA = 0.35;
 
-// 변(위/아래/좌/우) 하나마다 몇 개의 무늬를 배치하는지 — 점/별/하트 모두 공통.
-export const BORDER_PATTERN_COUNT_PER_EDGE = 6;
+export type BorderPatternLayout = {
+  size: number; // 무늬 지름(px)
+  marks: { x: number; y: number }[]; // 무늬 중심(박스 왼쪽 위 기준 px)
+};
 
-// 무늬 하나의 크기 — 박스 가로/세로 기준 %(지름). 테두리 두께(borderWidthPx)와는
-// 별개로 고정된 비율을 써요 — 화면(SVG viewBox 0~100)과 인쇄(canvas, 박스 실제
-// px폭/높이에 이 %를 곱함) 둘 다 "박스 크기 대비 %"라는 같은 기준으로 계산하기
-// 때문에 결과 크기가 항상 같아요.
-export const BORDER_PATTERN_SHAPE_SIZE_PCT = 3.2;
-
-// 테두리 선의 "중심선"을 따라 무늬 중심점들을 0~100% 좌표로 반환해요(네 변, 각 변의
-// 칸 가운데 — 모서리와 겹치지 않도록). frameShape가 기본(사각형)일 때만 쓰는
-// 전제예요 — 육각형/톱니처럼 테두리선 자체가 사각형이 아니면 이 좌표가 실제 선
-// 위에 있지 않아서 어긋나 보일 수 있어, 이번 라운드에선 사각형 전용으로 한정했어요.
-export function borderPatternCenterPoints(perEdge: number = BORDER_PATTERN_COUNT_PER_EDGE): PerimeterPoint[] {
-  const pts: PerimeterPoint[] = [];
-  const edges: [PerimeterPoint, PerimeterPoint][] = [
-    [{ xPct: 0, yPct: 0 }, { xPct: 100, yPct: 0 }],
-    [{ xPct: 100, yPct: 0 }, { xPct: 100, yPct: 100 }],
-    [{ xPct: 100, yPct: 100 }, { xPct: 0, yPct: 100 }],
-    [{ xPct: 0, yPct: 100 }, { xPct: 0, yPct: 0 }],
-  ];
-  for (const [start, end] of edges) {
-    for (let s = 0; s < perEdge; s++) {
-      const t = (s + 0.5) / perEdge;
-      pts.push({ xPct: lerp(start.xPct, end.xPct, t), yPct: lerp(start.yPct, end.yPct, t) });
-    }
+export function borderPatternLayout(w: number, h: number, bandPx: number, radiusPct: number = 0): BorderPatternLayout {
+  const size = Math.max(0, bandPx) * BORDER_PATTERN_MARK_RATIO;
+  const marks: { x: number; y: number }[] = [];
+  if (!(w > 0) || !(h > 0) || !(bandPx > 0)) return { size, marks };
+  const c = bandPx / 2;
+  const pitch = size * BORDER_PATTERN_PITCH_RATIO;
+  const left = c;
+  const top = c;
+  const right = w - c;
+  const bottom = h - c;
+  const pct = Math.min(50, Math.max(0, radiusPct));
+  const crx = Math.max(0, (pct / 100) * w - c);
+  const cry = Math.max(0, (pct / 100) * h - c);
+  if (crx < 0.5 || cry < 0.5) {
+    // 직각 모서리: 변마다 정수 칸, 시작 모서리 포함·끝 모서리 제외(다음 변의 시작점이라 중복 없음)
+    const nx = Math.max(1, Math.round((right - left) / pitch));
+    const ny = Math.max(1, Math.round((bottom - top) / pitch));
+    for (let i = 0; i < nx; i++) marks.push({ x: left + ((right - left) * i) / nx, y: top });
+    for (let i = 0; i < ny; i++) marks.push({ x: right, y: top + ((bottom - top) * i) / ny });
+    for (let i = 0; i < nx; i++) marks.push({ x: right - ((right - left) * i) / nx, y: bottom });
+    for (let i = 0; i < ny; i++) marks.push({ x: left, y: bottom - ((bottom - top) * i) / ny });
+    return { size, marks };
   }
-  return pts;
+  // 둥근 모서리: 중심선(타원 호 + 직선)을 촘촘한 점으로 만들고 전체 길이를 정수 등분
+  const poly: { x: number; y: number }[] = [];
+  const steps = 64;
+  const arc = (cx: number, cy: number, a0: number) => {
+    for (let k = 0; k <= steps; k++) {
+      const a = a0 + ((Math.PI / 2) * k) / steps;
+      poly.push({ x: cx + crx * Math.cos(a), y: cy + cry * Math.sin(a) });
+    }
+  };
+  arc(right - crx, top + cry, -Math.PI / 2);
+  arc(right - crx, bottom - cry, 0);
+  arc(left + crx, bottom - cry, Math.PI / 2);
+  arc(left + crx, top + cry, Math.PI);
+  const cum: number[] = [0];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    cum.push(cum[i] + Math.hypot(b.x - a.x, b.y - a.y));
+  }
+  const total = cum[poly.length];
+  const n = Math.max(4, Math.round(total / pitch));
+  let seg = 0;
+  for (let k = 0; k < n; k++) {
+    const d = (k / n) * total;
+    while (seg < poly.length - 1 && cum[seg + 1] < d) seg++;
+    const a = poly[seg];
+    const b = poly[(seg + 1) % poly.length];
+    const t = (d - cum[seg]) / (cum[seg + 1] - cum[seg] || 1);
+    marks.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  }
+  return { size, marks };
 }
 
 // 별(5각) 모양 — 바깥 꼭짓점 5개 + 안쪽 꼭짓점 5개, 표준 별 모양 공식. -1~1 로컬

@@ -21,10 +21,10 @@ import {
 } from "@/lib/textRuns";
 import { computeImageBoxCoverRect, expandCoverRectForBleed } from "@/lib/imageBoxGeometry";
 import {
-  borderPatternCenterPoints,
+  borderPatternLayout,
+  BORDER_PATTERN_BAND_ALPHA,
   starShapePoints,
   heartShapePoints,
-  BORDER_PATTERN_SHAPE_SIZE_PCT,
   framePerimeterPoints,
 } from "@/lib/frameShapes";
 import { buildFrameDecorLayout, decorPhotoClipWindow, decorWindowPathD, drawFrameDecorLayout } from "@/lib/frameDecorations";
@@ -173,44 +173,40 @@ function framedShapePath(
   ctx.closePath();
 }
 
-// 2026-11(18번째 라운드 18차), 혜민님 요청("점/별/하트무늬 테두리") — 화면
-// (ImageBoxOverlay의 SVG, viewBox 0~100 + preserveAspectRatio="none")과 정확히 같은
-// 결과가 나오도록, lib/frameShapes.ts의 borderPatternCenterPoints()(중심점 %)와
-// starShapePoints()/heartShapePoints()(모양의 -1~1 로컬 좌표)를 그대로 가져다, 박스의
-// 실제 px 폭/높이에 곱해서 canvas 경로로 그려요. 2026-11(18번째 라운드 19차) — "사진
-// 자르는 모양" 클리핑 메뉴가 없어지면서 frameShape는 화면·인쇄 어디서도 사각형 외의
-// 모양에 영향을 안 주니, 이 함수를 "frameShape가 사각형일 때만" 거르던 호출부 조건도
-// 함께 뺐어요(항상 호출돼요).
+// 2026-11(18번째 라운드 18차), 혜민님 요청("점/별/하트무늬 테두리") — 무늬 위치·크기는 화면
+// (ImageBoxOverlay의 SVG)과 똑같이 lib/frameShapes.ts의 borderPatternLayout()(테두리 두께 기준 px
+// 배치)으로 계산해요. 2026-11(23차) — 예전엔 무늬 중심을 박스 가장자리 선 위에 놓아서 박스
+// 클리핑에 절반이 잘렸는데, 이제는 테두리 띠 안쪽에 통째로 들어가요(규칙은 borderPatternLayout 주석 참고).
+// 호출부는 (인쇄 px로 환산한) 테두리 두께 bandPx를 넘겨줘요.
 function drawBorderPattern(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  box: Pick<ImageBoxDef, "frameBorderPattern" | "borderColor">
+  bandPx: number,
+  box: Pick<ImageBoxDef, "frameBorderPattern" | "borderColor" | "borderRadiusPct">
 ) {
   if (!box.frameBorderPattern || box.frameBorderPattern === "none") return;
-  const rx = (BORDER_PATTERN_SHAPE_SIZE_PCT / 100 / 2) * w;
-  const ry = (BORDER_PATTERN_SHAPE_SIZE_PCT / 100 / 2) * h;
+  const layout = borderPatternLayout(w, h, bandPx, box.borderRadiusPct ?? 0);
+  const r = layout.size / 2;
   ctx.fillStyle = box.borderColor ?? "#ffffff";
-  for (const p of borderPatternCenterPoints()) {
-    const cx = x + (p.xPct / 100) * w;
-    const cy = y + (p.yPct / 100) * h;
-    if (box.frameBorderPattern === "dot") {
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fill();
-      continue;
-    }
-    const shapePts = box.frameBorderPattern === "star" ? starShapePoints() : heartShapePoints();
+  const shapePts = box.frameBorderPattern === "star" ? starShapePoints() : box.frameBorderPattern === "heart" ? heartShapePoints() : null;
+  for (const m of layout.marks) {
+    const cx = x + m.x;
+    const cy = y + m.y;
     ctx.beginPath();
-    shapePts.forEach((sp, i) => {
-      const px = cx + sp.x * rx;
-      const py = cy + sp.y * ry;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    });
-    ctx.closePath();
+    if (!shapePts) {
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    } else {
+      shapePts.forEach((sp, i) => {
+        const px = cx + sp.x * r;
+        const py = cy + sp.y * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+    }
     ctx.fill();
   }
 }
@@ -1093,7 +1089,11 @@ function drawImageBoxOnCanvas(
   if (box.borderWidthPx && box.borderWidthPx > 0) {
     const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
     ctx.lineWidth = printBorderPx;
-    ctx.strokeStyle = box.borderColor ?? "#ffffff";
+    // 무늬(점/별/하트)가 있으면 띠는 같은 색의 연한 톤으로 깔아서 무늬가 띠 위에서 또렷하게 보여요(화면과 동일).
+    const hasPattern = !!box.frameBorderPattern && box.frameBorderPattern !== "none";
+    ctx.strokeStyle = hasPattern
+      ? hexToRgbaPrint(box.borderColor ?? "#ffffff", BORDER_PATTERN_BAND_ALPHA)
+      : (box.borderColor ?? "#ffffff");
     framedShapePath(
       ctx,
       boxLeftPagePx + printBorderPx / 2,
@@ -1108,7 +1108,7 @@ function drawImageBoxOnCanvas(
     // 똑같이, 여기도 줄이지 않은 원래 박스 영역(boxLeftPagePx 등)을 써요. 2026-11
     // (18번째 라운드 19차) — "프레임 모양" 클리핑 기능을 없애면서(위 framedShapePath
     // 주석 참고) frameShape 분기도 같이 뺐어요.
-    drawBorderPattern(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, box);
+    drawBorderPattern(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, printBorderPx, box);
   }
   ctx.restore();
 }
@@ -1165,7 +1165,10 @@ async function drawImageBoxesInPanel(
     if (box.borderWidthPx && box.borderWidthPx > 0) {
       const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
       ctx.lineWidth = printBorderPx;
-      ctx.strokeStyle = box.borderColor ?? "#ffffff";
+      const hasPattern = !!box.frameBorderPattern && box.frameBorderPattern !== "none";
+      ctx.strokeStyle = hasPattern
+        ? hexToRgbaPrint(box.borderColor ?? "#ffffff", BORDER_PATTERN_BAND_ALPHA)
+        : (box.borderColor ?? "#ffffff");
       framedShapePath(
         ctx,
         boxLeftPx + printBorderPx / 2,
@@ -1175,7 +1178,7 @@ async function drawImageBoxesInPanel(
         box
       );
       ctx.stroke();
-      drawBorderPattern(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, box);
+      drawBorderPattern(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, printBorderPx, box);
     }
     ctx.restore();
   }

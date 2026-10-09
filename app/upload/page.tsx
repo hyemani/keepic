@@ -38,10 +38,10 @@ import {
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
 import {
-  borderPatternCenterPoints,
+  borderPatternLayout,
+  BORDER_PATTERN_BAND_ALPHA,
   starShapePoints,
   heartShapePoints,
-  BORDER_PATTERN_SHAPE_SIZE_PCT,
   framePerimeterPoints,
   type FrameShapeParams,
   ARCH_TOP_PCT_RANGE,
@@ -7660,7 +7660,14 @@ function ImageBoxPanel({
                                 <button
                                   key={opt.key}
                                   type="button"
-                                  onClick={() => onFrameChange(frameTargetBox.id, { frameBorderPattern: opt.key })}
+                                  onClick={() =>
+                              // 무늬는 테두리 띠 안에 들어가서, 두께가 얇으면(6px 미만) 무늬가 너무 작아 안 보여요 —
+                              // 무늬를 고를 때 두께가 얇으면 8px로 맞춰요(이미 6px 이상이면 그대로).
+                              onFrameChange(frameTargetBox.id, {
+                                frameBorderPattern: opt.key,
+                                ...(opt.key !== "none" && (frameTargetBox.borderWidthPx ?? 0) < 6 ? { borderWidthPx: 8 } : {}),
+                              })
+                            }
                                   className={`border px-1 py-1.5 text-[10.5px] transition ${
                                     active
                                       ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
@@ -8623,34 +8630,52 @@ const ImageBoxOverlay = forwardRef<
           style={{
             borderRadius: cssRadius,
             clipPath: cssClipPath,
-                boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${box.borderColor ?? "#ffffff"}`,
+boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${
+              box.frameBorderPattern && box.frameBorderPattern !== "none"
+                ? hexToRgba(box.borderColor ?? "#ffffff", BORDER_PATTERN_BAND_ALPHA)
+                : (box.borderColor ?? "#ffffff")
+            }`,
           }}
         />
       ) : null}
-      {/* 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트). viewBox가 0~100
-          정사각형이고 preserveAspectRatio="none"이라, 박스가 정사각형이 아니어도
-          박스 가로/세로 비율대로 늘어나며 그려져요(모서리 둥글기 타원 계산과 같은
-          원리) — borderPatternCenterPoints()/starShapePoints()/heartShapePoints()를
-          인쇄(lib/printCompose.ts)와 그대로 같이 가져다 써서 위치·모양이 똑같아요. */}
-      {box.url && !decorLayout && box.borderWidthPx && box.frameBorderPattern && box.frameBorderPattern !== "none" ? (
-        <svg
-          className="pointer-events-none absolute inset-0"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          style={{ borderRadius: cssRadius, clipPath: cssClipPath }}
-        >
-          {borderPatternCenterPoints().map((p, i) => {
-            const r = BORDER_PATTERN_SHAPE_SIZE_PCT / 2;
+      {/* 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트). 2026-11(23차) 수정: 예전엔 viewBox 0~100 +
+          preserveAspectRatio="none"에 무늬 중심을 박스 맨 가장자리 선 위에 놓아서 박스 경계에서 절반이
+          잘렸고, 무늬 색도 띠 색과 같아 띠 위에서는 안 보였어요. 지금은 박스 실제 px 크기 viewBox(찌그러짐
+          없음)에 borderPatternLayout()이 계산한 "테두리 띠 안쪽 정중앙" 위치·크기로 무늬를 통째로 놓고
+          (클리핑 불필요), 띠는 같은 색의 연한 톤으로 깔아요. 인쇄(lib/printCompose.ts)도 같은 함수를 써요. */}
+      {box.url && !decorLayout && box.borderWidthPx && box.frameBorderPattern && box.frameBorderPattern !== "none"
+        ? (() => {
+            const layout = borderPatternLayout(boxSizePx.w, boxSizePx.h, box.borderWidthPx, box.borderRadiusPct ?? 0);
+            const r = layout.size / 2;
             const fill = box.borderColor ?? "#ffffff";
-            if (box.frameBorderPattern === "dot") {
-              return <ellipse key={i} cx={p.xPct} cy={p.yPct} rx={r} ry={r} fill={fill} />;
-            }
-            const shapePts = box.frameBorderPattern === "star" ? starShapePoints() : heartShapePoints();
-            const pointsAttr = shapePts.map((sp) => `${p.xPct + sp.x * r},${p.yPct + sp.y * r}`).join(" ");
-            return <polygon key={i} points={pointsAttr} fill={fill} />;
-          })}
-        </svg>
-      ) : null}
+            const shapePts =
+              box.frameBorderPattern === "star"
+                ? starShapePoints()
+                : box.frameBorderPattern === "heart"
+                  ? heartShapePoints()
+                  : null;
+            return (
+              <svg
+                className="pointer-events-none absolute inset-0"
+                width={boxSizePx.w}
+                height={boxSizePx.h}
+                viewBox={`0 0 ${boxSizePx.w} ${boxSizePx.h}`}
+              >
+                {layout.marks.map((m, i) =>
+                  shapePts ? (
+                    <polygon
+                      key={i}
+                      points={shapePts.map((sp) => `${m.x + sp.x * r},${m.y + sp.y * r}`).join(" ")}
+                      fill={fill}
+                    />
+                  ) : (
+                    <circle key={i} cx={m.x} cy={m.y} r={r} fill={fill} />
+                  )
+                )}
+              </svg>
+            );
+          })()
+        : null}
       {!box.url && (
         // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면(또는
         // 더블클릭하면) 파일을 골라 채울 수 있어요. 미리보기·PDF에는 안 그려져요.
