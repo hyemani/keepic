@@ -109,6 +109,7 @@ import {
 } from "@/lib/imageBoxGeometry";
 import { EdgeFadePanel } from "./edgeFadePanel";
 import { BorderPatternSwatch } from "./borderPatternSwatch";
+import { BorderColorSwatches } from "./borderColorSwatches";
 import { BoxPhotoView, EditedPhotoThumb, type PhotoEditValues } from "./photoEditHooks";
 import {
   PhotoEditPanel,
@@ -7587,16 +7588,10 @@ function ImageBoxPanel({
                         value={frameTargetBox.borderWidthPx ?? 0}
                         onChange={(v) => onFrameChange(frameTargetBox.id, { borderWidthPx: v })}
                       />
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className="text-[10px] text-[var(--color-charcoal)]/60">테두리 색상</span>
-                        <input
-                          type="color"
-                          aria-label="테두리 색상"
-                          value={frameTargetBox.borderColor ?? "#ffffff"}
-                          onChange={(e) => onFrameChange(frameTargetBox.id, { borderColor: e.target.value })}
-                          className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
-                        />
-                      </div>
+                      <BorderColorSwatches
+                        value={frameTargetBox.borderColor ?? "#ffffff"}
+                        onChange={(hex) => onFrameChange(frameTargetBox.id, { borderColor: hex })}
+                      />
                       {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
                         <SliderNumberField
                           label="모서리 둥글게"
