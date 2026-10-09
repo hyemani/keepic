@@ -14,6 +14,13 @@ import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes, isStickerImageBox } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import {
+  drawBackgroundSpecOnCanvas,
+  resolveCoverPanelSpec,
+  resolveSpreadSideSpec,
+  type BackgroundSpec,
+  type CoverBackgrounds,
+} from "@/lib/backgroundSpec";
+import {
   resolveRunStyle,
   trimRuns,
   type ResolvedRunStyle,
@@ -974,9 +981,11 @@ async function drawPage(
   imageBoxes?: ImageBoxDef[],
   pageOffsetPx?: number,
   spreadWidthPx?: number,
-  tableBoxes?: TableBoxDef[]
+  tableBoxes?: TableBoxDef[],
+  // 2026-11 새 배경 설정값(lib/backgroundSpec.ts) — 있으면 옛 backgroundColor/backgroundPatternId보다 우선해요.
+  backgroundSpec?: BackgroundSpec
 ) {
-  await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId, pageOffsetPx, spreadWidthPx);
+  await drawPageTemplate(ctx, templateId, photos, pageW, pageH, backgroundColor, backgroundPatternId, pageOffsetPx, spreadWidthPx, backgroundSpec);
   // 2026-09-25, "종류 상관없이 전부" 레이어 순서 기능: 사진박스·텍스트박스를 예전처럼
   // "사진 전부 먼저, 텍스트 전부 나중"(두 단계 루프)으로 그리지 않고, 화면
   // (app/upload/page.tsx의 ImageBoxLayer/TextBoxLayer)과 완전히 같은 sortStackedBoxes
@@ -1795,10 +1804,18 @@ async function drawPageTemplate(
   // 2026-10-06, 혜민님 요청: "그라데이션이 낱장만 적용되는데 스프레드페이지 기준으로
   // 적용해주세요" — 전체 스프레드 기준 좌표를 계산하기 위한 이 낱장의 오프셋·전체 폭.
   pageOffsetPx?: number,
-  spreadWidthPx?: number
+  spreadWidthPx?: number,
+  backgroundSpec?: BackgroundSpec
 ) {
   const pattern = findBackgroundPattern(backgroundPatternId);
-  if (pattern) {
+  if (backgroundSpec) {
+    // 새 배경: 도련을 포함한 작업 사이즈 캔버스 전체(0,0,pageW,pageH)를 mm 단위로 그려요(화면과 같은 함수).
+    const fullSpanSpec =
+      pageOffsetPx !== undefined && spreadWidthPx !== undefined
+        ? { x: -pageOffsetPx, y: 0, w: spreadWidthPx, h: pageH }
+        : undefined;
+    drawBackgroundSpecOnCanvas(ctx, backgroundSpec, 0, 0, pageW, pageH, mmToPx, fullSpanSpec);
+  } else if (pattern) {
     const fullSpan =
       pageOffsetPx !== undefined && spreadWidthPx !== undefined
         ? { x: -pageOffsetPx, y: 0, w: spreadWidthPx, h: pageH }
@@ -2236,6 +2253,7 @@ export async function buildInnerPrintPdf({
       hideEdge: "left" | "right";
       textBoxes?: TextBoxDef[];
       pageOffsetPx: number;
+      bgSpec?: BackgroundSpec;
     }[] = [
       {
         templateId: i === 0 ? "blank" : spread.left,
@@ -2243,6 +2261,7 @@ export async function buildInnerPrintPdf({
         hideEdge: "right",
         textBoxes: i === 0 ? undefined : spread.textBoxesLeft,
         pageOffsetPx: 0,
+        bgSpec: resolveSpreadSideSpec(spread, "left"),
       },
       {
         templateId: spread.right,
@@ -2250,6 +2269,7 @@ export async function buildInnerPrintPdf({
         hideEdge: "left",
         textBoxes: spread.textBoxesRight,
         pageOffsetPx: pxW,
+        bgSpec: resolveSpreadSideSpec(spread, "right"),
       },
     ];
 
@@ -2268,7 +2288,8 @@ export async function buildInnerPrintPdf({
         spreadImageBoxes,
         side.pageOffsetPx,
         spreadWidthPx,
-        spread.tableBoxes
+        spread.tableBoxes,
+        side.bgSpec
       );
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
       drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, side.hideEdge);
@@ -2674,6 +2695,7 @@ export async function buildCoverPrintPdf({
   backCoverPhoto = null,
   backCoverBackgroundColor,
   coverPatternId,
+  coverBackgrounds,
   backCoverTextBoxes,
   coverSpineBackgroundColor,
   coverFrontBackgroundColor,
@@ -2798,6 +2820,7 @@ export async function buildCoverPrintPdf({
   backCoverLogo?: { xPct: number; yPct: number; scalePct: number } | null;
   backCoverPhoto?: PrintPhoto | null;
   backCoverBackgroundColor?: string;
+  coverBackgrounds?: CoverBackgrounds; // 2026-11 새 배경 패널 설정값(앞표지/뒤표지/책등/표지 전체). 있는 칸은 아래 옛 배경색·coverPatternId보다 우선해요.
   coverPatternId?: string; // 표지 전체(앞표지·책등·뒤표지) 그래픽·패턴·텍스처예요(2026-09-30, "적용범위" 메뉴 없애고 전체 표지에 하나로 통일). 지정하면 배경색보다 우선해요.
   backCoverTextBoxes?: TextBoxDef[]; // 뒤표지에 자유 배치한 텍스트박스예요.
   coverSpineBackgroundColor?: string; // 지정 안 하면 앞·뒤표지와 같은 흰색(#ffffff) 그대로예요(2026-09-25, 혜민님 요청 — 예전엔 아이보리 #f4f1ea가 기본값이라 흰 표지인데 책등만 베이지로 보이는 문제가 있었어요).
@@ -2855,7 +2878,12 @@ export async function buildCoverPrintPdf({
   // 그라데이션 하나를 세 군데 모두에 넘겨서, 제본 경계에서 끊기지 않고 이어지게 해요.
   const coverTotalCoverSpanWpx = backCellWpx + spinePx + backCellWpx;
   const coverFullSpan = { x: 0, y: 0, w: coverTotalCoverSpanWpx, h: backCellHpx };
-  if (coverPattern) {
+  const backSpec = resolveCoverPanelSpec(coverBackgrounds, "back");
+  const spineSpec = resolveCoverPanelSpec(coverBackgrounds, "spine");
+  const frontSpec = resolveCoverPanelSpec(coverBackgrounds, "front");
+  if (backSpec) {
+    drawBackgroundSpecOnCanvas(ctx, backSpec, 0, 0, backCellWpx, backCellHpx, mmToPx, coverFullSpan);
+  } else if (coverPattern) {
     drawBackgroundPatternOnCanvas(ctx, coverPattern, 0, 0, backCellWpx, backCellHpx, mmToPx, coverFullSpan);
   } else if (backCoverBackgroundColor) {
     ctx.fillStyle = backCoverBackgroundColor;
@@ -2972,7 +3000,10 @@ export async function buildCoverPrintPdf({
 
   // 책등(세네카) 영역 — 배경을 채우고, 책등 제목(있으면)과 키픽 로고를 넣어요.
   const spineX = bleedPx + panelPx;
-  if (coverPattern) {
+  if (spineSpec) {
+    // 책등도 위·아래는 실제 재단선이라 도련(bleedPx)까지 채워요(옛 방식은 재단 높이만 칠해서 위아래 도련이 흰색이었어요).
+    drawBackgroundSpecOnCanvas(ctx, spineSpec, spineX, 0, spinePx, backCellHpx, mmToPx, coverFullSpan);
+  } else if (coverPattern) {
     drawBackgroundPatternOnCanvas(ctx, coverPattern, spineX, bleedPx, spinePx, panelPx, mmToPx, coverFullSpan);
   } else {
     ctx.fillStyle = coverSpineBackgroundColor ?? "#ffffff";
@@ -3035,7 +3066,9 @@ export async function buildCoverPrintPdf({
   // 파일에도 그대로 나와요.
   const frontCellWpx = panelPx + bleedPx;
   const frontCellHpx = panelPx + bleedPx * 2;
-  if (coverPattern) {
+  if (frontSpec) {
+    drawBackgroundSpecOnCanvas(ctx, frontSpec, frontX, 0, frontCellWpx, frontCellHpx, mmToPx, coverFullSpan);
+  } else if (coverPattern) {
     drawBackgroundPatternOnCanvas(ctx, coverPattern, frontX, 0, frontCellWpx, frontCellHpx, mmToPx, coverFullSpan);
   } else if (coverFrontBackgroundColor) {
     ctx.fillStyle = coverFrontBackgroundColor;

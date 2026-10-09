@@ -3,6 +3,7 @@ import type { BorderPatternKey, FrameShapeKey } from "./frameShapes";
 import type { FrameDecorKey } from "./frameDecorations";
 import type { PhotoAdjust, PhotoFilter } from "./photoAdjust";
 import type { EdgeFade } from "./edgeFade";
+import type { BackgroundSpec } from "./backgroundSpec";
 
 export type PageTemplateId =
   | "full"
@@ -567,6 +568,12 @@ export type SpreadDef = {
   // 그래픽·패턴·텍스처 배경 꾸미기(lib/backgroundPatterns.ts의 preset id)예요. 지정돼
   // 있으면 backgroundColor보다 우선해요(서로 배타적으로 골라요).
   backgroundPattern?: string;
+  // 2026-11 새 배경 패널의 설정값(lib/backgroundSpec.ts). 위 backgroundColor/backgroundPattern(옛 저장 파일)보다
+  // 우선해요. background = 펼침면 전체 공통, backgroundLeft/Right = 그 한 면만 따로(있으면 공통보다 우선).
+  // 세 필드 모두 없으면 예전 그대로 옛 필드를 읽어요(옛 저장 파일 호환).
+  background?: BackgroundSpec;
+  backgroundLeft?: BackgroundSpec;
+  backgroundRight?: BackgroundSpec;
   // 자유 배치 텍스트박스예요. 왼쪽·오른쪽 페이지가 서로 다른 낱장이라 각각 따로 가져요.
   textBoxesLeft?: TextBoxDef[];
   textBoxesRight?: TextBoxDef[];

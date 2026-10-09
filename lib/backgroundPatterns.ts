@@ -5,9 +5,37 @@
 // 배경을 "색 + 방식(kind) + 간격(mm)"이라는 하나의 조합(레시피)으로 정의해두고,
 // 화면용 CSS 문자열과 인쇄용 Canvas 그리기 함수를 이 레시피 하나에서 함께 만들어요.
 
+import { drawBackgroundArt, isArtKind } from "@/lib/backgroundArt";
+
 export type BackgroundPatternCategory = "graphic" | "pattern" | "texture";
 
-export type BackgroundPatternKind = "diagonalSplit" | "gradient" | "dots" | "stripes" | "grid";
+export type BackgroundPatternKind =
+  | "diagonalSplit"
+  | "gradient"
+  | "dots"
+  | "stripes"
+  | "grid"
+  // 2026-11 새로 그린(원본, lib/backgroundArt.ts) 무늬 — 그래픽
+  | "clouds"
+  | "meadow"
+  | "leaves"
+  | "wave"
+  | "blockBottom"
+  | "blockSplit"
+  | "arches"
+  // 패턴
+  | "checks"
+  | "gingham"
+  | "diamonds"
+  | "zigzag"
+  | "stars"
+  | "hearts"
+  | "scallops"
+  // 텍스처
+  | "paper"
+  | "linen"
+  | "watercolor"
+  | "grain";
 
 export type BackgroundPatternPreset = {
   id: string;
@@ -87,7 +115,7 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
   {
     id: "grid-linen",
     label: "리넨 그리드",
-    category: "texture",
+    category: "pattern", // 2026-11: 작은 격자 반복이라 "패턴"으로 옮김(예전엔 텍스처 탭)
     kind: "grid",
     colors: ["#f5f1ea", "#d8cfbd"],
     spacingMm: 4,
@@ -188,6 +216,256 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     category: "graphic",
     kind: "gradient",
     colors: ["#F8CEB9", "#5B6D76"],
+  },
+  // ---- 2026-11 새로 그린 원본 무늬(lib/backgroundArt.ts, 외부 이미지 없음) ----
+  {
+    id: "g-clouds-sky",
+    label: "구름(하늘)",
+    category: "graphic",
+    kind: "clouds",
+    colors: ["#cfe6f5", "#ffffff"],
+  },
+  {
+    id: "g-clouds-blush",
+    label: "구름(블러시)",
+    category: "graphic",
+    kind: "clouds",
+    colors: ["#f8e3e3", "#ffffff"],
+  },
+  {
+    id: "g-meadow",
+    label: "들판",
+    category: "graphic",
+    kind: "meadow",
+    colors: ["#fdf7e3", "#9cc86b"],
+  },
+  {
+    id: "g-meadow-sky",
+    label: "들판(하늘)",
+    category: "graphic",
+    kind: "meadow",
+    colors: ["#d8ecf7", "#8fc283"],
+  },
+  {
+    id: "g-leaves",
+    label: "나뭇잎",
+    category: "graphic",
+    kind: "leaves",
+    colors: ["#f7f5ec", "#7fae6a"],
+  },
+  {
+    id: "g-leaves-deep",
+    label: "나뭇잎(딥그린)",
+    category: "graphic",
+    kind: "leaves",
+    colors: ["#eef2e6", "#3f7a52"],
+  },
+  {
+    id: "g-wave",
+    label: "물결 하단",
+    category: "graphic",
+    kind: "wave",
+    colors: ["#eef6fb", "#6fb4d6"],
+  },
+  {
+    id: "g-wave-sand",
+    label: "물결 하단(샌드)",
+    category: "graphic",
+    kind: "wave",
+    colors: ["#fbf3e6", "#e2b98a"],
+  },
+  {
+    id: "g-block-bottom",
+    label: "하단 컬러블록",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#f7f3ec", "#c8a98a"],
+  },
+  {
+    id: "g-block-sage",
+    label: "하단 컬러블록(세이지)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#fbfaf4", "#a9c1a0"],
+  },
+  {
+    id: "g-block-split",
+    label: "좌우 컬러 분할",
+    category: "graphic",
+    kind: "blockSplit",
+    colors: ["#f6efe7", "#dfc3b0"],
+  },
+  {
+    id: "g-arches",
+    label: "아치 하단",
+    category: "graphic",
+    kind: "arches",
+    colors: ["#fbf4ec", "#e8a79a"],
+  },
+  {
+    id: "p-checks",
+    label: "체크",
+    category: "pattern",
+    kind: "checks",
+    colors: ["#ffffff", "#dfe6ee"],
+    spacingMm: 8,
+  },
+  {
+    id: "p-checks-pink",
+    label: "체크(핑크)",
+    category: "pattern",
+    kind: "checks",
+    colors: ["#fff7f5", "#f5d3cd"],
+    spacingMm: 8,
+  },
+  {
+    id: "p-gingham-red",
+    label: "깅엄(레드)",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#ffffff", "#e07b7b"],
+    spacingMm: 8,
+  },
+  {
+    id: "p-gingham-blue",
+    label: "깅엄(블루)",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#ffffff", "#7fa6d6"],
+    spacingMm: 8,
+  },
+  {
+    id: "p-diamonds",
+    label: "다이아몬드",
+    category: "pattern",
+    kind: "diamonds",
+    colors: ["#f7f3ec", "#d9c7a7"],
+    spacingMm: 10,
+  },
+  {
+    id: "p-zigzag",
+    label: "지그재그",
+    category: "pattern",
+    kind: "zigzag",
+    colors: ["#f2f7f5", "#9fcfc0"],
+    spacingMm: 8,
+  },
+  {
+    id: "p-stars",
+    label: "별",
+    category: "pattern",
+    kind: "stars",
+    colors: ["#f3f4fa", "#c3c8e8"],
+    spacingMm: 14,
+  },
+  {
+    id: "p-hearts",
+    label: "하트",
+    category: "pattern",
+    kind: "hearts",
+    colors: ["#fff5f5", "#f0b3bd"],
+    spacingMm: 14,
+  },
+  {
+    id: "p-scallops",
+    label: "스캘럽",
+    category: "pattern",
+    kind: "scallops",
+    colors: ["#f4f8f3", "#b9d4b0"],
+    spacingMm: 10,
+  },
+  {
+    id: "p-dots-mint",
+    label: "도트(민트)",
+    category: "pattern",
+    kind: "dots",
+    colors: ["#f2faf6", "#a9d9c4"],
+    spacingMm: 6,
+  },
+  {
+    id: "p-stripes-navy",
+    label: "스트라이프(블루)",
+    category: "pattern",
+    kind: "stripes",
+    colors: ["#ffffff", "#c3cfe0"],
+    spacingMm: 6,
+  },
+  {
+    id: "t-paper-white",
+    label: "종이(화이트)",
+    category: "texture",
+    kind: "paper",
+    colors: ["#fbfaf6", "#c9c2b4"],
+  },
+  {
+    id: "t-paper-cream",
+    label: "종이(크림)",
+    category: "texture",
+    kind: "paper",
+    colors: ["#f6efe0", "#b9a98a"],
+  },
+  {
+    id: "t-paper-kraft",
+    label: "크라프트지",
+    category: "texture",
+    kind: "paper",
+    colors: ["#d9bd96", "#8b6b43"],
+  },
+  {
+    id: "t-paper-gray",
+    label: "종이(그레이)",
+    category: "texture",
+    kind: "paper",
+    colors: ["#e9e9e6", "#8a8a84"],
+  },
+  {
+    id: "t-linen-ivory",
+    label: "리넨",
+    category: "texture",
+    kind: "linen",
+    colors: ["#efe8d9", "#a79c85"],
+  },
+  {
+    id: "t-linen-denim",
+    label: "데님",
+    category: "texture",
+    kind: "linen",
+    colors: ["#8fa7c4", "#33496a"],
+  },
+  {
+    id: "t-linen-sage",
+    label: "리넨(세이지)",
+    category: "texture",
+    kind: "linen",
+    colors: ["#c9d4bd", "#6e8260"],
+  },
+  {
+    id: "t-wc-blue",
+    label: "수채화(블루)",
+    category: "texture",
+    kind: "watercolor",
+    colors: ["#f4f8fb", "#7fb2d9"],
+  },
+  {
+    id: "t-wc-peach",
+    label: "수채화(피치)",
+    category: "texture",
+    kind: "watercolor",
+    colors: ["#fdf6f0", "#f2a68a"],
+  },
+  {
+    id: "t-wc-sage",
+    label: "수채화(세이지)",
+    category: "texture",
+    kind: "watercolor",
+    colors: ["#f7f9f2", "#9cc18a"],
+  },
+  {
+    id: "t-wc-lavender",
+    label: "수채화(라벤더)",
+    category: "texture",
+    kind: "watercolor",
+    colors: ["#faf6fb", "#b79bd6"],
   },
 ];
 
@@ -291,9 +569,14 @@ export function drawBackgroundPatternOnCanvas(
   // 2026-10-06, 혜민님 요청: "그라데이션이 낱장만 적용되는데 스프레드페이지 기준으로
   // 적용해주세요" — 전체 펼침면(내지 스프레드 또는 표지 전체) 기준 좌표(px)예요.
   // 안 넘기면 이 낱장(x,y,w,h) 하나만 기준으로 그리던 기존 방식 그대로예요.
-  fullSpan?: { x: number; y: number; w: number; h: number }
+  fullSpan?: { x: number; y: number; w: number; h: number },
+  // true면 점·줄무늬·격자의 반복 위상을 "펼침면(fullSpan) 왼쪽 위"에 맞춰요(새 배경 패널이 쓰는 방식 —
+  // 왼쪽·오른쪽 낱장 무늬가 가운데에서 이어져요). 안 주면(옛 방식) 이 낱장 왼쪽 위 기준 그대로예요.
+  anchorToSpan?: boolean
 ) {
   const [c0, c1] = preset.colors;
+  const ax = anchorToSpan && fullSpan ? fullSpan.x : x;
+  const ay = anchorToSpan && fullSpan ? fullSpan.y : y;
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
@@ -325,8 +608,8 @@ export function drawBackgroundPatternOnCanvas(
       const spacing = mmToPxFn(preset.spacingMm ?? 6);
       const radius = spacing * 0.28;
       ctx.fillStyle = c1;
-      for (let py = y; py < y + h + spacing; py += spacing) {
-        for (let px = x; px < x + w + spacing; px += spacing) {
+      for (let py = ay + Math.floor((y - ay) / spacing) * spacing; py < y + h + spacing; py += spacing) {
+        for (let px = ax + Math.floor((x - ax) / spacing) * spacing; px < x + w + spacing; px += spacing) {
           ctx.beginPath();
           ctx.arc(px, py, radius, 0, Math.PI * 2);
           ctx.fill();
@@ -336,12 +619,12 @@ export function drawBackgroundPatternOnCanvas(
     }
     case "stripes": {
       const spacing = mmToPxFn(preset.spacingMm ?? 5);
-      const diag = Math.sqrt(w * w + h * h) * 1.5;
+      const diag = (anchorToSpan && fullSpan ? Math.hypot(fullSpan.w, fullSpan.h) : Math.sqrt(w * w + h * h)) * 1.5;
       ctx.save();
-      ctx.translate(x, y);
+      ctx.translate(ax, ay);
       ctx.rotate((45 * Math.PI) / 180);
       ctx.fillStyle = c1;
-      for (let sx = -diag; sx < diag; sx += spacing) {
+      for (let sx = -diag - Math.ceil(diag / spacing) * spacing; sx < diag + Math.ceil(diag / spacing) * spacing; sx += spacing) {
         ctx.fillRect(sx, -diag, spacing / 2, diag * 2);
       }
       ctx.restore();
@@ -351,13 +634,13 @@ export function drawBackgroundPatternOnCanvas(
       const spacing = mmToPxFn(preset.spacingMm ?? 4);
       ctx.strokeStyle = c1;
       ctx.lineWidth = Math.max(1, spacing * 0.06);
-      for (let gx = x; gx <= x + w; gx += spacing) {
+      for (let gx = ax + Math.floor((x - ax) / spacing) * spacing; gx <= x + w; gx += spacing) {
         ctx.beginPath();
         ctx.moveTo(gx, y);
         ctx.lineTo(gx, y + h);
         ctx.stroke();
       }
-      for (let gy = y; gy <= y + h; gy += spacing) {
+      for (let gy = ay + Math.floor((y - ay) / spacing) * spacing; gy <= y + h; gy += spacing) {
         ctx.beginPath();
         ctx.moveTo(x, gy);
         ctx.lineTo(x + w, gy);
@@ -366,6 +649,18 @@ export function drawBackgroundPatternOnCanvas(
       break;
     }
     default:
+      if (isArtKind(preset.kind)) {
+        drawBackgroundArt(
+          ctx,
+          { id: preset.id, kind: preset.kind, colors: preset.colors, spacingMm: preset.spacingMm },
+          x,
+          y,
+          w,
+          h,
+          mmToPxFn,
+          fullSpan
+        );
+      }
       break;
   }
 

@@ -90,11 +90,7 @@ import {
   type TextRun,
 } from "@/lib/textRuns";
 import {
-  backgroundPatterns,
-  backgroundPatternCategories,
   resolveSpreadBackgroundCss,
-  patternToCssBackground,
-  BackgroundPatternCategory,
 } from "@/lib/backgroundPatterns";
 // [테스트용] 새 pdf-lib 기반 PDF 생성기예요. ?pdftest=1 일 때만 화면에 테스트 버튼이 보여요.
 // 기존 다운로드/발주 흐름(buildInnerPrintPdf)은 이 테스트와 무관하게 그대로 동작해요.
@@ -130,6 +126,16 @@ import {
   spreadBrowseTemplates,
 } from "@/lib/photoLayoutTemplates";
 import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
+import { BackgroundPanel } from "./backgroundPanel";
+import {
+  backgroundSpecToCss,
+  resolveCoverPanelSpec,
+  resolveSpreadSideSpec,
+  specFromLegacy,
+  WHITE_SPEC,
+  type BackgroundSpec,
+  type CoverBackgrounds,
+} from "@/lib/backgroundSpec";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -12043,6 +12049,14 @@ function UploadPageContent() {
   const [backCoverBackgroundColor, setBackCoverBackgroundColor] = useState<string | undefined>(undefined);
   // 뒤표지도 내지처럼 그래픽·패턴·텍스처 배경과 자유 배치 텍스트박스를 넣을 수 있어요.
   const [coverPatternId, setCoverPatternId] = useState<string | undefined>(undefined);
+  // 2026-11 새 배경 패널의 표지 배경 설정값(앞표지/뒤표지/책등/표지 전체). 비어 있으면(옛 저장 파일 포함)
+  // 위 coverPatternId + 세 배경색이 예전 그대로 쓰여요.
+  const [coverBackgrounds, setCoverBackgrounds] = useState<CoverBackgrounds>({});
+  const [coverBgScope, setCoverBgScope] = useState<"front" | "back" | "whole">("whole");
+  const [innerBgTargetState, setInnerBgTargetState] = useState<{
+    forPageKey: typeof selectedPageKey;
+    target: LayoutApplyRange;
+  } | null>(null);
   const [backCoverTextBoxes, setBackCoverTextBoxes] = useState<TextBoxDef[]>([]);
   // 책등·앞표지 배경색이에요. 뒤표지와 마찬가지로 지정 안 하면 기존 기본색(책등은 아이보리,
   // 앞표지는 흰색) 그대로예요. 세 곳 모두 따로 고를 수도, 아래 "배경색" 팔레트에서 한 번에
@@ -12182,8 +12196,6 @@ function UploadPageContent() {
   }, [isPhotobook, customSpreads]);
   // "전체 사진 목록" 펼침 패널의 현재 페이지(0부터 시작, PHOTO_GRID_PAGE_SIZE장씩)예요.
   const [photoGridPage, setPhotoGridPage] = useState(0);
-  // 내지 배경 꾸미기 탭(단색/그래픽/패턴/텍스처) — 모든 스프레드가 같은 탭을 공유해요.
-  const [backgroundTab, setBackgroundTab] = useState<"solid" | BackgroundPatternCategory>("solid");
   // 스티커·손글씨 탭에서 지금 선택된 카테고리예요(각 탭 독립, 기본값 "전체").
   const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("decor");
   const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("daily");
@@ -12537,41 +12549,56 @@ function UploadPageContent() {
     );
   }
 
-  // 스프레드(왼쪽+오른쪽 펼침면) 배경색을 바꿔요. color가 undefined면 기본값(흰색)으로 되돌려요.
-  // 단색 배경을 골라요. 그래픽·패턴·텍스처(backgroundPattern)와는 하나만 고를 수 있어서,
-  // 단색을 고르면 그쪽은 자동으로 해제돼요.
-  function handleChangeBackground(spreadIndex: number, color: string | undefined) {
-    setCustomSpreads((prev) =>
-      prev.map((s, i) => {
-        if (i !== spreadIndex) return s;
-        const next = { ...s };
-        if (color) {
-          next.backgroundColor = color;
-        } else {
-          delete next.backgroundColor;
-        }
-        delete next.backgroundPattern;
-        return next;
-      })
-    );
+  // ---- 2026-11 새 배경 패널(app/upload/backgroundPanel.tsx)의 적용 함수들 ----
+  // 한 펼침면(SpreadDef)에 배경 설정값을 적용해요. range: 왼쪽 한 면 / 오른쪽 한 면 / 펼침면 전체.
+  // spec이 undefined면 "초기화"예요. 사진·글·스티커·프레임은 건드리지 않고 배경 필드만 바꿔요.
+  function withInnerBackground(s: SpreadDef, range: LayoutApplyRange, spec: BackgroundSpec | undefined): SpreadDef {
+    const next: SpreadDef = { ...s };
+    if (range === "spread") {
+      delete next.backgroundLeft;
+      delete next.backgroundRight;
+      delete next.backgroundColor;
+      delete next.backgroundPattern;
+      if (spec) next.background = { ...spec, span: "whole" };
+      else delete next.background;
+      return next;
+    }
+    const key = range === "left" ? "backgroundLeft" : "backgroundRight";
+    if (spec) {
+      next[key] = { ...spec, span: "page" };
+    } else if (next.background || next.backgroundColor || next.backgroundPattern) {
+      // 공통 배경이 있는 상태에서 한 면만 초기화하면 그 면만 흰색으로 만들어요(다른 면은 그대로).
+      next[key] = { ...WHITE_SPEC, span: "page" };
+    } else {
+      delete next[key];
+    }
+    return next;
   }
-
-  // 그래픽·패턴·텍스처 배경을 골라요. 단색 배경(backgroundColor)과는 하나만 고를 수
-  // 있어서, 패턴을 고르면 단색은 자동으로 해제돼요. patternId가 undefined면 해제예요.
-  function handleChangePattern(spreadIndex: number, patternId: string | undefined) {
-    setCustomSpreads((prev) =>
-      prev.map((s, i) => {
-        if (i !== spreadIndex) return s;
-        const next = { ...s };
-        if (patternId) {
-          next.backgroundPattern = patternId;
-        } else {
-          delete next.backgroundPattern;
-        }
-        delete next.backgroundColor;
-        return next;
-      })
-    );
+  function handleApplyInnerBackground(spreadIndex: number, range: LayoutApplyRange, spec: BackgroundSpec | undefined) {
+    setCustomSpreads((prev) => prev.map((s, i) => (i === spreadIndex ? withInnerBackground(s, range, spec) : s)));
+  }
+  function handleApplyInnerBackgroundToAll(spec: BackgroundSpec | undefined) {
+    setCustomSpreads((prev) => prev.map((s) => withInnerBackground(s, "spread", spec)));
+  }
+  // 표지: 앞표지 / 뒤표지 / 표지 전체(책등 포함)
+  function handleApplyCoverBackground(scope: "front" | "back" | "whole", spec: BackgroundSpec | undefined) {
+    if (scope === "whole") {
+      setCoverBackgrounds(spec ? { whole: { ...spec, span: "whole" } } : {});
+      // 옛 방식 값(무늬 id·세 배경색)도 같이 비워서, 새 설정이 항상 이겨요(초기화하면 흰색).
+      setCoverPatternId(undefined);
+      setBackCoverBackgroundColor(undefined);
+      setCoverSpineBackgroundColor(undefined);
+      setCoverFrontBackgroundColor(undefined);
+      return;
+    }
+    setCoverBackgrounds((prev) => {
+      const next: CoverBackgrounds = { ...prev };
+      if (spec) next[scope] = { ...spec, span: "page" };
+      else if (prev.whole || coverPatternId || backCoverBackgroundColor || coverFrontBackgroundColor)
+        next[scope] = { ...WHITE_SPEC, span: "page" };
+      else delete next[scope];
+      return next;
+    });
   }
 
   // 새 텍스트박스 하나를 기본값으로 만들어요. 2026-09-27, 혜민님 요청: "글상자
@@ -14316,6 +14343,7 @@ function UploadPageContent() {
     setCoverSpineBackgroundColor(theme.spineBackgroundColor);
     setBackCoverBackgroundColor(theme.backBackgroundColor);
     setCoverPatternId(theme.backPatternId);
+    setCoverBackgrounds({});
     if (theme.titleFontFamily) {
       setCoverTitleFontFamily(theme.titleFontFamily);
       setSpineTitleFontFamily(theme.titleFontFamily);
@@ -14610,6 +14638,7 @@ function UploadPageContent() {
       backCoverPhoto,
       backCoverBackgroundColor,
       coverPatternId,
+      coverBackgrounds,
       backCoverTextBoxes,
       coverSpineBackgroundColor,
       coverFrontBackgroundColor,
@@ -14720,6 +14749,7 @@ function UploadPageContent() {
     setBackCoverPhoto(s.backCoverPhoto);
     setBackCoverBackgroundColor(s.backCoverBackgroundColor);
     setCoverPatternId(s.coverPatternId);
+    setCoverBackgrounds((s.coverBackgrounds as CoverBackgrounds | undefined) ?? {});
     setBackCoverTextBoxes(s.backCoverTextBoxes);
     setCoverSpineBackgroundColor(s.coverSpineBackgroundColor);
     setCoverFrontBackgroundColor(s.coverFrontBackgroundColor);
@@ -14848,6 +14878,7 @@ function UploadPageContent() {
     backCoverPhoto,
     backCoverBackgroundColor,
     coverPatternId,
+    coverBackgrounds,
     backCoverTextBoxes,
     coverSpineBackgroundColor,
     coverFrontBackgroundColor,
@@ -15484,6 +15515,7 @@ function UploadPageContent() {
       backCoverPhoto,
       backCoverBackgroundColor,
       coverPatternId,
+      coverBackgrounds,
       backCoverTextBoxes,
       coverSpineBackgroundColor,
       coverFrontBackgroundColor,
@@ -15702,6 +15734,20 @@ function UploadPageContent() {
     const guideWorkMatch = (guideSizeInfo?.productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)/);
     const guidePageWorkMm = guideWorkMatch ? parseFloat(guideWorkMatch[1]) : 310;
     const guideSpreadWorkMm = guidePageWorkMm * 2;
+    // 새 배경 패널 설정값이 있으면 그걸로(없으면 옛 배경색·무늬 id 그대로) 낱장(왼쪽/오른쪽) 한 면의 CSS 배경을 만들어요.
+    function innerSideBackgroundCss(spread: SpreadDef, side: "left" | "right"): string | undefined {
+      const spec = resolveSpreadSideSpec(spread, side);
+      if (spec) {
+        return backgroundSpecToCss(spec, {
+          panelXmm: side === "left" ? 0 : guidePageWorkMm,
+          panelWmm: guidePageWorkMm,
+          heightMm: guidePageWorkMm,
+          spanWmm: guideSpreadWorkMm,
+        });
+      }
+      // 옛 방식(앵커 이름이 반대로 붙은 건 예전 그대로예요: 왼쪽 면은 "right", 오른쪽 면은 "left")
+      return resolveSpreadBackgroundCss(spread, side === "left" ? "right" : "left");
+    }
     const GUIDE_BLEED_MM = 5;
     const GUIDE_SAFETY_MM = 15; // lib/printCompose.ts의 GUIDE_SAFETY_MARGIN_MM과 같은 값(2026-09-26, 10→15mm)
     const trimXPct = (GUIDE_BLEED_MM / guideSpreadWorkMm) * 100;
@@ -15811,6 +15857,34 @@ function UploadPageContent() {
     // 책등 좌우 경계(접힘 위치)의 x% 두 곳
     const coverSpineStartPct = coverBackPct;
     const coverSpineEndPct = coverBackPct + coverSpinePct;
+    // ---- 새 배경 패널: 화면에 깔 CSS 배경 계산 (옛 방식 값만 있으면 예전 계산 그대로) ----
+    const coverBackWmm = coverBleedMm + coverPanelMm;
+    const coverFrontWmm = coverPanelMm + coverBleedMm;
+    function coverPanelBackgroundCss(panel: "back" | "spine" | "front"): string {
+      const spec = resolveCoverPanelSpec(coverBackgrounds, panel);
+      const legacyColor =
+        panel === "back" ? backCoverBackgroundColor : panel === "spine" ? coverSpineBackgroundColor : coverFrontBackgroundColor;
+      if (spec) {
+        return backgroundSpecToCss(spec, {
+          panelXmm: panel === "back" ? 0 : panel === "spine" ? coverBackWmm : coverBackWmm + coverSpineMm,
+          panelWmm: panel === "back" ? coverBackWmm : panel === "spine" ? coverSpineMm : coverFrontWmm,
+          heightMm: coverTotalHmm,
+          spanWmm: coverTotalWmm,
+        });
+      }
+      if (!coverPatternId) return legacyColor ?? "#ffffff";
+      return (
+        resolveSpreadBackgroundCss(
+          { backgroundColor: legacyColor, backgroundPattern: coverPatternId },
+          panel === "back" ? "right" : "left",
+          panel === "back"
+            ? { panelWidthPct: coverBackPct, offsetPct: 0 }
+            : panel === "spine"
+              ? { panelWidthPct: coverSpinePct, offsetPct: coverSpineStartPct }
+              : { panelWidthPct: coverFrontPct, offsetPct: coverSpineEndPct }
+        ) ?? "#ffffff"
+      );
+    }
     // 안전영역 상/하 경계는 뒤표지·책등·앞표지 모두 같아요(위아래 도련은 세 구역이 공통).
     const coverSafetyTopPct = coverBleedYPct + coverSafetyYPct;
     const coverSafetyBottomPct = 100 - coverBleedYPct - coverSafetyYPct;
@@ -16605,39 +16679,21 @@ function UploadPageContent() {
                           className="h-full"
                           style={{
                             width: `${coverBackPct}%`,
-                            background: coverPatternId
-                              ? resolveSpreadBackgroundCss(
-                                  { backgroundColor: backCoverBackgroundColor, backgroundPattern: coverPatternId },
-                                  "right",
-                                  { panelWidthPct: coverBackPct, offsetPct: 0 }
-                                )
-                              : (backCoverBackgroundColor ?? "#ffffff"),
+                            background: coverPanelBackgroundCss("back"),
                           }}
                         />
                         <div
                           className="h-full border-x border-[#1a1a1a]/60"
                           style={{
                             width: `${coverSpinePct}%`,
-                            background: coverPatternId
-                              ? resolveSpreadBackgroundCss(
-                                  { backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId },
-                                  "left",
-                                  { panelWidthPct: coverSpinePct, offsetPct: coverSpineStartPct }
-                                )
-                              : (coverSpineBackgroundColor ?? "#ffffff"),
+                            background: coverPanelBackgroundCss("spine"),
                           }}
                         />
                         <div
                           className="relative h-full overflow-hidden"
                           style={{
                             width: `${coverFrontPct}%`,
-                            background: coverPatternId
-                              ? resolveSpreadBackgroundCss(
-                                  { backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId },
-                                  "left",
-                                  { panelWidthPct: coverFrontPct, offsetPct: coverSpineEndPct }
-                                )
-                              : (coverFrontBackgroundColor ?? "#ffffff"),
+                            background: coverPanelBackgroundCss("front"),
                           }}
                         >
                           {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
@@ -16682,7 +16738,7 @@ function UploadPageContent() {
                                   () => {},
                                   () => {},
                                   requiredMinPx,
-                                  resolveSpreadBackgroundCss(spread, "right")
+                                  innerSideBackgroundCss(spread, "left")
                                 )
                               )}
                             </div>
@@ -16694,7 +16750,7 @@ function UploadPageContent() {
                                 () => {},
                                 () => {},
                                 requiredMinPx,
-                                resolveSpreadBackgroundCss(spread, "left")
+                                innerSideBackgroundCss(spread, "right")
                               )}
                             </div>
                           </div>
@@ -17259,70 +17315,31 @@ function UploadPageContent() {
                             </div>
                           )}
                           {activeCoverEditTab === "background" && (() => {
-                            // 2026-09-30(2차), 혜민님 지적: "배경이 바뀌는데 왜 큰 구조변경이
-                            // 필요할까요? 이미지하나 넣는 개념인데요" — 맞는 말이었음. 배경
-                            // "색"은 사진·스티커처럼 좌표계를 공유할 필요가 없고, 그냥 앞표지·
-                            // 책등·뒤표지 세 색상값을 한 번에 같이 바꾸면 되는 문제라 "적용범위"
-                            // 선택 메뉴 자체를 없애고 항상 세 군데를 동시에 같은 색으로 맞춤.
-                            // (내지처럼 사진·텍스트박스까지 표지 전체가 하나의 좌표계를 공유하게
-                            // 만드는 건 여전히 구조 변경이 필요한 별개 작업 — 위 "기술 부채" 항목
-                            // 참고.)
-                            const applyCoverColor = (hex: string) => {
-                              setBackCoverBackgroundColor(hex);
-                              setCoverSpineBackgroundColor(hex);
-                              setCoverFrontBackgroundColor(hex);
-                            };
-                            const applyCoverPattern = (id: string | undefined) => {
-                              setCoverPatternId(id);
-                            };
-                            const coverColorValue = backCoverBackgroundColor ?? coverSpineBackgroundColor ?? coverFrontBackgroundColor ?? "#ffffff";
+                            // 적용 대상: 앞표지 / 뒤표지 / 표지 전체(책등 포함). 기본은 표지 전체예요.
+                            const legacyCoverSpec = (panel: "back" | "front" | "spine") =>
+                              specFromLegacy(
+                                panel === "back" ? backCoverBackgroundColor : panel === "spine" ? coverSpineBackgroundColor : coverFrontBackgroundColor,
+                                coverPatternId
+                              );
+                            const currentSpec: BackgroundSpec | undefined =
+                              coverBgScope === "whole"
+                                ? (coverBackgrounds.whole ?? legacyCoverSpec("front"))
+                                : (resolveCoverPanelSpec(coverBackgrounds, coverBgScope) ?? legacyCoverSpec(coverBgScope));
                             return (
-                            <div className=" border border-[var(--color-hairline)] bg-white p-1.5">
-                              <div className="flex flex-col gap-1.5">
-                                <span className="text-xs text-[var(--color-charcoal)]/60">배경색(표지 전체)</span>
-                                <ColorChartPicker
-                                  activeColor={coverPatternId ? "" : coverColorValue}
-                                  onPick={(color) => applyCoverColor(color)}
-                                  customValue={coverColorValue}
-                                  onCustomChange={(color) => applyCoverColor(color)}
-                                />
-                              </div>
-                              <div className="mt-3">
-                                <span className="text-xs text-[var(--color-charcoal)]/60">
-                                  그래픽·패턴·텍스처(표지 전체)
-                                </span>
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => applyCoverPattern(undefined)}
-                                    className={`h-6 border px-2 text-[11px] transition ${
-                                      !coverPatternId
-                                        ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                                        : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70"
-                                    }`}
-                                  >
-                                    없음
-                                  </button>
-                                  {backgroundPatterns.map((preset) => {
-                                    const isActive = coverPatternId === preset.id;
-                                    return (
-                                      <button
-                                        key={preset.id}
-                                        type="button"
-                                        title={preset.label}
-                                        onClick={() => applyCoverPattern(isActive ? undefined : preset.id)}
-                                        className={`h-6 w-6 border transition ${
-                                          isActive
-                                            ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                            : "border-[var(--color-hairline)]"
-                                        }`}
-                                        style={{ background: patternToCssBackground(preset) }}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
+                              <BackgroundPanel
+                                targets={[
+                                  { id: "front", label: "앞표지" },
+                                  { id: "back", label: "뒤표지" },
+                                  { id: "whole", label: "표지 전체" },
+                                ]}
+                                target={coverBgScope}
+                                onTargetChange={(id) => setCoverBgScope(id === "front" ? "front" : id === "back" ? "back" : "whole")}
+                                current={currentSpec}
+                                onApply={(spec) => handleApplyCoverBackground(coverBgScope, spec)}
+                                onReset={() => handleApplyCoverBackground(coverBgScope, undefined)}
+                                pageMm={{ w: coverPanelMm + coverBleedMm, h: coverTotalHmm }}
+                                renderColorChart={(p) => <ColorChartPicker {...p} />}
+                              />
                             );
                           })()}
                           </div>
@@ -17362,13 +17379,7 @@ function UploadPageContent() {
                             className={`group relative flex h-full items-center justify-center ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                             style={{
                               width: `${coverBackPct}%`,
-                              background: coverPatternId
-                                ? resolveSpreadBackgroundCss(
-                                    { backgroundColor: backCoverBackgroundColor, backgroundPattern: coverPatternId },
-                                    "right",
-                                    { panelWidthPct: coverBackPct, offsetPct: 0 }
-                                  )
-                                : (backCoverBackgroundColor ?? "#ffffff"),
+                              background: coverPanelBackgroundCss("back"),
                             }}
                           >
                             {/* 2026-09, 로고("backCoverMode")와 사진은 이제 독립된 객체라
@@ -17476,13 +17487,7 @@ function UploadPageContent() {
                             }`}
                             style={{
                               width: `${coverSpinePct}%`,
-                              background: coverPatternId
-                                ? resolveSpreadBackgroundCss(
-                                    { backgroundColor: coverSpineBackgroundColor, backgroundPattern: coverPatternId },
-                                    "left",
-                                    { panelWidthPct: coverSpinePct, offsetPct: coverSpineStartPct }
-                                  )
-                                : (coverSpineBackgroundColor ?? "#ffffff"),
+                              background: coverPanelBackgroundCss("spine"),
                             }}
                           >
                             {/* 책등엔 책등 제목과 키픽 로고만 보여줘요 — 제목 텍스트박스는 끌어서
@@ -17548,13 +17553,7 @@ function UploadPageContent() {
                             className={`group relative h-full ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                             style={{
                               width: `${coverFrontPct}%`,
-                              background: coverPatternId
-                                ? resolveSpreadBackgroundCss(
-                                    { backgroundColor: coverFrontBackgroundColor, backgroundPattern: coverPatternId },
-                                    "left",
-                                    { panelWidthPct: coverFrontPct, offsetPct: coverSpineEndPct }
-                                  )
-                                : (coverFrontBackgroundColor ?? "#ffffff"),
+                              background: coverPanelBackgroundCss("front"),
                             }}
                           >
                             {coverImageBoxes.length > 0 ? (
@@ -18026,71 +18025,45 @@ function UploadPageContent() {
                                   />
                                 );
                               })()}
-                              {activeEditTab === "background" && (
-                              <div className="flex flex-wrap gap-1 text-[11px]">
-                                <button
-                                  type="button"
-                                  onClick={() => setBackgroundTab("solid")}
-                                  className={` px-1.5 py-1 transition ${
- backgroundTab === "solid"
-                                      ? "bg-[var(--color-sky)] text-white"
-                                      : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
-                                  }`}
-                                >
-                                  단색
-                                </button>
-                                {backgroundPatternCategories.map((cat) => (
-                                  <button
-                                    key={cat.id}
-                                    type="button"
-                                    onClick={() => setBackgroundTab(cat.id)}
-                                    className={` px-1.5 py-1 transition ${
- backgroundTab === cat.id
-                                        ? "bg-[var(--color-sky)] text-white"
-                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/70"
-                                    }`}
-                                  >
-                                    {cat.label}
-                                  </button>
-                                ))}
-                              </div>
-                              )}
-                              {activeEditTab === "background" && (
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                {backgroundTab === "solid" ? (
-                                  <>
-                                    <ColorChartPicker
-                                      activeColor={!spread.backgroundPattern ? (spread.backgroundColor ?? "#ffffff") : ""}
-                                      onPick={(color) => handleChangeBackground(i, color === "#ffffff" ? undefined : color)}
-                                      customValue={spread.backgroundColor ?? "#ffffff"}
-                                      onCustomChange={(color) => handleChangeBackground(i, color)}
-                                    />
-                                  </>
-                                ) : (
-                                  backgroundPatterns
-                                    .filter((p) => p.category === backgroundTab)
-                                    .map((preset) => {
-                                      const isActive = spread.backgroundPattern === preset.id;
-                                      return (
-                                        <button
-                                          key={preset.id}
-                                          type="button"
-                                          title={preset.label}
-                                          onClick={() =>
-                                            handleChangePattern(i, isActive ? undefined : preset.id)
-                                          }
-                                          className={`h-8 w-8 border transition ${
-                                            isActive
-                                              ? "border-[var(--color-charcoal)] ring-2 ring-[var(--color-sky)] ring-offset-1"
-                                              : "border-[var(--color-hairline)]"
-                                          }`}
-                                          style={{ background: patternToCssBackground(preset) }}
-                                        />
-                                      );
-                                    })
-                                )}
-                              </div>
-                              )}
+                              {activeEditTab === "background" && (() => {
+                                // 적용 대상 — 기본은 지금 보고 있는 펼침면 전체예요(스프레드 1의 왼쪽 면은 표지 뒷면(인쇄 안 되는
+                                // 빈 면)이라 고를 수 없고 기본도 "오른쪽"). 그 아래 "전체 내지 배경 변경"은 모든 내지에 한 번에 바꾸는
+                                // 따로 있는 버튼이에요.
+                                const allowLeft = i !== 0;
+                                const defaultRange: LayoutApplyRange = allowLeft ? "spread" : "right";
+                                const picked =
+                                  innerBgTargetState && innerBgTargetState.forPageKey === selectedPageKey
+                                    ? innerBgTargetState.target
+                                    : defaultRange;
+                                const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
+                                const legacySpec = specFromLegacy(spread.backgroundColor, spread.backgroundPattern);
+                                const currentSpec: BackgroundSpec | undefined =
+                                  range === "spread"
+                                    ? (spread.background ?? legacySpec)
+                                    : (resolveSpreadSideSpec(spread, range) ?? legacySpec);
+                                return (
+                                  <BackgroundPanel
+                                    targets={[
+                                      { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
+                                      { id: "right", label: "오른쪽" },
+                                      { id: "spread", label: "현재 펼침" },
+                                    ]}
+                                    target={range}
+                                    onTargetChange={(id) =>
+                                      setInnerBgTargetState({
+                                        forPageKey: selectedPageKey,
+                                        target: id === "left" ? "left" : id === "right" ? "right" : "spread",
+                                      })
+                                    }
+                                    current={currentSpec}
+                                    onApply={(spec) => handleApplyInnerBackground(i, range, spec)}
+                                    onReset={() => handleApplyInnerBackground(i, range, undefined)}
+                                    onApplyAllInner={() => handleApplyInnerBackgroundToAll(currentSpec)}
+                                    pageMm={{ w: guidePageWorkMm, h: guidePageWorkMm }}
+                                    renderColorChart={(p) => <ColorChartPicker {...p} />}
+                                  />
+                                );
+                              })()}
                               {activeEditTab === "theme" && (
                                 <div className=" bg-[var(--color-ivory)]/60 p-1.5 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
                                   테마변경은 준비 중이에요. 완성되면 여기서 디자인 테마를 골라
@@ -18235,7 +18208,7 @@ function UploadPageContent() {
                                       handlePhotoTransform,
                                       handleCaptionChange,
                                       requiredMinPx,
-                                      resolveSpreadBackgroundCss(spread, "right"),
+                                      innerSideBackgroundCss(spread, "left"),
                                       !isAiAuto && (spread.left === "full" || spread.left === "fullMargin") && leftIndexes[0] !== undefined
                                         ? () => handleConvertPhotoToImageBox(i, "left", leftIndexes[0])
                                         : undefined
@@ -18296,7 +18269,7 @@ function UploadPageContent() {
                                   handlePhotoTransform,
                                   handleCaptionChange,
                                   requiredMinPx,
-                                  resolveSpreadBackgroundCss(spread, "left"),
+                                  innerSideBackgroundCss(spread, "right"),
                                   !isAiAuto && (spread.right === "full" || spread.right === "fullMargin") && rightIndexes[0] !== undefined
                                     ? () => handleConvertPhotoToImageBox(i, "right", rightIndexes[0])
                                     : undefined
