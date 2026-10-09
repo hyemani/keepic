@@ -17878,7 +17878,8 @@ function UploadPageContent() {
                         </div>
                         </div>
                         )}
-                        <CanvasStage aspect={2} zoom={canvasZoom} fitToken={canvasFitToken}>
+                        {/* 소개 페이지도 다른 페이지처럼 실제 폭(mm) 기준 % 를 위쪽 줌 표시에 보고해요 — 안 그러면 직전 페이지의 % 가 그대로 남아 실제 크기와 어긋나 보였어요. */}
+                        <CanvasStage aspect={2} zoom={canvasZoom} fitToken={canvasFitToken} widthMm={guideSpreadWorkMm} onActualSizePercentChange={setActualSizePercent}>
                         <div className="relative flex w-full items-stretch bg-white ">
                           <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                           <div className="aspect-square w-1/2">
