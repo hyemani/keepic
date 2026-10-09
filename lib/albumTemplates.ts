@@ -1,6 +1,7 @@
 import type { TextRun } from "./textRuns";
 import type { FrameShapeKey } from "./frameShapes";
 import type { FrameDecorKey } from "./frameDecorations";
+import type { PhotoAdjust, PhotoFilter } from "./photoAdjust";
 
 export type PageTemplateId =
   | "full"
@@ -313,6 +314,17 @@ export type ImageBoxDef = {
   // 꽃/잎의 실제 크기는 "문서 단위(mm)"로 정해져서(lib/frameDecorations.ts DecorBuildOpts) 사진 틀을 키워도
   // 그대로고 개수만 늘어나요. 이 값은 그 기준 크기에 곱하는 배율이에요. 화환이 아닌 장식은 무시해요.
   frameDecorScale?: number;
+  // 2026-11, 혜민님 요청("사진 변경 / 위치·크롭 / 필터 / 보정") — 사진 "안쪽" 편집값이에요. 전부 선택 필드라
+  // 없으면(기존 저장본 전부) 예전과 똑같이 나와요(하위 호환). 원본 파일/url 은 절대 안 바뀌고, 이 값들은
+  // 그릴 때마다 원본 복사본에만 적용돼요(액자·장식·테두리·스티커·글자에는 안 닿음).
+  //  · flipY: 위아래 반전(flipX 와 같은 방식, 화면 기준 가로/세로).
+  //  · photoRotation: 사진만 90도 단위로 돌려요(시계방향 0/90/180/270). 박스 회전(rotation, 틀 전체)과 별개예요.
+  //  · photoFilter: 필터 종류 + 강도(0~100), photoAdjust: 밝기·대비·채도·색온도·하이라이트·그림자·선명도.
+  //    lib/photoAdjust.ts 의 한 파이프라인을 화면·썸네일·인쇄가 같이 써요.
+  flipY?: boolean;
+  photoRotation?: number;
+  photoFilter?: PhotoFilter;
+  photoAdjust?: PhotoAdjust;
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),

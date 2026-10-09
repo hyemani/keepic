@@ -88,3 +88,22 @@ export function expandCoverRectForBleed(
     height: rect.height * s,
   };
 }
+
+// 사진 안쪽 90도 회전(ImageBoxDef.photoRotation) 도우미 — 0/90/180/270 로 정규화해요(그 외 값·없음은 0).
+export type PhotoQuarterTurn = 0 | 90 | 180 | 270;
+
+export function normalizePhotoQuarterTurn(deg: number | undefined | null): PhotoQuarterTurn {
+  if (typeof deg !== "number" || !Number.isFinite(deg)) return 0;
+  const d = ((Math.round(deg / 90) * 90) % 360 + 360) % 360;
+  return d as PhotoQuarterTurn;
+}
+
+// 90/270도로 돌린 사진은 화면에서 가로·세로가 서로 바뀌어 보여요 — cover 계산(computeImageBoxCoverRect)에는
+// "돌린 뒤 보이는 크기"를 넣어야 해요. 화면(ImageBoxOverlay)과 인쇄(printCompose)가 같이 써요.
+export function orientedNaturalSize(
+  naturalWidth: number,
+  naturalHeight: number,
+  turn: PhotoQuarterTurn
+): { w: number; h: number } {
+  return turn === 90 || turn === 270 ? { w: naturalHeight, h: naturalWidth } : { w: naturalWidth, h: naturalHeight };
+}
