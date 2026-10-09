@@ -19,7 +19,7 @@ export function BorderColorSwatches({ value, onChange }: { value: string; onChan
   const presetHit = BORDER_COLOR_PRESETS.some((c) => c.hex === cur);
   const ring = "ring-2 ring-[var(--color-sky)] ring-offset-1";
   return (
-    <div className="mb-2 flex flex-nowrap items-center gap-1.5" role="group" aria-label="테두리 색 고르기" data-border-color-swatches>
+    <div className="mb-2 grid grid-cols-7 items-center justify-items-center gap-1.5" role="group" aria-label="테두리 색 고르기" data-border-color-swatches>
       {BORDER_COLOR_PRESETS.map((c) => {
         const active = c.hex === cur;
         return (
@@ -30,14 +30,14 @@ export function BorderColorSwatches({ value, onChange }: { value: string; onChan
             aria-label={`테두리 색 ${c.label}`}
             aria-pressed={active}
             onClick={() => onChange(c.hex)}
-            className={`h-6 w-6 shrink-0 rounded-full border border-[var(--color-charcoal)]/25 transition ${active ? ring : "hover:scale-110"}`}
+            className={`aspect-square w-full max-w-6 rounded-full border border-[var(--color-charcoal)]/25 transition ${active ? ring : "hover:scale-110"}`}
             style={{ backgroundColor: c.hex }}
           />
         );
       })}
       <label
         title="직접 고르기"
-        className={`relative block h-6 w-6 shrink-0 cursor-pointer overflow-hidden rounded-full border border-[var(--color-charcoal)]/25 transition ${
+        className={`relative block aspect-square w-full max-w-6 cursor-pointer overflow-hidden rounded-full border border-[var(--color-charcoal)]/25 transition ${
           presetHit ? "hover:scale-110" : ring
         }`}
         style={{
