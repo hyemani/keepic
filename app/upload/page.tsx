@@ -126,10 +126,10 @@ import {
   LayoutSlot,
   slotToSpreadCoords,
   captionSlotFor,
-  COVER_LAYOUT_TEMPLATES,
+  HALF_LAYOUT_TEMPLATES,
   spreadBrowseTemplates,
-  SPREAD_AUTO_TO_HALF,
 } from "@/lib/photoLayoutTemplates";
+import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -545,21 +545,6 @@ const EDIT_TABS: { id: EditTabId; label: string; icon: MenuTabIconName }[] = [
   { id: "handwriting", label: "손글씨", icon: "handwriting" },
   { id: "text", label: "텍스트", icon: "text" },
   { id: "background", label: "배경", icon: "background" },
-];
-// "레이아웃" 탭 안에서 셀 개수(사진 몇 장용 템플릿인지)로 골라볼 수 있는 필터예요.
-// "auto"는 지금 적용 범위(왼쪽/오른쪽/펼침면)에 있는 실제 사진 개수에 맞는 템플릿만
-// 자동으로 보여줘요(기본값) — "전체"를 포함해 혜민님이 다른 개수 템플릿도 미리 보고
-// 싶을 때만 직접 골라요.
-// 2026-11(18번째 라운드 7차), 혜민님 요청("전체, 1장, 2장, 3장, 4장+ 상단패널메뉴
-// 5개로 만들어줘 4장이상레이아웃은 4+ 안에 넣어주면돼") — 예전엔 전체/1/2/3/4/5/6+
-// 7개 탭이었는데, 4장·5장·6장+를 "4장+" 하나로 합쳐서 5개 탭으로 줄였어요.
-type LayoutCountFilter = "auto" | "all" | 1 | 2 | 3 | "4+";
-const LAYOUT_COUNT_FILTERS: { id: LayoutCountFilter; label: string }[] = [
-  { id: "all", label: "전체" },
-  { id: 1, label: "1장" },
-  { id: 2, label: "2장" },
-  { id: 3, label: "3장" },
-  { id: "4+", label: "4장+" },
 ];
 // 표지 페이지 전용 아이콘 메뉴예요 — 내지(EDIT_TABS)와 항목이 달라서 따로 둬요
 // (2026-09-23, 혜민님 요청으로 표지도 내지처럼 아이콘 메뉴로 재설계).
@@ -11744,6 +11729,11 @@ function CategoryTabbedGrid({
   );
 }
 
+const clearLayoutIdOnMove = (changes: Partial<ImageBoxDef>): Partial<ImageBoxDef> =>
+  "xPct" in changes || "yPct" in changes || "widthPct" in changes || "heightPct" in changes
+    ? { ...changes, layoutTemplateId: undefined }
+    : changes;
+
 function UploadPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -12258,16 +12248,11 @@ function UploadPageContent() {
     candidates: ImageBoxDef[];
   } | null>(null);
   const [pendingLayoutApplySelectedIds, setPendingLayoutApplySelectedIds] = useState<string[]>([]);
-  // 2026-09-27, 혜민님 요청: "기본적으로 펼침면으로 레이아웃을 보여주세요 ... 적용할때는
-  // 왼쪽페이지에 적용할건지 양쪽페이지 적용할건지 오른쪽페이지만 적용할건지 ... 묻는형식으로
-  // 해주세요." — 레이아웃 패널은 이제 항상 스프레드(펼침면) 미리보기로 보여주고(원래
-  // half 전용이던 템플릿도 좌우로 자동 복제해서 스프레드 형태로 보여줌,
-  // spreadBrowseTemplates()), 썸네일을 클릭하면 이 팝업이 떠서 왼쪽/양쪽/오른쪽 중
-  // 어디에 적용할지 물어봐요.
-  const [layoutRangePicker, setLayoutRangePicker] = useState<{
-    spreadIndex: number;
-    template: PhotoLayoutTemplate;
-    allowLeft: boolean;
+  // 내지 레이아웃 패널의 적용 대상(왼쪽/오른쪽/현재 펼침)이에요. 페이지(펼침면)를 새로 고르면 기본값으로
+  // 되돌아가요(forPageKey가 다르면 무시) — 기본은 "현재 펼침"(스프레드 1은 왼쪽이 인쇄 안 되는 면이라 "오른쪽").
+  const [innerLayoutTargetState, setInnerLayoutTargetState] = useState<{
+    forPageKey: typeof selectedPageKey;
+    target: LayoutApplyRange;
   } | null>(null);
   // 표지 레이아웃 탭용 — 위 pendingLayoutApply/layoutApplyMessage와 같은 역할인데
   // 표지(앞표지/뒤표지)에 적용할 때만 써요(2026-09-24 추가). 적용 대상(앞표지/뒤표지)은
@@ -13554,7 +13539,7 @@ function UploadPageContent() {
     setCustomSpreads((prev) =>
       prev.map((s, i) =>
         i === spreadIndex
-          ? { ...s, imageBoxes: (s.imageBoxes ?? []).map((b) => (b.id === boxId ? { ...b, ...changes } : b)) }
+          ? { ...s, imageBoxes: (s.imageBoxes ?? []).map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b)) }
           : s
       )
     );
@@ -13760,6 +13745,100 @@ function UploadPageContent() {
     };
   }
 
+  // 레이아웃을 바꿔서 새 칸에 못 들어간 사진(박스)을 지우지 않고 "전체 사진 목록"(photos)으로 돌려보낼 때 쓰는 변환이에요.
+  function boxToLibraryPhoto(b: ImageBoxDef): Photo {
+    return {
+      url: b.url,
+      caption: "",
+      x: 0,
+      y: 0,
+      scale: 1,
+      width: b.naturalWidth || 1,
+      height: b.naturalHeight || 1,
+      fontFamily: fontOptions[0].id,
+      size: "sm",
+      bold: false,
+      color: "#2B2B2B",
+      align: "left",
+      position: "below",
+      containerW: 0,
+      containerH: 0,
+      rotation: 0,
+      flipX: false,
+    };
+  }
+
+  // 레이아웃 템플릿의 칸 좌표를 "실제로 박스가 놓일 자리"(스프레드 전체 기준 %)로 바꿔요 — 안전영역·접힘부
+  // 보정까지 포함해요. applyLayoutTemplate(실제 적용)과 레이아웃 패널 썸네일이 이 함수를 같이 써서,
+  // 썸네일 모양 = 적용 결과가 항상 같아요(2026-11, 혜민님 요청 "썸네일과 실제 적용 결과가 같은 데이터").
+  function placeInnerTemplateSlots(
+    template: PhotoLayoutTemplate,
+    range: LayoutApplyRange
+  ): { xPct: number; yPct: number; widthPct: number; heightPct: number }[] {
+    const spreadSafetyPct = computeSpreadSafetyPct();
+    // 슬롯 각각을 따로 클램프하면 한 줄 안에서 폭이 달라지는 문제가 생겨서(바로
+    // 위 clampTemplateSlotsToSpreadSafety 설명 참고), 템플릿의 모든 슬롯을 한 번에
+    // 바운딩 박스 기준으로 계산해서 같은 비율로 당겨요.
+    // 2026-11(18번째 라운드 14차), 혜민님 버그 리포트("이번엔 접히는 선 기준으로
+    // 이미지가 배치됐어요. 안전선에 맞춰서 정리해야해요") — 바로 위 방식(모든 슬롯을
+    // 한꺼번에 묶어 바운딩 박스 하나로 계산)의 부작용이었어요. 스프레드 전체(양쪽
+    // 페이지)에 걸친 템플릿에서, 왼쪽 칸이 x=0~50%, 오른쪽 칸이 x=50~100%처럼 접힘부
+    // (50%)를 사이에 두고 나란히 있으면, 전체를 하나로 묶은 바운딩 박스는 x=0~100%가
+    // 돼서 "바깥쪽(재단) 두 변만 닿았다"고 판단하고 접힘부(가운데 50%)는 전혀 안
+    // 닿은 걸로 봐서 당기질 않았어요 — 그 결과 두 칸이 똑같은 비율로 양쪽 바깥쪽만
+    // 당겨지면서 가운데(접힘부) 경계가 정확히 50%(여백 0)에 오게 됐어요. 고친 방식 —
+    // 슬롯을 "왼쪽 페이지에 완전히 속함" / "오른쪽 페이지에 완전히 속함" / "접힘부를
+    // 가로질러 걸쳐 있음"(예: 양면 통짜 사진 한 칸) 세 그룹으로 먼저 나누고, 왼쪽·
+    // 오른쪽 그룹은 각각 그 페이지 하나 기준(바깥 재단선 0 또는 100, 접힘부 50)으로
+    // 바운딩 박스를 따로 계산해요 — 그러면 그 그룹의 바운딩 박스가 접힘부에 닿은 걸로
+    // 정확히 판정되고(예: 왼쪽 칸의 오른쪽 변이 50%), 똑같은 "모든 슬롯 같은 비율로
+    // 당기기" 로직이 접힘부 안전영역(20mm)도 제대로 반영해요. 걸쳐 있는 슬롯은 원래도
+    // (한 칸짜리이므로) 그룹으로 묶을 다른 슬롯이 없어 따로 처리하고, 양쪽 바깥쪽
+    // 재단선만 닿은 걸로 보고 접힘부 쪽은 전혀 안 당겨요(통짜 사진이 접힘부를 그대로
+    // 가로지르는 게 의도된 디자인이라 2026-09-27부터 그랬어요 — 그대로 유지).
+    const EDGE_EPS_FOR_GROUPING = 0.5; // clampTemplateSlotsToSpreadSafety와 같은 문턱값
+    const rawSlots = template.slots.map((slot) => {
+      const raw = slotToSpreadCoords(slot, range);
+      return { xPct: raw.xPct, widthPct: raw.widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
+    });
+    const clampedSlots: { xPct: number; yPct: number; widthPct: number; heightPct: number }[] = new Array(
+      rawSlots.length
+    );
+    const leftGroupIdx: number[] = [];
+    const rightGroupIdx: number[] = [];
+    rawSlots.forEach((s, i) => {
+      const right = s.xPct + s.widthPct;
+      if (right <= 50 + EDGE_EPS_FOR_GROUPING) {
+        leftGroupIdx.push(i);
+      } else if (s.xPct >= 50 - EDGE_EPS_FOR_GROUPING) {
+        rightGroupIdx.push(i);
+      } else {
+        // 접힘부를 가로질러 걸쳐 있는 슬롯 — 혼자 자기 그룹(바운딩 박스 = 자기 자신)
+        const clamped = clampTemplateSlotsToSpreadSafety([s], spreadSafetyPct)[0];
+        clampedSlots[i] = clamped;
+      }
+    });
+    if (leftGroupIdx.length > 0) {
+      const results = clampTemplateSlotsToSpreadSafety(
+        leftGroupIdx.map((i) => rawSlots[i]),
+        spreadSafetyPct
+      );
+      leftGroupIdx.forEach((i, j) => {
+        clampedSlots[i] = results[j];
+      });
+    }
+    if (rightGroupIdx.length > 0) {
+      const results = clampTemplateSlotsToSpreadSafety(
+        rightGroupIdx.map((i) => rawSlots[i]),
+        spreadSafetyPct
+      );
+      rightGroupIdx.forEach((i, j) => {
+        clampedSlots[i] = results[j];
+      });
+    }
+    return clampedSlots;
+  }
+
   function applyLayoutTemplate(
     spreadIndex: number,
     range: LayoutApplyRange,
@@ -13830,67 +13909,7 @@ function UploadPageContent() {
     const extraBoxes = selectedIds
       ? orderedExisting.filter((b) => !selectedIds.includes(b.id))
       : orderedExisting.slice(template.slots.length);
-    const spreadSafetyPct = computeSpreadSafetyPct();
-    // 슬롯 각각을 따로 클램프하면 한 줄 안에서 폭이 달라지는 문제가 생겨서(바로
-    // 위 clampTemplateSlotsToSpreadSafety 설명 참고), 템플릿의 모든 슬롯을 한 번에
-    // 바운딩 박스 기준으로 계산해서 같은 비율로 당겨요.
-    // 2026-11(18번째 라운드 14차), 혜민님 버그 리포트("이번엔 접히는 선 기준으로
-    // 이미지가 배치됐어요. 안전선에 맞춰서 정리해야해요") — 바로 위 방식(모든 슬롯을
-    // 한꺼번에 묶어 바운딩 박스 하나로 계산)의 부작용이었어요. 스프레드 전체(양쪽
-    // 페이지)에 걸친 템플릿에서, 왼쪽 칸이 x=0~50%, 오른쪽 칸이 x=50~100%처럼 접힘부
-    // (50%)를 사이에 두고 나란히 있으면, 전체를 하나로 묶은 바운딩 박스는 x=0~100%가
-    // 돼서 "바깥쪽(재단) 두 변만 닿았다"고 판단하고 접힘부(가운데 50%)는 전혀 안
-    // 닿은 걸로 봐서 당기질 않았어요 — 그 결과 두 칸이 똑같은 비율로 양쪽 바깥쪽만
-    // 당겨지면서 가운데(접힘부) 경계가 정확히 50%(여백 0)에 오게 됐어요. 고친 방식 —
-    // 슬롯을 "왼쪽 페이지에 완전히 속함" / "오른쪽 페이지에 완전히 속함" / "접힘부를
-    // 가로질러 걸쳐 있음"(예: 양면 통짜 사진 한 칸) 세 그룹으로 먼저 나누고, 왼쪽·
-    // 오른쪽 그룹은 각각 그 페이지 하나 기준(바깥 재단선 0 또는 100, 접힘부 50)으로
-    // 바운딩 박스를 따로 계산해요 — 그러면 그 그룹의 바운딩 박스가 접힘부에 닿은 걸로
-    // 정확히 판정되고(예: 왼쪽 칸의 오른쪽 변이 50%), 똑같은 "모든 슬롯 같은 비율로
-    // 당기기" 로직이 접힘부 안전영역(20mm)도 제대로 반영해요. 걸쳐 있는 슬롯은 원래도
-    // (한 칸짜리이므로) 그룹으로 묶을 다른 슬롯이 없어 따로 처리하고, 양쪽 바깥쪽
-    // 재단선만 닿은 걸로 보고 접힘부 쪽은 전혀 안 당겨요(통짜 사진이 접힘부를 그대로
-    // 가로지르는 게 의도된 디자인이라 2026-09-27부터 그랬어요 — 그대로 유지).
-    const EDGE_EPS_FOR_GROUPING = 0.5; // clampTemplateSlotsToSpreadSafety와 같은 문턱값
-    const rawSlots = template.slots.map((slot) => {
-      const raw = slotToSpreadCoords(slot, range);
-      return { xPct: raw.xPct, widthPct: raw.widthPct, yPct: slot.yPct, heightPct: slot.heightPct };
-    });
-    const clampedSlots: { xPct: number; yPct: number; widthPct: number; heightPct: number }[] = new Array(
-      rawSlots.length
-    );
-    const leftGroupIdx: number[] = [];
-    const rightGroupIdx: number[] = [];
-    rawSlots.forEach((s, i) => {
-      const right = s.xPct + s.widthPct;
-      if (right <= 50 + EDGE_EPS_FOR_GROUPING) {
-        leftGroupIdx.push(i);
-      } else if (s.xPct >= 50 - EDGE_EPS_FOR_GROUPING) {
-        rightGroupIdx.push(i);
-      } else {
-        // 접힘부를 가로질러 걸쳐 있는 슬롯 — 혼자 자기 그룹(바운딩 박스 = 자기 자신)
-        const clamped = clampTemplateSlotsToSpreadSafety([s], spreadSafetyPct)[0];
-        clampedSlots[i] = clamped;
-      }
-    });
-    if (leftGroupIdx.length > 0) {
-      const results = clampTemplateSlotsToSpreadSafety(
-        leftGroupIdx.map((i) => rawSlots[i]),
-        spreadSafetyPct
-      );
-      leftGroupIdx.forEach((i, j) => {
-        clampedSlots[i] = results[j];
-      });
-    }
-    if (rightGroupIdx.length > 0) {
-      const results = clampTemplateSlotsToSpreadSafety(
-        rightGroupIdx.map((i) => rawSlots[i]),
-        spreadSafetyPct
-      );
-      rightGroupIdx.forEach((i, j) => {
-        clampedSlots[i] = results[j];
-      });
-    }
+    const clampedSlots = placeInnerTemplateSlots(template, range);
     const placed = template.slots.map((slot, idx) => {
       const clamped = clampedSlots[idx];
       const { xPct, yPct, widthPct, heightPct } = clamped;
@@ -13911,6 +13930,7 @@ function UploadPageContent() {
           innerOffsetXPct: 0,
           innerOffsetYPct: 0,
           innerScale: 1,
+          layoutTemplateId: template.id,
         };
       }
       // 채울 사진이 없는 칸 — 빈 프레임을 새로 만들어요. 나중에 캔버스에서 "+사진
@@ -13927,6 +13947,7 @@ function UploadPageContent() {
         innerOffsetXPct: 0,
         innerOffsetYPct: 0,
         innerScale: 1,
+        layoutTemplateId: template.id,
       };
       return emptyBox;
     });
@@ -13949,31 +13970,12 @@ function UploadPageContent() {
     // 어떤 사진이 새 칸에 들어가는지는 그대로 "읽는 순서(orderedExisting)" 앞에서부터
     // template.slots.length개를 그대로 쓰므로(usable, 위에서 이미 계산됨) 순서는
     // 전혀 안 바뀌어요 — 앞 N장은 새 칸에 순서대로, 그 뒤 초과분만 사진 목록으로.
-    const extraPhotos: Photo[] = extraBoxes
-      .filter((b) => b.url)
-      .map((b) => ({
-        url: b.url,
-        caption: "",
-        x: 0,
-        y: 0,
-        scale: 1,
-        width: b.naturalWidth || 1,
-        height: b.naturalHeight || 1,
-        fontFamily: fontOptions[0].id,
-        size: "sm",
-        bold: false,
-        color: "#2B2B2B",
-        align: "left",
-        position: "below",
-        containerW: 0,
-        containerH: 0,
-        rotation: 0,
-        flipX: false,
-      }));
+    const extraPhotos: Photo[] = extraBoxes.filter((b) => b.url).map(boxToLibraryPhoto);
 
+    // 사진이 든 초과 박스만 "전체 사진 목록으로 돌려보냈다"고 알려요(빈 프레임은 사진이 아니라 조용히 정리돼요).
     setLayoutApplyMessage(
-      extraBoxes.length > 0
-        ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 지금 이 범위에 사진이 ${inRange.length}장 있어서, 앞 ${template.slots.length}장만 채우고 나머지 ${extraBoxes.length}장은 전체 사진 목록으로 돌려보냈어요.`
+      extraPhotos.length > 0
+        ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${extraPhotos.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
         : null
     );
 
@@ -14031,6 +14033,18 @@ function UploadPageContent() {
   // 있으면, coverPhoto/backCoverPhoto) 그 사진을 새 배열의 첫 칸으로 이어받아요(2026-09-24
   // 추가 — "레이아웃 적용하면 기존 사진이 사라진다"는 혼란을 막기 위해서예요). natural
   // 크기를 다시 읽어야 해서 이 이어받는 부분만 비동기로 처리해요.
+  // 표지 앞/뒤판에 레이아웃 칸이 실제로 놓일 자리(그 판 기준 %, 안전영역 보정 포함)예요 — applyCoverLayoutTemplate과
+  // 레이아웃 패널 썸네일이 같이 써서 썸네일 = 적용 결과예요.
+  function placeCoverTemplateSlots(
+    target: "front" | "back",
+    template: PhotoLayoutTemplate
+  ): { xPct: number; yPct: number; widthPct: number; heightPct: number }[] {
+    const safety = computeCoverPanelSafetyPct();
+    return template.slots.map((slot) =>
+      clampSlotToCoverSafety(slot.xPct, slot.yPct, slot.widthPct, slot.heightPct, safety, target)
+    );
+  }
+
   function applyCoverLayoutTemplate(target: "front" | "back", template: PhotoLayoutTemplate, selectedIds?: string[]) {
     const isFront = target === "front";
     // 2026-09-27, 혜민님 요청 — 내지와 같은 이유로 표지 스티커도 레이아웃 대상에서 빼요.
@@ -14043,7 +14057,7 @@ function UploadPageContent() {
     // 항상 coverTextBoxes/backCoverTextBoxes 전체에 적용해요.
     const captionSlot = captionSlotFor(template);
 
-    const coverPanelSafetyPct = computeCoverPanelSafetyPct();
+    const placedSlots = placeCoverTemplateSlots(target, template);
 
     function finish(baseBoxes: ImageBoxDef[]) {
       const usable = selectedIds
@@ -14053,16 +14067,8 @@ function UploadPageContent() {
         ? baseBoxes.filter((b) => !selectedIds.includes(b.id))
         : baseBoxes.slice(template.slots.length);
       const placed = template.slots.map((slot, idx) => {
-        // 슬롯이 판의 바깥쪽(트림) 가장자리에 닿아 있으면 안전영역 안쪽으로 당겨요 —
-        // 책등 쪽 경계는 대상이 아니라서 손대지 않아요(2026-09-27).
-        const clamped = clampSlotToCoverSafety(
-          slot.xPct,
-          slot.yPct,
-          slot.widthPct,
-          slot.heightPct,
-          coverPanelSafetyPct,
-          isFront ? "front" : "back"
-        );
+        // 안전영역 보정은 placeCoverTemplateSlots가 이미 해둔 값이에요(썸네일과 같은 값).
+        const clamped = placedSlots[idx];
         const existing = usable[idx];
         if (existing) {
           // 내지 applyLayoutTemplate과 같은 이유로, 표지도 새 칸에 재배정할 때 이전
@@ -14076,6 +14082,7 @@ function UploadPageContent() {
             innerOffsetXPct: 0,
             innerOffsetYPct: 0,
             innerScale: 1,
+            layoutTemplateId: template.id,
           };
         }
         const emptyBox: ImageBoxDef = {
@@ -14090,22 +14097,27 @@ function UploadPageContent() {
           innerOffsetXPct: 0,
           innerOffsetYPct: 0,
           innerScale: 1,
+          layoutTemplateId: template.id,
         };
         return emptyBox;
       });
+      // 새 칸 수보다 사진이 많으면: 앞 N장은 읽는 순서대로 새 칸에 넣고, 남는 사진은 지우지 않고 "전체 사진 목록"으로
+      // 돌려보내요(내지 applyLayoutTemplate와 같은 방식 — 예전엔 남는 사진 박스가 옛 자리에 겹쳐 남았어요).
+      const extraLibraryPhotos = extraBoxes.filter((b) => b.url).map(boxToLibraryPhoto);
       setCoverLayoutApplyMessage(
-        extraBoxes.length > 0
-          ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 사진이 더 있어서 앞 ${template.slots.length}장만 채우고 나머지는 그대로 남겨뒀어요.`
+        extraLibraryPhotos.length > 0
+          ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${extraLibraryPhotos.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
           : null
       );
+      if (extraLibraryPhotos.length > 0) setPhotos((prev) => [...prev, ...extraLibraryPhotos]);
       if (isFront) {
-        setCoverImageBoxes([...coverStickerBoxes, ...extraBoxes, ...placed]);
+        setCoverImageBoxes([...coverStickerBoxes, ...placed]);
         setCoverPhoto(null);
         if (captionSlot) {
           setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
         }
       } else {
-        setBackCoverImageBoxes([...coverStickerBoxes, ...extraBoxes, ...placed]);
+        setBackCoverImageBoxes([...coverStickerBoxes, ...placed]);
         setBackCoverPhoto(null);
         if (captionSlot) {
           setBackCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
@@ -14139,7 +14151,7 @@ function UploadPageContent() {
   }
 
   function handleCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
-    setCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+    setCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b)));
   }
   // ---- 사진 변경 (2026-11, 혜민님 요청 "사진 변경 버튼") ----
   // 선택한 사진박스의 "사진만" 다른 사진(이미 올린 사진 또는 새로 올린 사진)으로 바꿔요. 박스 위치·크기·회전·
@@ -14267,7 +14279,7 @@ function UploadPageContent() {
     setCoverImageBoxes((prev) => [...prev, { ...box, id: crypto.randomUUID() }]);
   }
   function handleBackCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
-    setBackCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...changes } : b)));
+    setBackCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b)));
   }
   function handleDeleteBackCoverImageBox(boxId: string) {
     setBackCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
@@ -16185,80 +16197,6 @@ function UploadPageContent() {
             </div>
           </div>
         )}
-        {/* "왼쪽/양쪽/오른쪽 페이지 중 어디에 적용할지" 묻는 팝업이에요(2026-09-27
-            추가) — 레이아웃 패널을 항상 스프레드(펼침면)로 보여주면서, 실제 적용 범위는
-            썸네일을 고른 다음 여기서 물어봐요(스위트북 참고 화면과 같은 방식). */}
-        {layoutRangePicker && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-2"
-            onClick={() => setLayoutRangePicker(null)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex w-full max-w-md flex-col overflow-hidden border border-[var(--color-hairline)] bg-white"
-            >
-              <div className="flex items-center justify-between border-b border-[var(--color-hairline)] px-3 py-2">
-                <p className="text-sm font-semibold">변경하실 레이아웃을 선택해주세요</p>
-                <button
-                  type="button"
-                  onClick={() => setLayoutRangePicker(null)}
-                  className="text-[var(--color-charcoal)]/40 hover:text-[var(--color-charcoal)]"
-                  aria-label="닫기"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-2 p-3">
-                {(
-                  [
-                    { id: "left" as const, label: "왼쪽 페이지", enabled: layoutRangePicker.allowLeft },
-                    { id: "spread" as const, label: "양쪽 페이지", enabled: true },
-                    { id: "right" as const, label: "오른쪽 페이지", enabled: true },
-                  ]
-                ).map((opt) => {
-                  const halfSource = SPREAD_AUTO_TO_HALF[layoutRangePicker.template.id];
-                  const isSpreadOnly = !halfSource;
-                  const disabled = !opt.enabled || (isSpreadOnly && opt.id !== "spread");
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        const spreadIndex = layoutRangePicker.spreadIndex;
-                        if (opt.id === "spread") {
-                          applyLayoutTemplate(spreadIndex, "spread", layoutRangePicker.template);
-                        } else if (halfSource) {
-                          applyLayoutTemplate(spreadIndex, opt.id, halfSource);
-                        }
-                        setLayoutRangePicker(null);
-                      }}
-                      className={`flex flex-col items-center gap-1.5 border p-2 text-center transition ${
-                        disabled
-                          ? "cursor-not-allowed border-[var(--color-hairline)] opacity-30"
-                          : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]"
-                      }`}
-                    >
-                      <div className="flex h-12 w-full overflow-hidden border border-[var(--color-hairline)] bg-[var(--color-ivory)]">
-                        <div
-                          className={`h-full flex-1 ${
-                            opt.id === "left" || opt.id === "spread" ? "bg-transparent" : "bg-[var(--color-charcoal)]/25"
-                          }`}
-                        />
-                        <div
-                          className={`h-full flex-1 border-l border-[var(--color-hairline)] ${
-                            opt.id === "right" || opt.id === "spread" ? "bg-transparent" : "bg-[var(--color-charcoal)]/25"
-                          }`}
-                        />
-                      </div>
-                      <span className="text-[11px] text-[var(--color-charcoal)]/70">{opt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
         {/* 표지 레이아웃 탭용 선택 팝업이에요 — 위 pendingLayoutApply 팝업(내지용)과
             같은 구조·같은 동작이에요(2026-09-24 추가). 취소하면(바깥 클릭 포함) 아무것도
             안 바뀌고 그대로 닫혀요. */}
@@ -17091,96 +17029,36 @@ function UploadPageContent() {
                           )}
                           {activeCoverEditTab === "layout" && (() => {
                             const target: "front" | "back" = coverLayoutApplyTarget;
-                            const isFront = target === "front";
-                            const boxesForTarget = isFront ? coverImageBoxes : backCoverImageBoxes;
-                            const legacyPhotoForTarget = isFront ? coverPhoto : backCoverPhoto;
-                            // 레이아웃을 아직 한 번도 안 썼으면(배열이 비어있으면), 기존
-                            // 사진 1장(있으면)을 "지금 사진 개수 1장"으로 쳐서 필터·안내
-                            // 문구를 보여줘요 — 실제로 배열에 이어받는 건 적용 순간에요.
-                            const currentCount = boxesForTarget.length > 0 ? boxesForTarget.length : legacyPhotoForTarget ? 1 : 0;
-                            const visibleTemplates = COVER_LAYOUT_TEMPLATES.filter((t) => {
-                              if (layoutCountFilter === "auto") return t.photoCount === currentCount;
-                              if (layoutCountFilter === "all") return true;
-                              if (layoutCountFilter === "4+") return t.photoCount >= 4;
-                              return t.photoCount === layoutCountFilter;
-                            });
+                            const boxesForTarget = target === "front" ? coverImageBoxes : backCoverImageBoxes;
+                            const targetPhotoBoxes = boxesForTarget.filter((b) => !isStickerImageBox(b));
+                            // 표지 레이아웃 목록 — 앞표지/뒤표지는 정사각 판 하나라서 한 판짜리(half) 템플릿 전체(사진 1~9칸)를
+                            // 그대로 써요. 썸네일은 뒤표지|책등|앞표지 구성에서 고른 판 안에 칸을 그려요.
                             return (
-                              <div className="flex flex-col gap-1.5">
-                                {/* 2026-09-25, 혜민님 요청: "설명글 삭제(레이아웃패널)" —
-                                    "지금 OO에 사진이 N장 있어요" 안내문을 없앴어요. */}
-                                {(() => {
-                                  const visibleFilters = LAYOUT_COUNT_FILTERS.filter(
-                                    (f) => f.id === "all" || (typeof f.id === "number" && f.id <= 3)
-                                  );
-                                  return (
-                                    <div
-                                      className="grid text-[11px]"
-                                      style={{ gridTemplateColumns: `repeat(${visibleFilters.length}, minmax(0, 1fr))` }}
-                                    >
-                                      {visibleFilters.map((f) => (
-                                        <button
-                                          key={String(f.id)}
-                                          type="button"
-                                          onClick={() => setLayoutCountFilter(f.id)}
-                                          className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
-                                            layoutCountFilter === f.id
-                                              ? "bg-[var(--color-charcoal)] text-white"
-                                              : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                          }`}
-                                        >
-                                          {f.label}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  );
-                                })()}
-                                {coverLayoutApplyMessage && (
-                                  <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
-                                    {coverLayoutApplyMessage}
-                                  </p>
-                                )}
-                                <div className="grid grid-cols-2 gap-2">
-                                  {visibleTemplates.map((t) => (
-                                    <button
-                                      key={t.id}
-                                      type="button"
-                                      onClick={() => {
-                                        // 내지와 같은 이유로 팝업 없이 즉시 적용(2026-09-24).
-                                        applyCoverLayoutTemplate(target, t);
-                                      }}
-                                      className=" border border-[var(--color-hairline)] p-1.5 text-left transition hover:border-[var(--color-sky)]"
-                                    >
-                                      <div className="relative w-full overflow-hidden bg-[var(--color-ivory)]" style={{ aspectRatio: "1 / 1" }}>
-                                        {t.slots.map((slot, idx) => (
-                                          <div
-                                            key={idx}
-                                            className="absolute -[2px] border border-white bg-[var(--color-sky)]/60"
-                                            style={{
-                                              left: `${slot.xPct}%`,
-                                              top: `${slot.yPct}%`,
-                                              width: `${slot.widthPct}%`,
-                                              height: `${slot.heightPct}%`,
-                                            }}
-                                          />
-                                        ))}
-                                      </div>
-                                      <p className="mt-1 truncate text-[10px] text-[var(--color-charcoal)]/70">
-                                        {t.name}
-                                        {t.hasCaptionSpace ? " · 문구 공간" : ""}
-                                      </p>
-                                      <p className="mt-0.5 text-[9px] text-[var(--color-charcoal)]/50">
-                                        사진 칸 {t.photoCount}개
-                                        {t.photoCount !== currentCount ? ` · 지금 ${currentCount}장` : ""}
-                                      </p>
-                                    </button>
-                                  ))}
-                                  {visibleTemplates.length === 0 && (
-                                    <p className="col-span-2 text-[11px] text-[var(--color-charcoal)]/40">
-                                      이 조건에 맞는 템플릿이 없어요.
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
+                              <LayoutPanel
+                                targets={[
+                                  { id: "front", label: "앞표지" },
+                                  { id: "back", label: "뒤표지" },
+                                ]}
+                                target={target}
+                                onTargetChange={(id) => setCoverLayoutApplyTarget(id === "back" ? "back" : "front")}
+                                templates={HALF_LAYOUT_TEMPLATES}
+                                frame={{
+                                  kind: "cover",
+                                  target,
+                                  backPct: coverBackPct,
+                                  spinePct: coverSpinePct,
+                                  frontPct: coverFrontPct,
+                                  aspect: coverTotalWmm / coverTotalHmm,
+                                }}
+                                slotsFor={(t) => placeCoverTemplateSlots(target, t)}
+                                isSelected={(t) =>
+                                  targetPhotoBoxes.length > 0 && targetPhotoBoxes.every((b) => b.layoutTemplateId === t.id)
+                                }
+                                onApply={(t) => applyCoverLayoutTemplate(target, t)}
+                                filter={layoutCountFilter}
+                                onFilterChange={setLayoutCountFilter}
+                                message={coverLayoutApplyMessage}
+                              />
                             );
                           })()}
                           {activeCoverEditTab === "text" && (
@@ -18108,88 +17986,44 @@ function UploadPageContent() {
                                 />
                               )}
                               {activeEditTab === "layout" && (() => {
-                                // 2026-09-27, 혜민님 요청: "기본적으로 펼침면으로 레이아웃을
-                                // 보여주세요 ... 낱장으로 되어있는건 전부 스프레드로
-                                // 만들어주세요." — 더 이상 "적용 범위"를 먼저 고르지 않고,
-                                // 항상 스프레드(펼침면) 형태 썸네일만 보여줘요(원래 half
-                                // 전용이던 템플릿도 좌우로 자동 복제됨, spreadBrowseTemplates()).
-                                // 실제 적용 범위(왼쪽/양쪽/오른쪽)는 썸네일을 클릭한 뒤 뜨는
-                                // 팝업(layoutRangePicker)에서 물어봐요. 스프레드 1(i===0)의
-                                // 왼쪽 면은 표지 뒷면이라 인쇄 안 되는 빈 면이라, 그 팝업에서
-                                // "왼쪽 페이지"만 비활성화해요.
+                                // 적용 대상(왼쪽/오른쪽/현재 펼침) — 기본은 지금 보고 있는 펼침면 전체예요. 스프레드 1의 왼쪽 면은
+                                // 표지 뒷면(인쇄 안 되는 빈 면)이라 고를 수 없고, 기본도 "오른쪽"이에요.
                                 const allowLeft = i !== 0;
-                                const nonStickerBoxes = (spread.imageBoxes ?? []).filter((b) => !isStickerImageBox(b));
-                                const rangePhotoCount = nonStickerBoxes.length;
-                                const candidates = spreadBrowseTemplates();
-                                const visibleTemplates = candidates.filter((t) => {
-                                  if (layoutCountFilter === "auto") return t.photoCount === rangePhotoCount;
-                                  if (layoutCountFilter === "all") return true;
-                                  if (layoutCountFilter === "4+") return t.photoCount >= 4;
-                                  return t.photoCount === layoutCountFilter;
-                                });
+                                const defaultRange: LayoutApplyRange = allowLeft ? "spread" : "right";
+                                const picked =
+                                  innerLayoutTargetState && innerLayoutTargetState.forPageKey === selectedPageKey
+                                    ? innerLayoutTargetState.target
+                                    : defaultRange;
+                                const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
+                                // 대상 안의 사진 칸 총 개수로 필터해요: 한쪽 면은 한 판짜리(half) 템플릿, 펼침면은 펼침면 템플릿.
+                                const templates = range === "spread" ? spreadBrowseTemplates() : HALF_LAYOUT_TEMPLATES;
+                                const rangeBoxes = imageBoxesInRange(
+                                  (spread.imageBoxes ?? []).filter((b) => !isStickerImageBox(b)),
+                                  range
+                                );
                                 return (
-                                  <div className="flex flex-col gap-1.5">
-                                    {/* 2026-09-25, 혜민님 요청: "설명글 삭제(레이아웃패널)" — 안내문을 없앴어요. */}
-                                    <div
-                                      className="grid text-[11px]"
-                                      style={{ gridTemplateColumns: `repeat(${LAYOUT_COUNT_FILTERS.length}, minmax(0, 1fr))` }}
-                                    >
-                                      {LAYOUT_COUNT_FILTERS.map((f) => (
-                                        <button
-                                          key={String(f.id)}
-                                          type="button"
-                                          onClick={() => setLayoutCountFilter(f.id)}
-                                          className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
-                                            layoutCountFilter === f.id
-                                              ? "bg-[var(--color-charcoal)] text-white"
-                                              : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                          }`}
-                                        >
-                                          {f.label}
-                                        </button>
-                                      ))}
-                                    </div>
-                                    {layoutApplyMessage && (
-                                      <p className=" bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] text-[var(--color-charcoal)]/70 break-keep">
-                                        {layoutApplyMessage}
-                                      </p>
-                                    )}
-                                    {/* 2026-09-27, 혜민님 요청으로 썸네일 아래 설명글(이름·칸
-                                        수)을 없애고 이미지(슬롯 미리보기)만 남겼어요. */}
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                      {visibleTemplates.map((t) => (
-                                        <button
-                                          key={t.id}
-                                          type="button"
-                                          onClick={() => setLayoutRangePicker({ spreadIndex: i, template: t, allowLeft })}
-                                          className="border border-[var(--color-hairline)] p-1 text-left transition hover:border-[var(--color-sky)]"
-                                        >
-                                          <div
-                                            className="relative w-full overflow-hidden bg-[var(--color-ivory)]"
-                                            style={{ aspectRatio: "2 / 1" }}
-                                          >
-                                            {t.slots.map((slot, idx) => (
-                                              <div
-                                                key={idx}
-                                                className="absolute border border-white bg-[var(--color-sky)]/60"
-                                                style={{
-                                                  left: `${slot.xPct}%`,
-                                                  top: `${slot.yPct}%`,
-                                                  width: `${slot.widthPct}%`,
-                                                  height: `${slot.heightPct}%`,
-                                                }}
-                                              />
-                                            ))}
-                                          </div>
-                                        </button>
-                                      ))}
-                                      {visibleTemplates.length === 0 && (
-                                        <p className="col-span-2 text-[11px] text-[var(--color-charcoal)]/40">
-                                          이 조건에 맞는 템플릿이 없어요.
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
+                                  <LayoutPanel
+                                    targets={[
+                                      { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
+                                      { id: "right", label: "오른쪽" },
+                                      { id: "spread", label: "현재 펼침" },
+                                    ]}
+                                    target={range}
+                                    onTargetChange={(id) =>
+                                      setInnerLayoutTargetState({
+                                        forPageKey: selectedPageKey,
+                                        target: id === "left" ? "left" : id === "right" ? "right" : "spread",
+                                      })
+                                    }
+                                    templates={templates}
+                                    frame={{ kind: "spread", range, leftBlank: !allowLeft }}
+                                    slotsFor={(t) => placeInnerTemplateSlots(t, range)}
+                                    isSelected={(t) => rangeBoxes.length > 0 && rangeBoxes.every((b) => b.layoutTemplateId === t.id)}
+                                    onApply={(t) => applyLayoutTemplate(i, range, t)}
+                                    filter={layoutCountFilter}
+                                    onFilterChange={setLayoutCountFilter}
+                                    message={layoutApplyMessage}
+                                  />
                                 );
                               })()}
                               {activeEditTab === "background" && (
