@@ -757,15 +757,6 @@ function blushPair(front: DecorPrim[], cx: number, y: number, dx: number, u: num
   for (const sx of [-1, 1]) front.push({ d: ellipseD(cx + sx * dx, y, 0.036 * u, 0.023 * u), fill: color, opacity: 0.8 });
 }
 
-// 작은 앞발(아래 띠 양끝) — 둥근 타원 + 발가락 선 3개
-function pawD(cx: number, cy: number, u: number): { fill: string; toes: string } {
-  const toes =
-    `M${f(cx - 0.022 * u)} ${f(cy - 0.002 * u)}V${f(cy + 0.016 * u)}` +
-    `M${f(cx)} ${f(cy - 0.006 * u)}V${f(cy + 0.016 * u)}` +
-    `M${f(cx + 0.022 * u)} ${f(cy - 0.002 * u)}V${f(cy + 0.016 * u)}`;
-  return { fill: ellipseD(cx, cy, 0.062 * u, 0.045 * u), toes };
-}
-
 function buildAnimal(kind: AnimalKind, w: number, h: number): DecorLayout {
   const pal = ANIMAL_PALETTES[kind];
   const u = Math.min(w, h);
@@ -789,7 +780,7 @@ function buildAnimal(kind: AnimalKind, w: number, h: number): DecorLayout {
   const back: DecorPrim[] = [];
   const mid: DecorPrim[] = []; // 몸통 위, 얼굴 아래(무늬·털)
   const front: DecorPrim[] = [];
-  let bodyFill = pal.body;
+  const bodyFill = pal.body;
   let outline: string | null = null;
   let extraBodyD = ""; // 몸통과 같은 색으로 이어 붙이는 도형(양털 등)
 
