@@ -33,7 +33,8 @@ export type FrameDecorKey =
   | "frog"
   | "bunny"
   | "cat"
-  | "wreath";
+  | "wreath"
+  | AnimalKind;
 
 // path 하나 — d는 SVG path 문자열, 나머지는 색/선 정보예요(fill 없으면 칠하지 않아요).
 export type DecorPrim = {
@@ -99,6 +100,17 @@ export const FRAME_DECOR_PRESETS: FrameDecorPreset[] = [
   { id: "cat-orange", decor: "cat", variant: "orange", label: "고양이", group: "character" },
   { id: "cat-gray", decor: "cat", variant: "gray", label: "회색냥이", group: "character" },
   { id: "wreath-blossom", decor: "wreath", variant: "blossom", label: "벚꽃 화환", group: "wreath" },
+  // 새 캐릭터 10종 (variant는 한 가지뿐이라 "default")
+  { id: "dog", decor: "dog", variant: "default", label: "강아지", group: "character" },
+  { id: "chick", decor: "chick", variant: "default", label: "병아리", group: "character" },
+  { id: "tiger", decor: "tiger", variant: "default", label: "호랑이", group: "character" },
+  { id: "penguin", decor: "penguin", variant: "default", label: "펭귄", group: "character" },
+  { id: "panda", decor: "panda", variant: "default", label: "판다", group: "character" },
+  { id: "fox", decor: "fox", variant: "default", label: "여우", group: "character" },
+  { id: "koala", decor: "koala", variant: "default", label: "코알라", group: "character" },
+  { id: "sheep", decor: "sheep", variant: "default", label: "양", group: "character" },
+  { id: "elephant", decor: "elephant", variant: "default", label: "코끼리", group: "character" },
+  { id: "raccoon", decor: "raccoon", variant: "default", label: "너구리", group: "character" },
 ];
 
 // ---- path 만들기 도우미 ----
@@ -644,6 +656,379 @@ function buildWreath(w: number, h: number): DecorLayout {
   };
 }
 
+// ---- 7. 새 캐릭터 프레임 10종 (강아지·병아리·호랑이·펭귄·판다·여우·코알라·양·코끼리·너구리) ----
+// 기존 곰돌이/개구리/토끼/고양이(buildCharacter)와 같은 뼈대·같은 비율 규칙이에요:
+//   u = 짧은 변. 몸통(색 테두리)은 둥근 사각형(모서리 0.14u), 사진 창은 그 안쪽 둥근 사각형
+//   (모서리 0.1u). 위쪽 띠(눈 자리) 0.15u · 아래쪽 띠(코/입 자리) 0.17u · 좌우 띠 0.09u(강아지는
+//   늘어진 귀 때문에 0.115u). 귀·눈·코·볼터치·발은 전부 u의 비율 "원/타원/호"라서 박스를 가로로
+//   늘려도 둥근 채 그대로이고, 위치만 박스 폭을 따라가요(귀 가로 위치: 0.2u와 0.2×폭 중 큰 값).
+//   장식은 전부 몸통 띠 위(귀는 몸통 뒤쪽 위로 튀어나옴)에만 있어서 사진 창 안으로 들어오지 않아요.
+// 모든 그림은 키픽이 직접 그린 벡터 도형이고 외부 이미지는 없어요.
+
+export type AnimalKind =
+  | "dog"
+  | "chick"
+  | "tiger"
+  | "penguin"
+  | "panda"
+  | "fox"
+  | "koala"
+  | "sheep"
+  | "elephant"
+  | "raccoon";
+
+type AnimalPalette = {
+  body: string; // 몸통(테두리)
+  inner: string; // 귀 안쪽 등
+  light: string; // 주둥이·볼 등 밝은 부분
+  dark: string; // 눈·코·무늬
+  accent: string; // 부리·혀·귀 끝 등 포인트
+  blush: string; // 볼터치
+  line: string; // 사진 창 둘레선
+};
+
+const ANIMAL_PALETTES: Record<AnimalKind, AnimalPalette> = {
+  dog: { body: "#EBCB9C", inner: "#F6E3C4", light: "#FFF3DF", dark: "#4A3427", accent: "#F28DA0", blush: "#F5A3A0", line: "#CFA672" },
+  chick: { body: "#FFE27A", inner: "#FFF0B0", light: "#FFF8D6", dark: "#4A3A24", accent: "#F7A23B", blush: "#F9A58B", line: "#E8C34A" },
+  tiger: { body: "#F8B454", inner: "#FFE2B8", light: "#FFF4E2", dark: "#5A3A28", accent: "#F28DA0", blush: "#F49A8E", line: "#E19A36" },
+  penguin: { body: "#4D5878", inner: "#6A7699", light: "#FFFFFF", dark: "#2E3550", accent: "#F7A23B", blush: "#F5A3B5", line: "#38425F" },
+  panda: { body: "#FAFAFA", inner: "#F2B8C6", light: "#FFFFFF", dark: "#3A3D46", accent: "#F2B8C6", blush: "#F7AFC0", line: "#C9CED8" },
+  fox: { body: "#F58B45", inner: "#FFE1C8", light: "#FFFFFF", dark: "#4A2C20", accent: "#6B3B2A", blush: "#F9A99A", line: "#DD7230" },
+  koala: { body: "#BFC4CE", inner: "#F0E4E6", light: "#E6E9EE", dark: "#444A57", accent: "#F2B0BC", blush: "#F4A9B8", line: "#9DA4B1" },
+  sheep: { body: "#F6F0E4", inner: "#FFFFFF", light: "#FFF9EE", dark: "#5A4A48", accent: "#F4B6B6", blush: "#F6AFAF", line: "#DACFBC" },
+  elephant: { body: "#AEC3E2", inner: "#F5C8D4", light: "#D5E1F2", dark: "#46506B", accent: "#FFFFFF", blush: "#F6AFC0", line: "#8AA5CD" },
+  raccoon: { body: "#A5AAB5", inner: "#E7E9EE", light: "#FFFFFF", dark: "#454A57", accent: "#F2B0BC", blush: "#F4A9B8", line: "#848A97" },
+};
+
+// 둥근 끝을 가진 삼각형(귀) — 같은 색 선(둥근 이음)으로 꼭짓점을 둥글게 해요
+function softTriangle(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  c: { x: number; y: number },
+  fill: string,
+  strokeW: number
+): DecorPrim {
+  return { d: polyD([a, b, c]), fill, stroke: fill, strokeWidth: strokeW };
+}
+
+// 잔털이 둥글게 올라온 원(솜털 귀·양털) — 중심 원 + 가장자리 작은 원들(같은 색이라 하나로 이어져 보여요)
+function fluffyCircleD(cx: number, cy: number, r: number, bumps: number, bumpR: number, rot: number = 0): string {
+  let d = circleD(cx, cy, r);
+  for (let k = 0; k < bumps; k++) {
+    const a = rot + (k * Math.PI * 2) / bumps;
+    d += circleD(cx + Math.cos(a) * r, cy + Math.sin(a) * r, bumpR);
+  }
+  return d;
+}
+
+function dotEye(front: DecorPrim[], x: number, y: number, r: number, dark: string): void {
+  front.push({ d: circleD(x, y, r), fill: dark });
+  front.push({ d: circleD(x + r * 0.32, y - r * 0.34, r * 0.34), fill: "#FFFFFF" });
+}
+
+function blushPair(front: DecorPrim[], cx: number, y: number, dx: number, u: number, color: string): void {
+  for (const sx of [-1, 1]) front.push({ d: ellipseD(cx + sx * dx, y, 0.036 * u, 0.023 * u), fill: color, opacity: 0.8 });
+}
+
+// 작은 앞발(아래 띠 양끝) — 둥근 타원 + 발가락 선 3개
+function pawD(cx: number, cy: number, u: number): { fill: string; toes: string } {
+  const toes =
+    `M${f(cx - 0.022 * u)} ${f(cy - 0.002 * u)}V${f(cy + 0.016 * u)}` +
+    `M${f(cx)} ${f(cy - 0.006 * u)}V${f(cy + 0.016 * u)}` +
+    `M${f(cx + 0.022 * u)} ${f(cy - 0.002 * u)}V${f(cy + 0.016 * u)}`;
+  return { fill: ellipseD(cx, cy, 0.062 * u, 0.045 * u), toes };
+}
+
+function buildAnimal(kind: AnimalKind, w: number, h: number): DecorLayout {
+  const pal = ANIMAL_PALETTES[kind];
+  const u = Math.min(w, h);
+  const m =
+    (({ dog: 0.15, chick: 0.11, tiger: 0.12, penguin: 0.04, panda: 0.12, fox: 0.17, koala: 0.16, sheep: 0.17, elephant: 0.17, raccoon: 0.12 }) as Record<AnimalKind, number>)[kind] * u;
+  const topBand = 0.15 * u;
+  const bottomBand = 0.17 * u;
+  const side = (kind === "dog" ? 0.115 : kind === "sheep" ? 0.1 : 0.09) * u;
+  const bodyY = m;
+  const bodyH = h - m;
+  const win = safeWindow(side, bodyY + topBand, w - 2 * side, bodyH - topBand - bottomBand, 0.1 * u, w, h);
+  const winD = decorWindowPathD(win);
+  // 양은 몸통을 양털 반지름만큼 안쪽으로 줄이고, 그 가장자리 위에 털 뭉치(원)를 올려서 구름 모양 윤곽이 나와요
+  const woolR = 0.052 * u;
+  const bodyOuterD = kind === "sheep" ? rrectD(woolR, bodyY + woolR, w - 2 * woolR, bodyH - 2 * woolR, 0.05 * u) : rrectD(0, bodyY, w, bodyH, 0.14 * u);
+  const cx = w / 2;
+  const eyeY = bodyY + topBand / 2;
+  const eyeDX = 0.2 * u;
+  const bottomY = h - bottomBand / 2;
+  const earX = Math.max(0.2 * u, 0.2 * w);
+  const back: DecorPrim[] = [];
+  const mid: DecorPrim[] = []; // 몸통 위, 얼굴 아래(무늬·털)
+  const front: DecorPrim[] = [];
+  let bodyFill = pal.body;
+  let outline: string | null = null;
+  let extraBodyD = ""; // 몸통과 같은 색으로 이어 붙이는 도형(양털 등)
+
+  switch (kind) {
+    case "dog": {
+      // 늘어진 귀(몸통 앞, 좌우 띠를 따라 내려옴) + 한쪽 눈 얼룩 + 큰 코·혀
+      for (const sx of [-1, 1]) {
+        const ex = sx < 0 ? 0.058 * u : w - 0.058 * u;
+        front.push({ d: ellipseD(ex, 0.03 * u + 0.17 * u, 0.052 * u, 0.17 * u, sx * 5), fill: "#B07A4F" });
+        front.push({ d: ellipseD(ex, 0.03 * u + 0.17 * u, 0.052 * u, 0.17 * u, sx * 5), stroke: "#96623C", strokeWidth: 0.008 * u });
+      }
+      mid.push({ d: ellipseD(cx - eyeDX, eyeY + 0.005 * u, 0.062 * u, 0.05 * u, -10), fill: "#C98A58" });
+      dotEye(front, cx - eyeDX, eyeY, 0.028 * u, pal.dark);
+      dotEye(front, cx + eyeDX, eyeY, 0.028 * u, pal.dark);
+      front.push({ d: ellipseD(cx, bottomY, 0.13 * u, 0.066 * u), fill: pal.light });
+      front.push({ d: ellipseD(cx, bottomY - 0.022 * u, 0.045 * u, 0.03 * u), fill: pal.dark });
+      front.push({
+        d: `M${f(cx)} ${f(bottomY + 0.006 * u)}V${f(bottomY + 0.024 * u)}Q${f(cx - 0.012 * u)} ${f(bottomY + 0.046 * u)} ${f(cx - 0.04 * u)} ${f(bottomY + 0.034 * u)}M${f(cx)} ${f(bottomY + 0.024 * u)}Q${f(cx + 0.012 * u)} ${f(bottomY + 0.046 * u)} ${f(cx + 0.04 * u)} ${f(bottomY + 0.034 * u)}`,
+        stroke: pal.dark,
+        strokeWidth: 0.011 * u,
+      });
+      front.push({ d: ellipseD(cx, bottomY + 0.055 * u, 0.022 * u, 0.026 * u), fill: pal.accent });
+      break;
+    }
+    case "chick": {
+      // 머리 깃털 3가닥(몸통 뒤) + 부리 + 양쪽 작은 날개
+      for (const [dx, rot, hh] of [[-0.035, -28, 0.075], [0, 0, 0.09], [0.035, 28, 0.075]] as [number, number, number][]) {
+        back.push({ d: ellipseD(cx + dx * u, m - 0.005 * u, 0.026 * u, hh * u, rot), fill: pal.body, stroke: pal.body, strokeWidth: 0.004 * u });
+      }
+      for (const sx of [-1, 1]) dotEye(front, cx + sx * eyeDX, eyeY, 0.028 * u, pal.dark);
+      // 부리: 위(큰 마름모) + 아래(작은 마름모)
+      front.push({ d: polyD([{ x: cx - 0.06 * u, y: bottomY - 0.025 * u }, { x: cx + 0.06 * u, y: bottomY - 0.025 * u }, { x: cx, y: bottomY + 0.018 * u }]), fill: pal.accent, stroke: pal.accent, strokeWidth: 0.014 * u });
+      front.push({ d: polyD([{ x: cx - 0.03 * u, y: bottomY + 0.022 * u }, { x: cx + 0.03 * u, y: bottomY + 0.022 * u }, { x: cx, y: bottomY + 0.05 * u }]), fill: "#EE8E2B", stroke: "#EE8E2B", strokeWidth: 0.01 * u });
+      blushPair(front, cx, bottomY - 0.002 * u, 0.3 * u, u, pal.blush);
+      // 날개: 아래 띠 양끝의 둥근 타원(살짝 기울임)
+      for (const sx of [-1, 1]) {
+        const wx = sx < 0 ? 0.045 * u : w - 0.045 * u;
+        front.push({ d: ellipseD(wx, h - 0.1 * u, 0.034 * u, 0.075 * u, sx * -16), fill: "#FFD24F", stroke: "#F2BE3A", strokeWidth: 0.006 * u });
+      }
+      break;
+    }
+    case "tiger": {
+      // 둥근 귀 + 이마 줄무늬(王) + 양옆 줄무늬 + 하얀 주둥이
+      for (const sx of [earX, w - earX]) {
+        back.push({ d: circleD(sx, 0.13 * u, 0.13 * u), fill: pal.body });
+        back.push({ d: circleD(sx, 0.13 * u, 0.075 * u), fill: pal.inner });
+      }
+      const sw = 0.014 * u;
+      mid.push({ d: `M${f(cx)} ${f(bodyY + 0.02 * u)}V${f(bodyY + 0.06 * u)}M${f(cx - 0.05 * u)} ${f(bodyY + 0.026 * u)}V${f(bodyY + 0.056 * u)}M${f(cx + 0.05 * u)} ${f(bodyY + 0.026 * u)}V${f(bodyY + 0.056 * u)}`, stroke: pal.dark, strokeWidth: sw });
+      let sideStripes = "";
+      for (const fy of [0.3, 0.5, 0.7]) {
+        const yy = bodyY + (h - bodyY) * fy;
+        sideStripes += `M${f(0.012 * u)} ${f(yy)}H${f(0.062 * u)}M${f(w - 0.012 * u)} ${f(yy)}H${f(w - 0.062 * u)}`;
+      }
+      mid.push({ d: sideStripes, stroke: pal.dark, strokeWidth: sw });
+      for (const sx of [-1, 1]) dotEye(front, cx + sx * eyeDX, eyeY + 0.012 * u, 0.028 * u, pal.dark);
+      front.push({ d: ellipseD(cx, bottomY, 0.13 * u, 0.066 * u), fill: pal.light });
+      front.push({ d: polyD([{ x: cx - 0.034 * u, y: bottomY - 0.034 * u }, { x: cx + 0.034 * u, y: bottomY - 0.034 * u }, { x: cx, y: bottomY - 0.004 * u }]), fill: pal.accent, stroke: pal.accent, strokeWidth: 0.01 * u });
+      front.push({
+        d: `M${f(cx)} ${f(bottomY - 0.004 * u)}Q${f(cx - 0.014 * u)} ${f(bottomY + 0.036 * u)} ${f(cx - 0.05 * u)} ${f(bottomY + 0.022 * u)}M${f(cx)} ${f(bottomY - 0.004 * u)}Q${f(cx + 0.014 * u)} ${f(bottomY + 0.036 * u)} ${f(cx + 0.05 * u)} ${f(bottomY + 0.022 * u)}`,
+        stroke: pal.dark,
+        strokeWidth: 0.011 * u,
+      });
+      break;
+    }
+    case "penguin": {
+      // 검정(남색) 몸 + 하얀 배·눈 + 주황 부리·발 + 양쪽 지느러미
+      mid.push({ d: ellipseD(cx, h - 0.09 * u, Math.min(0.3 * u, 0.3 * w), 0.062 * u), fill: pal.light });
+      for (const sx of [-1, 1]) {
+        front.push({ d: circleD(cx + sx * eyeDX, eyeY, 0.05 * u), fill: "#FFFFFF" });
+        front.push({ d: circleD(cx + sx * eyeDX + sx * 0.004 * u, eyeY + 0.004 * u, 0.026 * u), fill: pal.dark });
+        front.push({ d: circleD(cx + sx * eyeDX + sx * 0.012 * u, eyeY - 0.006 * u, 0.009 * u), fill: "#FFFFFF" });
+      }
+      front.push({ d: polyD([{ x: cx - 0.055 * u, y: bottomY - 0.03 * u }, { x: cx + 0.055 * u, y: bottomY - 0.03 * u }, { x: cx, y: bottomY + 0.016 * u }]), fill: pal.accent, stroke: pal.accent, strokeWidth: 0.014 * u });
+      blushPair(front, cx, bottomY - 0.012 * u, 0.25 * u, u, pal.blush);
+      for (const sx of [-1, 1]) {
+        const fx = sx < 0 ? 0.045 * u : w - 0.045 * u;
+        front.push({ d: ellipseD(fx, h - 0.1 * u, 0.034 * u, 0.075 * u, sx * -14), fill: pal.inner, stroke: pal.dark, strokeWidth: 0.006 * u });
+        front.push({ d: ellipseD(cx + sx * 0.13 * u, h - 0.028 * u, 0.04 * u, 0.018 * u), fill: pal.accent });
+      }
+      break;
+    }
+    case "panda": {
+      // 검정 귀 + 검정 눈 얼룩 + 검정 코 + 검정 앞발(흰 몸통은 옅은 회색 윤곽선으로 구분)
+      outline = "#D3D7DF";
+      for (const sx of [earX, w - earX]) {
+        back.push({ d: circleD(sx, 0.13 * u, 0.115 * u), fill: pal.dark });
+        back.push({ d: circleD(sx, 0.13 * u, 0.115 * u), stroke: "#2B2D34", strokeWidth: 0.004 * u });
+      }
+      for (const sx of [-1, 1]) {
+        front.push({ d: ellipseD(cx + sx * eyeDX, eyeY + 0.004 * u, 0.056 * u, 0.044 * u, sx * 22), fill: pal.dark });
+        front.push({ d: circleD(cx + sx * eyeDX + sx * 0.004 * u, eyeY, 0.017 * u), fill: "#FFFFFF" });
+        front.push({ d: circleD(cx + sx * eyeDX + sx * 0.006 * u, eyeY - 0.004 * u, 0.007 * u), fill: pal.dark });
+      }
+      front.push({ d: ellipseD(cx, bottomY - 0.016 * u, 0.04 * u, 0.028 * u), fill: pal.dark });
+      front.push({
+        d: `M${f(cx)} ${f(bottomY + 0.004 * u)}V${f(bottomY + 0.022 * u)}Q${f(cx - 0.012 * u)} ${f(bottomY + 0.044 * u)} ${f(cx - 0.04 * u)} ${f(bottomY + 0.032 * u)}M${f(cx)} ${f(bottomY + 0.022 * u)}Q${f(cx + 0.012 * u)} ${f(bottomY + 0.044 * u)} ${f(cx + 0.04 * u)} ${f(bottomY + 0.032 * u)}`,
+        stroke: pal.dark,
+        strokeWidth: 0.011 * u,
+      });
+      blushPair(front, cx, bottomY, 0.28 * u, u, pal.blush);
+      for (const sx of [-1, 1]) front.push({ d: ellipseD(sx < 0 ? 0.075 * u : w - 0.075 * u, h - 0.07 * u, 0.06 * u, 0.045 * u), fill: pal.dark });
+      break;
+    }
+    case "fox": {
+      // 뾰족 귀(끝은 어두운 갈색, 안쪽 크림) + 하얀 볼 털 + 하얀 주둥이
+      for (const d of [-1, 1]) {
+        const tipC = d < 0 ? earX : w - earX;
+        const tip = { x: tipC + d * 0.025 * u, y: 0.015 * u };
+        const bL = { x: tipC + d * 0.15 * u, y: m + 0.08 * u };
+        const bR = { x: tipC - d * 0.12 * u, y: m + 0.08 * u };
+        back.push(softTriangle(tip, bL, bR, pal.body, 0.03 * u));
+        back.push(softTriangle({ x: tip.x, y: tip.y + 0.015 * u }, { x: tipC + d * 0.085 * u, y: m + 0.06 * u }, { x: tipC - d * 0.065 * u, y: m + 0.06 * u }, pal.inner, 0.014 * u));
+        // 귀 끝(어두운 갈색)
+        back.push(softTriangle({ x: tip.x, y: tip.y + 0.004 * u }, { x: tip.x + d * 0.045 * u, y: tip.y + 0.07 * u }, { x: tip.x - d * 0.035 * u, y: tip.y + 0.07 * u }, pal.accent, 0.016 * u));
+      }
+      // 볼 털(하얀 삼각 두 개씩, 아래 띠 양끝)
+      for (const sx of [-1, 1]) {
+        const x0 = sx < 0 ? 0 : w;
+        const dir = sx < 0 ? 1 : -1;
+        mid.push({
+          d: polyD([
+            { x: x0, y: h - 0.2 * u },
+            { x: x0 + dir * 0.115 * u, y: h - 0.105 * u },
+            { x: x0 + dir * 0.03 * u, y: h - 0.105 * u },
+            { x: x0 + dir * 0.12 * u, y: h - 0.03 * u },
+            { x: x0, y: h - 0.03 * u },
+          ]),
+          fill: "#FFFFFF",
+          stroke: "#FFFFFF",
+          strokeWidth: 0.012 * u,
+        });
+      }
+      for (const sx of [-1, 1]) {
+        front.push({ d: ellipseD(cx + sx * eyeDX, eyeY, 0.032 * u, 0.024 * u, sx * -14), fill: pal.dark });
+        front.push({ d: circleD(cx + sx * eyeDX + sx * 0.008 * u, eyeY - 0.006 * u, 0.008 * u), fill: "#FFFFFF" });
+      }
+      front.push({ d: ellipseD(cx, bottomY + 0.004 * u, 0.11 * u, 0.056 * u), fill: "#FFFFFF" });
+      front.push({ d: ellipseD(cx, bottomY - 0.022 * u, 0.034 * u, 0.024 * u), fill: pal.dark });
+      front.push({
+        d: `M${f(cx)} ${f(bottomY - 0.002 * u)}V${f(bottomY + 0.016 * u)}Q${f(cx - 0.012 * u)} ${f(bottomY + 0.038 * u)} ${f(cx - 0.036 * u)} ${f(bottomY + 0.028 * u)}M${f(cx)} ${f(bottomY + 0.016 * u)}Q${f(cx + 0.012 * u)} ${f(bottomY + 0.038 * u)} ${f(cx + 0.036 * u)} ${f(bottomY + 0.028 * u)}`,
+        stroke: pal.dark,
+        strokeWidth: 0.01 * u,
+      });
+      break;
+    }
+    case "koala": {
+      // 크고 푹신한 둥근 귀(가장자리에 잔털) + 크고 검은 타원 코
+      for (const sx of [earX, w - earX]) {
+        back.push({ d: fluffyCircleD(sx, 0.15 * u, 0.115 * u, 12, 0.03 * u), fill: pal.body });
+        back.push({ d: fluffyCircleD(sx, 0.15 * u, 0.062 * u, 10, 0.02 * u, 0.3), fill: pal.inner });
+      }
+      for (const sx of [-1, 1]) dotEye(front, cx + sx * eyeDX, eyeY, 0.024 * u, pal.dark);
+      front.push({ d: ellipseD(cx, bottomY, 0.12 * u, 0.062 * u), fill: pal.light });
+      front.push({ d: ellipseD(cx, bottomY - 0.014 * u, 0.044 * u, 0.056 * u), fill: pal.dark });
+      front.push({ d: ellipseD(cx - 0.012 * u, bottomY - 0.03 * u, 0.012 * u, 0.016 * u), fill: "#FFFFFF", opacity: 0.55 });
+      blushPair(front, cx, bottomY, 0.3 * u, u, pal.blush);
+      break;
+    }
+    case "sheep": {
+      // 구름 같은 양털 테두리(둘레를 정수 칸으로) + 위쪽 어두운 얼굴·귀
+      const rr = woolR;
+      const cxr = rr;
+      const ringW = Math.max(1, w - 2 * cxr);
+      const ringH = Math.max(1, h - bodyY - 2 * cxr);
+      const nx = Math.max(4, Math.round(ringW / (1.55 * rr)));
+      const ny = Math.max(4, Math.round(ringH / (1.55 * rr)));
+      for (let i = 0; i <= nx; i++) {
+        extraBodyD += circleD(cxr + (i * ringW) / nx, bodyY + cxr, rr) + circleD(cxr + (i * ringW) / nx, h - cxr, rr);
+      }
+      for (let j = 1; j < ny; j++) {
+        extraBodyD += circleD(cxr, bodyY + cxr + (j * ringH) / ny, rr) + circleD(w - cxr, bodyY + cxr + (j * ringH) / ny, rr);
+      }
+      outline = pal.line;
+      // 얼굴은 위쪽 중앙에 얹고(몸통 위), 귀는 가로로 누운 타원
+      for (const sx of [-1, 1]) {
+        front.push({ d: ellipseD(cx + sx * 0.135 * u, 0.12 * u, 0.062 * u, 0.03 * u, sx * 22), fill: pal.dark });
+      }
+      front.push({ d: ellipseD(cx, 0.115 * u, 0.1 * u, 0.115 * u), fill: pal.dark });
+      front.push({ d: fluffyCircleD(cx, 0.03 * u, 0.045 * u, 7, 0.022 * u), fill: pal.body });
+      for (const sx of [-1, 1]) {
+        front.push({ d: circleD(cx + sx * 0.042 * u, 0.115 * u, 0.019 * u), fill: "#FFFFFF" });
+        front.push({ d: circleD(cx + sx * 0.042 * u, 0.117 * u, 0.009 * u), fill: pal.dark });
+      }
+      front.push({ d: ellipseD(cx, 0.158 * u, 0.026 * u, 0.017 * u), fill: pal.accent });
+      // 아래 띠에는 귀여운 볼터치와 작은 미소
+      front.push({
+        d: `M${f(cx - 0.05 * u)} ${f(bottomY - 0.002 * u)}Q${f(cx)} ${f(bottomY + 0.05 * u)} ${f(cx + 0.05 * u)} ${f(bottomY - 0.002 * u)}`,
+        stroke: pal.dark,
+        strokeWidth: 0.012 * u,
+      });
+      blushPair(front, cx, bottomY - 0.004 * u, 0.2 * u, u, pal.blush);
+      break;
+    }
+    case "elephant": {
+      // 큰 둥근 귀(안쪽 분홍) + 아래로 늘어진 코(감긴 끝) + 하얀 상아
+      for (const sx of [-1, 1]) {
+        const ex = sx < 0 ? 0.15 * u : w - 0.15 * u;
+        back.push({ d: ellipseD(ex, 0.17 * u, 0.145 * u, 0.16 * u), fill: pal.body });
+        back.push({ d: ellipseD(ex, 0.18 * u, 0.09 * u, 0.1 * u), fill: pal.inner });
+      }
+      for (const sx of [-1, 1]) dotEye(front, cx + sx * eyeDX, eyeY, 0.026 * u, pal.dark);
+      blushPair(front, cx, eyeY + 0.03 * u, 0.28 * u, u, pal.blush);
+      // 코: 위 띠 아래(창 아래)에서 아래 띠 가운데로 — 굵은 둥근 선으로 감긴 끝까지
+      const ty = h - bottomBand;
+      front.push({
+        d: `M${f(cx)} ${f(ty + 0.04 * u)}V${f(ty + 0.09 * u)}Q${f(cx)} ${f(ty + 0.142 * u)} ${f(cx + 0.04 * u)} ${f(ty + 0.136 * u)}Q${f(cx + 0.066 * u)} ${f(ty + 0.13 * u)} ${f(cx + 0.058 * u)} ${f(ty + 0.106 * u)}`,
+        stroke: "#9CB4D8",
+        strokeWidth: 0.06 * u,
+      });
+      front.push({ d: `M${f(cx - 0.008 * u)} ${f(ty + 0.05 * u)}V${f(ty + 0.09 * u)}`, stroke: pal.light, strokeWidth: 0.01 * u, opacity: 0.8 });
+      for (const sx of [-1, 1]) {
+        front.push({ d: polyD([{ x: cx + sx * 0.075 * u, y: ty + 0.045 * u }, { x: cx + sx * 0.12 * u, y: ty + 0.125 * u }, { x: cx + sx * 0.09 * u, y: ty + 0.125 * u }]), fill: "#FFFFFF", stroke: "#FFFFFF", strokeWidth: 0.01 * u });
+      }
+      break;
+    }
+    case "raccoon": {
+      // 둥근 귀(끝 하얀색) + 눈을 가로지르는 어두운 마스크 + 하얀 주둥이
+      for (const sx of [earX, w - earX]) {
+        back.push({ d: circleD(sx, 0.13 * u, 0.105 * u), fill: pal.dark });
+        back.push({ d: circleD(sx, 0.135 * u, 0.058 * u), fill: pal.inner });
+      }
+      mid.push({
+        d: `M${f(cx - 0.34 * u)} ${f(eyeY)}Q${f(cx - 0.3 * u)} ${f(eyeY - 0.058 * u)} ${f(cx - 0.1 * u)} ${f(eyeY - 0.04 * u)}Q${f(cx)} ${f(eyeY - 0.015 * u)} ${f(cx + 0.1 * u)} ${f(eyeY - 0.04 * u)}Q${f(cx + 0.3 * u)} ${f(eyeY - 0.058 * u)} ${f(cx + 0.34 * u)} ${f(eyeY)}Q${f(cx + 0.3 * u)} ${f(eyeY + 0.06 * u)} ${f(cx + 0.1 * u)} ${f(eyeY + 0.042 * u)}Q${f(cx)} ${f(eyeY + 0.02 * u)} ${f(cx - 0.1 * u)} ${f(eyeY + 0.042 * u)}Q${f(cx - 0.3 * u)} ${f(eyeY + 0.06 * u)} ${f(cx - 0.34 * u)} ${f(eyeY)}Z`,
+        fill: pal.dark,
+      });
+      for (const sx of [-1, 1]) {
+        front.push({ d: circleD(cx + sx * eyeDX, eyeY, 0.026 * u), fill: "#FFFFFF" });
+        front.push({ d: circleD(cx + sx * eyeDX + sx * 0.003 * u, eyeY + 0.002 * u, 0.014 * u), fill: pal.dark });
+      }
+      front.push({ d: ellipseD(cx, bottomY, 0.12 * u, 0.062 * u), fill: "#FFFFFF" });
+      front.push({ d: ellipseD(cx, bottomY - 0.018 * u, 0.036 * u, 0.026 * u), fill: pal.dark });
+      front.push({
+        d: `M${f(cx)} ${f(bottomY + 0.002 * u)}V${f(bottomY + 0.018 * u)}Q${f(cx - 0.012 * u)} ${f(bottomY + 0.04 * u)} ${f(cx - 0.038 * u)} ${f(bottomY + 0.03 * u)}M${f(cx)} ${f(bottomY + 0.018 * u)}Q${f(cx + 0.012 * u)} ${f(bottomY + 0.04 * u)} ${f(cx + 0.038 * u)} ${f(bottomY + 0.03 * u)}`,
+        stroke: pal.dark,
+        strokeWidth: 0.01 * u,
+      });
+      for (const sx of [-1, 1]) {
+        // 볼 털
+        mid.push({ d: ellipseD(sx < 0 ? 0.075 * u : w - 0.075 * u, h - 0.075 * u, 0.062 * u, 0.045 * u), fill: "#FFFFFF" });
+      }
+      break;
+    }
+  }
+
+  const bodyPrims: DecorPrim[] = [
+    { d: bodyOuterD + winD, fill: bodyFill, fillRule: "evenodd" },
+  ];
+  if (extraBodyD) bodyPrims.push({ d: extraBodyD, fill: bodyFill });
+  if (outline) {
+    bodyPrims.push({ d: bodyOuterD, stroke: outline, strokeWidth: 0.01 * u });
+    if (extraBodyD) bodyPrims.push({ d: extraBodyD, stroke: outline, strokeWidth: 0.007 * u });
+    // 윤곽선이 안쪽 구름 둥글림을 가리지 않게, 몸통을 한 번 더 덮어 안쪽 선을 지워요
+    bodyPrims.push({ d: bodyOuterD + winD, fill: bodyFill, fillRule: "evenodd" });
+    if (extraBodyD) bodyPrims.push({ d: extraBodyD, fill: bodyFill });
+  }
+  bodyPrims.push({ d: winD, stroke: pal.line, strokeWidth: 0.012 * u });
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [{ prims: back }, { prims: bodyPrims }, { clipD: bodyOuterD, prims: mid }, { prims: front }],
+  };
+}
+
 // ---- 공개 함수 ----
 
 // 종류/색상/박스 크기(px) → 그림 설계도. 인식 못 하는 종류면 null이에요(옛 문서 안전).
@@ -671,6 +1056,17 @@ export function buildFrameDecorLayout(
       return buildCharacter(decor, v, w, h);
     case "wreath":
       return buildWreath(w, h);
+    case "dog":
+    case "chick":
+    case "tiger":
+    case "penguin":
+    case "panda":
+    case "fox":
+    case "koala":
+    case "sheep":
+    case "elephant":
+    case "raccoon":
+      return buildAnimal(decor, w, h);
     default:
       return null;
   }
