@@ -11206,6 +11206,127 @@ function renderPage(
   );
 }
 
+// ---- 공통 편집 명령바(2026-11, 19번째 라운드) ----
+// 캔버스 바로 위(속성 패널 오른쪽 경계에서 시작)에 붙는 얇은 가로 명령바예요. 사진·텍스트가
+// 선택돼 있지 않아도 항상 같은 자리에 보이고, 지금 할 수 없는 명령은 비활성(흐리게)이에요.
+type EditCommandIconName = "undo" | "redo" | "copy" | "cut" | "paste" | "center" | "relayout";
+type EditCommandItem = {
+  id: string;
+  label: string;
+  icon: EditCommandIconName;
+  title: string;
+  disabled: boolean;
+  onClick: () => void;
+};
+type BarImageWhere = { scope: "spread"; spreadIndex: number } | { scope: "cover"; target: "front" | "back" };
+type BarSelection =
+  | { kind: "text"; ref: TextBoxRef; box: TextBoxDef }
+  | { kind: "image"; box: ImageBoxDef; where: BarImageWhere };
+// 복사/잘라내기로 담아둔 요소예요(텍스트박스 또는 사진·스티커 박스 하나).
+type EditClipboardItem =
+  | { kind: "text"; box: TextBoxDef; ref: TextBoxRef }
+  | { kind: "image"; box: ImageBoxDef; where: BarImageWhere };
+
+function EditCommandIcon({ name }: { name: EditCommandIconName }) {
+  const common = {
+    width: 14,
+    height: 14,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+    className: "shrink-0",
+  };
+  switch (name) {
+    case "undo":
+      return (
+        <svg {...common}>
+          <path d="M9 14 4 9l5-5" />
+          <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+        </svg>
+      );
+    case "redo":
+      return (
+        <svg {...common}>
+          <path d="m15 14 5-5-5-5" />
+          <path d="M20 9H10a6 6 0 0 0 0 12h3" />
+        </svg>
+      );
+    case "copy":
+      return (
+        <svg {...common}>
+          <rect x="9" y="9" width="11" height="11" rx="1.5" />
+          <path d="M5 15V5a1 1 0 0 1 1-1h10" />
+        </svg>
+      );
+    case "cut":
+      return (
+        <svg {...common}>
+          <circle cx="6" cy="6" r="3" />
+          <circle cx="6" cy="18" r="3" />
+          <path d="M20 4 8.1 15.9" />
+          <path d="M14.5 14.5 20 20" />
+          <path d="M8.1 8.1 12 12" />
+        </svg>
+      );
+    case "paste":
+      return (
+        <svg {...common}>
+          <rect x="8" y="2" width="8" height="4" rx="1" />
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+        </svg>
+      );
+    case "center":
+      return (
+        <svg {...common}>
+          <path d="M12 3v18" />
+          <path d="M3 12h18" />
+          <rect x="7" y="7" width="10" height="10" rx="1" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+        </svg>
+      );
+  }
+}
+
+function EditCommandBar({ items }: { items: EditCommandItem[] }) {
+  return (
+    <div
+      role="toolbar"
+      aria-label="편집 명령"
+      data-testid="edit-command-bar"
+      // 캔버스 바깥 영역의 mousedown(선택 해제)이 이 바에서는 일어나지 않게 막아요 — 안 그러면
+      // 버튼을 누르기 직전에 선택이 풀려서 복사/잘라내기/중앙맞춤이 대상을 못 찾아요.
+      onMouseDown={(e) => e.stopPropagation()}
+      className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 lg:-ml-2"
+    >
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          title={it.title}
+          disabled={it.disabled}
+          onClick={it.onClick}
+          className="flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+        >
+          <EditCommandIcon name={it.icon} />
+          <span>{it.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // 편집 캔버스(표지/소개 페이지/스프레드)를 실제 사용 가능한 화면 크기에 맞춰 보여주는
 // 공용 "무대"예요. 2026-09 화면 배치 개편 — 예전엔 캔버스가 그냥 남는 가로 폭을 꽉 채우고
 // 세로는 그 폭에 비례해서 자동으로 정해지는 방식이라, 모니터가 넓을수록 세로가 커져서
@@ -14074,6 +14195,13 @@ function UploadPageContent() {
   const historyDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const HISTORY_DEBOUNCE_MS = 500;
   const copiedTextBoxRef = useRef<TextBoxDef | null>(null);
+  // 명령바(복사/잘라내기/붙여넣기)가 쓰는 클립보드예요 — 화면에 "붙여넣기" 활성/비활성을
+  // 보여줘야 해서 ref가 아니라 state로 들고 있어요(텍스트박스는 위 copiedTextBoxRef와 같은
+  // 값을 같이 유지해서 기존 패널 버튼/Ctrl+C·V와 어긋나지 않아요).
+  const [editClipboard, setEditClipboard] = useState<EditClipboardItem | null>(null);
+  // 실행취소/다시실행 스택은 ref라 바뀌어도 화면이 안 그려져서, 명령바 버튼의 활성 여부는
+  // 이 state로 따로 맞춰 둬요(syncHistoryAvail).
+  const [historyAvail, setHistoryAvail] = useState({ undo: false, redo: false });
   const HISTORY_LIMIT = 60;
 
   // 디바운스 중(=아직 실행취소 스택에 안 쌓인) 변화가 있으면 지금 바로 하나로 묶어
@@ -14090,6 +14218,13 @@ function UploadPageContent() {
       redoStackRef.current = [];
       burstBaseSnapshotRef.current = null;
     }
+    syncHistoryAvail();
+  }
+
+  function syncHistoryAvail() {
+    const undo = undoStackRef.current.length > 0 || burstBaseSnapshotRef.current !== null;
+    const redo = redoStackRef.current.length > 0;
+    setHistoryAvail((prev) => (prev.undo === undo && prev.redo === redo ? prev : { undo, redo }));
   }
 
   function buildHistorySnapshot() {
@@ -14320,6 +14455,8 @@ function UploadPageContent() {
       // 조용) 그때 한 번만 실행취소 스택에 쌓여요 — 드래그 하나 = 실행취소 한 단계.
       if (burstBaseSnapshotRef.current === null) {
         burstBaseSnapshotRef.current = lastHistorySnapshotRef.current;
+        // 묶음이 막 시작됐으니(아직 스택엔 안 쌓임) 실행취소 버튼을 바로 켜줘요.
+        setTimeout(syncHistoryAvail, 0);
       }
       if (historyDebounceTimerRef.current) clearTimeout(historyDebounceTimerRef.current);
       historyDebounceTimerRef.current = setTimeout(() => {
@@ -14424,6 +14561,7 @@ function UploadPageContent() {
     if (prevSnap === undefined) return;
     const current = lastHistorySnapshotRef.current ?? buildHistorySnapshot();
     redoStackRef.current.push(current);
+    syncHistoryAvail();
     restoreHistorySnapshot(prevSnap);
   }
 
@@ -14433,6 +14571,7 @@ function UploadPageContent() {
     if (nextSnap === undefined) return;
     const current = lastHistorySnapshotRef.current ?? buildHistorySnapshot();
     undoStackRef.current.push(current);
+    syncHistoryAvail();
     restoreHistorySnapshot(nextSnap);
   }
 
@@ -14455,6 +14594,7 @@ function UploadPageContent() {
   function handleCopyActiveTextBox() {
     if (!activeTextBoxDef) return;
     copiedTextBoxRef.current = activeTextBoxDef;
+    if (activeTextBox) setEditClipboard({ kind: "text", box: activeTextBoxDef, ref: activeTextBox.ref });
   }
 
   function handlePasteTextBox() {
@@ -14467,6 +14607,234 @@ function UploadPageContent() {
       yPct: Math.min(90, copied.yPct + 3),
     };
     addTextBoxToRef(activeTextBox.ref, box);
+  }
+
+  // ---- 공통 편집 명령바 핸들러(2026-11, 19번째 라운드) ----
+  // 지금 "이 화면(페이지)에서" 선택돼 있는 요소 하나를 돌려줘요 — 텍스트박스(표지/뒤표지/내지)
+  // 또는 사진·스티커 박스(내지/앞표지/뒤표지). 다른 페이지에 남아있는 옛 선택은 무시해요.
+  function getBarSelection(): BarSelection | null {
+    if (activeTextBox && activeTextBoxDef) {
+      const r = activeTextBox.ref;
+      const onPage = r.scope === "spread" ? r.spreadIndex === selectedPageKey : selectedPageKey === "cover";
+      if (onPage) return { kind: "text", ref: r, box: activeTextBoxDef };
+    }
+    if (typeof selectedPageKey === "number" && activeImageBox && activeImageBox.spreadIndex === selectedPageKey) {
+      const box = customSpreads[selectedPageKey]?.imageBoxes?.find((b) => b.id === activeImageBox.boxId);
+      if (box) return { kind: "image", box, where: { scope: "spread", spreadIndex: selectedPageKey } };
+    }
+    if (selectedPageKey === "cover" && activeCoverImageBox) {
+      const list = activeCoverImageBox.target === "back" ? backCoverImageBoxes : coverImageBoxes;
+      const box = list.find((b) => b.id === activeCoverImageBox.boxId);
+      if (box) return { kind: "image", box, where: { scope: "cover", target: activeCoverImageBox.target } };
+    }
+    return null;
+  }
+
+  // 붙여넣기 대상 자리예요 — 텍스트는 지금 선택된 텍스트박스가 있는 곳(기존 Ctrl+V와 같은
+  // 규칙), 없으면 지금 보는 페이지. 사진박스는 같은 종류의 페이지(내지 ↔ 내지, 표지 ↔
+  // 표지)에만 붙여요(내지는 펼침면 전체 좌표, 표지는 앞/뒤표지 각각의 좌표라 서로 달라요).
+  function getBarPasteTarget():
+    | { kind: "text"; ref: TextBoxRef }
+    | { kind: "image"; where: BarImageWhere }
+    | null {
+    const clip = editClipboard;
+    if (!clip) return null;
+    if (clip.kind === "text") {
+      if (activeTextBox) {
+        const r = activeTextBox.ref;
+        const onPage = r.scope === "spread" ? r.spreadIndex === selectedPageKey : selectedPageKey === "cover";
+        if (onPage) return { kind: "text", ref: r };
+      }
+      if (typeof selectedPageKey === "number") {
+        return {
+          kind: "text",
+          ref: { scope: "spread", spreadIndex: selectedPageKey, side: clip.ref.scope === "spread" ? clip.ref.side : "right" },
+        };
+      }
+      if (selectedPageKey === "cover") {
+        return { kind: "text", ref: clip.ref.scope === "backCover" ? { scope: "backCover" } : { scope: "cover" } };
+      }
+      return null;
+    }
+    if (typeof selectedPageKey === "number" && clip.where.scope === "spread") {
+      return { kind: "image", where: { scope: "spread", spreadIndex: selectedPageKey } };
+    }
+    if (selectedPageKey === "cover" && clip.where.scope === "cover") {
+      return { kind: "image", where: { scope: "cover", target: clip.where.target } };
+    }
+    return null;
+  }
+
+  function handleBarCopy(): boolean {
+    const sel = getBarSelection();
+    if (!sel) return false;
+    if (sel.kind === "text") {
+      copiedTextBoxRef.current = sel.box;
+      setEditClipboard({ kind: "text", box: sel.box, ref: sel.ref });
+    } else {
+      // 사진/스티커를 담으면 텍스트 전용 패널 붙여넣기 버튼은 예전 텍스트를 붙이지 않게 비워요.
+      copiedTextBoxRef.current = null;
+      setEditClipboard({ kind: "image", box: sel.box, where: sel.where });
+    }
+    return true;
+  }
+
+  // 잘라내기 = 복사 + 기존 삭제 경로 그대로. 사진박스는 "사진 보관함에서도 지우는" 내지
+  // handleDeleteImageBox(AI 맞춤 레이아웃에선 photos 목록에서 사진까지 지워요)를 쓰지 않고,
+  // 박스만 지워요 — 잘라낸 박스를 다시 붙여넣을 수 있어야 해서 원본 사진은 보관함에 남겨요.
+  function handleBarCut() {
+    const sel = getBarSelection();
+    if (!sel) return;
+    handleBarCopy();
+    if (sel.kind === "text") {
+      deleteTextBoxByRef(sel.ref, sel.box.id);
+    } else if (sel.where.scope === "cover") {
+      if (sel.where.target === "back") handleDeleteBackCoverImageBox(sel.box.id);
+      else handleDeleteCoverImageBox(sel.box.id);
+    } else {
+      const spreadIndex = sel.where.spreadIndex;
+      const boxId = sel.box.id;
+      setCustomSpreads((prev) =>
+        prev.map((sp, i) =>
+          i === spreadIndex
+            ? {
+                ...sp,
+                imageBoxes: (sp.imageBoxes ?? []).filter((b) => b.id !== boxId),
+                imageBoxOrder: getSpreadImageBoxOrder(sp).filter((id) => id !== boxId),
+              }
+            : sp
+        )
+      );
+      setActiveImageBox(null);
+    }
+  }
+
+  function handleBarPaste() {
+    const clip = editClipboard;
+    const target = getBarPasteTarget();
+    if (!clip || !target) return;
+    if (clip.kind === "text" && target.kind === "text") {
+      // 기존 handlePasteTextBox와 같은 규칙(+3% 어긋나게, 새 id)이에요.
+      const box: TextBoxDef = {
+        ...clip.box,
+        id: crypto.randomUUID(),
+        xPct: Math.min(90, clip.box.xPct + 3),
+        yPct: Math.min(90, clip.box.yPct + 3),
+      };
+      addTextBoxToRef(target.ref, box);
+      // 이어서 또 붙이면 계속 조금씩 어긋나게 쌓이도록 방금 붙인 박스를 다음 기준으로 삼아요.
+      copiedTextBoxRef.current = box;
+      setEditClipboard({ kind: "text", box, ref: target.ref });
+      return;
+    }
+    if (clip.kind === "image" && target.kind === "image") {
+      // 기존 Ctrl+Alt+D(handleDuplicateActiveImageBox)와 같은 규칙(+4% 어긋나게, 새 id)이에요.
+      const box: ImageBoxDef = {
+        ...clip.box,
+        id: crypto.randomUUID(),
+        xPct: Math.max(0, Math.min(96 - clip.box.widthPct, clip.box.xPct + 4)),
+        yPct: Math.max(0, Math.min(96 - clip.box.heightPct, clip.box.yPct + 4)),
+      };
+      if (target.where.scope === "spread") {
+        const spreadIndex = target.where.spreadIndex;
+        setCustomSpreads((prev) =>
+          prev.map((sp, i) => (i === spreadIndex ? { ...sp, imageBoxes: [...(sp.imageBoxes ?? []), box] } : sp))
+        );
+        selectImageBox(spreadIndex, box.id, box);
+      } else {
+        if (target.where.target === "back") setBackCoverImageBoxes((prev) => [...prev, box]);
+        else setCoverImageBoxes((prev) => [...prev, box]);
+        selectCoverImageBox(target.where.target, box.id, box);
+      }
+      setEditClipboard({ kind: "image", box, where: target.where });
+    }
+  }
+
+  // 중앙맞춤이 지금 무엇에 적용되는지 알려줘요.
+  //  - 사진 여러 개 / 텍스트 여러 개 / 사진+텍스트 섞음(2개 이상 선택): 기존 정렬 툴바의
+  //    "가운데 정렬(가로)" + "가운데 정렬(세로)"을 둘 다 적용 — 선택한 것들의 공통 영역 기준
+  //  - 하나만 선택: (이번에 새로 만든 부분) 그 요소가 놓인 페이지 정중앙으로 옮겨요
+  function getBarCenterMode(): "image" | "text" | "mixed" | "single-text" | "single-image" | null {
+    if (typeof selectedPageKey === "number") {
+      const kind = spreadMultiSelectionKind(selectedPageKey);
+      if (kind !== "none") return kind;
+    } else if (
+      selectedPageKey === "cover" &&
+      multiTextSelection &&
+      multiTextSelection.ref.scope !== "spread" &&
+      multiTextSelection.boxIds.length >= 2
+    ) {
+      return "text";
+    }
+    const sel = getBarSelection();
+    if (!sel) return null;
+    return sel.kind === "text" ? "single-text" : "single-image";
+  }
+
+  function handleBarCenter() {
+    const mode = getBarCenterMode();
+    if (!mode) return;
+    if (mode === "image") {
+      alignMultiImageBoxes("hcenter");
+      alignMultiImageBoxes("vmiddle");
+    } else if (mode === "text") {
+      alignMultiTextBoxes("hcenter");
+      alignMultiTextBoxes("vmiddle");
+    } else if (mode === "mixed") {
+      if (typeof selectedPageKey !== "number") return;
+      alignCombinedSelection(selectedPageKey, "hcenter");
+      alignCombinedSelection(selectedPageKey, "vmiddle");
+    } else {
+      const sel = getBarSelection();
+      if (!sel) return;
+      if (sel.kind === "text") {
+        // 텍스트박스는 낱장(페이지) 기준 0~100% 좌표예요. 높이가 "자동"인 박스는 세로 위치를
+        // 알 수 없어서(기존 정렬과 같은 규칙) 가로만 맞춰요.
+        const changes: Partial<TextBoxDef> = { xPct: (100 - sel.box.widthPct) / 2 };
+        if (sel.box.heightPct !== undefined) changes.yPct = (100 - sel.box.heightPct) / 2;
+        updateTextBoxByRef(sel.ref, sel.box.id, changes);
+      } else if (sel.where.scope === "cover") {
+        const changes: Partial<ImageBoxDef> = {
+          xPct: (100 - sel.box.widthPct) / 2,
+          yPct: (100 - sel.box.heightPct) / 2,
+        };
+        if (sel.where.target === "back") handleBackCoverImageBoxChange(sel.box.id, changes);
+        else handleCoverImageBoxChange(sel.box.id, changes);
+      } else {
+        // 내지 사진박스는 펼침면 전체 기준 좌표예요: 중심이 왼쪽/오른쪽 페이지 중 어디에 있는지로
+        // 페이지를 고르고(첫 펼침면은 오른쪽만 인쇄돼서 항상 오른쪽), 한 페이지보다 넓은 박스는
+        // 펼침면 정중앙에 맞춰요.
+        const b = sel.box;
+        const onRight = sel.where.spreadIndex === 0 ? true : b.xPct + b.widthPct / 2 >= 50;
+        const xPct = b.widthPct > 50 ? (100 - b.widthPct) / 2 : (onRight ? 50 : 0) + (50 - b.widthPct) / 2;
+        handleImageBoxChange(sel.where.spreadIndex, b.id, { xPct, yPct: (100 - b.heightPct) / 2 });
+      }
+    }
+  }
+
+  // 재배치하기 — 편집 중 페이지에 사진을 다시 배치하는 "레이아웃" 패널(템플릿을 고르면
+  // applyLayoutTemplate / applyCoverLayoutTemplate이 기존 규칙대로 안전영역 안에 사진을
+  // 재배치)을 바로 열어줘요. 따로 "한 번에 재배치" 함수는 원래 없어서 새 배치 로직은 만들지
+  // 않았어요.
+  function canBarRelayout() {
+    return selectedPageKey === "cover" || (typeof selectedPageKey === "number" && isAiAuto);
+  }
+  function handleBarRelayout() {
+    if (selectedPageKey === "cover") setActiveCoverEditTab("layout");
+    else if (typeof selectedPageKey === "number" && isAiAuto) setActiveEditTab("layout");
+  }
+
+  function buildEditCommandItems(): EditCommandItem[] {
+    const sel = getBarSelection();
+    return [
+      { id: "undo", label: "실행취소", icon: "undo", title: "실행취소 (Ctrl+Z)", disabled: !historyAvail.undo, onClick: handleUndo },
+      { id: "redo", label: "재실행", icon: "redo", title: "재실행 (Ctrl+Shift+Z)", disabled: !historyAvail.redo, onClick: handleRedo },
+      { id: "copy", label: "복사하기", icon: "copy", title: "복사하기 (Ctrl+C) — 선택한 텍스트·사진·스티커 하나", disabled: !sel, onClick: () => void handleBarCopy() },
+      { id: "cut", label: "잘라내기", icon: "cut", title: "잘라내기 (Ctrl+X) — 선택한 텍스트·사진·스티커 하나", disabled: !sel, onClick: handleBarCut },
+      { id: "paste", label: "붙여넣기", icon: "paste", title: "붙여넣기 (Ctrl+V)", disabled: !getBarPasteTarget(), onClick: handleBarPaste },
+      { id: "center", label: "중앙맞춤", icon: "center", title: "중앙맞춤 — 하나 선택: 페이지 정중앙 / 여러 개 선택: 선택한 것들의 가운데로", disabled: !getBarCenterMode(), onClick: handleBarCenter },
+      { id: "relayout", label: "재배치하기", icon: "relayout", title: "재배치하기 — 레이아웃 패널을 열어 사진을 다시 배치해요", disabled: !canBarRelayout(), onClick: handleBarRelayout },
+    ];
   }
 
   function handleZoomIn() {
@@ -14594,13 +14962,16 @@ function UploadPageContent() {
         handleRedo();
       } else if (key === "c") {
         e.preventDefault();
-        handleCopyActiveTextBox();
+        handleBarCopy();
+      } else if (key === "x") {
+        e.preventDefault();
+        handleBarCut();
       } else if (key === "d" && e.altKey && activeImageBox) {
         e.preventDefault();
         handleDuplicateActiveImageBox(e.shiftKey);
       } else if (key === "v") {
         e.preventDefault();
-        handlePasteTextBox();
+        handleBarPaste();
       } else if (key === "=" || key === "+") {
         e.preventDefault();
         handleZoomIn();
@@ -14615,7 +14986,21 @@ function UploadPageContent() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTextBoxDef, activeTextBox, activeImageBox, activeTableBox, tableCellSel]);
+  }, [
+    activeTextBoxDef,
+    activeTextBox,
+    activeImageBox,
+    activeTableBox,
+    tableCellSel,
+    activeCoverImageBox,
+    selectedPageKey,
+    editClipboard,
+    customSpreads,
+    coverImageBoxes,
+    backCoverImageBoxes,
+  ]);
+
+  const editCommandItems = buildEditCommandItems();
 
   async function uploadPhotoToStorage(photo: Photo): Promise<string> {
     const blob = await fetch(photo.url).then((res) => res.blob());
@@ -15675,24 +16060,6 @@ function UploadPageContent() {
                     않고도 미리보기로 돌아갈 수 있어야 해서, 같은 자리에 작은 "완료" 버튼만
                     남겨뒀어요(편집 중일 때만 보임). */}
               <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                <div className="flex h-8 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={handleUndo}
-                    title="실행취소 (Ctrl+Z)"
-                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                  >
-                    ↶
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRedo}
-                    title="다시실행 (Ctrl+Shift+Z)"
-                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                  >
-                    ↷
-                  </button>
-                </div>
                 {editorMode === "preview" && (
                   <button
                     type="button"
@@ -16697,6 +17064,8 @@ function UploadPageContent() {
                           )}
                         </div>
                         )}
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
                         <CanvasStage
                           aspect={coverTotalWmm / coverTotalHmm}
                           zoom={canvasZoom}
@@ -17047,6 +17416,7 @@ function UploadPageContent() {
                               확인하면 돼요). 책등 경계는 위 패널 테두리(항상 표시)만으로 보여줘요. */}
                         </div>
                         </CanvasStage>
+                        </div>
                       </div>
                     </div>
                   ) : selectedPageKey === "intro" ? (
@@ -17521,6 +17891,8 @@ function UploadPageContent() {
                               </div>
                             </div>
                             )}
+                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                            {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
                             <CanvasStage
                               aspect={guideSpreadWorkMm / guidePageWorkMm}
                               zoom={canvasZoom}
@@ -17843,6 +18215,7 @@ function UploadPageContent() {
                               </div>
                               </div>
                             </CanvasStage>
+                            </div>
                           </div>
                         </div>
                       );
