@@ -574,17 +574,72 @@ export function scallopedCirclePoints(): PerimeterPoint[] {
   return polarLoopPoints(0, 0, (t) => BASE + AMP * Math.cos(BUMPS * t), BUMPS * 24);
 }
 
-// "꽃잎" 느낌의 스캘럽 타원 — 톱니 개수를 11개로 줄이고 진폭을 훨씬 크게 키워서,
-// 작은 톱니가 아니라 둥글넓적한 꽃잎 10~12장처럼 보이게 했어요(레퍼런스의 핑크
-// 꽃모양 프레임). 화면/인쇄에서 실제로는 이 외곽선 → 살짝 작은 두 번째 원(테두리
-// 색상 링, 기존 borderWidthPx/borderColor로 이미 되는 기능) → 사진(더 작은 원,
-// borderRadiusPct=50) 3겹을 합쳐서 써야 레퍼런스와 같은 "꽃+링+사진" 느낌이 나요 —
-// 이 함수는 그중 가장 바깥 꽃잎 윤곽선만 담당해요.
-export function scallopedOvalPetalPoints(): PerimeterPoint[] {
-  const PETALS = 11;
-  const AMP = 0.17;
-  const BASE = 0.8;
-  return polarLoopPoints(0, 0, (t) => BASE + AMP * Math.cos(PETALS * t), PETALS * 28);
+// "꽃잎" — 레퍼런스의 주황 꽃 실루엣처럼 "넓고 끝이 둥근 꽃잎 8장이 큰 동그란 가운데를 둘러싼" 모양이에요.
+// 둥근 꽃잎 원 8개(중심에서 PETAL_DIST만큼 떨어진 곳, 반지름 PETAL_R)와 가운데 큰 원(CENTER_R)을 "부드러운
+// 합집합"(구름과 같은 smooth-min)으로 합쳤어요 → 꽃잎 끝은 넓은 원호이고, 꽃잎 사이 골은 깊이 파이지 않고
+// (골 반지름 ≈ 꽃잎 끝의 84%) 둥글게 이어져요. 가운데 사진 자리는 꽃잎 끝 반지름의 약 85% — 아주 넓어요.
+// 꽃잎 개수는 8장 고정이고, 박스가 가로/세로로 길어도 꽃을 억지로 늘리지 않아요(구름과 같은 방식): 꽃의 고유
+// 비율(정원)을 지킨 채 박스 가운데에 "맞춰 넣어요"(짧은 변 기준 contain-fit) → 꽃잎이 찌그러지지 않아요.
+// 박스 위치·크기·회전·사진 자르기 값은 그대로이고, 사진은 꽃 모양 안쪽에만 보여요. 화면(clip-path)·테두리·무늬·
+// 페이드·인쇄·목록 썸네일이 모두 이 함수(framePerimeterPoints → finishOutline)의 같은 윤곽선을 써요.
+const PETAL_COUNT = 8;
+const PETAL_DIST = 0.66;
+const PETAL_R = 0.35;
+const PETAL_CENTER_R = 0.5;
+const PETAL_SOFT_JOIN = 0.07;
+let petalBase: UPt[] | null = null;
+const petalCache = new Map<string, PerimeterPoint[]>();
+
+function petalField(x: number, y: number): number {
+  const k = PETAL_SOFT_JOIN;
+  let v = Math.hypot(x, y) - PETAL_CENTER_R;
+  for (let i = 0; i < PETAL_COUNT; i++) {
+    const a = -Math.PI / 2 + (i / PETAL_COUNT) * Math.PI * 2; // 첫 꽃잎이 위쪽
+    const d = Math.hypot(x - PETAL_DIST * Math.cos(a), y - PETAL_DIST * Math.sin(a)) - PETAL_R;
+    const h = Math.max(k - Math.abs(v - d), 0) / k;
+    v = Math.min(v, d) - h * h * k * 0.25;
+  }
+  return v;
+}
+
+function petalBaseOutline(): UPt[] {
+  if (petalBase) return petalBase;
+  const N = 720;
+  const raw: UPt[] = [];
+  let rmax = 0;
+  for (let i = 0; i < N; i++) {
+    const t = (i / N) * Math.PI * 2;
+    const c = Math.cos(t);
+    const sn = Math.sin(t);
+    let lo = 0.2; // 안쪽(가운데 원 안) — 항상 음수
+    let hi = 1.4; // 바깥 — 항상 양수
+    for (let it = 0; it < 40; it++) {
+      const mid = (lo + hi) / 2;
+      if (petalField(mid * c, mid * sn) < 0) lo = mid;
+      else hi = mid;
+    }
+    const r = (lo + hi) / 2;
+    rmax = Math.max(rmax, r);
+    raw.push({ x: r * c, y: r * sn });
+  }
+  petalBase = raw.map((p) => ({ x: p.x / rmax, y: p.y / rmax }));
+  return petalBase;
+}
+
+export function flowerPetalPoints(aspect: number = 1): PerimeterPoint[] {
+  const key = (Math.round((aspect || 1) * 1000) / 1000).toString();
+  const hit = petalCache.get(key);
+  if (hit) return hit.map((p) => ({ ...p }));
+  const { W, H } = aspectDims(aspect);
+  const m = 0.006; // 박스 가장자리 여백(짧은 변 대비)
+  const s = Math.min(W, H) / 2 - m;
+  const res = uToPct(
+    petalBaseOutline().map((p) => ({ x: W / 2 + p.x * s, y: H / 2 + p.y * s })),
+    W,
+    H
+  );
+  petalCache.set(key, res.map((p) => ({ ...p })));
+  return res;
 }
 
 // "낙서/루프 스크리블" 느낌의 불규칙 스캘럽 — 서로 배수가 아닌 두 물결(5개의 큰
@@ -969,7 +1024,7 @@ export function framePerimeterPoints(
     case "scallopedCircle":
       return finishOutline(scallopedCirclePoints(), aspect, 0.012, false);
     case "flowerPetal":
-      return finishOutline(scallopedOvalPetalPoints(), aspect, 0.012, false);
+      return finishOutline(flowerPetalPoints(aspect), aspect, 0.008, false);
     case "organicScallop":
       return finishOutline(organicScallopedBlobPoints(), aspect, 0.012, false);
     case "cloud":
