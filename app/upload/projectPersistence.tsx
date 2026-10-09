@@ -67,6 +67,7 @@ export function useProjectPersistence(opts: Options) {
   );
   const savedKeyRef = useRef<string | null>(null);
   const baselineReadyRef = useRef(false);
+  const lastSeenKeyRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
   const savingCountRef = useRef(0);
@@ -210,6 +211,9 @@ export function useProjectPersistence(opts: Options) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.enabled]);
 
+  const markClean = () => {
+    if (savingCountRef.current === 0) setPhase((p) => (p === "dirty" ? "saved" : p));
+  };
   const markDirty = () => {
     if (savingCountRef.current === 0) setPhase("dirty");
   };
@@ -223,9 +227,21 @@ export function useProjectPersistence(opts: Options) {
       // 처음 "준비됨" 상태의 내용(불러온 작업이면 복원된 내용)을 기준으로 삼아요.
       baselineReadyRef.current = true;
       savedKeyRef.current = key;
+      lastSeenKeyRef.current = key;
       return;
     }
-    if (key === savedKeyRef.current) return;
+    // 렌더마다 도는 효과라서, "새로 바뀐 내용"일 때만 반응해요(저장 실패 표시가 매 렌더 덮이지 않게).
+    if (key === lastSeenKeyRef.current) return;
+    lastSeenKeyRef.current = key;
+    if (key === savedKeyRef.current) {
+      // 바꿨다가 저장된 상태로 되돌린 경우(예: 실행취소) — 더 저장할 게 없어요.
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+        markClean();
+      }
+      return;
+    }
     prefetchBlobUrls(key);
     markDirty();
     if (timerRef.current) clearTimeout(timerRef.current);
