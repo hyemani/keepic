@@ -21,7 +21,7 @@ import {
 } from "@/lib/textRuns";
 import { computeImageBoxCoverRect, expandCoverRectForBleed } from "@/lib/imageBoxGeometry";
 import {
-  borderPatternLayout,
+  frameBorderMarks,
   BORDER_PATTERN_BAND_ALPHA,
   starShapePoints,
   heartShapePoints,
@@ -185,10 +185,17 @@ function drawBorderPattern(
   w: number,
   h: number,
   bandPx: number,
-  box: Pick<ImageBoxDef, "frameBorderPattern" | "borderColor" | "borderRadiusPct">
+  box: Pick<
+    ImageBoxDef,
+    "frameBorderPattern" | "borderColor" | "borderRadiusPct" | "frameShape" | "frameArchTopPct" | "frameArchBottomRadiusPct"
+  >
 ) {
   if (!box.frameBorderPattern || box.frameBorderPattern === "none") return;
-  const layout = borderPatternLayout(w, h, bandPx, box.borderRadiusPct ?? 0);
+  // 화면(ImageBoxOverlay)과 같은 frameBorderMarks() — 사진 외곽선(모양)에서 안쪽 띠 한가운데에 놓여요.
+  const layout = frameBorderMarks(box.frameShape, w, h, bandPx, box.borderRadiusPct ?? 0, {
+    archTopPct: box.frameArchTopPct,
+    archBottomRadiusPct: box.frameArchBottomRadiusPct,
+  });
   const r = layout.size / 2;
   ctx.fillStyle = box.borderColor ?? "#ffffff";
   const shapePts = box.frameBorderPattern === "star" ? starShapePoints() : box.frameBorderPattern === "heart" ? heartShapePoints() : null;
@@ -209,6 +216,41 @@ function drawBorderPattern(
     }
     ctx.fill();
   }
+}
+
+// 모양을 따라가는 테두리 띠 — 사진을 자르는 외곽선(framedShapePath, 전체 박스)을 (2×두께)로 긋고 같은 외곽선으로
+// 잘라서 안쪽 두께만큼만 남겨요(화면의 SVG 띠와 같은 방식). bandPx = 인쇄 px 두께 = borderWidthPx×(PRINT_DPI/96)
+// = 문서 mm × PRINT_DPI/25.4. 무늬는 이어서 drawBorderPattern 이 그려요.
+function drawFrameBorderBand(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  bandPx: number,
+  box: Pick<
+    ImageBoxDef,
+    | "frameBorderPattern"
+    | "borderColor"
+    | "borderRadiusPct"
+    | "frameShape"
+    | "frameArchTopPct"
+    | "frameArchBottomRadiusPct"
+  >
+) {
+  const hasPattern = !!box.frameBorderPattern && box.frameBorderPattern !== "none";
+  ctx.save();
+  framedShapePath(ctx, x, y, w, h, box);
+  ctx.clip();
+  ctx.lineWidth = bandPx * 2;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = hasPattern
+    ? hexToRgbaPrint(box.borderColor ?? "#ffffff", BORDER_PATTERN_BAND_ALPHA)
+    : (box.borderColor ?? "#ffffff");
+  framedShapePath(ctx, x, y, w, h, box);
+  ctx.stroke();
+  ctx.restore();
+  drawBorderPattern(ctx, x, y, w, h, bandPx, box);
 }
 
 // 그라데이션 글자색(2026-11, 15번째 라운드, 새 기능) — 화면의 CSS
@@ -1086,34 +1128,14 @@ function drawImageBoxOnCanvas(
   } else {
     ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
   }
-  // 테두리(2026-09-26 "편집툴 테두리" 요청으로 추가) — 화면(ImageBoxOverlay)에서
+  // 테두리(2026-09-26 요청; 이번에 모양 따라가는 띠로 교체, drawFrameBorderBand) — 화면(ImageBoxOverlay)에서
   // inset box-shadow로 박스 안쪽에 그린 것과 같은 결과가 되도록, strokeRect도 선
   // 두께의 절반만큼 안쪽으로 밀어서 그려요(그냥 박스 경계에 그리면 선의 바깥 절반이
   // 페이지 클립에 잘려서 화면보다 얇아 보여요). borderWidthPx는 화면 CSS px 기준이라,
   // 인쇄 캔버스 해상도(PRINT_DPI)에 맞게 같은 비율(PRINT_DPI/96)로 환산해요.
   if (box.borderWidthPx && box.borderWidthPx > 0) {
     const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
-    ctx.lineWidth = printBorderPx;
-    // 무늬(점/별/하트)가 있으면 띠는 같은 색의 연한 톤으로 깔아서 무늬가 띠 위에서 또렷하게 보여요(화면과 동일).
-    const hasPattern = !!box.frameBorderPattern && box.frameBorderPattern !== "none";
-    ctx.strokeStyle = hasPattern
-      ? hexToRgbaPrint(box.borderColor ?? "#ffffff", BORDER_PATTERN_BAND_ALPHA)
-      : (box.borderColor ?? "#ffffff");
-    framedShapePath(
-      ctx,
-      boxLeftPagePx + printBorderPx / 2,
-      boxTopPx + printBorderPx / 2,
-      boxWidthSpreadPx - printBorderPx,
-      boxHeightPx - printBorderPx,
-      box
-    );
-    ctx.stroke();
-    // 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트). 화면의 SVG 오버레이가
-    // 박스 전체(inset-0, 테두리 두께로 안쪽을 줄이지 않음)를 기준으로 그려지는 것과
-    // 똑같이, 여기도 줄이지 않은 원래 박스 영역(boxLeftPagePx 등)을 써요. 2026-11
-    // (18번째 라운드 19차) — "프레임 모양" 클리핑 기능을 없애면서(위 framedShapePath
-    // 주석 참고) frameShape 분기도 같이 뺐어요.
-    drawBorderPattern(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, printBorderPx, box);
+    drawFrameBorderBand(ctx, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx, printBorderPx, box);
   }
   ctx.restore();
 }
@@ -1169,21 +1191,7 @@ async function drawImageBoxesInPanel(
     }
     if (box.borderWidthPx && box.borderWidthPx > 0) {
       const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
-      ctx.lineWidth = printBorderPx;
-      const hasPattern = !!box.frameBorderPattern && box.frameBorderPattern !== "none";
-      ctx.strokeStyle = hasPattern
-        ? hexToRgbaPrint(box.borderColor ?? "#ffffff", BORDER_PATTERN_BAND_ALPHA)
-        : (box.borderColor ?? "#ffffff");
-      framedShapePath(
-        ctx,
-        boxLeftPx + printBorderPx / 2,
-        boxTopPx + printBorderPx / 2,
-        boxWidthPx - printBorderPx,
-        boxHeightPx - printBorderPx,
-        box
-      );
-      ctx.stroke();
-      drawBorderPattern(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, printBorderPx, box);
+      drawFrameBorderBand(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, printBorderPx, box);
     }
     ctx.restore();
   }

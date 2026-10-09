@@ -750,3 +750,124 @@ export function framePerimeterPoints(
       return null;
   }
 }
+
+// ---- 3. 모양을 따라가는 테두리(띠 + 무늬) ----
+// 테두리는 "사진을 자르는 바로 그 외곽선"에서 안쪽으로 두께만큼 들어간 띠예요. 모양(framePerimeterPoints) 하나에서
+// 사진 마스크·띠·무늬가 모두 나오도록, 화면(SVG)과 인쇄(canvas) 둘 다 아래 함수들만 써요:
+//   · frameOutlinePathD  — 외곽선 경로(SVG d). 띠는 이 경로를 (2×두께) 굵기로 긋고 같은 외곽선으로 잘라서
+//     안쪽 두께만큼만 보이게 하므로 오목한 곳(구름·톱니 홈)에서 안쪽 선이 꼬이지 않아요.
+//   · frameBorderMarks   — 무늬 중심. 사각형(둥근 모서리 포함)은 borderPatternLayout, 그 외 모양은 외곽선을
+//     두께/2만큼 안쪽으로 민 선(안쪽 거리 < 두께/2 인 점은 버려 꼬임 방지) 위에 길이를 정수 등분해서 놓아요.
+// 두께 단위: 저장값 borderWidthPx 는 96dpi CSS px → mm = px×25.4/96 (인쇄가 원래 쓰던 환산과 동일).
+export function borderWidthMm(borderWidthPx: number): number {
+  return (borderWidthPx * 25.4) / 96;
+}
+
+export function frameOutlinePathD(
+  shape: FrameShapeKey | undefined,
+  w: number,
+  h: number,
+  radiusPct: number = 0,
+  params?: FrameShapeParams
+): string {
+  const f = (n: number) => +n.toFixed(3);
+  const pts = framePerimeterPoints(shape, w / (h || 1), params);
+  if (pts) {
+    return pts.map((p, i) => `${i ? "L" : "M"}${f((p.xPct / 100) * w)} ${f((p.yPct / 100) * h)}`).join("") + "Z";
+  }
+  const pct = Math.max(0, Math.min(50, radiusPct));
+  const rx = (pct / 100) * w;
+  const ry = (pct / 100) * h;
+  if (!rx || !ry) return `M0 0H${f(w)}V${f(h)}H0Z`;
+  return (
+    `M${f(rx)} 0H${f(w - rx)}A${f(rx)} ${f(ry)} 0 0 1 ${f(w)} ${f(ry)}V${f(h - ry)}` +
+    `A${f(rx)} ${f(ry)} 0 0 1 ${f(w - rx)} ${f(h)}H${f(rx)}A${f(rx)} ${f(ry)} 0 0 1 0 ${f(h - ry)}` +
+    `V${f(ry)}A${f(rx)} ${f(ry)} 0 0 1 ${f(rx)} 0Z`
+  );
+}
+
+const MARK_POLY_MAX = 600;
+
+export function frameBorderMarks(
+  shape: FrameShapeKey | undefined,
+  w: number,
+  h: number,
+  bandPx: number,
+  radiusPct: number = 0,
+  params?: FrameShapeParams
+): BorderPatternLayout {
+  const pts = framePerimeterPoints(shape, w / (h || 1), params);
+  if (!pts) return borderPatternLayout(w, h, bandPx, radiusPct);
+  const size = Math.max(0, bandPx) * BORDER_PATTERN_MARK_RATIO;
+  const marks: { x: number; y: number }[] = [];
+  if (!(w > 0) || !(h > 0) || !(bandPx > 0) || pts.length < 3) return { size, marks };
+  const step = Math.max(1, Math.ceil(pts.length / MARK_POLY_MAX));
+  const P: { x: number; y: number }[] = [];
+  for (let i = 0; i < pts.length; i += step) P.push({ x: (pts[i].xPct / 100) * w, y: (pts[i].yPct / 100) * h });
+  const n = P.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const a = P[i];
+    const b = P[(i + 1) % n];
+    area += a.x * b.y - b.x * a.y;
+  }
+  const sgn = area >= 0 ? 1 : -1; // 화면 좌표(y 아래)에서 area>0 이면 시계방향 → 안쪽 = 진행 방향의 오른쪽
+  const c = bandPx / 2;
+  const unit = (dx: number, dy: number) => {
+    const l = Math.hypot(dx, dy) || 1;
+    return { x: dx / l, y: dy / l };
+  };
+  const off: { x: number; y: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = P[(i - 1 + n) % n];
+    const b = P[i];
+    const d = P[(i + 1) % n];
+    const t0 = unit(b.x - a.x, b.y - a.y);
+    const t1 = unit(d.x - b.x, d.y - b.y);
+    // 진행 방향의 오른쪽 법선(시계방향 도형이면 안쪽)
+    let nx = -t0.y * sgn - t1.y * sgn;
+    let ny = t0.x * sgn + t1.x * sgn;
+    const nl = Math.hypot(nx, ny) || 1;
+    nx /= nl;
+    ny /= nl;
+    const cosHalf = Math.max(0.5, nx * (-t0.y * sgn) + ny * (t0.x * sgn));
+    const k = c / cosHalf;
+    off.push({ x: b.x + nx * k, y: b.y + ny * k });
+  }
+  const dist2Seg = (px: number, py: number, a: { x: number; y: number }, b: { x: number; y: number }) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / l2));
+    const qx = a.x + dx * t - px;
+    const qy = a.y + dy * t - py;
+    return qx * qx + qy * qy;
+  };
+  const lim = (c * 0.92) ** 2;
+  const chain: { x: number; y: number }[] = [];
+  for (const q of off) {
+    let ok = true;
+    for (let j = 0; j < n && ok; j++) if (dist2Seg(q.x, q.y, P[j], P[(j + 1) % n]) < lim) ok = false;
+    if (ok) chain.push(q);
+  }
+  if (chain.length < 3) return { size, marks };
+  const cum: number[] = [0];
+  for (let i = 0; i < chain.length; i++) {
+    const a = chain[i];
+    const b = chain[(i + 1) % chain.length];
+    cum.push(cum[i] + Math.hypot(b.x - a.x, b.y - a.y));
+  }
+  const total = cum[chain.length];
+  const pitch = size * BORDER_PATTERN_PITCH_RATIO;
+  const count = Math.max(4, Math.round(total / pitch));
+  let seg = 0;
+  for (let k = 0; k < count; k++) {
+    const d = (k / count) * total;
+    while (seg < chain.length - 1 && cum[seg + 1] < d) seg++;
+    const a = chain[seg];
+    const b = chain[(seg + 1) % chain.length];
+    const t = (d - cum[seg]) / (cum[seg + 1] - cum[seg] || 1);
+    marks.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  }
+  return { size, marks };
+}

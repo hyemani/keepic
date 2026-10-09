@@ -38,7 +38,9 @@ import {
 } from "@/lib/photobookPricing";
 import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
 import {
-  borderPatternLayout,
+  borderWidthMm,
+  frameBorderMarks,
+  frameOutlinePathD,
   BORDER_PATTERN_BAND_ALPHA,
   starShapePoints,
   heartShapePoints,
@@ -7999,6 +8001,30 @@ const ImageBoxOverlay = forwardRef<
         archBottomRadiusPct: box.frameArchBottomRadiusPct,
       });
   const cssRadius = !decorLayout && !cssClipPath && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
+  // 테두리 두께(화면 px) = 문서 단위 mm × 지금 화면 pxPerMm. 저장값 borderWidthPx 는 96dpi CSS px 이므로
+  // mm = px×25.4/96 (인쇄 환산 PRINT_DPI/96 과 같아요). docMm 이 없으면(드문 경우) 예전처럼 CSS px 그대로.
+  const borderBandPx = !box.borderWidthPx
+    ? 0
+    : decorPxPerMm
+      ? borderWidthMm(box.borderWidthPx) * decorPxPerMm
+      : box.borderWidthPx;
+  const borderHasPattern = !!box.frameBorderPattern && box.frameBorderPattern !== "none";
+  const borderClipId = `bc${box.id.replace(/[^a-zA-Z0-9]/g, "")}`;
+  const borderShapeParams = useMemo(
+    () => ({ archTopPct: box.frameArchTopPct, archBottomRadiusPct: box.frameArchBottomRadiusPct }),
+    [box.frameArchTopPct, box.frameArchBottomRadiusPct]
+  );
+  const borderOutlineD = useMemo(
+    () => (borderBandPx > 0 ? frameOutlinePathD(box.frameShape, boxSizePx.w, boxSizePx.h, box.borderRadiusPct ?? 0, borderShapeParams) : ""),
+    [borderBandPx, box.frameShape, boxSizePx.w, boxSizePx.h, box.borderRadiusPct, borderShapeParams]
+  );
+  const borderMarks = useMemo(
+    () =>
+      borderBandPx > 0 && borderHasPattern
+        ? frameBorderMarks(box.frameShape, boxSizePx.w, boxSizePx.h, borderBandPx, box.borderRadiusPct ?? 0, borderShapeParams)
+        : null,
+    [borderBandPx, borderHasPattern, box.frameShape, boxSizePx.w, boxSizePx.h, box.borderRadiusPct, borderShapeParams]
+  );
   // 박스를 끌 때 스프레드 가로 중앙(책등)·페이지 세로 중앙에 딱 붙는 느낌을 주는 안내선이에요
   // (텍스트박스에 이미 있던 것과 같은 방식, 2026-09-23 이미지박스에도 추가).
   const [snapGuide, setSnapGuide] = useState<{ xPct: number | null; yPct: number | null; rect: DOMRect | null }>({
@@ -8657,58 +8683,55 @@ const ImageBoxOverlay = forwardRef<
           }}
         />
       ) : null}
-      {box.url && !decorLayout && box.borderWidthPx ? (
-        <div
+      {/* 모양을 따라가는 테두리(띠 + 무늬) — 사진을 자르는 바로 그 외곽선(frameOutlinePathD = framePerimeterPoints/둥근 사각형)을
+          (2×두께)로 긋고 같은 외곽선으로 잘라서 안쪽 두께만큼만 보이게 해요(사진과 띠 사이 틈 없음, 오목한 곳에서도 안 꼬임).
+          무늬는 frameBorderMarks()가 같은 외곽선에서 안쪽 두께/2 지점에 정수 개로 놓아요. 두께는 문서 단위(mm = 저장값
+          px×25.4/96)를 지금 화면 pxPerMm으로 환산해서 확대/축소에 따라 사진과 함께 커지고 작아져요. 인쇄도 같은 함수를 써요. */}
+      {box.url && !decorLayout && borderBandPx > 0 ? (
+        <svg
           className="pointer-events-none absolute inset-0"
-          style={{
-            borderRadius: cssRadius,
-            clipPath: cssClipPath,
-boxShadow: `inset 0 0 0 ${box.borderWidthPx}px ${
-              box.frameBorderPattern && box.frameBorderPattern !== "none"
-                ? hexToRgba(box.borderColor ?? "#ffffff", BORDER_PATTERN_BAND_ALPHA)
-                : (box.borderColor ?? "#ffffff")
-            }`,
-          }}
-        />
+          width={boxSizePx.w}
+          height={boxSizePx.h}
+          viewBox={`0 0 ${boxSizePx.w} ${boxSizePx.h}`}
+          data-border-band={borderBandPx}
+        >
+          <defs>
+            <clipPath id={borderClipId}>
+              <path d={borderOutlineD} />
+            </clipPath>
+          </defs>
+          <path
+            d={borderOutlineD}
+            fill="none"
+            stroke={box.borderColor ?? "#ffffff"}
+            strokeOpacity={borderHasPattern ? BORDER_PATTERN_BAND_ALPHA : 1}
+            strokeWidth={borderBandPx * 2}
+            strokeLinejoin="round"
+            clipPath={`url(#${borderClipId})`}
+          />
+          {borderHasPattern && borderMarks
+            ? borderMarks.marks.map((m, i) => {
+                const r = borderMarks.size / 2;
+                const fill = box.borderColor ?? "#ffffff";
+                const shapePts =
+                  box.frameBorderPattern === "star"
+                    ? starShapePoints()
+                    : box.frameBorderPattern === "heart"
+                      ? heartShapePoints()
+                      : null;
+                return shapePts ? (
+                  <polygon
+                    key={i}
+                    points={shapePts.map((sp) => `${m.x + sp.x * r},${m.y + sp.y * r}`).join(" ")}
+                    fill={fill}
+                  />
+                ) : (
+                  <circle key={i} cx={m.x} cy={m.y} r={r} fill={fill} />
+                );
+              })
+            : null}
+        </svg>
       ) : null}
-      {/* 2026-11(18번째 라운드 18차) — "테두리 무늬"(점/별/하트). 2026-11(23차) 수정: 예전엔 viewBox 0~100 +
-          preserveAspectRatio="none"에 무늬 중심을 박스 맨 가장자리 선 위에 놓아서 박스 경계에서 절반이
-          잘렸고, 무늬 색도 띠 색과 같아 띠 위에서는 안 보였어요. 지금은 박스 실제 px 크기 viewBox(찌그러짐
-          없음)에 borderPatternLayout()이 계산한 "테두리 띠 안쪽 정중앙" 위치·크기로 무늬를 통째로 놓고
-          (클리핑 불필요), 띠는 같은 색의 연한 톤으로 깔아요. 인쇄(lib/printCompose.ts)도 같은 함수를 써요. */}
-      {box.url && !decorLayout && box.borderWidthPx && box.frameBorderPattern && box.frameBorderPattern !== "none"
-        ? (() => {
-            const layout = borderPatternLayout(boxSizePx.w, boxSizePx.h, box.borderWidthPx, box.borderRadiusPct ?? 0);
-            const r = layout.size / 2;
-            const fill = box.borderColor ?? "#ffffff";
-            const shapePts =
-              box.frameBorderPattern === "star"
-                ? starShapePoints()
-                : box.frameBorderPattern === "heart"
-                  ? heartShapePoints()
-                  : null;
-            return (
-              <svg
-                className="pointer-events-none absolute inset-0"
-                width={boxSizePx.w}
-                height={boxSizePx.h}
-                viewBox={`0 0 ${boxSizePx.w} ${boxSizePx.h}`}
-              >
-                {layout.marks.map((m, i) =>
-                  shapePts ? (
-                    <polygon
-                      key={i}
-                      points={shapePts.map((sp) => `${m.x + sp.x * r},${m.y + sp.y * r}`).join(" ")}
-                      fill={fill}
-                    />
-                  ) : (
-                    <circle key={i} cx={m.x} cy={m.y} r={r} fill={fill} />
-                  )
-                )}
-              </svg>
-            );
-          })()
-        : null}
       {!box.url && (
         // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면(또는
         // 더블클릭하면) 파일을 골라 채울 수 있어요. 미리보기·PDF에는 안 그려져요.
