@@ -284,6 +284,12 @@ export type ImageBoxDef = {
   // (모양 종류를 한 곳에서만 관리). hexagon일 때 borderRadiusPct가 무시되던 것과
   // 같은 이유로, "rect"/"scalloped" 아닌 값은 모두 모서리 둥글기 개념이 없어요.
   frameShape?: FrameShapeKey;
+  // "아치" 모양 전용 설정 두 가지(lib/frameShapes.ts의 FrameShapeParams) — 둘 다 없으면(기존 저장본 전부)
+  // 예전 아치 그대로예요(하위 호환). 박스의 위치·가로·세로는 이 값과 무관해요(윤곽선만 바뀜).
+  //  · frameArchTopPct: 상단 아치 라운드 10~100(기본 100 = 깊은 반원, 10 = 아주 낮고 완만한 아치).
+  //  · frameArchBottomRadiusPct: 아래 두 모서리 둥글기 0~50(박스 짧은 변의 %, 기본 0). 위 아치와 별개.
+  frameArchTopPct?: number;
+  frameArchBottomRadiusPct?: number;
   // 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리 Tier 3 진행해주세요")
   // — 테두리 선(borderWidthPx/borderColor) 위에 작은 무늬를 일정 간격으로 반복해서
   // 찍는 장식이에요. "none"/undefined(기본값, 기존 저장된 사진박스는 전혀 안 바뀜),

@@ -43,6 +43,7 @@ import {
   heartShapePoints,
   BORDER_PATTERN_SHAPE_SIZE_PCT,
   framePerimeterPoints,
+  type FrameShapeParams,
   type FrameShapeKey,
 } from "@/lib/frameShapes";
 import {
@@ -1986,12 +1987,18 @@ const SELECTED_BOX_Z_INDEX = 100000;
 // 목록 썸네일(FrameShapeSwatch)도 이 함수를 aspect 없이(=정사각형) 불러서, 실제 박스와 "같은
 // 함수·같은 기준"으로 그려져요(따로 손으로 만든 썸네일 경로가 없어요).
 const FRAME_CLIP_PATH_CACHE = new Map<string, string | undefined>();
-function frameShapeClipPath(shape: FrameShapeKey | undefined, aspect?: number): string | undefined {
+function frameShapeClipPath(
+  shape: FrameShapeKey | undefined,
+  aspect?: number,
+  params?: FrameShapeParams
+): string | undefined {
   const key = shape ?? "rect";
   const a = aspect !== undefined && isFinite(aspect) && aspect > 0 ? aspect : 1;
-  const cacheKey = `${key}|${a.toFixed(2)}`;
+  // 아치 설정(상단 라운드·아래 모서리)도 모양을 바꾸니 캐시 키에 넣어요(아치가 아니면 무관하므로 제외).
+  const paramKey = key === "arch" ? `|${params?.archTopPct ?? ""}|${params?.archBottomRadiusPct ?? ""}` : "";
+  const cacheKey = `${key}|${a.toFixed(2)}${paramKey}`;
   if (FRAME_CLIP_PATH_CACHE.has(cacheKey)) return FRAME_CLIP_PATH_CACHE.get(cacheKey);
-  const pts = framePerimeterPoints(key, a);
+  const pts = framePerimeterPoints(key, a, params);
   const value = pts
     ? "polygon(" + pts.map((p) => `${+p.xPct.toFixed(3)}% ${+p.yPct.toFixed(3)}%`).join(", ") + ")"
     : undefined;
@@ -7845,7 +7852,12 @@ const ImageBoxOverlay = forwardRef<
     [decorLayout, boxSizePx]
   );
   // (아치 모양만 박스 가로세로 비율을 써요 — 그래서 boxSizePx 선언 뒤에 계산해요)
-  const cssClipPath = decorLayout ? undefined : frameShapeClipPath(box.frameShape, boxSizePx.w / (boxSizePx.h || 1));
+  const cssClipPath = decorLayout
+    ? undefined
+    : frameShapeClipPath(box.frameShape, boxSizePx.w / (boxSizePx.h || 1), {
+        archTopPct: box.frameArchTopPct,
+        archBottomRadiusPct: box.frameArchBottomRadiusPct,
+      });
   const cssRadius = !decorLayout && !cssClipPath && box.borderRadiusPct ? `${box.borderRadiusPct}%` : undefined;
   // 박스를 끌 때 스프레드 가로 중앙(책등)·페이지 세로 중앙에 딱 붙는 느낌을 주는 안내선이에요
   // (텍스트박스에 이미 있던 것과 같은 방식, 2026-09-23 이미지박스에도 추가).

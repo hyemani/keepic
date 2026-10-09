@@ -526,22 +526,62 @@ export function heartClipPoints(): PerimeterPoint[] {
   return fitPointsToBox(heartShapePoints(200), 1.5);
 }
 
-// 아치 — 아래는 직사각형, 위는 반원(창문/문 모양). 반원이 박스가 가로로 길든 세로로
-// 길든 "진짜 반원"으로 보이도록 aspect(박스 가로px ÷ 세로px)를 받아서 반원의 세로
-// 반지름을 정해요: 반지름(px)=가로의 절반 → 세로 % = 50 × aspect (박스가 아주 납작해서
-// 50%를 넘으면 50%로 제한 — 그땐 반타원). aspect를 안 주면 정사각형(1)으로 계산해요.
-export function archPoints(aspect: number = 1): PerimeterPoint[] {
-  const ryPct = Math.min(50, Math.max(5, 50 * (aspect > 0 ? aspect : 1)));
-  const pts: PerimeterPoint[] = [];
+// 아치 — 윗부분은 둥근 아치, 옆면은 수직, 바닥은 평평한(창문/문 모양) 모양이에요. 두 가지를 따로 조절해요:
+//   · 상단 아치 라운드 archTopPct(10~100, 기본 100): 아치 "높이"를 반원 높이의 몇 %로 할지예요.
+//     100 = 예전 아치와 똑같은 깊은 반원(박스가 아주 납작하면 반타원), 10 = 아주 낮고 완만한 아치.
+//     반원 높이 = min(가로, 세로)/2 (u 단위, 박스 가로세로 비율 aspect로 계산 — 박스가 가로로 길든
+//     세로로 길든 반원이 찌그러지지 않아요). 아치는 항상 박스 맨 위(y=0)에서 시작해서 박스 크기는 안 변해요.
+//   · 아래 모서리 둥글기 archBottomRadiusPct(0~50, 기본 0): 바닥 두 모서리의 둥글기를 박스 짧은 변의
+//     %로 정해요(원형 호라 가로세로가 달라도 둥글어요). 위 아치와는 완전히 별개의 값이에요.
+// 두 값 모두 안 주면(기존 저장본 전부) 예전 아치와 점 하나까지 똑같이 나와요.
+export type FrameShapeParams = {
+  archTopPct?: number;
+  archBottomRadiusPct?: number;
+};
+
+export const ARCH_TOP_PCT_RANGE = { min: 10, max: 100, default: 100 } as const;
+export const ARCH_BOTTOM_RADIUS_PCT_RANGE = { min: 0, max: 50, default: 0 } as const;
+
+export function archPoints(aspect: number = 1, params?: FrameShapeParams): PerimeterPoint[] {
+  const { W, H } = aspectDims(aspect);
+  const topPct = Math.min(
+    ARCH_TOP_PCT_RANGE.max,
+    Math.max(ARCH_TOP_PCT_RANGE.min, params?.archTopPct ?? ARCH_TOP_PCT_RANGE.default)
+  );
+  const bottomPct = Math.min(
+    ARCH_BOTTOM_RADIUS_PCT_RANGE.max,
+    Math.max(ARCH_BOTTOM_RADIUS_PCT_RANGE.min, params?.archBottomRadiusPct ?? ARCH_BOTTOM_RADIUS_PCT_RANGE.default)
+  );
+  const fullH = Math.min(H / 2, W / 2);
+  const ry = Math.max(0.05 * H, (fullH * topPct) / 100); // 아치 높이(u)
+  const rx = W / 2;
+  const rb = Math.min((bottomPct / 100) * Math.min(W, H), W / 2, Math.max(0, H - ry));
+  const pts: UPt[] = [];
   const segs = 120;
-  // 왼쪽 아래 → 왼쪽 위(반원 시작) → 반원 → 오른쪽 위 → 오른쪽 아래 (시계방향)
-  pts.push({ xPct: 0, yPct: 100 });
+  // 왼쪽 아래 → (왼쪽 아래 모서리 호) → 왼쪽 위(아치 시작) → 아치 → 오른쪽 위 → (오른쪽 아래 모서리 호) (시계방향)
+  if (rb > 1e-6) {
+    const cs = 16;
+    for (let i = 0; i <= cs; i++) {
+      const a = Math.PI / 2 + (Math.PI / 2) * (i / cs); // 90° → 180°: 바닥 → 왼쪽 옆면
+      pts.push({ x: rb + rb * Math.cos(a), y: H - rb + rb * Math.sin(a) });
+    }
+  } else {
+    pts.push({ x: 0, y: H });
+  }
   for (let i = 0; i <= segs; i++) {
     const a = Math.PI + (Math.PI * i) / segs; // π → 2π
-    pts.push({ xPct: 50 + 50 * Math.cos(a), yPct: ryPct + ryPct * Math.sin(a) });
+    pts.push({ x: rx + rx * Math.cos(a), y: ry + ry * Math.sin(a) });
   }
-  pts.push({ xPct: 100, yPct: 100 });
-  return pts;
+  if (rb > 1e-6) {
+    const cs = 16;
+    for (let i = 0; i <= cs; i++) {
+      const a = (Math.PI / 2) * (i / cs); // 0° → 90°: 오른쪽 옆면 → 바닥
+      pts.push({ x: W - rb + rb * Math.cos(a), y: H - rb + rb * Math.sin(a) });
+    }
+  } else {
+    pts.push({ x: W, y: H });
+  }
+  return uToPct(pts, W, H);
 }
 
 // 원 여러 개를 합친 실루엣의 바깥 윤곽선 — 기준점(origin)에서 각도 θ로 쏜 광선이
@@ -631,8 +671,13 @@ export type FrameShapeKey =
 // (lib/printCompose.ts)가 이 함수 하나만 호출하면 되니, 새 모양을 추가해도 분기
 // 코드를 두 파일에 각각 안 적어도 돼요(이 switch 하나만 고치면 양쪽에 다 반영).
 // aspect(박스 가로px ÷ 세로px)는 "arch"의 반원 비율, "scalloped"(톱니)의 가로·세로 홈 개수, 그리고 모든 모양의 모서리 둥글리기
-// 크기를 박스 짧은 변 기준으로 맞추는 데 써요(안 주면 정사각형으로 계산).
-export function framePerimeterPoints(shape: FrameShapeKey | undefined, aspect?: number): PerimeterPoint[] | null {
+// 크기를 박스 짧은 변 기준으로 맞추는 데 써요(안 주면 정사각형으로 계산). params는 모양별 추가 설정이에요(지금은 아치의
+// 상단 아치 라운드/아래 모서리 둥글기 — 안 주면 기본 모양). 화면·인쇄·썸네일이 같은 인자로 이 함수를 불러요.
+export function framePerimeterPoints(
+  shape: FrameShapeKey | undefined,
+  aspect?: number,
+  params?: FrameShapeParams
+): PerimeterPoint[] | null {
   // 거친 외곽선 → finishOutline(같은 간격으로 다시 찍기 + 모서리 둥글리기 + 점 덜어내기)로 다듬어요.
   // smoothU = 둥글리는 정도(짧은 변 u 대비). 매끈한 곡선 모양(쿠키·꽃잎·낙서·구름)은 아주 작게(0.012),
   // 모서리가 있는 모양(육각형·아치·하트·뱃지·곰돌이·고양이)은 눈에 띄게 둥글게(0.03~0.05) 해요.
@@ -655,7 +700,7 @@ export function framePerimeterPoints(shape: FrameShapeKey | undefined, aspect?: 
     case "heart":
       return finishOutline(heartClipPoints(), aspect, 0.085, true);
     case "arch":
-      return finishOutline(archPoints(aspect), aspect, 0.04, true);
+      return finishOutline(archPoints(aspect, params), aspect, 0.04, true);
     case "bear":
       return finishOutline(bearHeadPoints(), aspect, 0.03, true);
     case "cat":
