@@ -11,7 +11,7 @@
 // 다시 생성해주세요.
 
 import { jsPDF } from "jspdf";
-import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes } from "@/lib/albumTemplates";
+import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes, isStickerImageBox } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import {
   resolveRunStyle,
@@ -19,7 +19,14 @@ import {
   type ResolvedRunStyle,
   type TextRun,
 } from "@/lib/textRuns";
-import { computeImageBoxCoverRect, expandCoverRectForBleed } from "@/lib/imageBoxGeometry";
+import {
+  computeImageBoxCoverRect,
+  expandCoverRectForBleed,
+  normalizePhotoQuarterTurn,
+  orientedNaturalSize,
+  type ImageBoxCoverRect,
+} from "@/lib/imageBoxGeometry";
+import { isPhotoEditIdentity, renderPhotoEditCanvas } from "@/lib/photoAdjust";
 import {
   frameBorderMarks,
   BORDER_PATTERN_BAND_ALPHA,
@@ -984,8 +991,12 @@ async function drawPage(
       // 아직 사진을 안 채운 빈 프레임(url이 빈 문자열)은 인쇄 파일에 아무것도 안
       // 그려요(2026-09-23) — 미리보기 화면에서만 "+사진 추가" 안내로 보여요.
       if (!box || !box.url) continue;
-      const img = await loadImage(box.url);
-      drawImageBoxOnCanvas(ctx, box, img, pageW, pageH, pageOffsetPx!, spreadWidthPx!);
+      const photo = await loadBoxPhotoSource(box);
+      try {
+        drawImageBoxOnCanvas(ctx, box, photo, pageW, pageH, pageOffsetPx!, spreadWidthPx!);
+      } finally {
+        photo.release();
+      }
     } else {
       const box = textById.get(item.id);
       if (!box) continue;
@@ -1000,6 +1011,64 @@ async function drawPage(
   }
 }
 
+// 2026-11 사진 필터·보정(lib/photoAdjust.ts) — 이미지박스 한 장이 실제로 그릴 "사진 원본"이에요.
+// 보정값(photoFilter/photoAdjust)이 하나라도 있으면 원본 이미지(풀 해상도)에 같은 픽셀 파이프라인을 적용한
+// 복사본 캔버스를 돌려줘요(원본 파일/img 는 그대로). 스티커·보정 없음은 img 를 그대로 써서 예전과 완전히 같아요.
+// natW/natH 는 지오메트리(cover 계산)용 원본 크기, src 는 그릴 대상(보정 캔버스는 너무 크면 비율을 지키며 줄어들 수 있음).
+type BoxPhotoSource = { src: CanvasImageSource; natW: number; natH: number; release: () => void };
+
+async function loadBoxPhotoSource(box: ImageBoxDef): Promise<BoxPhotoSource> {
+  const img = await loadImage(box.url);
+  const natW = img.naturalWidth || box.naturalWidth;
+  const natH = img.naturalHeight || box.naturalHeight;
+  if (!isStickerImageBox(box) && !isPhotoEditIdentity(box.photoFilter, box.photoAdjust)) {
+    const canvas = renderPhotoEditCanvas(img, natW, natH, box.photoFilter, box.photoAdjust);
+    return {
+      src: canvas,
+      natW,
+      natH,
+      release: () => {
+        canvas.width = 0;
+        canvas.height = 0;
+      },
+    };
+  }
+  return { src: img, natW, natH, release: () => {} };
+}
+
+// 사진 안쪽 90도 회전을 반영한 "화면에 보이는" 원본 크기 — computeImageBoxCoverRect 에 넣어요.
+function boxPhotoOrientedSize(box: ImageBoxDef, photo: BoxPhotoSource) {
+  return orientedNaturalSize(photo.natW, photo.natH, normalizePhotoQuarterTurn(box.photoRotation));
+}
+
+// cover 계산 결과(rect, offX/offY 기준 좌표)대로 사진을 그려요 — 좌우/상하 반전과 90도 회전은 rect 중심 기준이고,
+// 반전은 항상 "화면 기준"(회전한 뒤)이에요. 반전·회전이 없으면 평범한 drawImage 한 번이라 예전과 같아요.
+function drawBoxPhoto(
+  ctx: CanvasRenderingContext2D,
+  photo: BoxPhotoSource,
+  rect: ImageBoxCoverRect,
+  offX: number,
+  offY: number,
+  box: ImageBoxDef
+) {
+  const turn = normalizePhotoQuarterTurn(box.photoRotation);
+  const fx = box.flipX ? -1 : 1;
+  const fy = box.flipY ? -1 : 1;
+  if (turn === 0 && fx === 1 && fy === 1) {
+    ctx.drawImage(photo.src, offX + rect.x, offY + rect.y, rect.width, rect.height);
+    return;
+  }
+  const swap = turn === 90 || turn === 270;
+  const dw = swap ? rect.height : rect.width;
+  const dh = swap ? rect.width : rect.height;
+  ctx.save();
+  ctx.translate(offX + rect.x + rect.width / 2, offY + rect.y + rect.height / 2);
+  ctx.scale(fx, fy);
+  ctx.rotate((turn * Math.PI) / 180);
+  ctx.drawImage(photo.src, -dw / 2, -dh / 2, dw, dh);
+  ctx.restore();
+}
+
 // 2026-11 "장식 프레임"(lib/frameDecorations.ts) — box.frameDecor가 있는 박스는 "바깥 프레임
 // (그림 포함) + 안쪽 사진 창" 구조예요. 화면(ImageBoxOverlay)과 똑같은 설계도
 // (buildFrameDecorLayout, 박스 인쇄 px 크기 기준)를 만들고, 사진은 창 크기 기준으로
@@ -1009,7 +1078,7 @@ async function drawPage(
 function drawDecoratedImageBox(
   ctx: CanvasRenderingContext2D,
   box: ImageBoxDef,
-  img: HTMLImageElement,
+  photo: BoxPhotoSource,
   boxLeftPx: number,
   boxTopPx: number,
   boxWidthPx: number,
@@ -1023,12 +1092,13 @@ function drawDecoratedImageBox(
   });
   if (!layout) return false;
   const win = layout.window;
+  const oriented = boxPhotoOrientedSize(box, photo);
   const rect = expandCoverRectForBleed(
     computeImageBoxCoverRect(
       win.w,
       win.h,
-      img.naturalWidth || box.naturalWidth,
-      img.naturalHeight || box.naturalHeight,
+      oriented.w,
+      oriented.h,
       box.innerOffsetXPct ?? 0,
       box.innerOffsetYPct ?? 0,
       box.innerScale ?? 1
@@ -1043,15 +1113,7 @@ function drawDecoratedImageBox(
   // 창 가장자리 이음새를 덮음). 위치/확대 계산은 원래 창(win) 기준 그대로예요.
   ctx.clip(new Path2D(decorWindowPathD(decorPhotoClipWindow(layout))));
   ctx.globalAlpha = box.opacity ?? 1;
-  if (box.flipX) {
-    ctx.save();
-    ctx.translate(win.x + rect.x + rect.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, win.y + rect.y, rect.width, rect.height);
-    ctx.restore();
-  } else {
-    ctx.drawImage(img, win.x + rect.x, win.y + rect.y, rect.width, rect.height);
-  }
+  drawBoxPhoto(ctx, photo, rect, win.x, win.y, box);
   ctx.restore();
   ctx.save();
   ctx.globalAlpha = box.opacity ?? 1;
@@ -1069,7 +1131,7 @@ function drawDecoratedImageBox(
 function drawImageBoxOnCanvas(
   ctx: CanvasRenderingContext2D,
   box: ImageBoxDef,
-  img: HTMLImageElement,
+  photo: BoxPhotoSource,
   pageW: number,
   pageH: number,
   pageOffsetPx: number,
@@ -1090,11 +1152,12 @@ function drawImageBoxOnCanvas(
   // 확대/위치(innerScale·innerOffset)는 그대로 유지된 채 새 박스 크기 기준으로 다시
   // 계산되기 때문에, 그냥 drawImage(img, x, y, boxW, boxH)로 늘려 그릴 때와 달리 사진이
   // 찌그러지거나 빈 여백이 생기지 않아요(2026-09-22 확정).
+  const oriented = boxPhotoOrientedSize(box, photo);
   const rect = computeImageBoxCoverRect(
     boxWidthSpreadPx,
     boxHeightPx,
-    img.naturalWidth || box.naturalWidth,
-    img.naturalHeight || box.naturalHeight,
+    oriented.w,
+    oriented.h,
     box.innerOffsetXPct ?? 0,
     box.innerOffsetYPct ?? 0,
     box.innerScale ?? 1
@@ -1105,7 +1168,7 @@ function drawImageBoxOnCanvas(
   ctx.rect(0, 0, pageW, pageH);
   ctx.clip();
   // 장식 프레임이면 위 도우미가 사진+그림을 다 그려요(기존 모양/테두리 경로는 건너뜀).
-  if (drawDecoratedImageBox(ctx, box, img, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx)) {
+  if (drawDecoratedImageBox(ctx, box, photo, boxLeftPagePx, boxTopPx, boxWidthSpreadPx, boxHeightPx)) {
     ctx.restore();
     return;
   }
@@ -1117,17 +1180,8 @@ function drawImageBoxOnCanvas(
   // 투명도(2026-09-26 "편집툴 투명도" 요청으로 추가) — save()/restore() 안에서만
   // 바꿔서, 이 박스를 다 그리고 나면 자동으로 원래 값(1)으로 돌아가요.
   ctx.globalAlpha = box.opacity ?? 1;
-  if (box.flipX) {
-    // 화면 미리보기(scaleX(-1))와 똑같이, 그리는 좌표축만 좌우로 뒤집어서 그려요 —
-    // 그러면 사진이 찌그러지지 않고 딱 그 자리에서 거울처럼 뒤집혀 보여요.
-    ctx.save();
-    ctx.translate(boxLeftPagePx + rect.x + rect.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, 0, boxTopPx + rect.y, rect.width, rect.height);
-    ctx.restore();
-  } else {
-    ctx.drawImage(img, boxLeftPagePx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
-  }
+  // 반전·90도 회전은 화면 미리보기(CSS transform)와 같은 규칙으로 rect 중심 기준 — drawBoxPhoto 참고.
+  drawBoxPhoto(ctx, photo, rect, boxLeftPagePx, boxTopPx, box);
   // 테두리(2026-09-26 요청; 이번에 모양 따라가는 띠로 교체, drawFrameBorderBand) — 화면(ImageBoxOverlay)에서
   // inset box-shadow로 박스 안쪽에 그린 것과 같은 결과가 되도록, strokeRect도 선
   // 두께의 절반만큼 안쪽으로 밀어서 그려요(그냥 박스 경계에 그리면 선의 바깥 절반이
@@ -1155,23 +1209,25 @@ async function drawImageBoxesInPanel(
 ) {
   for (const box of boxes) {
     if (!box.url) continue;
-    const img = await loadImage(box.url);
+    const photo = await loadBoxPhotoSource(box);
     const boxLeftPx = originXpx + (box.xPct / 100) * panelWpx;
     const boxTopPx = originYpx + (box.yPct / 100) * panelHpx;
     const boxWidthPx = (box.widthPct / 100) * panelWpx;
     const boxHeightPx = (box.heightPct / 100) * panelHpx;
+    const oriented = boxPhotoOrientedSize(box, photo);
     const rect = computeImageBoxCoverRect(
       boxWidthPx,
       boxHeightPx,
-      img.naturalWidth || box.naturalWidth,
-      img.naturalHeight || box.naturalHeight,
+      oriented.w,
+      oriented.h,
       box.innerOffsetXPct ?? 0,
       box.innerOffsetYPct ?? 0,
       box.innerScale ?? 1
     );
     ctx.save();
-    if (drawDecoratedImageBox(ctx, box, img, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx)) {
+    if (drawDecoratedImageBox(ctx, box, photo, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx)) {
       ctx.restore();
+      photo.release();
       continue;
     }
     // 2026-11(18번째 라운드 15차) — drawImageBoxOnCanvas와 같은 이유로, 둥근 모서리로
@@ -1180,20 +1236,13 @@ async function drawImageBoxesInPanel(
     ctx.clip();
     // 투명도·테두리(2026-09-26 추가) — drawImageBoxOnCanvas와 같은 방식이에요.
     ctx.globalAlpha = box.opacity ?? 1;
-    if (box.flipX) {
-      ctx.save();
-      ctx.translate(boxLeftPx + rect.x + rect.width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, boxTopPx + rect.y, rect.width, rect.height);
-      ctx.restore();
-    } else {
-      ctx.drawImage(img, boxLeftPx + rect.x, boxTopPx + rect.y, rect.width, rect.height);
-    }
+    drawBoxPhoto(ctx, photo, rect, boxLeftPx, boxTopPx, box);
     if (box.borderWidthPx && box.borderWidthPx > 0) {
       const printBorderPx = box.borderWidthPx * (PRINT_DPI / 96);
       drawFrameBorderBand(ctx, boxLeftPx, boxTopPx, boxWidthPx, boxHeightPx, printBorderPx, box);
     }
     ctx.restore();
+    photo.release();
   }
 }
 
