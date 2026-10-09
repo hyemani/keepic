@@ -42,6 +42,7 @@ export type FrameDecorKey =
   | "pastelDots"
   | "softWave"
   | "doubleLine"
+  | WreathKind
   | AnimalKind;
 
 // path 하나 — d는 SVG path 문자열, 나머지는 색/선 정보예요(fill 없으면 칠하지 않아요).
@@ -108,6 +109,15 @@ export const FRAME_DECOR_PRESETS: FrameDecorPreset[] = [
   { id: "cat-orange", decor: "cat", variant: "orange", label: "고양이", group: "character" },
   { id: "cat-gray", decor: "cat", variant: "gray", label: "회색냥이", group: "character" },
   { id: "wreath-blossom", decor: "wreath", variant: "blossom", label: "벚꽃 화환", group: "wreath" },
+  // 새 꽃 화환 8종
+  { id: "wreath-daisy", decor: "daisy", variant: "default", label: "데이지", group: "wreath" },
+  { id: "wreath-tulip", decor: "tulip", variant: "default", label: "튤립", group: "wreath" },
+  { id: "wreath-rose", decor: "rose", variant: "default", label: "장미", group: "wreath" },
+  { id: "wreath-sunflower", decor: "sunflower", variant: "default", label: "해바라기", group: "wreath" },
+  { id: "wreath-lavender", decor: "lavender", variant: "default", label: "라벤더", group: "wreath" },
+  { id: "wreath-hydrangea", decor: "hydrangea", variant: "default", label: "수국", group: "wreath" },
+  { id: "wreath-babysbreath", decor: "babysBreath", variant: "default", label: "안개꽃", group: "wreath" },
+  { id: "wreath-eucalyptus", decor: "eucalyptus", variant: "default", label: "유칼립투스 잎", group: "wreath" },
   // 새 장식 테두리 8종
   { id: "instant", decor: "instant", variant: "default", label: "즉석사진", group: "border" },
   { id: "film", decor: "film", variant: "default", label: "필름", group: "border" },
@@ -1335,6 +1345,240 @@ function buildDoubleLine(w: number, h: number): DecorLayout {
   };
 }
 
+// ---- 9. 새 꽃·잎 화환 8종 (데이지·튤립·장미·해바라기·라벤더·수국·안개꽃·유칼립투스 잎) ----
+// 기존 벚꽃 화환(buildWreath)과 같은 규칙: 사진 창은 평범한 사각형(모서리 0.03u)이고 화환은 창 바깥 띠에만
+// 있어요(창 안쪽으로 들어오지 않음). 둥근 사각형 모양의 화환 "둘레"를 정수 칸으로 나눠서(칸 길이 ≈ 종류별
+// 간격×u) 칸마다 꽃/잎을 하나씩 놓고, 크기는 전부 u(짧은 변) 기준이라 박스가 길어지면 같은 크기가 더
+// 많이 놓일 뿐 늘어나거나 찌그러지지 않아요. 위치(수직 흔들림)·각도·크기(0.85~1.15배)의 흐트러짐은
+// 칸 번호로 정해지는 고정 의사난수(hash01)라서 화면/인쇄/다시 열기가 항상 똑같아요.
+
+export type WreathKind = "daisy" | "tulip" | "rose" | "sunflower" | "lavender" | "hydrangea" | "babysBreath" | "eucalyptus";
+
+type WreathSpec = { spacing: number; center: number; inset: number };
+const WREATH_SPECS: Record<WreathKind, WreathSpec> = {
+  daisy: { spacing: 0.07, center: 0.062, inset: 0.125 },
+  tulip: { spacing: 0.085, center: 0.065, inset: 0.13 },
+  rose: { spacing: 0.075, center: 0.065, inset: 0.13 },
+  sunflower: { spacing: 0.1, center: 0.075, inset: 0.15 },
+  lavender: { spacing: 0.07, center: 0.062, inset: 0.125 },
+  hydrangea: { spacing: 0.085, center: 0.07, inset: 0.14 },
+  babysBreath: { spacing: 0.055, center: 0.058, inset: 0.115 },
+  eucalyptus: { spacing: 0.055, center: 0.06, inset: 0.12 },
+};
+
+// 그리는 순서가 있는 색별 path 모음(뒤에서 앞으로) — 같은 색 도형은 하나의 path로 묶어요
+class Layers {
+  private order: string[] = [];
+  private map = new Map<string, DecorPrim>();
+  fill(key: string, color: string, d: string, opacity?: number): void {
+    const k = `f|${key}|${color}`;
+    let p = this.map.get(k);
+    if (!p) {
+      p = { d: "", fill: color, opacity };
+      this.map.set(k, p);
+      this.order.push(k);
+    }
+    p.d += d;
+  }
+  stroke(key: string, color: string, width: number, d: string): void {
+    const k = `s|${key}|${color}|${width}`;
+    let p = this.map.get(k);
+    if (!p) {
+      p = { d: "", stroke: color, strokeWidth: width };
+      this.map.set(k, p);
+      this.order.push(k);
+    }
+    p.d += d;
+  }
+  prims(): DecorPrim[] {
+    return this.order.map((k) => this.map.get(k)!);
+  }
+}
+
+// 로컬 좌표(0,0 중심, 각도 rot, 배율 sc)의 점을 박스 좌표로 바꾸는 도우미
+function xf(cx: number, cy: number, rot: number, sc: number) {
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  return (lx: number, ly: number) => `${f(cx + (lx * c - ly * s) * sc)} ${f(cy + (lx * s + ly * c) * sc)}`;
+}
+
+// 뾰족한 꽃잎(물방울) — 중심에서 각도 a 방향으로 길이 len, 폭 wid
+function petalD(cx: number, cy: number, a: number, len: number, wid: number, start: number = 0): string {
+  const P = xf(cx, cy, a, 1);
+  return `M${P(start, 0)}Q${P(start + len * 0.45, -wid)} ${P(start + len, 0)}Q${P(start + len * 0.45, wid)} ${P(start, 0)}Z`;
+}
+
+function buildWreathKind(kind: WreathKind, w: number, h: number): DecorLayout {
+  const spec = WREATH_SPECS[kind];
+  const u = Math.min(w, h);
+  const inset = spec.inset * u;
+  const win = safeWindow(inset, inset, w - 2 * inset, h - 2 * inset, 0.03 * u, w, h);
+  const c0 = spec.center * u;
+  const rw = Math.max(1, w - 2 * c0);
+  const rh = Math.max(1, h - 2 * c0);
+  const rc = Math.min(0.1 * u, rw / 2, rh / 2);
+  const perim = 2 * (rw - 2 * rc) + 2 * (rh - 2 * rc) + 2 * Math.PI * rc;
+  const n = Math.max(12, Math.round(perim / (spec.spacing * u)));
+  const L = new Layers();
+  const green = ["#8DCB78", "#A8DB8B", "#7DBF6C"];
+  // 잎 색 세 가지를 먼저 등록해서, 어느 칸의 잎이든 항상 모든 꽃보다 "뒤"에 그려지게 해요(그리는 순서 = 등록 순서)
+  for (const g of green) L.fill("leaf", g, "");
+
+  // 유칼립투스·라벤더·안개꽃은 둘레를 따라 이어지는 가는 줄기를 먼저 깔아요
+  if (kind === "eucalyptus" || kind === "lavender" || kind === "babysBreath") {
+    const stemColor = kind === "eucalyptus" ? "#7FA591" : "#86B77A";
+    let d = "";
+    const steps = n * 3;
+    for (let i = 0; i <= steps; i++) {
+      const pt = pointOnRoundedRect(c0, c0, rw, rh, rc, (i * perim) / steps);
+      d += `${i === 0 ? "M" : "L"}${f(pt.px)} ${f(pt.py)}`;
+    }
+    L.stroke("stem", stemColor, (kind === "eucalyptus" ? 0.008 : 0.005) * u, d + "Z");
+  }
+
+  for (let i = 0; i < n; i++) {
+    const pt = pointOnRoundedRect(c0, c0, rw, rh, rc, (i * perim) / n);
+    const jit = (hash01(i, 11) - 0.5) * 0.024 * u;
+    const px = pt.px + pt.nx * jit;
+    const py = pt.py + pt.ny * jit;
+    const tang = Math.atan2(pt.ty, pt.tx);
+    const sc = 0.85 + hash01(i, 12) * 0.3;
+    const rot = hash01(i, 13) * Math.PI * 2;
+    const side = i % 2 === 0 ? 1 : -1;
+    const leafA = tang + side * (0.5 + hash01(i, 14) * 0.5);
+
+    switch (kind) {
+      case "daisy": {
+        // 잎 → 흰 꽃잎 12장 → 노란 가운데
+        L.fill("leaf", green[i % 3], leafD(px + pt.nx * side * 0.01 * u, py + pt.ny * side * 0.01 * u, leafA, 0.07 * u * sc, 0.02 * u));
+        if (i % 2 === 0) {
+          const R = 0.044 * u * sc;
+          let pd = "";
+          for (let k = 0; k < 12; k++) pd += petalD(px, py, rot + (k * Math.PI * 2) / 12, R, 0.012 * u * sc, R * 0.15);
+          L.fill("daisy", "#FFFFFF", pd);
+          L.stroke("daisyo", "#E3E7EE", 0.003 * u, pd);
+          L.fill("dcenter", "#FFD54A", circleD(px, py, 0.015 * u * sc));
+        }
+        break;
+      }
+      case "tulip": {
+        L.fill("leaf", green[i % 3], leafD(px + Math.cos(tang) * 0.01 * u, py + Math.sin(tang) * 0.01 * u, tang + side * 0.35, 0.1 * u * sc, 0.016 * u));
+        if (i % 2 === 0) {
+          const P = xf(px, py, rot * 0.25 - Math.PI / 2 + Math.atan2(pt.ny, pt.nx) * 0 + (hash01(i, 15) - 0.5) * 0.9, 0.05 * u * sc);
+          const d = `M${P(-0.5, 0.3)}C${P(-0.58, -0.25)} ${P(-0.42, -0.7)} ${P(-0.3, -0.92)}L${P(-0.12, -0.48)}L${P(0, -1)}L${P(0.12, -0.48)}L${P(0.3, -0.92)}C${P(0.42, -0.7)} ${P(0.58, -0.25)} ${P(0.5, 0.3)}C${P(0.4, 0.78)} ${P(-0.4, 0.78)} ${P(-0.5, 0.3)}Z`;
+          const cols = ["#F48FB1", "#EF6F7E", "#FFC857", "#F8A6C4"];
+          L.fill("tulip" + (i % 4), cols[(i / 2) % 4 | 0], d);
+        }
+        break;
+      }
+      case "rose": {
+        L.fill("leaf", green[i % 3], leafD(px + pt.nx * side * 0.012 * u, py + pt.ny * side * 0.012 * u, leafA, 0.065 * u * sc, 0.022 * u));
+        if (i % 2 === 0) {
+          const R = 0.04 * u * sc;
+          const tone = i % 4 === 0 ? ["#F26B8A", "#E8506F", "#F7A1B5"] : ["#F7A1B5", "#EE7F9C", "#FBC9D6"];
+          L.fill("rose0", tone[0], circleD(px, py, R));
+          L.fill("rose1", tone[1], circleD(px + R * 0.08, py - R * 0.05, R * 0.72));
+          L.fill("rose2", tone[2], circleD(px - R * 0.06, py + R * 0.04, R * 0.46));
+          L.stroke("rose3", tone[0], 0.004 * u, `M${f(px - R * 0.3)} ${f(py)}A${f(R * 0.3)} ${f(R * 0.3)} 0 1 1 ${f(px + R * 0.1)} ${f(py + R * 0.28)}`);
+        }
+        break;
+      }
+      case "sunflower": {
+        L.fill("leaf", green[i % 3], leafD(px + pt.nx * side * 0.012 * u, py + pt.ny * side * 0.012 * u, leafA, 0.08 * u * sc, 0.028 * u));
+        if (i % 2 === 0) {
+          const R = 0.062 * u * sc;
+          let pd = "";
+          let pd2 = "";
+          for (let k = 0; k < 14; k++) pd += petalD(px, py, rot + (k * Math.PI * 2) / 14, R, 0.016 * u * sc, R * 0.3);
+          for (let k = 0; k < 14; k++) pd2 += petalD(px, py, rot + ((k + 0.5) * Math.PI * 2) / 14, R * 0.86, 0.014 * u * sc, R * 0.3);
+          L.fill("sf2", "#F7B733", pd2);
+          L.fill("sf1", "#FFD23F", pd);
+          L.fill("sfc", "#7A4B2A", circleD(px, py, R * 0.36));
+          L.fill("sfd", "#5A331B", circleD(px - R * 0.1, py - R * 0.05, R * 0.04) + circleD(px + R * 0.1, py + R * 0.08, R * 0.04) + circleD(px + R * 0.04, py - R * 0.14, R * 0.035));
+        }
+        break;
+      }
+      case "lavender": {
+        // 둘레 방향으로 비스듬히(좌우 번갈아 ±0.55rad) 누운 작은 이삭: 줄기 + 보라 낟알 7쌍
+        const dir = tang + side * 0.55;
+        const len = 0.085 * u * sc;
+        const P = xf(px, py, dir, 1);
+        L.stroke("lstem", "#86B77A", 0.005 * u, `M${P(0, 0)}L${P(len, 0)}`);
+        let buds = "";
+        let buds2 = "";
+        for (let k = 0; k < 7; k++) {
+          const t = 0.35 + (k / 6) * 0.65;
+          const bx = len * t;
+          const bw = 0.009 * u * (1 - k * 0.07);
+          buds += ellipseD(px + Math.cos(dir) * bx - Math.sin(dir) * 0.008 * u, py + Math.sin(dir) * bx + Math.cos(dir) * 0.008 * u, 0.014 * u, bw, (dir * 180) / Math.PI + 25);
+          buds2 += ellipseD(px + Math.cos(dir) * bx + Math.sin(dir) * 0.008 * u, py + Math.sin(dir) * bx - Math.cos(dir) * 0.008 * u, 0.014 * u, bw, (dir * 180) / Math.PI - 25);
+        }
+        L.fill("lb1", "#A98BD6", buds);
+        L.fill("lb2", "#C3A9EA", buds2);
+        L.fill("leaf", green[i % 3], leafD(px, py, tang + side * 0.5, 0.06 * u, 0.013 * u));
+        break;
+      }
+      case "hydrangea": {
+        L.fill("leaf", green[i % 3], leafD(px + pt.nx * side * 0.012 * u, py + pt.ny * side * 0.012 * u, leafA, 0.075 * u * sc, 0.026 * u));
+        if (i % 2 === 0) {
+          const palettes = [["#9DB8F2", "#B9CCF7"], ["#C5A5EE", "#D9C4F5"], ["#F2A9C8", "#F7C6DA"]];
+          const pal = palettes[(i / 2) % 3 | 0];
+          // 꽃송이: 작은 4장짜리 꽃 7개(가운데 1 + 둘레 6)
+          const R = 0.05 * u * sc;
+          const centers = [[0, 0]];
+          for (let k = 0; k < 6; k++) centers.push([Math.cos(rot + (k * Math.PI) / 3) * R * 0.62, Math.sin(rot + (k * Math.PI) / 3) * R * 0.62]);
+          centers.forEach(([dx, dy], k) => {
+            const fr = R * 0.34;
+            for (let q = 0; q < 4; q++) {
+              const a = rot + (q * Math.PI) / 2 + k * 0.3;
+              L.fill("hy" + (k % 2), pal[k % 2], circleD(px + dx + Math.cos(a) * fr * 0.62, py + dy + Math.sin(a) * fr * 0.62, fr * 0.6));
+            }
+            L.fill("hyc", "#F8F4D8", circleD(px + dx, py + dy, fr * 0.22));
+          });
+        }
+        break;
+      }
+      case "babysBreath": {
+        // 짧은 곁가지 + 작은 흰 꽃 3송이(연한 윤곽선으로 흰 바탕에서도 보임)
+        const dir = tang + side * 0.7;
+        const len = 0.05 * u * sc;
+        const P = xf(px, py, dir, 1);
+        L.stroke("bstem", "#86B77A", 0.004 * u, `M${P(0, 0)}L${P(len, 0)}M${P(len * 0.5, 0)}L${P(len * 0.85, -0.018 * u)}`);
+        const spots: [number, number][] = [[len, 0], [len * 0.85, -0.018 * u], [len * 0.45, 0.012 * u]];
+        let petals = "";
+        let cs = "";
+        spots.forEach(([lx, ly], k) => {
+          const cxp = px + Math.cos(dir) * lx - Math.sin(dir) * ly;
+          const cyp = py + Math.sin(dir) * lx + Math.cos(dir) * ly;
+          const r = (0.013 - k * 0.001) * u * sc;
+          for (let q = 0; q < 5; q++) {
+            const a = rot + (q * Math.PI * 2) / 5;
+            petals += circleD(cxp + Math.cos(a) * r * 0.8, cyp + Math.sin(a) * r * 0.8, r * 0.62);
+          }
+          cs += circleD(cxp, cyp, r * 0.38);
+        });
+        L.stroke("bpo", "#DDE3EC", 0.003 * u, petals);
+        L.fill("bp", "#FFFFFF", petals);
+        L.fill("bc", "#F8D77A", cs);
+        break;
+      }
+      case "eucalyptus": {
+        // 줄기 양옆으로 둥근 은녹색 잎 한 쌍씩(번갈아 크기·색 다르게)
+        const cols = ["#9DBFA8", "#B7D3BE", "#7FA591"];
+        for (const sd of [-1, 1]) {
+          const a = tang + sd * (0.9 + hash01(i, 16 + sd) * 0.4);
+          const ex = px + Math.cos(a) * 0.026 * u * sc;
+          const ey = py + Math.sin(a) * 0.026 * u * sc;
+          L.fill("eu" + ((i + (sd > 0 ? 1 : 0)) % 3), cols[(i + (sd > 0 ? 1 : 0)) % 3], ellipseD(ex, ey, 0.03 * u * sc, 0.021 * u * sc, (a * 180) / Math.PI));
+          L.stroke("euv", "#6E9580", 0.003 * u, `M${f(px)} ${f(py)}L${f(px + Math.cos(a) * 0.05 * u * sc)} ${f(py + Math.sin(a) * 0.05 * u * sc)}`);
+        }
+        break;
+      }
+    }
+  }
+  return { w, h, window: win, photoBleed: 0, groups: [{ prims: L.prims() }] };
+}
+
 // ---- 공개 함수 ----
 
 // 종류/색상/박스 크기(px) → 그림 설계도. 인식 못 하는 종류면 null이에요(옛 문서 안전).
@@ -1362,6 +1606,15 @@ export function buildFrameDecorLayout(
       return buildCharacter(decor, v, w, h);
     case "wreath":
       return buildWreath(w, h);
+    case "daisy":
+    case "tulip":
+    case "rose":
+    case "sunflower":
+    case "lavender":
+    case "hydrangea":
+    case "babysBreath":
+    case "eucalyptus":
+      return buildWreathKind(decor, w, h);
     case "instant":
       return buildInstant(w, h);
     case "film":
