@@ -602,83 +602,67 @@ export function organicScallopedBlobPoints(): PerimeterPoint[] {
   );
 }
 
-// 구름 — "가운데에 가장 큰 둥근 봉우리 하나, 좌우로 갈수록 작아지는 봉우리들, 아래는 부드럽게 이어지는 곡선"인
-// 구름 실루엣이에요. 예전 구름은 "윗면에만 봉우리가 달린 사각형"이라 곧은 옆면과 각진 아래 모서리가 남았어요.
-// 지금은 박스 안에 꽉 차는 "둥근 몸통"(약간 각진 타원) 둘레를 따라 동그란 봉우리를 줄지어 놓고, 몸통과
-// 봉우리들의 합집합 바깥 윤곽을 그대로 써요 — 곧은 변·직각 모서리가 구조적으로 생길 수 없어요.
-// 가로세로 비율(aspect)에 맞춰 봉우리 "배치"를 새로 계산해요(그림을 늘리는 게 아니라 봉우리 개수·위치를 다시 정해요):
-//   · 크기 기준은 짧은 변 u=1 — 봉우리 반지름은 u의 0.2배가 기본이라 박스가 길어지면 같은 크기의 봉우리가 "더 많이" 놓여요.
-//     가로로 긴 박스는 윗면에 봉우리가 여러 개, 세로로 긴 박스는 좌우 옆면을 따라 봉우리가 위아래로 쌓여요.
-//   · 봉우리 반지름은 맨 위 가운데에서 가장 크고(×1.3) 좌우·아래로 갈수록 작아져요(×0.72).
-//   · 봉우리는 몸통 둘레의 위쪽·옆쪽 약 280°에만 놓고, 아래쪽 약 80°는 몸통의 매끈한 곡선 그대로라 바닥이
-//     완만하게 이어져요(예전처럼 평평하지도, 물결치지도 않아요).
-//   · 바깥 윤곽은 중심에서 쏜 광선이 합집합을 빠져나가는 지점을 각도마다 하나씩 구해 이어요(꼬이지 않아요).
-// 화면(clip-path)·인쇄(canvas)·목록 썸네일이 모두 이 함수(framePerimeterPoints → finishOutline)를 써요.
+// 구름 — 레퍼런스(흰색 채움 구름) 실루엣을 본뜬 "원 7개의 합집합"이에요(원 위치·반지름은 레퍼런스 윤곽에 맞춰 맞춘 값 — 이미지를 쓰는 게 아니라 숫자 7줄이에요).
+// 가로로 긴 몸통(약 1.85:1)에 윗쪽 큰 봉우리 둘(왼쪽이 조금 낮고 오른쪽이 가장 높아요), 양옆에 작은 봉우리, 그리고
+// 아래는 "낮고 둥근" 완만한 호(평평한 바닥이 아니에요)로 이어져요. 봉우리 사이 오목한 홈은 살짝 부드럽게 이어 붙여요.
+// 박스가 세로로 길어도 구름을 억지로 늘리지 않아요 — 구름의 고유 가로세로 비율을 지킨 채 박스 가운데에 "맞춰 넣어요"
+// (박스 위치·크기·회전·사진 자르기 값은 그대로, 사진은 구름 모양 안쪽에만 보여요). 화면(clip-path)·테두리·무늬·페이드·인쇄·
+// 목록 썸네일이 모두 이 함수(framePerimeterPoints → finishOutline)의 같은 윤곽선을 써요.
+const CLOUD_CIRCLES: [number, number, number][] = [
+  // [중심 x, 중심 y, 반지름] — 레퍼런스 좌표(1 = 100px), y는 아래쪽이 +
+  [0.66, 1.315, 0.553], // 왼쪽 작은 봉우리
+  [1.357, 0.72, 0.58], // 왼쪽 위 큰 봉우리
+  [1.237, 1.47, 0.592], // 왼쪽 아래(몸통 바닥 왼쪽 호)
+  [2.411, 0.816, 0.712], // 오른쪽 위 가장 큰 봉우리
+  [2.145, 1.489, 0.607], // 가운데 아래(몸통 바닥 가운데 호)
+  [3.323, 1.218, 0.446], // 오른쪽 작은 봉우리
+  [2.812, 1.469, 0.46], // 오른쪽 아래(몸통 바닥 오른쪽 호)
+];
+const CLOUD_SOFT_JOIN = 0.05; // 봉우리 사이 홈을 부드럽게 이어 붙이는 정도(레퍼런스 단위)
+let cloudBase: { pts: UPt[]; w: number; h: number } | null = null;
 const cloudCache = new Map<string, PerimeterPoint[]>();
+
+function cloudBaseOutline(): { pts: UPt[]; w: number; h: number } {
+  if (cloudBase) return cloudBase;
+  const k = CLOUD_SOFT_JOIN;
+  // 부드러운 합집합(polynomial smooth-min): 홈이 날카로운 칼날 대신 작은 둥근 골이 돼요
+  const field = (x: number, y: number): number => {
+    let v = Infinity;
+    for (const [cx, cy, r] of CLOUD_CIRCLES) {
+      const d = Math.hypot(x - cx, y - cy) - r;
+      if (v === Infinity) v = d;
+      else {
+        const h = Math.max(k - Math.abs(v - d), 0) / k;
+        v = Math.min(v, d) - h * h * k * 0.25;
+      }
+    }
+    return v;
+  };
+  const loop = contourLoop(field, 3.9, 2.2, 0.005);
+  const xs = loop.map((p) => p.x);
+  const ys = loop.map((p) => p.y);
+  const mnx = Math.min(...xs);
+  const mny = Math.min(...ys);
+  const pts = loop.map((p) => ({ x: p.x - mnx, y: p.y - mny }));
+  cloudBase = { pts, w: Math.max(...xs) - mnx, h: Math.max(...ys) - mny };
+  return cloudBase;
+}
 
 export function cloudPoints(aspect: number = 1): PerimeterPoint[] {
   const key = (Math.round((aspect || 1) * 1000) / 1000).toString();
   const hit = cloudCache.get(key);
   if (hit) return hit.map((p) => ({ ...p }));
   const { W, H } = aspectDims(aspect);
-  const rho0 = 0.19 * Math.pow(Math.max(W, H), 0.3);
-  const rhoTop = rho0 * 1.45;
-  const rhoSide = rho0 * 0.62;
-  // 몸통: 가운데 (cx, cy), 반축 (ax, ay), 약간 각진 타원(지수 P)
-  const P = 2.8;
-  const cx = W / 2;
-  const ax = W / 2 - rhoSide * 0.95;
-  const yTop = rhoTop;
-  const ay = (H - yTop) / 2;
-  const cy = yTop + ay;
-  const pe = (t: number): UPt => {
-    const c = Math.cos(t);
-    const s = Math.sin(t);
-    return { x: cx + ax * Math.sign(c) * Math.pow(Math.abs(c), 2 / P), y: cy + ay * Math.sign(s) * Math.pow(Math.abs(s), 2 / P) };
-  };
-  // 봉우리를 놓을 몸통 둘레 구간: 맨 위(-90°)를 가운데로 좌우 140°씩(= 바닥 80° 제외)
-  const A = ((122 + 22 * Math.min(1, Math.max(0, (H - 1) / 1.5))) * Math.PI) / 180; // 세로로 길수록 아래쪽 옆면까지 봉우리를 놓아요
-  const t0 = -Math.PI / 2 - A;
-  const SEG = 400;
-  const path: UPt[] = [];
-  const cum: number[] = [0];
-  for (let i = 0; i <= SEG; i++) {
-    path.push(pe(t0 + (2 * A * i) / SEG));
-    if (i) cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y));
-  }
-  const Ltot = cum[SEG];
-  const prof = (d: number, lower: boolean) => (0.62 + 0.85 * Math.exp(-((d / 0.8) ** 2))) * (lower ? 0.95 : 1); // 맨 위 가운데에서 d(u)만큼 떨어진 봉우리 크기 계수
-  let n = Math.max(5, Math.round(Ltot / (rho0 * 1.5)));
-  if (n % 2 === 0) n += 1; // 홀수 — 맨 위 가운데에 봉우리가 정확히 하나
-  const lobes: { x: number; y: number; r: number }[] = [];
-  let seg = 0;
-  for (let i = 0; i < n; i++) {
-    const q = (i + 0.5) / n;
-    const d = q * Ltot;
-    while (seg < SEG - 1 && cum[seg + 1] < d) seg++;
-    const tt = (d - cum[seg]) / (cum[seg + 1] - cum[seg] || 1);
-    const x = path[seg].x + (path[seg + 1].x - path[seg].x) * tt;
-    const y = path[seg].y + (path[seg + 1].y - path[seg].y) * tt;
-    lobes.push({ x, y, r: rho0 * prof(Math.abs(d - Ltot / 2), y > cy + ay * 0.2) * (1 + 0.12 * Math.sin(2.3 * i + 0.8)) });
-  }
-  // 장(field) 값 < 0 이면 구름 안쪽: 봉우리 원들의 (거리 − 반지름)과 몸통(각진 타원)의 최솟값(= 합집합)
-  const field = (x: number, y: number): number => {
-    let v = Infinity;
-    for (const l of lobes) v = Math.min(v, Math.hypot(x - l.x, y - l.y) - l.r);
-    const g = Math.pow(Math.pow(Math.abs(x - cx) / ax, P) + Math.pow(Math.abs(y - cy) / ay, P), 1 / P);
-    return Math.min(v, (g - 1) * Math.min(ax, ay));
-  };
-  const loop = contourLoop(field, W, H, 0.006);
-  // 박스에 꽉 맞게(가로·세로 각각) 늘려서 박스 크기·사진 자르기 범위를 그대로 지켜요
-  const xs = loop.map((p) => p.x);
-  const ys = loop.map((p) => p.y);
-  const mnx = Math.min(...xs);
-  const mxx = Math.max(...xs);
-  const mny = Math.min(...ys);
-  const mxy = Math.max(...ys);
-  const mm = 0.006;
-  const fitted = loop.map((p) => ({ x: mm + ((p.x - mnx) / (mxx - mnx || 1)) * (W - 2 * mm), y: mm + ((p.y - mny) / (mxy - mny || 1)) * (H - 2 * mm) }));
-  const res = uToPct(fitted, W, H);
+  const base = cloudBaseOutline();
+  const m = 0.006; // 박스 가장자리 여백(짧은 변 대비)
+  const s = Math.min((W - 2 * m) / base.w, (H - 2 * m) / base.h);
+  const ox = (W - base.w * s) / 2;
+  const oy = (H - base.h * s) / 2;
+  const res = uToPct(
+    base.pts.map((p) => ({ x: ox + p.x * s, y: oy + p.y * s })),
+    W,
+    H
+  );
   cloudCache.set(key, res.map((p) => ({ ...p })));
   return res;
 }
@@ -989,7 +973,7 @@ export function framePerimeterPoints(
     case "organicScallop":
       return finishOutline(organicScallopedBlobPoints(), aspect, 0.012, false);
     case "cloud":
-      return finishOutline(cloudPoints(aspect), aspect, 0.025, true);
+      return finishOutline(cloudPoints(aspect), aspect, 0.008, false);
     case "badge":
       return finishOutline(badgeRibbonPoints(), aspect, 0.045, true);
     case "heart":
