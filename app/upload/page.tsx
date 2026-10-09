@@ -7478,10 +7478,16 @@ function ImageBoxPanel({
                           // 사진 모양을 고르면 장식 프레임은 꺼져요(둘은 같이 못 써요). 사진(url)·
                           // 확대·위치·박스 좌표는 건드리지 않고 프레임 관련 값만 바꿔요.
                           const noDecor = { frameDecor: undefined, frameDecorVariant: undefined };
+                          // 다른 모양에서 남은 설정이 새 모양에 영향을 주지 않게, "사각형"/"원형·타원"
+                          // 프리셋은 한 번 눌러서 필요한 값을 전부 정해요(예전엔 사각형이 frameShape만
+                          // 바꿔서 원형·둥근 사각형의 borderRadiusPct가 남아 모서리가 둥근 채였어요).
+                          //  · 사각형: frameShape=rect + borderRadiusPct=0(직각) + 아치 설정 삭제
+                          //  · 원형·타원: frameShape=rect + borderRadiusPct=50 + 아치 설정 삭제
+                          const noArch = { frameArchTopPct: undefined, frameArchBottomRadiusPct: undefined };
                           if (opt.key === "circle") {
-                            onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 50, ...noDecor });
+                            onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 50, ...noArch, ...noDecor });
                           } else if (opt.key === "rect") {
-                            onFrameChange(frameTargetBox.id, { frameShape: "rect", ...noDecor });
+                            onFrameChange(frameTargetBox.id, { frameShape: "rect", borderRadiusPct: 0, ...noArch, ...noDecor });
                           } else {
                             onFrameChange(frameTargetBox.id, { frameShape: opt.key, ...noDecor });
                           }
