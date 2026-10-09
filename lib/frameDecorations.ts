@@ -34,6 +34,14 @@ export type FrameDecorKey =
   | "bunny"
   | "cat"
   | "wreath"
+  | "instant"
+  | "film"
+  | "ticket"
+  | "ribbon"
+  | "gingham"
+  | "pastelDots"
+  | "softWave"
+  | "doubleLine"
   | AnimalKind;
 
 // path 하나 — d는 SVG path 문자열, 나머지는 색/선 정보예요(fill 없으면 칠하지 않아요).
@@ -100,6 +108,15 @@ export const FRAME_DECOR_PRESETS: FrameDecorPreset[] = [
   { id: "cat-orange", decor: "cat", variant: "orange", label: "고양이", group: "character" },
   { id: "cat-gray", decor: "cat", variant: "gray", label: "회색냥이", group: "character" },
   { id: "wreath-blossom", decor: "wreath", variant: "blossom", label: "벚꽃 화환", group: "wreath" },
+  // 새 장식 테두리 8종
+  { id: "instant", decor: "instant", variant: "default", label: "즉석사진", group: "border" },
+  { id: "film", decor: "film", variant: "default", label: "필름", group: "border" },
+  { id: "ticket", decor: "ticket", variant: "default", label: "티켓", group: "border" },
+  { id: "ribbon", decor: "ribbon", variant: "default", label: "리본", group: "border" },
+  { id: "gingham", decor: "gingham", variant: "default", label: "깅엄체크", group: "border" },
+  { id: "pastel-dots", decor: "pastelDots", variant: "default", label: "파스텔 도트", group: "border" },
+  { id: "soft-wave", decor: "softWave", variant: "default", label: "부드러운 물결", group: "border" },
+  { id: "double-line", decor: "doubleLine", variant: "default", label: "심플 이중선", group: "border" },
   // 새 캐릭터 10종 (variant는 한 가지뿐이라 "default")
   { id: "dog", decor: "dog", variant: "default", label: "강아지", group: "character" },
   { id: "chick", decor: "chick", variant: "default", label: "병아리", group: "character" },
@@ -1029,6 +1046,295 @@ function buildAnimal(kind: AnimalKind, w: number, h: number): DecorLayout {
   };
 }
 
+// ---- 8. 새 장식 테두리 8종 (즉석사진·필름·티켓·리본·깅엄체크·파스텔 도트·부드러운 물결·심플 이중선) ----
+// 공통 비율 규칙: u = 짧은 변. 테두리 두께는 u의 4~11%(즉석사진 아래·티켓 오른쪽·필름 위아래처럼
+// 일부러 두꺼운 쪽만 예외), 무늬(구멍·점·체크·물결)의 크기는 전부 u 기준 고정이고 개수만
+// 박스 크기로 정수로 계산해서, 박스를 가로로 늘려도 구멍·점·체크가 찌그러지지 않아요.
+// 사진 창은 항상 평범한 사각형(모서리 0~0.01u)이고 띠가 창 가장자리를 덮어요(photoBleed 적용).
+
+type RingGeom = { win: DecorWindow; ringD: string };
+
+function ringOf(w: number, h: number, l: number, t: number, r: number, b: number, rad: number = 0): RingGeom {
+  const win = safeWindow(l, t, w - l - r, h - t - b, rad, w, h);
+  return { win, ringD: rectD(0, 0, w, h) + decorWindowPathD(win) };
+}
+
+// 6. 즉석사진: 흰 카드, 아래가 두꺼움(0.2u), 나머지 0.06u. 은은한 회색 윤곽선 + 아래 손글씨 느낌 선과 하트
+function buildInstant(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const side = 0.06 * u;
+  const bottom = 0.2 * u;
+  const { win, ringD } = ringOf(w, h, side, side, side, bottom);
+  const hx = w / 2;
+  const hy = h - bottom / 2 + 0.005 * u;
+  const heart = (cx: number, cy: number, s: number) =>
+    `M${f(cx)} ${f(cy + s * 0.9)}C${f(cx - s * 1.6)} ${f(cy - s * 0.1)} ${f(cx - s * 0.7)} ${f(cy - s * 1.1)} ${f(cx)} ${f(cy - s * 0.3)}C${f(cx + s * 0.7)} ${f(cy - s * 1.1)} ${f(cx + s * 1.6)} ${f(cy - s * 0.1)} ${f(cx)} ${f(cy + s * 0.9)}Z`;
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      {
+        prims: [
+          { d: ringD, fill: "#FFFFFF", fillRule: "evenodd" },
+          { d: rectD(0.003 * u, 0.003 * u, w - 0.006 * u, h - 0.006 * u), stroke: "#E2E4E9", strokeWidth: 0.006 * u },
+          { d: decorWindowPathD(win), stroke: "#ECEDF1", strokeWidth: 0.006 * u },
+          { d: `M${f(hx - 0.2 * u)} ${f(hy)}Q${f(hx - 0.1 * u)} ${f(hy - 0.02 * u)} ${f(hx - 0.05 * u)} ${f(hy)}M${f(hx + 0.05 * u)} ${f(hy)}Q${f(hx + 0.1 * u)} ${f(hy + 0.02 * u)} ${f(hx + 0.2 * u)} ${f(hy)}`, stroke: "#C9CDD6", strokeWidth: 0.008 * u },
+          { d: heart(hx, hy, 0.022 * u), fill: "#F5A3B8" },
+        ],
+      },
+    ],
+  };
+}
+
+// 7. 필름: 짙은 필름 띠. 위·아래 띠 0.1u에 둥근 구멍(0.05u×0.034u)을 정수 개수로, 좌우 띠 0.04u
+function buildFilm(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const band = 0.1 * u;
+  const sideB = 0.04 * u;
+  const { win, ringD } = ringOf(w, h, sideB, band, sideB, band);
+  const holeW = 0.05 * u;
+  const holeH = 0.034 * u;
+  const n = Math.max(4, Math.round((w - 2 * sideB) / (0.085 * u)));
+  const pitch = (w - 2 * sideB) / n;
+  let holes = "";
+  for (let i = 0; i < n; i++) {
+    const x = sideB + (i + 0.5) * pitch - holeW / 2;
+    holes += rrectD(x, band / 2 - holeH / 2, holeW, holeH, 0.009 * u) + rrectD(x, h - band / 2 - holeH / 2, holeW, holeH, 0.009 * u);
+  }
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      {
+        prims: [
+          { d: ringD, fill: "#2D2D33", fillRule: "evenodd" },
+          { d: holes, fill: "#F4F1EA" },
+          { d: decorWindowPathD(win), stroke: "#1B1B20", strokeWidth: 0.008 * u },
+        ],
+      },
+    ],
+  };
+}
+
+// 8. 티켓: 크림색 표. 오른쪽에 점선이 있는 두꺼운 "조각"(0.14u), 나머지 0.06u. 위·아래 모서리 둥글림 0.03u,
+//    좌우 가운데에 반원 홈(반지름 0.04u). 홈은 윤곽선 자체에 호로 파서 뒤가 투명하게 보여요.
+function buildTicket(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const side = 0.06 * u;
+  const stub = 0.14 * u;
+  const { win } = ringOf(w, h, side, side, stub, side);
+  const r = 0.03 * u;
+  const n = 0.04 * u;
+  const cy = h / 2;
+  const outer =
+    `M${f(r)} 0H${f(w - r)}A${f(r)} ${f(r)} 0 0 1 ${f(w)} ${f(r)}V${f(cy - n)}A${f(n)} ${f(n)} 0 0 0 ${f(w)} ${f(cy + n)}V${f(h - r)}` +
+    `A${f(r)} ${f(r)} 0 0 1 ${f(w - r)} ${f(h)}H${f(r)}A${f(r)} ${f(r)} 0 0 1 0 ${f(h - r)}V${f(cy + n)}A${f(n)} ${f(n)} 0 0 0 0 ${f(cy - n)}V${f(r)}A${f(r)} ${f(r)} 0 0 1 ${f(r)} 0Z`;
+  const winD = decorWindowPathD(win);
+  const px = w - stub / 2 - side * 0.0;
+  const perfX = w - stub + 0.0 * u;
+  const dashes: string[] = [];
+  const nd = Math.max(6, Math.round((h - 2 * r - 2 * n) / (0.045 * u)));
+  const dy = (h - 4 * r) / nd;
+  for (let i = 0; i < nd; i++) {
+    const y0 = 2 * r + i * dy;
+    if (Math.abs(y0 + dy / 2 - cy) < n * 1.3) continue;
+    dashes.push(`M${f(perfX + 0.012 * u)} ${f(y0)}V${f(y0 + dy * 0.55)}`);
+  }
+  // 조각 안 별 무늬
+  const star = starShapePoints(5, 1, 0.45);
+  const sc = 0.04 * u;
+  const starD = polyD(star.map((p) => ({ x: px + 0.012 * u + p.x * sc, y: h * 0.27 + p.y * sc })));
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      {
+        prims: [
+          { d: outer + winD, fill: "#FFF1CC", fillRule: "evenodd" },
+          { d: outer, stroke: "#EBCB86", strokeWidth: 0.006 * u },
+          { d: winD, stroke: "#EBCB86", strokeWidth: 0.008 * u },
+          { d: dashes.join(""), stroke: "#D9A94A", strokeWidth: 0.007 * u },
+          { d: starD, fill: "#F2B544" },
+        ],
+      },
+    ],
+  };
+}
+
+// 9. 리본: 분홍 리본 띠(0.055u, 위쪽만 0.11u) + 흰 바느질 점선 + 위 가운데 리본 매듭(고리 2개·매듭·꼬리)
+function buildRibbon(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const b = 0.055 * u;
+  const top = 0.11 * u;
+  const { win, ringD } = ringOf(w, h, b, top, b, b);
+  const cx = w / 2;
+  const by = top / 2;
+  const loop = (sx: number) => {
+    // 고리: 매듭에서 바깥으로 벌어지는 물방울 모양
+    const x0 = cx + sx * 0.012 * u;
+    const x1 = cx + sx * 0.115 * u;
+    return `M${f(x0)} ${f(by)}C${f(x0 + sx * 0.03 * u)} ${f(by - 0.08 * u)} ${f(x1)} ${f(by - 0.07 * u)} ${f(x1)} ${f(by)}C${f(x1)} ${f(by + 0.07 * u)} ${f(x0 + sx * 0.03 * u)} ${f(by + 0.08 * u)} ${f(x0)} ${f(by)}Z`;
+  };
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      {
+        prims: [
+          { d: ringD, fill: "#F8B3C8", fillRule: "evenodd" },
+          { d: rectD(0.012 * u, 0.012 * u, w - 0.024 * u, h - 0.024 * u), stroke: "#FFFFFF", strokeWidth: 0.005 * u, opacity: 0.85 },
+          { d: decorWindowPathD(win), stroke: "#E98FAB", strokeWidth: 0.008 * u },
+        ],
+      },
+      {
+        prims: [
+          { d: loop(-1) + loop(1), fill: "#F59DB8", stroke: "#E4799C", strokeWidth: 0.007 * u },
+          { d: circleD(cx, by, 0.026 * u), fill: "#F27FA3", stroke: "#E4799C", strokeWidth: 0.006 * u },
+          { d: `M${f(cx - 0.018 * u)} ${f(by)}h${f(0.036 * u)}`, stroke: "#FFFFFF", strokeWidth: 0.006 * u, opacity: 0.0 },
+        ],
+      },
+    ],
+  };
+}
+
+// 10. 깅엄체크: 띠 0.07u를 체크 칸 한 변 0.035u로 정확히 2칸 두께 — 흰 바탕 위에 분홍 가로줄·세로줄(반투명)이 겹쳐 진한 칸이 생겨요
+function buildGingham(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const b = 0.07 * u;
+  const { win, ringD } = ringOf(w, h, b, b, b, b);
+  const p = b / 2;
+  let hs = "";
+  let vs = "";
+  for (let y = 0; y < h; y += 2 * p) hs += rectD(0, y, w, p);
+  for (let x = 0; x < w; x += 2 * p) vs += rectD(x, 0, p, h);
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      { prims: [{ d: ringD, fill: "#FFFFFF", fillRule: "evenodd" }] },
+      {
+        clipD: ringD,
+        clipRule: "evenodd",
+        prims: [
+          { d: hs, fill: "#F28DAB", opacity: 0.5 },
+          { d: vs, fill: "#F28DAB", opacity: 0.5 },
+        ],
+      },
+      { prims: [{ d: decorWindowPathD(win), stroke: "#FFFFFF", strokeWidth: 0.008 * u }] },
+    ],
+  };
+}
+
+// 11. 파스텔 도트: 띠 0.08u, 크림 바탕에 5가지 파스텔 점(반지름 0.012~0.02u)을 엇갈린 격자(간격 0.056u)에 고정 의사난수로
+function buildPastelDots(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const b = 0.08 * u;
+  const { win, ringD } = ringOf(w, h, b, b, b, b);
+  const colors = ["#F9B9C9", "#B9DDF4", "#FBE08A", "#BDE8CF", "#D5C5F2"];
+  const bucket: string[] = colors.map(() => "");
+  const sp = 0.056 * u;
+  let row = 0;
+  let idx = 0;
+  for (let y = sp / 2; y < h + sp; y += sp * 0.9) {
+    const off = row % 2 === 0 ? 0 : sp / 2;
+    for (let x = sp / 2 + off; x < w + sp; x += sp) {
+      idx++;
+      const inside = x - 0.03 * u > win.x && x + 0.03 * u < win.x + win.w && y - 0.03 * u > win.y && y + 0.03 * u < win.y + win.h;
+      if (inside) continue;
+      const k = Math.floor(hash01(idx, 5) * colors.length);
+      bucket[k] += circleD(x + (hash01(idx, 6) - 0.5) * 0.008 * u, y + (hash01(idx, 7) - 0.5) * 0.008 * u, (0.012 + hash01(idx, 8) * 0.008) * u);
+    }
+    row++;
+  }
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      { prims: [{ d: ringD, fill: "#FFF8EE", fillRule: "evenodd" }] },
+      { clipD: ringD, clipRule: "evenodd", prims: colors.map((c, i) => ({ d: bucket[i], fill: c })) },
+      { prims: [{ d: decorWindowPathD(win), stroke: "#FFFFFF", strokeWidth: 0.008 * u }] },
+    ],
+  };
+}
+
+// 12. 부드러운 물결: 바깥 가장자리가 물결(진폭 0.012u, 변마다 정수 개의 물결, 물결 길이 ≈0.09u)인 하늘색 띠 + 안쪽 연한 물결 띠
+function wavyRectD(x: number, y: number, w: number, h: number, amp: number, wl: number): string {
+  const nx = Math.max(3, Math.round(w / wl));
+  const ny = Math.max(3, Math.round(h / wl));
+  const steps = 16;
+  const pts: { x: number; y: number }[] = [];
+  const edge = (n: number, len: number, f2: (t: number, off: number) => { x: number; y: number }) => {
+    for (let i = 0; i < n * steps; i++) {
+      const t = i / (n * steps);
+      const off = amp * (1 - Math.cos(t * n * 2 * Math.PI)) / 2;
+      pts.push(f2(t * len, off));
+    }
+  };
+  edge(nx, w, (t, o) => ({ x: x + t, y: y + o }));
+  edge(ny, h, (t, o) => ({ x: x + w - o, y: y + t }));
+  edge(nx, w, (t, o) => ({ x: x + w - t, y: y + h - o }));
+  edge(ny, h, (t, o) => ({ x: x + o, y: y + h - t }));
+  return polyD(pts);
+}
+
+function buildSoftWave(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const b = 0.075 * u;
+  const win = safeWindow(b, b, w - 2 * b, h - 2 * b, 0, w, h);
+  const winD = decorWindowPathD(win);
+  const amp = 0.012 * u;
+  const wl = 0.09 * u;
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      {
+        prims: [
+          { d: wavyRectD(0, 0, w, h, amp, wl) + winD, fill: "#BFE3F3", fillRule: "evenodd" },
+          { d: wavyRectD(0.026 * u, 0.026 * u, w - 0.052 * u, h - 0.052 * u, amp * 0.8, wl) + winD, fill: "#E6F5FC", fillRule: "evenodd" },
+          { d: decorWindowPathD(win), stroke: "#FFFFFF", strokeWidth: 0.008 * u },
+        ],
+      },
+    ],
+  };
+}
+
+// 13. 심플 이중선: 흰 띠(0.055u)에 얇은 선 2줄(바깥 0.012u, 안쪽 0.036u 위치, 두께 0.005u)
+function buildDoubleLine(w: number, h: number): DecorLayout {
+  const u = Math.min(w, h);
+  const b = 0.055 * u;
+  const { win, ringD } = ringOf(w, h, b, b, b, b);
+  return {
+    w,
+    h,
+    window: win,
+    photoBleed: photoBleedFor(u),
+    groups: [
+      {
+        prims: [
+          { d: ringD, fill: "#FFFFFF", fillRule: "evenodd" },
+          { d: rectD(0.012 * u, 0.012 * u, w - 0.024 * u, h - 0.024 * u), stroke: "#3E4C6D", strokeWidth: 0.005 * u },
+          { d: rectD(0.034 * u, 0.034 * u, w - 0.068 * u, h - 0.068 * u), stroke: "#3E4C6D", strokeWidth: 0.0035 * u },
+        ],
+      },
+    ],
+  };
+}
+
 // ---- 공개 함수 ----
 
 // 종류/색상/박스 크기(px) → 그림 설계도. 인식 못 하는 종류면 null이에요(옛 문서 안전).
@@ -1056,6 +1362,22 @@ export function buildFrameDecorLayout(
       return buildCharacter(decor, v, w, h);
     case "wreath":
       return buildWreath(w, h);
+    case "instant":
+      return buildInstant(w, h);
+    case "film":
+      return buildFilm(w, h);
+    case "ticket":
+      return buildTicket(w, h);
+    case "ribbon":
+      return buildRibbon(w, h);
+    case "gingham":
+      return buildGingham(w, h);
+    case "pastelDots":
+      return buildPastelDots(w, h);
+    case "softWave":
+      return buildSoftWave(w, h);
+    case "doubleLine":
+      return buildDoubleLine(w, h);
     case "dog":
     case "chick":
     case "tiger":
