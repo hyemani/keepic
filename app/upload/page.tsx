@@ -4084,7 +4084,7 @@ function SelectionHandles({
           key={dir}
           onMouseDown={(e) => onResizeStart(dir, e)}
           title={title}
-          className={`absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
+          className={`pointer-events-auto absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
         />
       ))}
     </>
@@ -7652,7 +7652,7 @@ function ImageBoxPanel({
                           />
                         </>
                       )}
-                                            {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") — 점/별/하트 무늬를 테두리 띠 안에 찍어요.
+                      {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") — 점/별/하트 무늬를 테두리 띠 안에 찍어요.
                           이번(모양 따라가는 테두리)부터 모든 모양에서 고를 수 있어요: 무늬는 lib/frameShapes.ts의 frameBorderMarks()가
                           사진 외곽선(사각형·둥근 사각형 포함)에서 안쪽 두께/2 지점을 따라 정수 개로 놓고, 화면·인쇄가 같은 함수를 써요. */}
                       <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
@@ -8567,9 +8567,15 @@ const ImageBoxOverlay = forwardRef<
         transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
         opacity: box.opacity ?? 1,
         borderRadius: cssRadius,
-        clipPath: cssClipPath,
+        // 모양(clip-path) 박스: 예전엔 이 루트에 clipPath 를 걸어서, 모양 밖으로 걸친 크기 손잡이·레이어 툴바가 같이
+        // 잘리고 클릭도 안 됐어요(구름·아치·육각형·하트 등은 손잡이가 전부 모양 밖). 이제 사진/테두리는 각자 같은 clipPath 로
+        // 자르고, 클릭 영역만 아래 hit-layer(같은 clipPath)가 맡아요 — 루트는 pointer-events:none, 손잡이·툴바는 auto.
+        pointerEvents: cssClipPath ? "none" : undefined,
       }}
     >
+      {cssClipPath ? (
+        <div className="absolute inset-0" style={{ clipPath: cssClipPath, pointerEvents: "auto" }} />
+      ) : null}
       {snapGuide.rect && (snapGuide.xPct !== null || snapGuide.yPct !== null) && (
         <>
           {snapGuide.xPct !== null && (
@@ -8736,6 +8742,7 @@ const ImageBoxOverlay = forwardRef<
           // 브랜드색(--color-sky) 옅은 배경 + 가운데 큰 "PHOTO" 표시로 바꿨어요.
           // url이 여전히 빈 문자열이라 인쇄(printCompose.ts drawPage)에는 그대로
           // 안 그려져요 — 화면 스타일만 바뀐 거예요.
+          style={{ clipPath: cssClipPath, borderRadius: cssRadius }}
           className="absolute inset-0 flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-[var(--color-sky)]/40 bg-[var(--color-sky)]/10 text-[var(--color-sky)] transition hover:border-[var(--color-sky)] hover:bg-[var(--color-sky)]/15"
         >
           {/* 2026-09-24, 혜민님 요청: "+ 사진 추가" 보조문구는 불필요해서 뺐어요 —
@@ -8775,7 +8782,7 @@ const ImageBoxOverlay = forwardRef<
           {!isSticker && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
-              className="absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap"
+              className="pointer-events-auto absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap"
             >
               <span className=" bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
                 더블클릭하면 안의 사진 위치를 옮길 수 있어요
@@ -8804,7 +8811,7 @@ const ImageBoxOverlay = forwardRef<
       {isActive && photoEditMode && (
         <div
           onMouseDown={(e) => e.stopPropagation()}
-          className="absolute -bottom-9 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 "
+          className="pointer-events-auto absolute -bottom-9 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 py-1 "
         >
           <span className="px-1 text-[10px] font-medium text-[var(--color-brand-purple)]">사진 위치 조정 중</span>
           <button
