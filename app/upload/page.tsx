@@ -12642,6 +12642,10 @@ function UploadPageContent() {
   // 2026-10-07: "텍스트 추가" 버튼에서 스타일 프리셋(제목/부제목/본문)을 바로 적용할
   // 수 있도록 overrides를 받아요 — 안 넘기면(undefined) 기존과 완전히 같은 기본 박스.
   function makeTextBox(overrides?: Partial<TextBoxDef>): TextBoxDef {
+    // 안전장치: TextBoxLayer 의 "+ 텍스트 추가"가 onClick={onAdd}로 클릭 이벤트(MouseEvent)를 첫 인자로 넘기면
+    // 그 이벤트(DOM 노드 참조 포함)가 박스 값으로 퍼져 들어가 JSON.stringify 에서 "circular structure"로 죽었어요.
+    // 평범한 객체가 아니면 무시해요.
+    if (overrides && Object.getPrototypeOf(overrides) !== Object.prototype) overrides = undefined;
     return {
       id: crypto.randomUUID(),
       text: "",
@@ -17396,7 +17400,7 @@ function UploadPageContent() {
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
                               boxes={backCoverTextBoxes}
-                              onAdd={handleAddBackCoverTextBox}
+                              onAdd={() => handleAddBackCoverTextBox()}
                               onChange={handleBackCoverTextBoxChange}
                               onDelete={(boxId) => deleteTextBoxByRef({ scope: "backCover" }, boxId)}
                               onStackAction={(boxId, action) => applyCoverStackAction("back", "text", boxId, action)}
@@ -17581,7 +17585,7 @@ function UploadPageContent() {
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
                               boxes={coverTextBoxes}
-                              onAdd={handleAddCoverTextBox}
+                              onAdd={() => handleAddCoverTextBox()}
                               onChange={handleCoverTextBoxChange}
                               onDelete={(boxId) => deleteTextBoxByRef({ scope: "cover" }, boxId)}
                               onStackAction={(boxId, action) => applyCoverStackAction("front", "text", boxId, action)}
