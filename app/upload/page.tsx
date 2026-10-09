@@ -116,7 +116,7 @@ import {
   type PhotoEditSection,
   type ReplaceLibraryPhoto,
 } from "./photoEditPanels";
-import { PrimaryActionButton, PrimaryFileButton } from "./primaryActionButton";
+import { PrimaryFileButton } from "./primaryActionButton";
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
@@ -7315,6 +7315,8 @@ function ImageBoxPanel({
   onPhotoEditSectionChange,
   onRequestPhotoReplace,
   fullPhotoManager,
+  libraryPhotos,
+  onAddLibraryPhoto,
 }: {
   // 사진박스를 선택하고 사진 위치 조정 모드(더블클릭)에도 들어가 있는지 — 이때만
   // "선택한 사진박스" 화면(확대/축소/반전/초기화/완료)을 보여줘요.
@@ -7337,6 +7339,9 @@ function ImageBoxPanel({
   // "전체 사진 관리" 섹션 — 내지에만 있어요. 이 값을 넘기지 않으면(표지) 섹션 자체가
   // 렌더되지 않아요.
   fullPhotoManager?: ImageBoxPanelFullPhotoManager;
+  // "사진 추가" 탭의 사진 보관함(이미 올린 사진) 썸네일과, 누르면 새 사진 칸으로 추가하는 동작.
+  libraryPhotos?: ReplaceLibraryPhoto[];
+  onAddLibraryPhoto?: (photo: ReplaceLibraryPhoto) => void;
 }) {
   const canFrame = !!frameTargetBox;
   // 사진 편집(변경·크롭·필터·보정)은 진짜 사진(스티커·빈 프레임 제외)에만 있어요.
@@ -7683,20 +7688,39 @@ function ImageBoxPanel({
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">
-                {/* 사진 변경 — 사진을 골라 둔 상태에서만 보여요. 사진 불러오기와 같은 부품(PrimaryActionButton)·같은 모양이에요. */}
-                {canEdit && frameTargetBox ? (
-                  <PrimaryActionButton
-                    title="이 사진을 다른 사진으로 바꿔요 (모양·액자·테두리·위치·크기는 그대로)"
-                    ariaLabel="사진 변경"
-                    onClick={() => onRequestPhotoReplace(frameTargetBox.id)}
-                  >
-                    <PhotoToolIcon name="replace" className="h-5 w-5 shrink-0" />
-                    <span>사진 변경</span>
-                  </PrimaryActionButton>
-                ) : null}
                 <PrimaryFileButton onFiles={onAddPhotoFile}>
                   <span>사진 불러오기</span>
                 </PrimaryFileButton>
+                {/* 이미 올린 사진(사진 보관함) 썸네일 — 사진 불러오기 바로 아래. 누르면 그 사진이 새 사진 칸으로 추가돼요
+                    (PhotoReplaceDialog와 같은 보관함 목록 buildReplaceLibrary()를 써요). 한 번에 많이 보여도 패널이 길어지지
+                    않게 이 칸만 스크롤돼요. 사진을 바꾸는 기능은 "사진 편집" 탭 맨 위 "사진 변경"과 선택한 사진 위 도구 막대에 있어요. */}
+                {libraryPhotos && libraryPhotos.length > 0 && onAddLibraryPhoto ? (
+                  <div className="mt-1" data-photo-library>
+                    <p className="mb-1 text-[11px] font-semibold text-[var(--color-charcoal)]">
+                      올린 사진 <span className="font-normal text-[var(--color-charcoal)]/50">({libraryPhotos.length}장)</span>
+                    </p>
+                    <p className="mb-1.5 text-[10px] text-[var(--color-charcoal)]/50">누르면 새 사진 칸으로 추가돼요</p>
+                    <div className="grid max-h-[240px] grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
+                      {libraryPhotos.map((lp, li) => (
+                        <button
+                          key={lp.url}
+                          type="button"
+                          data-library-photo
+                          title={`올린 사진 ${li + 1}번 — 누르면 사진 칸으로 추가`}
+                          aria-label={`올린 사진 ${li + 1}번 추가`}
+                          onClick={() => onAddLibraryPhoto(lp)}
+                          className="relative aspect-square overflow-hidden rounded-sm border border-[var(--color-hairline)] bg-[var(--color-ivory)] transition hover:border-[var(--color-sky)]"
+                        >
+                          <span
+                            aria-hidden
+                            className="block h-full w-full bg-cover bg-center"
+                            style={{ backgroundImage: `url("${lp.url}")` }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -17069,6 +17093,8 @@ function UploadPageContent() {
                                   : handleCoverImageBoxChange(boxId, changes)
                               }
                               onAddPhotoFile={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
+                              libraryPhotos={buildReplaceLibrary()}
+                              onAddLibraryPhoto={(lp) => handleAddCoverImageBoxFromUrl("front", lp.url, 36, "photo")}
                             />
                           )}
                           {activeCoverEditTab === "sticker" && (
@@ -17992,6 +18018,8 @@ function UploadPageContent() {
                                     if (file) handleAddImageBox(i, file);
                                     e.target.value = "";
                                   }}
+                                  libraryPhotos={buildReplaceLibrary()}
+                                  onAddLibraryPhoto={(lp) => handleAddImageBoxFromUrl(i, lp.url, 36, "photo")}
                                   fullPhotoManager={{
                                     photos,
                                     lowResCount,
