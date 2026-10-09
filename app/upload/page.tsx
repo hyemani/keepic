@@ -7710,7 +7710,10 @@ function ImageBoxPanel({
                       <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">프레임 테두리 프리셋</p>
                       <div className="mb-2 grid grid-cols-5 gap-1">
                         {PHOTO_BORDER_PRESETS.map((preset) => {
+                          // 프리셋은 사각형 전용이라 다른 모양(아치·구름 등)에서는 선택 표시를 안 해요.
                           const active =
+                            (!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") &&
+                            !frameTargetBox.frameDecor &&
                             (frameTargetBox.borderWidthPx ?? 0) === preset.borderWidthPx &&
                             (preset.borderWidthPx === 0 || (frameTargetBox.borderColor ?? undefined) === preset.borderColor) &&
                             (frameTargetBox.borderRadiusPct ?? 0) === preset.borderRadiusPct;
