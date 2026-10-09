@@ -15628,14 +15628,34 @@ function UploadPageContent() {
               줄바꿈될 때 줄 사이 세로 간격만 넉넉하게(gap-y-1.5 -> gap-y-3) 늘리고, 한
               줄 안의 버튼 간 가로 간격(gap-x-1.5)은 그대로 둠. */}
           <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              aria-label="뒤로가기"
-              className="flex h-8 w-8 shrink-0 items-center justify-center text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
-            >
-              ←
-            </button>
+            {/* 2026-11(19번째 라운드), 혜민님 요청: "미리보기" 버튼을 화면 맨 왼쪽 위로 옮기고
+                "← 미리보기로 돌아가기"로 바꿔주세요. 기존 "←" 뒤로가기(router.back, 편집기를
+                아예 나가는 동작)와 자리가 겹쳐서 하나로 합쳤어요 — 같은 맨 왼쪽 자리에
+                편집 중(editorMode === "edit")일 때는 "← 미리보기로 돌아가기"(미리보기 모드로
+                전환), 미리보기 중일 때는 원래의 "←" 뒤로가기(편집기 나가기)가 나와요. 두
+                동작은 서로 다른 일이라(미리보기 전환 vs 페이지 이탈) 둘 다 남기되, 한 자리에
+                상황에 맞게 하나만 보여서 중복 화살표가 없어요. 편집 중에도 로고(/)로 나갈 수
+                있어요. */}
+            {editorMode === "edit" && photos.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setEditorMode("preview")}
+                aria-label="미리보기로 돌아가기"
+                className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+              >
+                <span aria-hidden="true">←</span>
+                <span>미리보기로 돌아가기</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => router.back()}
+                aria-label="뒤로가기"
+                className="flex h-8 w-8 shrink-0 items-center justify-center text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+              >
+                ←
+              </button>
+            )}
             <a href="/" className="shrink-0">
               <img src="/logo.svg" alt="Keepic" className="h-6 w-auto" />
             </a>
@@ -15655,21 +15675,6 @@ function UploadPageContent() {
                     않고도 미리보기로 돌아갈 수 있어야 해서, 같은 자리에 작은 "완료" 버튼만
                     남겨뒀어요(편집 중일 때만 보임). */}
               <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                {editorMode === "edit" && (
-                  <button
-                    type="button"
-                    onClick={() => setEditorMode("preview")}
-                    // 2026-09-27, 혜민님 요청: "완료, 다음 버튼들 크기가 전부 제각각이라
-                    // 이상합니다" — 텍스트 길이에 따라 버튼 폭이 들쭉날쭉했던 걸, "완료"/
-                    // "다음" 버튼에 공통 최소 폭(min-w)과 가운데 정렬을 줘서 비슷한
-                    // 크기로 보이게 맞췄어요.
-                    className="flex h-8 min-w-[68px] items-center justify-center border border-[var(--color-hairline)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                  >
-                    {/* 2026-10-02, 혜민님 요청: "완료 버튼을 미리보기로 문구 바꿔주세요" —
-                        실제로 누르면 미리보기 모드로 돌아가는 동작이라 문구를 동작에 맞춤. */}
-                    미리보기
-                  </button>
-                )}
                 <div className="flex h-8 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 text-xs">
                   <button
                     type="button"
@@ -16152,13 +16157,13 @@ function UploadPageContent() {
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(50px,10cqw,64px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-12 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveCoverEditTab(tab.id)}
-                                className={`flex shrink-0 flex-col items-center gap-1 px-1.5 py-2 text-[11px] transition ${
+                                className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition ${
                                   activeCoverEditTab === tab.id
                                     ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                     : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
@@ -17154,7 +17159,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-[clamp(50px,10cqw,64px)] lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-12 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
@@ -17163,7 +17168,7 @@ function UploadPageContent() {
                                     key={tab.id}
                                     type="button"
                                     onClick={() => setActiveEditTab(tab.id)}
-                                    className={`flex shrink-0 flex-col items-center gap-1 px-1.5 py-2 text-[11px] transition ${
+                                    className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition ${
                                       activeEditTab === tab.id
                                         ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                         : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
