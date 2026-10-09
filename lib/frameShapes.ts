@@ -241,17 +241,77 @@ export const BORDER_PATTERN_MARK_RATIO = 0.64;
 export const BORDER_PATTERN_PITCH_RATIO = 2.3;
 export const BORDER_PATTERN_BAND_ALPHA = 0.35;
 
-export type BorderPatternLayout = {
-  size: number; // 무늬 지름(px)
-  marks: { x: number; y: number }[]; // 무늬 중심(박스 왼쪽 위 기준 px)
+// 테두리 무늬 종류 — 점/별/하트(기존) + 대시·물결·지그재그·사선·마름모·작은 꽃(신규). 색깔별로 따로 만들지 않고 "무늬 종류"만 있어요
+// (색은 항상 테두리 색상 하나를 따라가요). 전부 아래 borderPatternShapes() 한 함수가 좌표를 만들어서, 화면(SVG)·인쇄(canvas)·
+// 패널 썸네일이 똑같이 그려요.
+export type BorderPatternKey = "none" | "dot" | "star" | "heart" | "dash" | "wave" | "zigzag" | "diagonal" | "diamond" | "flower";
+
+export const BORDER_PATTERN_OPTIONS: { key: BorderPatternKey; label: string }[] = [
+  { key: "none", label: "없음" },
+  { key: "dot", label: "점" },
+  { key: "star", label: "별" },
+  { key: "heart", label: "하트" },
+  { key: "dash", label: "대시" },
+  { key: "wave", label: "물결" },
+  { key: "zigzag", label: "지그재그" },
+  { key: "diagonal", label: "사선" },
+  { key: "diamond", label: "마름모" },
+  { key: "flower", label: "작은 꽃" },
+];
+
+// 윤곽선 방향(접선)을 따라 눕는 무늬 — 나머지는 항상 똑바로 서 있어요.
+function patternFollowsOutline(p: BorderPatternKey | undefined): boolean {
+  return p === "dash" || p === "wave" || p === "zigzag" || p === "diagonal";
+}
+// 물결·지그재그는 "한 주기짜리 조각"을 빈틈없이 이어 붙여서 끊김 없는 선처럼 보여요(조각 길이 = 간격).
+function patternIsTiled(p: BorderPatternKey | undefined): boolean {
+  return p === "wave" || p === "zigzag";
+}
+/** 무늬 간격(피치) ÷ 무늬 지름. 점·별·하트 = 2.3(기존 그대로). 길쭉한 무늬는 그 길이에 맞춰 더 길어요. */
+export function borderPatternPitchRatio(p: BorderPatternKey | undefined): number {
+  switch (p) {
+    case "dash":
+      return 1.75;
+    case "wave":
+      return 2;
+    case "zigzag":
+      return 1.5;
+    case "diagonal":
+      return 1.35;
+    case "diamond":
+      return 1.9;
+    case "flower":
+      return 2.1;
+    default:
+      return BORDER_PATTERN_PITCH_RATIO;
+  }
+}
+
+export type BorderPatternMark = {
+  x: number;
+  y: number;
+  angle?: number; // 윤곽선 진행 방향(라디안, x축 기준) — 눕는 무늬만 써요
+  sx?: number; // 조각 길이 보정(실제 간격 ÷ 기본 간격) — 물결·지그재그만 써요
 };
 
-export function borderPatternLayout(w: number, h: number, bandPx: number, radiusPct: number = 0): BorderPatternLayout {
+export type BorderPatternLayout = {
+  size: number; // 무늬 지름(px)
+  marks: BorderPatternMark[]; // 무늬 중심(박스 왼쪽 위 기준 px)
+};
+
+export function borderPatternLayout(
+  w: number,
+  h: number,
+  bandPx: number,
+  radiusPct: number = 0,
+  pattern: BorderPatternKey = "dot"
+): BorderPatternLayout {
   const size = Math.max(0, bandPx) * BORDER_PATTERN_MARK_RATIO;
-  const marks: { x: number; y: number }[] = [];
+  const marks: BorderPatternMark[] = [];
   if (!(w > 0) || !(h > 0) || !(bandPx > 0)) return { size, marks };
   const c = bandPx / 2;
-  const pitch = size * BORDER_PATTERN_PITCH_RATIO;
+  const pitch = size * borderPatternPitchRatio(pattern);
+  const tiled = patternIsTiled(pattern);
   const left = c;
   const top = c;
   const right = w - c;
@@ -260,13 +320,16 @@ export function borderPatternLayout(w: number, h: number, bandPx: number, radius
   const crx = Math.max(0, (pct / 100) * w - c);
   const cry = Math.max(0, (pct / 100) * h - c);
   if (crx < 0.5 || cry < 0.5) {
-    // 직각 모서리: 변마다 정수 칸, 시작 모서리 포함·끝 모서리 제외(다음 변의 시작점이라 중복 없음)
+    // 직각 모서리: 변마다 정수 칸. 일반 무늬는 시작 모서리 포함·끝 모서리 제외(다음 변의 시작점이라 중복 없음),
+    // 물결·지그재그는 조각이 각 변의 중심선 구간을 빈틈없이 채워요(조각 끝이 모서리 점에서 만나 박스 밖으로 안 나가요).
     const nx = Math.max(1, Math.round((right - left) / pitch));
     const ny = Math.max(1, Math.round((bottom - top) / pitch));
-    for (let i = 0; i < nx; i++) marks.push({ x: left + ((right - left) * i) / nx, y: top });
-    for (let i = 0; i < ny; i++) marks.push({ x: right, y: top + ((bottom - top) * i) / ny });
-    for (let i = 0; i < nx; i++) marks.push({ x: right - ((right - left) * i) / nx, y: bottom });
-    for (let i = 0; i < ny; i++) marks.push({ x: left, y: bottom - ((bottom - top) * i) / ny });
+    const off = tiled ? 0.5 : 0;
+    const sxOf = (len: number, n: number) => len / n / pitch;
+    for (let i = 0; i < nx; i++) marks.push({ x: left + ((right - left) * (i + off)) / nx, y: top, angle: 0, sx: sxOf(right - left, nx) });
+    for (let i = 0; i < ny; i++) marks.push({ x: right, y: top + ((bottom - top) * (i + off)) / ny, angle: Math.PI / 2, sx: sxOf(bottom - top, ny) });
+    for (let i = 0; i < nx; i++) marks.push({ x: right - ((right - left) * (i + off)) / nx, y: bottom, angle: Math.PI, sx: sxOf(right - left, nx) });
+    for (let i = 0; i < ny; i++) marks.push({ x: left, y: bottom - ((bottom - top) * (i + off)) / ny, angle: -Math.PI / 2, sx: sxOf(bottom - top, ny) });
     return { size, marks };
   }
   // 둥근 모서리: 중심선(타원 호 + 직선)을 촘촘한 점으로 만들고 전체 길이를 정수 등분
@@ -282,6 +345,13 @@ export function borderPatternLayout(w: number, h: number, bandPx: number, radius
   arc(right - crx, bottom - cry, 0);
   arc(left + crx, bottom - cry, Math.PI / 2);
   arc(left + crx, top + cry, Math.PI);
+  return { size, marks: marksAlongClosedPath(poly, pitch, tiled) };
+}
+
+// 닫힌 중심선(점 배열)을 따라 전체 길이를 정수 등분해서 무늬 위치와 진행 방향을 정해요.
+// tiled 이면 등분한 각 구간의 "한가운데"에 놓고(조각이 구간을 채움), 아니면 구간의 "시작점"에 놓아요.
+function marksAlongClosedPath(poly: { x: number; y: number }[], pitch: number, tiled: boolean): BorderPatternMark[] {
+  const marks: BorderPatternMark[] = [];
   const cum: number[] = [0];
   for (let i = 0; i < poly.length; i++) {
     const a = poly[i];
@@ -290,16 +360,17 @@ export function borderPatternLayout(w: number, h: number, bandPx: number, radius
   }
   const total = cum[poly.length];
   const n = Math.max(4, Math.round(total / pitch));
+  const sx = total / n / pitch;
   let seg = 0;
   for (let k = 0; k < n; k++) {
-    const d = (k / n) * total;
+    const d = ((k + (tiled ? 0.5 : 0)) / n) * total;
     while (seg < poly.length - 1 && cum[seg + 1] < d) seg++;
     const a = poly[seg];
     const b = poly[(seg + 1) % poly.length];
     const t = (d - cum[seg]) / (cum[seg + 1] - cum[seg] || 1);
-    marks.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    marks.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, angle: Math.atan2(b.y - a.y, b.x - a.x), sx });
   }
-  return { size, marks };
+  return marks;
 }
 
 // 별(5각) 모양 — 바깥 꼭짓점 5개 + 안쪽 꼭짓점 5개, 표준 별 모양 공식. -1~1 로컬
@@ -329,6 +400,117 @@ export function heartShapePoints(sampleCount: number = 20): UnitPoint[] {
   const maxX = Math.max(...raw.map((p) => Math.abs(p.x)));
   const maxY = Math.max(...raw.map((p) => Math.abs(p.y)));
   return raw.map((p) => ({ x: p.x / maxX, y: p.y / maxY }));
+}
+
+// 테두리 무늬 하나의 "그림"(반지름 r=1 기준 로컬 좌표, x = 윤곽선을 따라가는 방향, y = 띠를 가로지르는 방향)이에요.
+// 점은 원이라 따로(null), 나머지는 전부 채워진 다각형 목록이에요 — 화면 SVG <polygon>·인쇄 canvas fill·썸네일이 같은 점을 써요.
+function circlePoly(cx: number, cy: number, r: number, n: number = 20): UnitPoint[] {
+  const out: UnitPoint[] = [];
+  for (let i = 0; i < n; i++) out.push({ x: cx + r * Math.cos((i / n) * Math.PI * 2), y: cy + r * Math.sin((i / n) * Math.PI * 2) });
+  return out;
+}
+
+function waveBand(period: number, amp: number, thick: number, tri: boolean): UnitPoint[] {
+  // 한 주기(−period/2 ~ +period/2): 중심선 y(x)를 위/아래로 thick/2 만큼 벌려 만든 띠. 양 끝에서 y=0 이라 이어 붙이면 끊김 없어요.
+  const N = tri ? 4 : 24;
+  const center = (x: number) => {
+    const u = (x + period / 2) / period; // 0~1
+    return tri ? amp * (u < 0.25 ? u * 4 : u < 0.75 ? 2 - u * 4 : u * 4 - 4) : amp * Math.sin(u * Math.PI * 2);
+  };
+  const xs: number[] = [];
+  for (let i = 0; i <= N; i++) xs.push(-period / 2 + (period * i) / N);
+  const upper = xs.map((x) => ({ x, y: center(x) - thick / 2 }));
+  const lower = xs.map((x) => ({ x, y: center(x) + thick / 2 })).reverse();
+  return [...upper, ...lower];
+}
+
+export function borderPatternUnitPolygons(pattern: BorderPatternKey | undefined): UnitPoint[][] | null {
+  switch (pattern) {
+    case "star":
+      return [starShapePoints()];
+    case "heart":
+      return [heartShapePoints()];
+    case "dash": {
+      // 둥근 알약(길이 2.4, 두께 0.7)
+      const L = 1.2;
+      const t = 0.35;
+      const pts: UnitPoint[] = [];
+      for (let i = 0; i <= 8; i++) {
+        const a = -Math.PI / 2 + (Math.PI * i) / 8;
+        pts.push({ x: L - t + t * Math.cos(a), y: t * Math.sin(a) });
+      }
+      for (let i = 0; i <= 8; i++) {
+        const a = Math.PI / 2 + (Math.PI * i) / 8;
+        pts.push({ x: -L + t + t * Math.cos(a), y: t * Math.sin(a) });
+      }
+      return [pts];
+    }
+    case "wave":
+      return [waveBand(4, 0.5, 0.5, false)];
+    case "zigzag":
+      return [waveBand(3, 0.55, 0.45, true)];
+    case "diagonal":
+      return [
+        [
+          { x: -1.08, y: 0.8 },
+          { x: -0.52, y: 0.8 },
+          { x: 1.08, y: -0.8 },
+          { x: 0.52, y: -0.8 },
+        ],
+      ];
+    case "diamond":
+      return [
+        [
+          { x: 0, y: -1 },
+          { x: 0.8, y: 0 },
+          { x: 0, y: 1 },
+          { x: -0.8, y: 0 },
+        ],
+      ];
+    case "flower": {
+      const petals: UnitPoint[][] = [];
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i / 5) * Math.PI * 2;
+        petals.push(circlePoly(0.62 * Math.cos(a), 0.62 * Math.sin(a), 0.38, 16));
+      }
+      petals.push(circlePoly(0, 0, 0.17, 12));
+      return petals;
+    }
+    default:
+      return null; // none / dot — 원으로 그려요
+  }
+}
+
+export type BorderPatternShape = { circle: { cx: number; cy: number; r: number } } | { poly: { x: number; y: number }[] };
+
+/** 무늬 배치(layout)를 그릴 도형 목록(px, 박스 왼쪽 위 기준)으로 바꿔요 — 화면·인쇄·썸네일이 공용. */
+export function borderPatternShapes(pattern: BorderPatternKey | undefined, layout: BorderPatternLayout): BorderPatternShape[] {
+  if (!pattern || pattern === "none") return [];
+  const r = layout.size / 2;
+  const unit = borderPatternUnitPolygons(pattern);
+  const out: BorderPatternShape[] = [];
+  const follows = patternFollowsOutline(pattern);
+  const tiled = patternIsTiled(pattern);
+  for (const m of layout.marks) {
+    if (!unit) {
+      out.push({ circle: { cx: m.x, cy: m.y, r } });
+      continue;
+    }
+    const ang = follows ? (m.angle ?? 0) : 0;
+    const co = Math.cos(ang);
+    const si = Math.sin(ang);
+    const sx = tiled ? (m.sx ?? 1) : 1;
+    for (const poly of unit) {
+      out.push({
+        poly: poly.map((p) => {
+          const lx = p.x * sx * r;
+          const ly = p.y * r;
+          return { x: m.x + lx * co - ly * si, y: m.y + lx * si + ly * co };
+        }),
+      });
+    }
+  }
+  return out;
 }
 
 // ---- 3. 프레임 모양(frameShape) 확장 — "아기자기한 프레임" 모음 ----
@@ -866,12 +1048,13 @@ export function frameBorderMarks(
   h: number,
   bandPx: number,
   radiusPct: number = 0,
-  params?: FrameShapeParams
+  params?: FrameShapeParams,
+  pattern: BorderPatternKey = "dot"
 ): BorderPatternLayout {
   const pts = framePerimeterPoints(shape, w / (h || 1), params);
-  if (!pts) return borderPatternLayout(w, h, bandPx, radiusPct);
+  if (!pts) return borderPatternLayout(w, h, bandPx, radiusPct, pattern);
   const size = Math.max(0, bandPx) * BORDER_PATTERN_MARK_RATIO;
-  const marks: { x: number; y: number }[] = [];
+  const marks: BorderPatternMark[] = [];
   if (!(w > 0) || !(h > 0) || !(bandPx > 0) || pts.length < 3) return { size, marks };
   const step = Math.max(1, Math.ceil(pts.length / MARK_POLY_MAX));
   const P: { x: number; y: number }[] = [];
@@ -923,23 +1106,5 @@ export function frameBorderMarks(
     if (ok) chain.push(q);
   }
   if (chain.length < 3) return { size, marks };
-  const cum: number[] = [0];
-  for (let i = 0; i < chain.length; i++) {
-    const a = chain[i];
-    const b = chain[(i + 1) % chain.length];
-    cum.push(cum[i] + Math.hypot(b.x - a.x, b.y - a.y));
-  }
-  const total = cum[chain.length];
-  const pitch = size * BORDER_PATTERN_PITCH_RATIO;
-  const count = Math.max(4, Math.round(total / pitch));
-  let seg = 0;
-  for (let k = 0; k < count; k++) {
-    const d = (k / count) * total;
-    while (seg < chain.length - 1 && cum[seg + 1] < d) seg++;
-    const a = chain[seg];
-    const b = chain[(seg + 1) % chain.length];
-    const t = (d - cum[seg]) / (cum[seg + 1] - cum[seg] || 1);
-    marks.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-  }
-  return { size, marks };
+  return { size, marks: marksAlongClosedPath(chain, size * borderPatternPitchRatio(pattern), patternIsTiled(pattern)) };
 }

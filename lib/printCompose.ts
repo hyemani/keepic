@@ -30,9 +30,8 @@ import { isEdgeFadeActive, renderEdgeFadeMask } from "@/lib/edgeFade";
 import { isPhotoEditIdentity, renderPhotoEditCanvas, renderPhotoEditOrientedCanvas, type PhotoAdjust, type PhotoFilter } from "@/lib/photoAdjust";
 import {
   frameBorderMarks,
+  borderPatternShapes,
   BORDER_PATTERN_BAND_ALPHA,
-  starShapePoints,
-  heartShapePoints,
   framePerimeterPoints,
   frameOutlinePathD,
 } from "@/lib/frameShapes";
@@ -201,25 +200,25 @@ function drawBorderPattern(
 ) {
   if (!box.frameBorderPattern || box.frameBorderPattern === "none") return;
   // 화면(ImageBoxOverlay)과 같은 frameBorderMarks() — 사진 외곽선(모양)에서 안쪽 띠 한가운데에 놓여요.
-  const layout = frameBorderMarks(box.frameShape, w, h, bandPx, box.borderRadiusPct ?? 0, {
-    archTopPct: box.frameArchTopPct,
-    archBottomRadiusPct: box.frameArchBottomRadiusPct,
-  });
-  const r = layout.size / 2;
+  const layout = frameBorderMarks(
+    box.frameShape,
+    w,
+    h,
+    bandPx,
+    box.borderRadiusPct ?? 0,
+    { archTopPct: box.frameArchTopPct, archBottomRadiusPct: box.frameArchBottomRadiusPct },
+    box.frameBorderPattern
+  );
   ctx.fillStyle = box.borderColor ?? "#ffffff";
-  const shapePts = box.frameBorderPattern === "star" ? starShapePoints() : box.frameBorderPattern === "heart" ? heartShapePoints() : null;
-  for (const m of layout.marks) {
-    const cx = x + m.x;
-    const cy = y + m.y;
+  // 화면(ImageBoxOverlay)과 같은 borderPatternShapes() — 점은 원, 나머지는 채운 다각형이에요.
+  for (const sh of borderPatternShapes(box.frameBorderPattern, layout)) {
     ctx.beginPath();
-    if (!shapePts) {
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    if ("circle" in sh) {
+      ctx.arc(x + sh.circle.cx, y + sh.circle.cy, sh.circle.r, 0, Math.PI * 2);
     } else {
-      shapePts.forEach((sp, i) => {
-        const px = cx + sp.x * r;
-        const py = cy + sp.y * r;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+      sh.poly.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(x + pt.x, y + pt.y);
+        else ctx.lineTo(x + pt.x, y + pt.y);
       });
       ctx.closePath();
     }

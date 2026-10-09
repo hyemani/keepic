@@ -1,5 +1,5 @@
 import type { TextRun } from "./textRuns";
-import type { FrameShapeKey } from "./frameShapes";
+import type { BorderPatternKey, FrameShapeKey } from "./frameShapes";
 import type { FrameDecorKey } from "./frameDecorations";
 import type { PhotoAdjust, PhotoFilter } from "./photoAdjust";
 import type { EdgeFade } from "./edgeFade";
@@ -299,7 +299,7 @@ export type ImageBoxDef = {
   // 양쪽이 그대로 가져다 써서(숫자를 두 번 베끼지 않음) 위치가 어긋나지 않아요.
   // frameShape가 "rect"(기본값)일 때만 의미가 있어요 — 육각형/톱니처럼 테두리선
   // 자체가 사각형이 아니면 이 무늬 위치가 실제 선 위에 있지 않아 이번 범위에서 뺐어요.
-  frameBorderPattern?: "none" | "dot" | "star" | "heart";
+  frameBorderPattern?: BorderPatternKey; // none/dot/star/heart + dash/wave/zigzag/diagonal/diamond/flower (lib/frameShapes.ts)
   // 2026-11, 혜민님 요청("장식 프레임") — 사진 둘레에 귀·얼굴·꽃·줄무늬·꽃잎 테두리 같은
   // 그림을 둘러주는 프레임이에요(lib/frameDecorations.ts). 없으면(기존 저장본 전부) 아무
   // 장식 없음 — 하위 호환. frameDecorVariant는 색상 종류("pink"/"gray"/"redBlue" 등)예요.
