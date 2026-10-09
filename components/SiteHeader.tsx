@@ -113,6 +113,9 @@ export default function SiteHeader({
 
         {/* PC 우측: 주문 조회 / 장바구니 / 제작 신청 (작고 간결하게) */}
         <div className="hidden items-center gap-5 text-sm sm:flex">
+          <Link href="/my-works" className={accountLinkClass}>
+            내 작업
+          </Link>
           <Link href="/order-lookup" className={accountLinkClass}>
             주문 조회
           </Link>
@@ -263,6 +266,13 @@ export default function SiteHeader({
               className="rounded-full border border-[var(--color-hairline)] py-3 text-center text-xs font-medium"
             >
               장바구니
+            </Link>
+            <Link
+              href="/my-works"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-full border border-[var(--color-hairline)] py-3 text-center text-xs font-medium"
+            >
+              내 작업
             </Link>
             <Link
               href="/order-lookup"
