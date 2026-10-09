@@ -7652,53 +7652,43 @@ function ImageBoxPanel({
                           />
                         </>
                       )}
-                      {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") —
-                          테두리선 위에 점/별/하트 무늬를 일정 간격으로 찍어요. 좌표는
-                          lib/frameShapes.ts의 borderPatternCenterPoints()를 화면·인쇄
-                          양쪽이 그대로 가져다 써서 위치가 어긋나지 않아요. borderPatternCenterPoints()의
-                          중심점은 "사각형 테두리선" 전제로 계산돼요(F 항목) — 그래서
-                          2026-11(18번째 라운드 20차)에 "사진 자르는 모양" 선택이 다시
-                          생기면서, hexagon/scalloped를 포함해 rect가 아닌 모양일 땐 이
-                          섹션 자체를 다시 숨겨요(19차에 없앴던 이 조건을 모양이 더 늘어난
-                          채로 복원). */}
-                      {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
-                        <>
-                          <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
-                          <div className="mb-2 grid grid-cols-4 gap-1">
-                            {(
-                              [
-                                { key: "none" as const, label: "없음" },
-                                { key: "dot" as const, label: "점" },
-                                { key: "star" as const, label: "별" },
-                                { key: "heart" as const, label: "하트" },
-                              ]
-                            ).map((opt) => {
-                              const active = (frameTargetBox.frameBorderPattern ?? "none") === opt.key;
-                              return (
-                                <button
-                                  key={opt.key}
-                                  type="button"
-                                  onClick={() =>
-                              // 무늬는 테두리 띠 안에 들어가서, 두께가 얇으면(6px 미만) 무늬가 너무 작아 안 보여요 —
-                              // 무늬를 고를 때 두께가 얇으면 8px로 맞춰요(이미 6px 이상이면 그대로).
-                              onFrameChange(frameTargetBox.id, {
-                                frameBorderPattern: opt.key,
-                                ...(opt.key !== "none" && (frameTargetBox.borderWidthPx ?? 0) < 6 ? { borderWidthPx: 8 } : {}),
-                              })
-                            }
-                                  className={`border px-1 py-1.5 text-[10.5px] transition ${
-                                    active
-                                      ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                      : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-                                  }`}
-                                >
-                                  {opt.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </>
-                      )}
+                                            {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") — 점/별/하트 무늬를 테두리 띠 안에 찍어요.
+                          이번(모양 따라가는 테두리)부터 모든 모양에서 고를 수 있어요: 무늬는 lib/frameShapes.ts의 frameBorderMarks()가
+                          사진 외곽선(사각형·둥근 사각형 포함)에서 안쪽 두께/2 지점을 따라 정수 개로 놓고, 화면·인쇄가 같은 함수를 써요. */}
+                      <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
+                      <div className="mb-2 grid grid-cols-4 gap-1">
+                        {(
+                          [
+                            { key: "none" as const, label: "없음" },
+                            { key: "dot" as const, label: "점" },
+                            { key: "star" as const, label: "별" },
+                            { key: "heart" as const, label: "하트" },
+                          ]
+                        ).map((opt) => {
+                          const active = (frameTargetBox.frameBorderPattern ?? "none") === opt.key;
+                          return (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              onClick={() =>
+                          // 무늬는 테두리 띠 안에 들어가서, 두께가 얇으면(6px 미만) 무늬가 너무 작아 안 보여요 —
+                          // 무늬를 고를 때 두께가 얇으면 8px로 맞춰요(이미 6px 이상이면 그대로).
+                          onFrameChange(frameTargetBox.id, {
+                            frameBorderPattern: opt.key,
+                            ...(opt.key !== "none" && (frameTargetBox.borderWidthPx ?? 0) < 6 ? { borderWidthPx: 8 } : {}),
+                          })
+                        }
+                              className={`border px-1 py-1.5 text-[10.5px] transition ${
+                                active
+                                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                  : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
 
                       {/* 2026-11(18번째 라운드 17차), 혜민님 요청("프레임모양 이런식으로
                           만들어주라... 도형말구" + 프리셋 갤러리 스크린샷) — "둥근 모서리 +
