@@ -44,6 +44,8 @@ import {
   BORDER_PATTERN_SHAPE_SIZE_PCT,
   framePerimeterPoints,
   type FrameShapeParams,
+  ARCH_TOP_PCT_RANGE,
+  ARCH_BOTTOM_RADIUS_PCT_RANGE,
   type FrameShapeKey,
 } from "@/lib/frameShapes";
 import {
@@ -7267,6 +7269,73 @@ type ImageBoxPanelFullPhotoManager = {
   onRemovePhoto: (index: number) => void;
 };
 
+// 슬라이더 + 숫자 입력칸이 한 몸처럼 움직이는 입력이에요(양방향 동기화). 슬라이더를 끌면 숫자가
+// 바뀌고, 숫자를 직접 치면(또는 위/아래 화살표) 슬라이더가 따라와요. 숫자는 min~max로 자동 보정되고
+// (범위를 벗어난 값은 가까운 끝값으로), step 단위로 맞춰져요. 입력 중에는 치고 있는 글자(draft)를
+// 그대로 보여주고(예: 지우고 새로 칠 때 빈칸 허용), 칸을 벗어나면 확정된 값으로 돌아가요.
+function SliderNumberField({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  unit,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  onChange: (v: number) => void;
+  hint?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const decimals = step < 1 ? String(step).split(".")[1]?.length ?? 2 : 0;
+  const snap = (v: number) => {
+    const c = Math.min(max, Math.max(min, v));
+    return Number((Math.round((c - min) / step) * step + min).toFixed(decimals));
+  };
+  return (
+    <div className="mb-2">
+      <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
+        {label}
+        {hint ? <span className="ml-1 text-[var(--color-charcoal)]/40">{hint}</span> : null}
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          aria-label={label}
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(snap(Number(e.target.value)))}
+          className="min-w-0 flex-1"
+        />
+        <input
+          type="number"
+          aria-label={`${label} 숫자 입력`}
+          min={min}
+          max={max}
+          step={step}
+          value={draft ?? String(value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            const n = parseFloat(e.target.value);
+            if (Number.isFinite(n)) onChange(snap(n));
+          }}
+          onBlur={() => setDraft(null)}
+          className="w-14 shrink-0 border border-[var(--color-hairline)] px-1 py-0.5 text-right text-[10.5px] tabular-nums"
+        />
+        {unit ? <span className="w-3 shrink-0 text-[10px] text-[var(--color-charcoal)]/50">{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
+
 function ImageBoxPanel({
   selected,
   activeBoxId,
@@ -7496,11 +7565,161 @@ function ImageBoxPanel({
                     );
                   })}
                 </div>
+                {/* 2026-11(23차) 패널 순서 정리 — "사진 모양 → 기본 설정(테두리 두께·색, 모서리 둥글게/상단 아치 라운드,
+                    테두리 무늬) → 장식 프레임·캐릭터·꽃 화환" 순서예요. 예전엔 기본 설정이 긴 장식 목록 아래에 있어서
+                    스크롤을 한참 내려야 찾을 수 있었어요. 지금 고른 모양/장식에 해당하는 컨트롤만 보여요: 장식 프레임이
+                    켜져 있으면 테두리·모양 설정은 화면·인쇄 모두 무시되니 숨기는 대신 한 줄로 이유를 알려줘요. */}
+                <div className="mb-3 border-t border-[var(--color-hairline)] pt-2">
+                  <p className="mb-1 text-[11px] font-semibold text-[var(--color-charcoal)]">기본 설정</p>
+                  {frameTargetBox.frameDecor ? (
+                    <>
+                      <p className="mb-2 text-[10px] leading-snug text-[var(--color-charcoal)]/55">
+                        장식 프레임을 쓰는 동안은 테두리·모서리 설정이 적용되지 않아요. 위 &quot;사진 모양&quot;을 누르면 장식이
+                        해제돼요.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <SliderNumberField
+                        label="테두리 두께"
+                        unit="px"
+                        min={0}
+                        max={12}
+                        step={1}
+                        value={frameTargetBox.borderWidthPx ?? 0}
+                        onChange={(v) => onFrameChange(frameTargetBox.id, { borderWidthPx: v })}
+                      />
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--color-charcoal)]/60">테두리 색상</span>
+                        <input
+                          type="color"
+                          aria-label="테두리 색상"
+                          value={frameTargetBox.borderColor ?? "#ffffff"}
+                          onChange={(e) => onFrameChange(frameTargetBox.id, { borderColor: e.target.value })}
+                          className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
+                        />
+                      </div>
+                      {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
+                        <SliderNumberField
+                          label="모서리 둥글게"
+                          unit="%"
+                          hint={(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? "(원)" : undefined}
+                          min={0}
+                          max={50}
+                          step={1}
+                          value={frameTargetBox.borderRadiusPct ?? 0}
+                          onChange={(v) => onFrameChange(frameTargetBox.id, { borderRadiusPct: v })}
+                        />
+                      )}
+                      {frameTargetBox.frameShape === "arch" && (
+                        <>
+                          <SliderNumberField
+                            label="상단 아치 라운드"
+                            unit="%"
+                            hint="낮고 완만 ↔ 깊은 반원"
+                            min={ARCH_TOP_PCT_RANGE.min}
+                            max={ARCH_TOP_PCT_RANGE.max}
+                            step={1}
+                            value={frameTargetBox.frameArchTopPct ?? ARCH_TOP_PCT_RANGE.default}
+                            onChange={(v) => onFrameChange(frameTargetBox.id, { frameArchTopPct: v })}
+                          />
+                          <SliderNumberField
+                            label="아래 모서리 둥글게"
+                            unit="%"
+                            min={ARCH_BOTTOM_RADIUS_PCT_RANGE.min}
+                            max={ARCH_BOTTOM_RADIUS_PCT_RANGE.max}
+                            step={1}
+                            value={frameTargetBox.frameArchBottomRadiusPct ?? ARCH_BOTTOM_RADIUS_PCT_RANGE.default}
+                            onChange={(v) => onFrameChange(frameTargetBox.id, { frameArchBottomRadiusPct: v })}
+                          />
+                        </>
+                      )}
+                      {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") —
+                          테두리선 위에 점/별/하트 무늬를 일정 간격으로 찍어요. 좌표는
+                          lib/frameShapes.ts의 borderPatternCenterPoints()를 화면·인쇄
+                          양쪽이 그대로 가져다 써서 위치가 어긋나지 않아요. borderPatternCenterPoints()의
+                          중심점은 "사각형 테두리선" 전제로 계산돼요(F 항목) — 그래서
+                          2026-11(18번째 라운드 20차)에 "사진 자르는 모양" 선택이 다시
+                          생기면서, hexagon/scalloped를 포함해 rect가 아닌 모양일 땐 이
+                          섹션 자체를 다시 숨겨요(19차에 없앴던 이 조건을 모양이 더 늘어난
+                          채로 복원). */}
+                      {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
+                        <>
+                          <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
+                          <div className="mb-2 grid grid-cols-4 gap-1">
+                            {(
+                              [
+                                { key: "none" as const, label: "없음" },
+                                { key: "dot" as const, label: "점" },
+                                { key: "star" as const, label: "별" },
+                                { key: "heart" as const, label: "하트" },
+                              ]
+                            ).map((opt) => {
+                              const active = (frameTargetBox.frameBorderPattern ?? "none") === opt.key;
+                              return (
+                                <button
+                                  key={opt.key}
+                                  type="button"
+                                  onClick={() => onFrameChange(frameTargetBox.id, { frameBorderPattern: opt.key })}
+                                  className={`border px-1 py-1.5 text-[10.5px] transition ${
+                                    active
+                                      ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
+                                      : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+
+                      {/* 2026-11(18번째 라운드 17차), 혜민님 요청("프레임모양 이런식으로
+                          만들어주라... 도형말구" + 프리셋 갤러리 스크린샷) — "둥근 모서리 +
+                          두꺼운 단색 테두리" 스타일의 색상별 프리셋 갤러리예요. 새 필드나
+                          새 렌더링 로직이 전혀 아니고, 이미 있던 borderWidthPx/borderColor/
+                          borderRadiusPct 세 필드에 미리 정해둔 조합(PHOTO_BORDER_PRESETS,
+                          위 정의)을 한 번에 세팅하는 바로가기라서 화면·인쇄 파일 모두 기존
+                          경로 그대로 반영돼요. frameShape도 "rect"로 같이 맞춰서(위에서
+                          다른 모양을 클리핑 중이었다면 이 프리셋을 고르는 순간 사각형으로
+                          돌아와요 — 테두리 프리셋은 사각형 모양 전용이에요). */}
+                      <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">프레임 테두리 프리셋</p>
+                      <div className="mb-2 grid grid-cols-5 gap-1">
+                        {PHOTO_BORDER_PRESETS.map((preset) => {
+                          const active =
+                            (frameTargetBox.borderWidthPx ?? 0) === preset.borderWidthPx &&
+                            (preset.borderWidthPx === 0 || (frameTargetBox.borderColor ?? undefined) === preset.borderColor) &&
+                            (frameTargetBox.borderRadiusPct ?? 0) === preset.borderRadiusPct;
+                          return (
+                            <PhotoBorderPresetSwatch
+                              key={preset.id}
+                              preset={preset}
+                              active={active}
+                              onClick={() =>
+                                onFrameChange(frameTargetBox.id, {
+                                  borderWidthPx: preset.borderWidthPx,
+                                  borderColor: preset.borderColor,
+                                  borderRadiusPct: preset.borderRadiusPct,
+                                  frameShape: "rect",
+                                  frameArchTopPct: undefined,
+                                  frameArchBottomRadiusPct: undefined,
+                                  frameDecor: undefined,
+                                  frameDecorVariant: undefined,
+                                })
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
                 {/* 2026-11, 혜민님 요청("장식 프레임") — 사진 둘레에 그림(귀·얼굴·꽃·줄무늬·꽃잎 테두리)을
                     두르는 프레임이에요(lib/frameDecorations.ts). 버튼을 누르면 "선택한 사진 한 장"
                     (frameTargetBox)에만 적용되고, 사진 파일·확대·위치·회전·박스 좌표는 그대로예요
                     (frameDecor/frameDecorVariant 두 필드만 바뀜). 위 "사진 모양"과는 같이 못 써서
-                    장식을 고르면 모양 선택이 해제되고, 아래 테두리 컨트롤은 숨겨요. */}
+                    장식을 고르면 모양 선택이 해제되고, 위 "기본 설정"의 테두리 컨트롤은 한 줄 안내로 바뀌어요. */}
                 <p className="mb-0.5 text-[11px] font-semibold text-[var(--color-charcoal)]">장식 프레임</p>
                 <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/50">사진 둘레에 그림을 둘러요</p>
                 {(
@@ -7528,131 +7747,6 @@ function ImageBoxPanel({
                     </div>
                   </div>
                 ))}
-                {frameTargetBox.frameDecor ? (
-                  <p className="mt-1 text-[10px] leading-snug text-[var(--color-charcoal)]/50">
-                    장식 프레임을 쓰는 동안은 테두리·둥글기 설정이 필요 없어서 숨겼어요. 위에서 &quot;사진 모양&quot;을
-                    누르면 장식이 해제돼요.
-                  </p>
-                ) : (
-                  <>
-                {/* 2026-11(18번째 라운드 17차), 혜민님 요청("프레임모양 이런식으로
-                    만들어주라... 도형말구" + 프리셋 갤러리 스크린샷) — "둥근 모서리 +
-                    두꺼운 단색 테두리" 스타일의 색상별 프리셋 갤러리예요. 새 필드나
-                    새 렌더링 로직이 전혀 아니고, 이미 있던 borderWidthPx/borderColor/
-                    borderRadiusPct 세 필드에 미리 정해둔 조합(PHOTO_BORDER_PRESETS,
-                    위 정의)을 한 번에 세팅하는 바로가기라서 화면·인쇄 파일 모두 기존
-                    경로 그대로 반영돼요. frameShape도 "rect"로 같이 맞춰서(위에서
-                    다른 모양을 클리핑 중이었다면 이 프리셋을 고르는 순간 사각형으로
-                    돌아와요 — 테두리 프리셋은 사각형 모양 전용이에요). */}
-                <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">프레임 테두리 프리셋</p>
-                <div className="mb-2 grid grid-cols-5 gap-1">
-                  {PHOTO_BORDER_PRESETS.map((preset) => {
-                    const active =
-                      (frameTargetBox.borderWidthPx ?? 0) === preset.borderWidthPx &&
-                      (preset.borderWidthPx === 0 || (frameTargetBox.borderColor ?? undefined) === preset.borderColor) &&
-                      (frameTargetBox.borderRadiusPct ?? 0) === preset.borderRadiusPct;
-                    return (
-                      <PhotoBorderPresetSwatch
-                        key={preset.id}
-                        preset={preset}
-                        active={active}
-                        onClick={() =>
-                          onFrameChange(frameTargetBox.id, {
-                            borderWidthPx: preset.borderWidthPx,
-                            borderColor: preset.borderColor,
-                            borderRadiusPct: preset.borderRadiusPct,
-                            frameShape: "rect",
-                            frameDecor: undefined,
-                            frameDecorVariant: undefined,
-                          })
-                        }
-                      />
-                    );
-                  })}
-                </div>
-                <p className="mb-1 text-[10px] text-[var(--color-charcoal)]/60">
-                  테두리 두께 {frameTargetBox.borderWidthPx ?? 0}px
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min={0}
-                    max={12}
-                    step={1}
-                    value={frameTargetBox.borderWidthPx ?? 0}
-                    onChange={(e) =>
-                      onFrameChange(frameTargetBox.id, { borderWidthPx: Number(e.target.value) })
-                    }
-                    className="flex-1"
-                  />
-                  <input
-                    type="color"
-                    value={frameTargetBox.borderColor ?? "#ffffff"}
-                    onChange={(e) => onFrameChange(frameTargetBox.id, { borderColor: e.target.value })}
-                    className="h-5 w-6 shrink-0 cursor-pointer border-none bg-transparent p-0"
-                  />
-                </div>
-                {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
-                  <>
-                    <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">
-                      모서리 둥글게 {frameTargetBox.borderRadiusPct ?? 0}%
-                      {(frameTargetBox.borderRadiusPct ?? 0) >= 50 ? " (원)" : ""}
-                    </p>
-                    <input
-                      type="range"
-                      min={0}
-                      max={50}
-                      step={1}
-                      value={frameTargetBox.borderRadiusPct ?? 0}
-                      onChange={(e) =>
-                        onFrameChange(frameTargetBox.id, { borderRadiusPct: Number(e.target.value) })
-                      }
-                      className="w-full"
-                    />
-                  </>
-                )}
-                {/* 2026-11(18번째 라운드 18차), 혜민님 요청("패턴형 장식 테두리") —
-                    테두리선 위에 점/별/하트 무늬를 일정 간격으로 찍어요. 좌표는
-                    lib/frameShapes.ts의 borderPatternCenterPoints()를 화면·인쇄
-                    양쪽이 그대로 가져다 써서 위치가 어긋나지 않아요. borderPatternCenterPoints()의
-                    중심점은 "사각형 테두리선" 전제로 계산돼요(F 항목) — 그래서
-                    2026-11(18번째 라운드 20차)에 "사진 자르는 모양" 선택이 다시
-                    생기면서, hexagon/scalloped를 포함해 rect가 아닌 모양일 땐 이
-                    섹션 자체를 다시 숨겨요(19차에 없앴던 이 조건을 모양이 더 늘어난
-                    채로 복원). */}
-                {(!frameTargetBox.frameShape || frameTargetBox.frameShape === "rect") && (
-                  <>
-                    <p className="mb-1 mt-2 text-[10px] text-[var(--color-charcoal)]/60">테두리 무늬</p>
-                    <div className="mb-2 grid grid-cols-4 gap-1">
-                      {(
-                        [
-                          { key: "none" as const, label: "없음" },
-                          { key: "dot" as const, label: "점" },
-                          { key: "star" as const, label: "별" },
-                          { key: "heart" as const, label: "하트" },
-                        ]
-                      ).map((opt) => {
-                        const active = (frameTargetBox.frameBorderPattern ?? "none") === opt.key;
-                        return (
-                          <button
-                            key={opt.key}
-                            type="button"
-                            onClick={() => onFrameChange(frameTargetBox.id, { frameBorderPattern: opt.key })}
-                            className={`border px-1 py-1.5 text-[10.5px] transition ${
-                              active
-                                ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10 text-[var(--color-sky)]"
-                                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                  </>
-                )}
               </div>
             ) : (
               <label className="block rounded-md cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-center text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90">
