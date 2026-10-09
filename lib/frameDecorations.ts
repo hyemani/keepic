@@ -983,24 +983,31 @@ function buildAnimal(kind: AnimalKind, w: number, h: number): DecorLayout {
         extraBodyD += circleD(cxr, bodyY + cxr + (j * ringH) / ny, rr) + circleD(w - cxr, bodyY + cxr + (j * ringH) / ny, rr);
       }
       outline = pal.line;
-      // 얼굴은 위쪽 중앙에 얹고(몸통 위), 귀는 가로로 누운 타원
+      // 곰돌이처럼 "얼굴 하나"로 읽히게 짰어요(예전엔 위쪽 가운데에 따로 어두운 머리·눈·코가 있고 아래에 볼·입이 있어 얼굴이 둘로 갈라져 보였어요):
+      //   · 눈 두 개 = 사진 창 위쪽 띠(양털 테두리 위)의 좌우, 중앙에서 ±eyeDX — 곰돌이 눈 위치와 같아요.
+      //   · 귀 = 위쪽 좌우 모서리에서 바깥·아래로 처진 갈색 타원(안쪽 분홍). 몸통 뒤에 깔려서 양털이 귀 뿌리를 덮어요.
+      //   · 정수리 양털 뭉치 = 위쪽 가운데 작은 구름 7개를 양털 테두리에 이어 붙여서(같은 색·같은 윤곽선) 양 느낌을 지켜요.
+      //   · 분홍 코 = 아래 띠 가운데(입 바로 위), 코·입이 같은 세로 중심선(cx) 위. 볼터치는 좌우 대칭.
+      // 모든 크기는 u(짧은 변) 기준이라 가로/세로/정사각형으로 늘려도 사진 창 안으로 침범하거나 잘리지 않아요.
+      const earSX = Math.max(0.14 * u, 0.13 * w);
       for (const sx of [-1, 1]) {
-        front.push({ d: ellipseD(cx + sx * 0.135 * u, 0.12 * u, 0.062 * u, 0.03 * u, sx * 22), fill: pal.dark });
+        const ex = sx < 0 ? earSX : w - earSX;
+        back.push({ d: ellipseD(ex, 0.118 * u, 0.112 * u, 0.056 * u, sx * 28), fill: pal.dark });
+        back.push({ d: ellipseD(ex + sx * 0.012 * u, 0.122 * u, 0.066 * u, 0.026 * u, sx * 28), fill: pal.accent, opacity: 0.9 });
       }
-      front.push({ d: ellipseD(cx, 0.115 * u, 0.1 * u, 0.115 * u), fill: pal.dark });
-      front.push({ d: fluffyCircleD(cx, 0.03 * u, 0.045 * u, 7, 0.022 * u), fill: pal.body });
-      for (const sx of [-1, 1]) {
-        front.push({ d: circleD(cx + sx * 0.042 * u, 0.115 * u, 0.019 * u), fill: "#FFFFFF" });
-        front.push({ d: circleD(cx + sx * 0.042 * u, 0.117 * u, 0.009 * u), fill: pal.dark });
+      for (let k = -3; k <= 3; k++) {
+        const r = (0.056 - 0.005 * Math.abs(k)) * u;
+        extraBodyD += circleD(cx + k * 0.075 * u, bodyY + rr - (0.05 - 0.01 * Math.abs(k)) * u, r);
       }
-      front.push({ d: ellipseD(cx, 0.158 * u, 0.026 * u, 0.017 * u), fill: pal.accent });
-      // 아래 띠에는 귀여운 볼터치와 작은 미소
+      for (const sx of [-1, 1]) dotEye(front, cx + sx * eyeDX, eyeY, 0.027 * u, pal.dark);
+      // 코(분홍, 입 바로 위) + 입(곰돌이와 같은 "ㅅ" 모양 미소) — 같은 세로 중심선 cx
+      front.push({ d: ellipseD(cx, bottomY - 0.026 * u, 0.034 * u, 0.023 * u), fill: pal.accent, stroke: pal.blush, strokeWidth: 0.004 * u });
       front.push({
-        d: `M${f(cx - 0.05 * u)} ${f(bottomY - 0.002 * u)}Q${f(cx)} ${f(bottomY + 0.05 * u)} ${f(cx + 0.05 * u)} ${f(bottomY - 0.002 * u)}`,
+        d: `M${f(cx)} ${f(bottomY - 0.004 * u)}V${f(bottomY + 0.014 * u)}Q${f(cx - 0.012 * u)} ${f(bottomY + 0.038 * u)} ${f(cx - 0.042 * u)} ${f(bottomY + 0.026 * u)}M${f(cx)} ${f(bottomY + 0.014 * u)}Q${f(cx + 0.012 * u)} ${f(bottomY + 0.038 * u)} ${f(cx + 0.042 * u)} ${f(bottomY + 0.026 * u)}`,
         stroke: pal.dark,
         strokeWidth: 0.012 * u,
       });
-      blushPair(front, cx, bottomY - 0.004 * u, 0.2 * u, u, pal.blush);
+      blushPair(front, cx, bottomY, 0.2 * u, u, pal.blush);
       break;
     }
     case "elephant": {
