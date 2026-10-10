@@ -113,3 +113,79 @@ body {
   outline: 2px solid var(--color-sky);
   outline-offset: -2px;
 }
+
+/* 선택 박스 손잡이(2026-11, 혜민님 요청: 동그랗고 귀엽게) — 편집 화면 전용 DOM이라 인쇄/PDF(캔버스)에는 안 들어가요.
+   눈에 보이는 점은 ::before(기본 16px = 파랑 12px + 흰 링 2px), 누르는 영역은 요소 자신(기본 24px). */
+.sel-frame {
+  border-radius: inherit;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+.sel-handle {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.sel-handle::before {
+  content: "";
+  box-sizing: border-box;
+  width: var(--sel-dot, 16px);
+  height: var(--sel-dot, 16px);
+  border-radius: 9999px;
+  background: var(--color-sky);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.38), 0 0 0 0.5px rgba(15, 23, 42, 0.12);
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  pointer-events: none;
+}
+.sel-handle:hover::before,
+.sel-handle:active::before {
+  transform: scale(1.22);
+}
+.sel-rotate {
+  cursor: grab;
+}
+.sel-rotate:active {
+  cursor: grabbing;
+}
+.sel-rotate-stem {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 0;
+  border-left: 1px dashed #7b8fc7;
+  transform: translateX(-0.5px);
+  pointer-events: none;
+}
+/* 크기(mm)·회전각 알약 — 어두운 회색, 흰 15px 글자, 완전히 둥글게. body로 포털돼요. */
+.sel-pill {
+  position: fixed;
+  z-index: 100002;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: #555;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sel-handle::before {
+    transition: none;
+  }
+}
+@media print {
+  .sel-frame,
+  .sel-pill {
+    display: none !important;
+  }
+}

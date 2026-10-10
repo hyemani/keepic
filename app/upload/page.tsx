@@ -6,6 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { supabase } from "@/lib/supabase";
 import {
+  SelectionHandles,
+  useRotateDrag,
+  toBoxLocalDelta,
+  ROTATE_HANDLE_CLEARANCE_PX,
+  type TextBoxResizeDir,
+} from "./selectionHandles";
+import {
   LoadOverlay,
   SaveControls,
   PROJECT_SCHEMA_VERSION,
@@ -2804,6 +2811,7 @@ function TextBoxOverlay({
   siblingTargets,
   staticGuidesX,
   staticGuidesY,
+  docMm,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -2837,6 +2845,8 @@ function TextBoxOverlay({
   siblingTargets: SnapSiblingTarget[];
   staticGuidesX: number[];
   staticGuidesY: number[];
+  // 이 낱장(페이지)의 실제 종이 크기(mm) — 크기 조절 중 뜨는 mm 알약 계산용(없으면 알약 생략).
+  docMm?: { w: number; h: number };
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [mouseDownActive, setMouseDownActive] = useState(false);
@@ -3126,9 +3136,15 @@ function TextBoxOverlay({
       {isActive && (
         <>
           {/* 2026-09-28(통합) SelectionFrame으로 이동 — 텍스트박스는 8방향 전부 써요. */}
-          <SelectionHandles active={isActive} onResizeStart={handleResizeStart} />
+          <SelectionHandles
+            active={isActive}
+            onResizeStart={handleResizeStart}
+            pill={isResizing ? "size" : null}
+            docMm={docMm}
+          />
           {(onDelete || onStackAction) && (
             <StackOrderToolbar
+              suppressed={isResizing}
               // 박스 아래쪽이 페이지 밑바닥에 가까우면(대략 80% 아래) 툴바가 페이지
               // 밖으로 잘려 안 보일 수 있어서, 그때만 위쪽에 띄워요(간단한 규칙 —
               // 실제 화면 좌표를 재는 대신 %로만 대충 판단해요, 2026-09-25).
@@ -3708,7 +3724,13 @@ function StackOrderToolbar({
   borderColor,
   borderRadiusPct,
   onBorderChange,
+  suppressed = false,
+  extraClearPx = 0,
 }: {
+  // 크기 조절·회전을 끄는 동안은 툴바를 숨겨요(mm 알약·회전 손잡이와 겹치지 않게). 레이아웃/열린 패널 상태는 그대로 유지돼요.
+  suppressed?: boolean;
+  // 회전 손잡이가 툴바 쪽(위/아래)으로 튀어나올 때 그만큼 더 띄워요(px).
+  extraClearPx?: number;
   flip: boolean;
   // 박스가 대지를 위아래로 꽉 채운 경우(2026-09-27 추가) — 박스 바깥에 뗄 자리가
   // 없어서 조상 overflow-hidden에 잘리니, 박스 안쪽 위 가장자리에 겹쳐서 띄워요.
@@ -3759,7 +3781,14 @@ function StackOrderToolbar({
       // "테두리" 두께 조절판 등 이 툴바의 하위 패널이 사진에 가려 보이던 문제 대응,
       // SELECTED_BOX_Z_INDEX=100000보다 한 단계 위로 — 그 어떤 다른 박스보다도 항상
       // 위에 그려지도록 구조적으로 보장).
-      style={fillsFrame ? { bottom: 6 } : flip ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }}
+      style={{
+        ...(fillsFrame
+          ? { bottom: 6 }
+          : flip
+            ? { bottom: `calc(100% + ${6 + extraClearPx}px)` }
+            : { top: `calc(100% + ${6 + extraClearPx}px)` }),
+        visibility: suppressed ? "hidden" : undefined,
+      }}
     >
       {onDelete && (
         <ToolbarLabeledButton title="삭제" label="삭제" icon="delete" onClick={onDelete} danger />
@@ -3968,19 +3997,6 @@ function MultiAlignFloatingToolbar({
   );
 }
 
-type TextBoxResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
-
-const TEXT_BOX_RESIZE_HANDLES: { dir: TextBoxResizeDir; className: string; cursor: string; title: string }[] = [
-  { dir: "n", className: "left-1/2 -top-1.5 -translate-x-1/2", cursor: "cursor-ns-resize", title: "위로 끌어서 크기 조절" },
-  { dir: "s", className: "left-1/2 -bottom-1.5 -translate-x-1/2", cursor: "cursor-ns-resize", title: "아래로 끌어서 크기 조절" },
-  { dir: "w", className: "top-1/2 -left-1.5 -translate-y-1/2", cursor: "cursor-ew-resize", title: "왼쪽으로 끌어서 크기 조절" },
-  { dir: "e", className: "top-1/2 -right-1.5 -translate-y-1/2", cursor: "cursor-ew-resize", title: "오른쪽으로 끌어서 크기 조절" },
-  { dir: "nw", className: "-left-1.5 -top-1.5", cursor: "cursor-nwse-resize", title: "끌어서 크기 조절" },
-  { dir: "ne", className: "-right-1.5 -top-1.5", cursor: "cursor-nesw-resize", title: "끌어서 크기 조절" },
-  { dir: "sw", className: "-left-1.5 -bottom-1.5", cursor: "cursor-nesw-resize", title: "끌어서 크기 조절" },
-  { dir: "se", className: "-right-1.5 -bottom-1.5", cursor: "cursor-nwse-resize", title: "끌어서 크기 조절" },
-];
-
 // ============================================================================
 // SelectionFrame — 선택 테두리(outline) + 크기조절 손잡이 공용 컴포넌트
 // (2026-09-28 통합) 예전엔 TextBoxOverlay·TableBoxOverlay·ImageBoxOverlay(사진+
@@ -4013,7 +4029,8 @@ type SelectionState = "idle" | "active" | "multi" | "editing";
 function selectionOutlineClassName(state: SelectionState): string {
   switch (state) {
     case "active":
-      return "outline-[var(--color-sky)]";
+      // 얇은 회색-파랑 점선(참고 편집기 스타일). 흰 헤일로는 SelectionHandles(.sel-frame)가 같이 그려요.
+      return "outline-dashed outline-[#7b8fc7]";
     case "multi":
       // 다중 선택(정렬/분배 패널)용 보라색 — 단일 선택(하늘색)과 구분돼요.
       return "outline-[var(--color-brand-purple)]";
@@ -4028,31 +4045,10 @@ function selectionOutlineClassName(state: SelectionState): string {
 // 모든 타입이 공통으로 쓰는, 경계에 딱 붙는(0px) outline 오프셋이에요.
 const SELECTION_OUTLINE_OFFSET_CLASS = "outline-offset-0";
 
-// 8방향(모서리 4개+변 4개) 또는 모서리 4개만(cornersOnly) 크기조절 손잡이를 그려요 —
-// 텍스트박스는 8개 전부, 표와 스티커는 모서리만(cornersOnly) 씁니다.
-function SelectionHandles({
-  active,
-  cornersOnly = false,
-  onResizeStart,
-}: {
-  active: boolean;
-  cornersOnly?: boolean;
-  onResizeStart: (dir: TextBoxResizeDir, e: React.MouseEvent) => void;
-}) {
-  if (!active) return null;
-  return (
-    <>
-      {TEXT_BOX_RESIZE_HANDLES.filter((h) => !cornersOnly || h.dir.length === 2).map(({ dir, className, cursor, title }) => (
-        <div
-          key={dir}
-          onMouseDown={(e) => onResizeStart(dir, e)}
-          title={title}
-          className={`pointer-events-auto absolute z-40 h-3 w-3 -sm border border-white bg-[var(--color-sky)] ${cursor} ${className}`}
-        />
-      ))}
-    </>
-  );
-}
+// 크기조절·회전 손잡이와 mm 크기 알약은 ./selectionHandles.tsx 의 SelectionHandles 하나가 모든 타입(사진·스티커·글상자·표)에
+// 그려요(2026-11, 혜민님 요청 "선택박스를 동그랗고 귀엽게" — 둥근 파란 점 + 흰 링 + 그림자, 윗변 위에 점선 줄기 달린 회전 점).
+// 선택 테두리는 얇은 회색-파랑 점선(1px)이고, 손잡이 안쪽에 흰 1px 헤일로(SelectionHandles의 .sel-frame)가 같이 그려져서
+// 밝은 사진·어두운 사진 어디서든 보여요. 전부 편집 화면 DOM이라 인쇄/PDF 에는 들어가지 않아요.
 
 // "표만들기" 서브탭 내용이에요(기본형, 2026-09-25) — 행·열 수를 스테퍼로 고른 뒤
 // "표 추가"를 누르면 그 크기의 빈 표가 캔버스 가운데 즈음에 생겨요. 셀 병합이나
@@ -7374,6 +7370,7 @@ function TextBoxLayer({
   crossSiblingTargets,
   staticGuidesX,
   staticGuidesY,
+  docMm,
 }: {
   boxes: TextBoxDef[];
   onAdd: () => void;
@@ -7404,6 +7401,8 @@ function TextBoxLayer({
   crossSiblingTargets?: SnapSiblingTarget[];
   staticGuidesX?: number[];
   staticGuidesY?: number[];
+  // 이 레이어가 얹힌 면(낱장/표지 패널)의 실제 종이 크기(mm) — 크기 알약용.
+  docMm?: { w: number; h: number };
 }) {
   // 같은 레이어 안 "다른" 텍스트박스도 스냅 후보에 들어가요(자기 자신은 computeSnap이
   // selfId로 걸러내요) — 사진·표 같은 다른 종류 후보(crossSiblingTargets)와 합쳐서
@@ -7428,6 +7427,7 @@ function TextBoxLayer({
           siblingTargets={combinedSiblingTargets}
           staticGuidesX={staticGuidesX ?? [0, 50, 100]}
           staticGuidesY={staticGuidesY ?? [0, 50, 100]}
+          docMm={docMm}
         />
       ))}
       {showAddButton && (
@@ -8276,6 +8276,16 @@ const ImageBoxOverlay = forwardRef<
     cellW: 1,
     cellH: 1,
     dir: "se" as TextBoxResizeDir,
+    rot: 0,
+  });
+  // 회전 손잡이(윗변 위 동그라미)를 끌어 박스 중심 기준으로 돌려요(Shift = 15° 단위). 값은 기존 box.rotation(도, 시계방향) 그대로예요.
+  const { rotating: isRotating, startRotate } = useRotateDrag({
+    getCenter: () => {
+      const r = boxRef.current?.getBoundingClientRect();
+      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+    },
+    rotation: box.rotation ?? 0,
+    onRotate: (deg) => onChange({ rotation: deg }),
   });
   const panStart = useRef({ mouseX: 0, mouseY: 0, offsetX: 0, offsetY: 0 });
   // 빈 프레임(url이 없는 이미지박스)을 눌렀을 때 파일 선택창을 열기 위한 숨김 입력이에요
@@ -8507,6 +8517,7 @@ const ImageBoxOverlay = forwardRef<
       cellW: cellRect?.width || 1,
       cellH: cellRect?.height || 1,
       dir,
+      rot: box.rotation ?? 0,
     };
     setIsResizing(true);
   }
@@ -8519,8 +8530,10 @@ const ImageBoxOverlay = forwardRef<
       // 재요(Ctrl/Cmd+휠 줌은 드래그·리사이즈 도중에도 가능해서, 2026-10).
       const liveCellW = boxRef.current?.parentElement?.getBoundingClientRect().width || s.cellW;
       const liveCellH = boxRef.current?.parentElement?.getBoundingClientRect().height || s.cellH;
-      const dxPct = ((e.clientX - s.mouseX) / s.cellW) * 100;
-      const dyPct = ((e.clientY - s.mouseY) / s.cellH) * 100;
+      // 박스가 돌아가 있으면 마우스 이동량을 "박스 자신의 가로·세로 축" 기준으로 바꿔서 써요(회전 0이면 그대로).
+      const local = toBoxLocalDelta(e.clientX - s.mouseX, e.clientY - s.mouseY, s.rot);
+      const dxPct = (local.dx / s.cellW) * 100;
+      const dyPct = (local.dy / s.cellH) * 100;
       const hasE = s.dir.includes("e");
       const hasW = s.dir.includes("w");
       const hasS = s.dir.includes("s");
@@ -8680,6 +8693,31 @@ const ImageBoxOverlay = forwardRef<
 
       // 마지막 안전장치: 어떤 경로로 계산되든 박스가 스프레드(0~100%) 밖으로 나가지
       // 않도록 한 번 더 확실히 막아요.
+      if (s.rot && !e.altKey) {
+        // 돌아간 박스: 회전은 박스 "중심" 기준이라, 크기를 바꾸면 중심이 움직여서 반대쪽 모서리가 따라 밀려요.
+        // 반대쪽(고정된) 점의 화면 위치를 그대로 유지하도록 새 중심을 다시 계산해요.
+        const th = (s.rot * Math.PI) / 180;
+        const cs = Math.cos(th);
+        const sn = Math.sin(th);
+        const ax = hasE ? -1 : hasW ? 1 : 0;
+        const ay = hasS ? -1 : hasN ? 1 : 0;
+        const w0 = (s.widthPct / 100) * s.cellW;
+        const h0 = (s.heightPct / 100) * s.cellH;
+        const w1 = (widthPct / 100) * s.cellW;
+        const h1 = (heightPct / 100) * s.cellH;
+        const c0x = (s.xPct / 100) * s.cellW + w0 / 2;
+        const c0y = (s.yPct / 100) * s.cellH + h0 / 2;
+        const a0x = (ax * w0) / 2;
+        const a0y = (ay * h0) / 2;
+        const anchorX = c0x + a0x * cs - a0y * sn;
+        const anchorY = c0y + a0x * sn + a0y * cs;
+        const a1x = (ax * w1) / 2;
+        const a1y = (ay * h1) / 2;
+        const c1x = anchorX - (a1x * cs - a1y * sn);
+        const c1y = anchorY - (a1x * sn + a1y * cs);
+        onChange({ widthPct, heightPct, xPct: ((c1x - w1 / 2) / s.cellW) * 100, yPct: ((c1y - h1 / 2) / s.cellH) * 100 });
+        return;
+      }
       const safeXPct = Math.min(Math.max(0, xPct), 100 - widthPct);
       const safeYPct = Math.min(Math.max(0, yPct), 100 - heightPct);
       onChange({ widthPct, heightPct, xPct: safeXPct, yPct: safeYPct });
@@ -9047,14 +9085,24 @@ const ImageBoxOverlay = forwardRef<
               8방향 전부. 예전엔 손잡이가 h-3.5(14px)로 글상자/표(h-3, 12px)보다 살짝
               커서 타입마다 손잡이 크기가 미묘하게 달랐는데, 공용 컴포넌트로 12px로
               통일했어요. */}
-          <SelectionHandles active={isActive} cornersOnly={isSticker} onResizeStart={handleResizeStart} />
+          <SelectionHandles
+            active={isActive}
+            cornersOnly={isSticker}
+            onResizeStart={handleResizeStart}
+            onRotateStart={startRotate}
+            rotation={box.rotation ?? 0}
+            pill={isResizing ? "size" : isRotating ? "rotate" : null}
+            docMm={docMm}
+          />
           {/* 더블클릭 안내는 사진 전용 기능(사진 위치 조정)이라 스티커에는 안 보여줘요
               (2026-09-24). "스프레드 전체 채우기" 버튼은 혜민님 요청으로 제거함
               (2026-09-24, "필요 없습니다. 삭제해주세요"). */}
           {!isSticker && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
-              className="pointer-events-auto absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap"
+              className={`pointer-events-auto absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap ${
+                isResizing || isRotating ? "invisible" : ""
+              }`}
             >
               <span className=" bg-[var(--color-charcoal)]/80 px-2 py-0.5 text-[10px] text-white">
                 더블클릭하면 안의 사진 위치를 옮길 수 있어요
@@ -9121,6 +9169,16 @@ const ImageBoxOverlay = forwardRef<
         >
           <div className="pointer-events-auto">
             <StackOrderToolbar
+              suppressed={isResizing || isRotating}
+              // 회전 손잡이(박스 윗변 위 ~44px)가 툴바와 겹치지 않게: 손잡이가 위를 보는데 툴바도 위(flip)이거나,
+              // 손잡이가 아래를 보는데(180° 근처) 툴바도 아래이면 그만큼 더 띄워요.
+              extraClearPx={(() => {
+                const r = (((box.rotation ?? 0) % 360) + 360) % 360;
+                const handleUp = r <= 60 || r >= 300;
+                const handleDown = r >= 120 && r <= 240;
+                const toolbarAbove = box.yPct + box.heightPct > 80;
+                return (toolbarAbove && handleUp) || (!toolbarAbove && handleDown) ? ROTATE_HANDLE_CLEARANCE_PX : 0;
+              })()}
               // 텍스트박스와 같은 규칙 — 박스 아래쪽이 페이지 밑바닥에 가까우면 위쪽에
               // 띄워요.
               flip={box.yPct + box.heightPct > 80}
@@ -9353,9 +9411,11 @@ const TableBoxOverlay = forwardRef<
     guidesX?: number[];
     guidesY?: number[];
     siblingTargets?: SnapSiblingTarget[];
+    // 이 표가 얹힌 영역의 실제 종이 크기(mm) — 크기 알약용.
+    docMm?: { w: number; h: number };
   }
 >(function TableBoxOverlay(
-  { box, onChange, onDelete, isActive, onSelect, zIndex, onSelectionChange, guidesX = [], guidesY = [], siblingTargets = [] },
+  { box, onChange, onDelete, isActive, onSelect, zIndex, onSelectionChange, guidesX = [], guidesY = [], siblingTargets = [], docMm },
   ref
 ) {
   const [isDragging, setIsDragging] = useState(false);
@@ -10635,7 +10695,13 @@ const TableBoxOverlay = forwardRef<
       {isActive && (
         <>
           {/* 2026-09-28(통합) SelectionFrame으로 이동 — 표는 모서리 4개만 써요. */}
-          <SelectionHandles active={isActive} cornersOnly onResizeStart={handleResizeStart} />
+          <SelectionHandles
+            active={isActive}
+            cornersOnly
+            onResizeStart={handleResizeStart}
+            pill={isResizing ? "size" : null}
+            docMm={docMm}
+          />
           {/* "이동 핸들"(2026-10-06, 혜민님 요청 "표의 바깥 테두리나 이동 핸들을
               드래그하면 표 전체가 이동하게") — 칸 안쪽과 안 겹치게 표 바깥 왼쪽
               위 모서리에 둬서, 눌러서 끌면 항상 표 전체 이동만 시작돼요(위 -inset-2
@@ -10687,6 +10753,7 @@ function TableBoxLayer({
   guidesX,
   guidesY,
   siblingTargets,
+  docMm,
 }: {
   boxes: TableBoxDef[];
   onChange: (boxId: string, changes: Partial<TableBoxDef>) => void;
@@ -10701,6 +10768,7 @@ function TableBoxLayer({
   guidesX?: number[];
   guidesY?: number[];
   siblingTargets?: SnapSiblingTarget[];
+  docMm?: { w: number; h: number };
 }) {
   return (
     <>
@@ -10718,6 +10786,7 @@ function TableBoxLayer({
           guidesX={guidesX}
           guidesY={guidesY}
           siblingTargets={siblingTargets}
+          docMm={docMm}
         />
       ))}
     </>
@@ -11429,7 +11498,8 @@ function SpineTitleOverlay({
       <div
         onMouseDown={handleResizeStart}
         title="끌어서 세로 크기 조절"
-        className="absolute -bottom-1.5 left-1/2 z-40 h-3 w-3 -translate-x-1/2 cursor-ns-resize -sm border border-white bg-[var(--color-sky)] opacity-0 transition group-hover/st:opacity-100"
+        className="sel-handle cursor-ns-resize opacity-0 transition-opacity group-hover/st:opacity-100"
+        style={{ left: "50%", top: "100%", width: 24, height: 24 }}
       />
     </div>
   );
@@ -17733,6 +17803,7 @@ function UploadPageContent() {
                               crossSiblingTargets={backCoverSiblingTargets}
                               staticGuidesX={coverBackGuidesX}
                               staticGuidesY={coverGuidesY}
+                              docMm={{ w: (coverBackPct / 100) * coverTotalWmm, h: coverTotalHmm }}
                             />
                             <TableBoxLayer
                               boxes={backCoverTableBoxes}
@@ -17748,6 +17819,7 @@ function UploadPageContent() {
                               guidesX={coverBackGuidesX}
                               guidesY={coverGuidesY}
                               siblingTargets={backCoverSiblingTargets}
+                              docMm={{ w: (coverBackPct / 100) * coverTotalWmm, h: coverTotalHmm }}
                             />
                           </div>
                           <div
@@ -17907,6 +17979,7 @@ function UploadPageContent() {
                               crossSiblingTargets={frontCoverSiblingTargets}
                               staticGuidesX={coverFrontGuidesX}
                               staticGuidesY={coverGuidesY}
+                              docMm={{ w: (coverFrontPct / 100) * coverTotalWmm, h: coverTotalHmm }}
                             />
                             <TableBoxLayer
                               boxes={coverTableBoxes}
@@ -17922,6 +17995,7 @@ function UploadPageContent() {
                               guidesX={coverFrontGuidesX}
                               guidesY={coverGuidesY}
                               siblingTargets={frontCoverSiblingTargets}
+                              docMm={{ w: (coverFrontPct / 100) * coverTotalWmm, h: coverTotalHmm }}
                             />
                           </div>
 
@@ -18502,6 +18576,7 @@ function UploadPageContent() {
                                       crossSiblingTargets={leftTextCrossSiblingTargets}
                                       staticGuidesX={leftTextStaticGuidesX}
                                       staticGuidesY={textStaticGuidesY}
+                                      docMm={{ w: guidePageWorkMm, h: guidePageWorkMm }}
                                     />
                                   </>
                                 )}
@@ -18563,6 +18638,7 @@ function UploadPageContent() {
                                   crossSiblingTargets={rightTextCrossSiblingTargets}
                                   staticGuidesX={rightTextStaticGuidesX}
                                   staticGuidesY={textStaticGuidesY}
+                                  docMm={{ w: guidePageWorkMm, h: guidePageWorkMm }}
                                 />
                               </div>
                               {/* 2026-09-30, 혜민님 확인: "맨뒤로 보내기를 누르면 이미지가
@@ -18617,6 +18693,7 @@ function UploadPageContent() {
                                 guidesX={imageBoxGuidesX}
                                 guidesY={imageBoxGuidesY}
                                 siblingTargets={spreadSiblingTargets}
+                                docMm={{ w: guideSpreadWorkMm, h: guidePageWorkMm }}
                               />
                               {/* 사진박스 2개 이상 Shift+다중 선택했을 때 뜨는 캔버스 위 정렬
                                   아이콘 툴바예요(2026-09-26 추가, 혜민님 요청 — 참고 이미지의
