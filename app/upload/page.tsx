@@ -11764,6 +11764,88 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
   );
 }
 
+// 미리보기 왼쪽 목록의 "표지" 썸네일 한 칸(뒷표지 또는 앞표지)이에요. 앞·뒤를 반드시 같은 코드·같은 기준(그 칸 폭을 0~100%로 보는
+// 상자 좌표)으로 그려서 두 칸의 크기·위치 계산이 달라지지 않아요. (예전엔 앞표지만 "사진 한 장을 칸 전체에 꽉 채워서" 그리고
+// 뒷표지는 배경색만 그려서, 같은 폭인데도 앞은 사진이 꽉 차고 뒤는 텅 빈 것처럼 위치·비율이 서로 달라 보였어요.)
+function CoverStripPanel({
+  widthPct,
+  background,
+  boxes,
+  fallbackUrl,
+  fallbackFill = false,
+  logo,
+}: {
+  widthPct: number;
+  background: string | undefined;
+  boxes: ImageBoxDef[];
+  // 자유 배치 상자가 하나도 없을 때만 쓰는 예전 방식 사진(칸의 46%를 가운데에, 실제 편집 화면의 뒷표지 단일 사진과 같아요)
+  fallbackUrl?: string;
+  // true면 그 사진을 칸 전체에 꽉 채워요(앞표지 단일 사진 PhotoCell과 같음), false면 칸의 46%를 가운데에(뒷표지 단일 사진과 같음).
+  fallbackFill?: boolean;
+  logo?: { xPct: number; yPct: number; scalePct: number } | null;
+}) {
+  const visible = boxes.filter((box) => box.url);
+  return (
+    <div className="relative h-full shrink-0 overflow-hidden" style={{ width: `${widthPct}%`, background }}>
+      {visible.map((box) =>
+        isStickerImageBox(box) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={box.id}
+            src={box.url}
+            alt=""
+            draggable={false}
+            className="absolute object-contain"
+            style={{
+              left: `${box.xPct}%`,
+              top: `${box.yPct}%`,
+              width: `${box.widthPct}%`,
+              height: `${box.heightPct}%`,
+              transform: [box.rotation ? `rotate(${box.rotation}deg)` : "", box.flipX ? "scaleX(-1)" : ""].filter(Boolean).join(" ") || undefined,
+            }}
+          />
+        ) : (
+          <EditedPhotoThumb
+            key={box.id}
+            url={box.url}
+            edit={box}
+            className="absolute"
+            style={{
+              left: `${box.xPct}%`,
+              top: `${box.yPct}%`,
+              width: `${box.widthPct}%`,
+              height: `${box.heightPct}%`,
+              transform: box.rotation ? `rotate(${box.rotation}deg)` : undefined,
+            }}
+          />
+        )
+      )}
+      {visible.length === 0 && fallbackUrl && (
+        <EditedPhotoThumb
+          url={fallbackUrl}
+          className="absolute"
+          style={fallbackFill ? { left: 0, top: 0, width: "100%", height: "100%" } : { left: "27%", top: "27%", width: "46%", height: "46%" }}
+        />
+      )}
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="/logo.svg"
+          alt=""
+          draggable={false}
+          className="absolute h-auto"
+          style={{
+            left: `${logo.xPct}%`,
+            top: `${logo.yPct}%`,
+            width: `${34 * (logo.scalePct / 100)}%`,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 // 배율 숫자(예: 49%)를 눌러서 직접 입력하는 칸이에요. 눌러 포커스하면 숫자가 전부 선택되고, 숫자를 치고 Enter(또는 다른 곳 클릭)로
 // 확정, Esc로 취소해요. 10~400으로 잘라서 적용해요. 새 버튼을 늘리지 않고 기존 숫자 자리가 그대로 입력칸이에요.
 function ZoomPctField({ percent, onCommit }: { percent: number; onCommit: (pct: number) => void }) {
@@ -17487,12 +17569,12 @@ function UploadPageContent() {
                         className="pointer-events-none flex h-14 overflow-hidden bg-white lg:h-auto lg:w-full"
                         style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}` }}
                       >
-                        <div
-                          className="h-full"
-                          style={{
-                            width: `${coverBackPct}%`,
-                            background: coverPanelBackgroundCss("back"),
-                          }}
+                        <CoverStripPanel
+                          widthPct={coverBackPct}
+                          background={coverPanelBackgroundCss("back")}
+                          boxes={backCoverImageBoxes}
+                          fallbackUrl={backCoverPhoto?.url}
+                          logo={backCoverLogo}
                         />
                         <div
                           className="h-full border-x border-[#1a1a1a]/60"
@@ -17501,25 +17583,13 @@ function UploadPageContent() {
                             background: coverPanelBackgroundCss("spine"),
                           }}
                         />
-                        <div
-                          className="relative h-full overflow-hidden"
-                          style={{
-                            width: `${coverFrontPct}%`,
-                            background: coverPanelBackgroundCss("front"),
-                          }}
-                        >
-                          {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
-                            <EditedPhotoThumb
-                              url={(coverPhoto?.url ?? coverImageBoxes[0]?.url) as string}
-                              edit={
-                                coverImageBoxes[0] && (coverPhoto?.url ?? coverImageBoxes[0].url) === coverImageBoxes[0].url
-                                  ? coverImageBoxes[0]
-                                  : undefined
-                              }
-                              className="h-full w-full"
-                            />
-                          )}
-                        </div>
+                        <CoverStripPanel
+                          widthPct={coverFrontPct}
+                          background={coverPanelBackgroundCss("front")}
+                          boxes={coverImageBoxes}
+                          fallbackUrl={coverPhoto?.url}
+                          fallbackFill
+                        />
                       </div>
                       <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">표지</p>
                     </button>
