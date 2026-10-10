@@ -2,12 +2,14 @@
 
 // 왼쪽 "디자인 템플릿" 패널 화면 부품이에요(내지·표지 공용). 위에서부터
 //   1) (내지만) 적용 대상(왼쪽/오른쪽/현재 펼침) 선택
-//   2) 디자인 목록 — 큰 썸네일 1열 + 이름·사진 칸 수
+//   2) 스타일 칩(전체 · 포근한 기억 · 미니멀 · 감성 필기체 · 키즈 · MZ) — 232px 폭에서 줄바꿈되는 칩 줄
+//   3) 디자인 목록 — 큰 썸네일 1열 + 이름·사진 칸 수. "전체"일 땐 스타일별 작은 제목으로 묶어서 보여줘요.
 // 썸네일은 손으로 그린 그림이 아니라, 실제로 적용할 때 쓰는 데이터(lib/designTemplates.ts의 layout)를 인쇄 PDF와 같은 그리기 함수
 // (drawTextBoxOnCanvas·drawBackgroundSpecOnCanvas·framePerimeterPoints)로 그려요 → 썸네일 모양 = 적용 결과예요.
+// 목록이 길어도(내지 30종) 가볍게: 썸네일은 화면에 보일 때(IntersectionObserver)만 처음 그리고, 한 번 그린 건 장면이 바뀔 때만 다시 그려요.
 // 이 파일은 그리기만 하고, 실제 적용·사진 보존은 page.tsx의 applyInnerDesignTemplate / applyCoverDesignTemplate이 해요.
-import { useEffect, useRef } from "react";
-import type { DesignScene, DesignScenePart } from "@/lib/designTemplates";
+import { useEffect, useRef, useState } from "react";
+import { DESIGN_PHOTO_Z0, type DesignScene, type DesignScenePart, type DesignStyleInfo } from "@/lib/designTemplates";
 import type { TextBoxDef } from "@/lib/albumTemplates";
 import { drawTextBoxOnCanvas } from "@/lib/printCompose";
 import { drawBackgroundSpecOnCanvas } from "@/lib/backgroundSpec";
@@ -16,6 +18,7 @@ import { NESTED_SCROLL, PANEL_STACK, SegTabs, type SegTabItem } from "./sidePane
 
 export type DesignListItem = {
   id: string;
+  style: string; // DESIGN_STYLES의 id
   name: string;
   note: string;
   photoCount: number;
@@ -116,12 +119,26 @@ function drawPart(
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(x, y, w, h);
   }
+  const drawText = (t: (typeof part.layout.texts)[number], i: number) => {
+    const box: TextBoxDef = { ...t, id: `thumb-${i}` };
+    drawTextBoxOnCanvas(ctx, box, w, h, x, y);
+  };
+  // 사진 칸 뒤에 깔리는 색 띠 글상자(zOrder가 사진 칸 시작값보다 작은 것) — 편집·인쇄와 같이 사진보다 먼저 그려요
+  part.layout.texts.forEach((t, i) => {
+    if (t.zOrder !== undefined && t.zOrder < DESIGN_PHOTO_Z0) drawText(t, i);
+  });
   // 사진 칸
   for (const s of part.layout.slots) {
     const sx = x + (s.xPct / 100) * w;
     const sy = y + (s.yPct / 100) * h;
     const sw = (s.widthPct / 100) * w;
     const sh = (s.heightPct / 100) * h;
+    ctx.save();
+    if (s.patch?.rotation) {
+      ctx.translate(sx + sw / 2, sy + sh / 2);
+      ctx.rotate((s.patch.rotation * Math.PI) / 180);
+      ctx.translate(-(sx + sw / 2), -(sy + sh / 2));
+    }
     slotPath(ctx, sx, sy, sw, sh, s.patch?.frameShape, s.patch?.borderRadiusPct ?? 0);
     ctx.fillStyle = "#DCEAF6";
     ctx.fill();
@@ -131,6 +148,7 @@ function drawPart(
       ctx.stroke();
     }
     drawSlotIcon(ctx, sx, sy, sw, sh);
+    ctx.restore();
   }
   // 스티커
   for (const st of part.layout.stickers) {
@@ -162,8 +180,8 @@ function drawPart(
   }
   // 글상자 — 인쇄 PDF와 같은 함수
   part.layout.texts.forEach((t, i) => {
-    const box: TextBoxDef = { ...t, id: `thumb-${i}` };
-    drawTextBoxOnCanvas(ctx, box, w, h, x, y);
+    if (t.zOrder !== undefined && t.zOrder < DESIGN_PHOTO_Z0) return;
+    drawText(t, i);
   });
   if (part.dim) {
     ctx.fillStyle = "rgba(255,255,255,0.62)";
@@ -174,7 +192,26 @@ function drawPart(
 
 export function DesignThumb({ scene, sceneKey }: { scene: DesignScene; sceneKey: string }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
+  // 화면 근처(300px 안)에 처음 들어왔을 때부터 그려요 — 30장짜리 목록을 한꺼번에 그리지 않아요.
+  const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
   useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas || seen) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setSeen(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "300px 0px" }
+    );
+    io.observe(canvas);
+    return () => io.disconnect();
+  }, [seen]);
+  useEffect(() => {
+    if (!seen) return;
     let cancelled = false;
     const canvas = ref.current;
     if (!canvas) return;
@@ -220,9 +257,16 @@ export function DesignThumb({ scene, sceneKey }: { scene: DesignScene; sceneKey:
     };
     // sceneKey가 같으면 같은 그림이에요(scene 객체는 렌더마다 새로 만들어져서 의존성으로 쓰지 않아요).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneKey]);
-  return <canvas ref={ref} data-design-thumb-canvas className="block h-auto w-full" style={{ aspectRatio: `${scene.wMm} / ${scene.hMm}` }} />;
+  }, [sceneKey, seen]);
+  return <canvas ref={ref} data-design-thumb-canvas data-drawn={seen ? "true" : "false"} className="block h-auto w-full" style={{ aspectRatio: `${scene.wMm} / ${scene.hMm}` }} />;
 }
+
+const chipClass = (active: boolean) =>
+  `box-border h-7 min-w-0 border px-2.5 text-[11px] font-medium leading-none whitespace-nowrap transition ${
+    active
+      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+      : "border-[var(--color-hairline)] bg-[var(--color-ivory)] text-[var(--color-charcoal)]/65 hover:text-[var(--color-charcoal)]"
+  }`;
 
 export function DesignPanel({
   mode,
@@ -233,7 +277,9 @@ export function DesignPanel({
   isSelected,
   onApply,
   message,
-  styleName,
+  styles,
+  styleFilter,
+  onStyleFilterChange,
   sceneKeyOf,
 }: {
   mode: "inner" | "cover";
@@ -244,9 +290,41 @@ export function DesignPanel({
   isSelected: (id: string) => boolean;
   onApply: (id: string) => void;
   message?: string | null;
-  styleName: string;
+  styles: DesignStyleInfo[];
+  styleFilter: string;
+  onStyleFilterChange: (id: string) => void;
   sceneKeyOf: (id: string) => string;
 }) {
+  const filter = styles.some((s) => s.id === styleFilter) ? styleFilter : "all";
+  const groups = styles
+    .filter((s) => filter === "all" || s.id === filter)
+    .map((s) => ({ style: s, list: items.filter((it) => it.style === s.id) }))
+    .filter((g) => g.list.length > 0);
+  const shown = groups.reduce((n, g) => n + g.list.length, 0);
+  const renderItem = (it: DesignListItem) => {
+    const selected = isSelected(it.id);
+    return (
+      <button
+        key={it.id}
+        type="button"
+        data-design-id={it.id}
+        data-design-style={it.style}
+        data-selected={selected ? "true" : "false"}
+        aria-pressed={selected}
+        title={`${it.name} · ${it.note}`}
+        onClick={() => onApply(it.id)}
+        className={`block border-2 p-0.5 text-left transition ${
+          selected ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10" : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]/60"
+        }`}
+      >
+        <DesignThumb scene={it.scene} sceneKey={sceneKeyOf(it.id)} />
+        <span className="mt-0.5 flex items-baseline justify-between gap-1 px-0.5 pb-0.5 text-[11px] text-[var(--color-charcoal)]/70">
+          <span className="truncate font-medium text-[var(--color-charcoal)]">{it.name}</span>
+          <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">사진 {it.photoCount}장</span>
+        </span>
+      </button>
+    );
+  };
   return (
     <div className={PANEL_STACK} data-design-panel data-design-mode={mode}>
       {targets && target !== undefined && onTargetChange ? (
@@ -254,7 +332,27 @@ export function DesignPanel({
       ) : null}
       <div className="flex items-baseline justify-between px-0.5 text-[11px] text-[var(--color-charcoal)]/60">
         <span className="font-medium text-[var(--color-charcoal)]">디자인 템플릿</span>
-        <span>{styleName}</span>
+        <span data-design-count>
+          {filter === "all" ? `${styles.length}가지 스타일` : (styles.find((s) => s.id === filter)?.name ?? "")} · {shown}종
+        </span>
+      </div>
+      <div role="group" aria-label="디자인 스타일" data-design-styles className="flex flex-wrap gap-1">
+        <button type="button" data-design-style-chip="all" aria-pressed={filter === "all"} onClick={() => onStyleFilterChange("all")} className={chipClass(filter === "all")}>
+          전체
+        </button>
+        {styles.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            data-design-style-chip={s.id}
+            aria-pressed={filter === s.id}
+            title={s.name}
+            onClick={() => onStyleFilterChange(s.id)}
+            className={chipClass(filter === s.id)}
+          >
+            {s.short}
+          </button>
+        ))}
       </div>
       <p className="px-0.5 text-[11px] leading-snug break-keep text-[var(--color-charcoal)]/55">
         {mode === "cover"
@@ -267,31 +365,17 @@ export function DesignPanel({
         </p>
       ) : null}
       <div data-design-list className={`flex flex-col gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-15rem)]`}>
-        {items.map((it) => {
-          const selected = isSelected(it.id);
-          return (
-            <button
-              key={it.id}
-              type="button"
-              data-design-id={it.id}
-              data-selected={selected ? "true" : "false"}
-              aria-pressed={selected}
-              title={`${it.name} · ${it.note}`}
-              onClick={() => onApply(it.id)}
-              className={`block border-2 p-0.5 text-left transition ${
-                selected
-                  ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10"
-                  : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]/60"
-              }`}
-            >
-              <DesignThumb scene={it.scene} sceneKey={sceneKeyOf(it.id)} />
-              <span className="mt-0.5 flex items-baseline justify-between gap-1 px-0.5 pb-0.5 text-[11px] text-[var(--color-charcoal)]/70">
-                <span className="truncate font-medium text-[var(--color-charcoal)]">{it.name}</span>
-                <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">사진 {it.photoCount}장</span>
-              </span>
-            </button>
-          );
-        })}
+        {filter === "all"
+          ? groups.map((g) => (
+              <section key={g.style.id} data-design-group={g.style.id} className="flex flex-col gap-1.5">
+                <h3 className="flex items-baseline justify-between px-0.5 pt-1.5 text-[11px] font-semibold text-[var(--color-charcoal)]">
+                  <span>{g.style.name}</span>
+                  <span className="text-[10px] font-normal text-[var(--color-charcoal)]/50">{g.list.length}종</span>
+                </h3>
+                {g.list.map(renderItem)}
+              </section>
+            ))
+          : groups.flatMap((g) => g.list.map(renderItem))}
       </div>
     </div>
   );

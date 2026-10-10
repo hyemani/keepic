@@ -150,7 +150,8 @@ import { DesignPanel, type DesignListItem } from "./designTemplatePanel";
 import {
   COVER_DESIGNS,
   COVER_PLACEHOLDER_TITLES,
-  DESIGN_STYLE,
+  DESIGN_PHOTO_Z0,
+  DESIGN_STYLES,
   INNER_DESIGNS,
   coverDesignGeo,
   coverDesignPhotoCount,
@@ -12669,6 +12670,8 @@ function UploadPageContent() {
   // "디자인" 탭(디자인 템플릿) 적용 결과 안내 문구예요 — 내지/표지 각각.
   const [innerDesignMessage, setInnerDesignMessage] = useState<string | null>(null);
   const [coverDesignMessage, setCoverDesignMessage] = useState<string | null>(null);
+  // 디자인 패널에서 고른 스타일 칩("all" = 전체) — 표지·내지 패널이 같이 써요(2026-10, 스타일 5종).
+  const [designStyleFilter, setDesignStyleFilter] = useState<string>("all");
   const [pendingCoverLayoutApply, setPendingCoverLayoutApply] = useState<{
     target: "front" | "back";
     template: PhotoLayoutTemplate;
@@ -14358,6 +14361,8 @@ function UploadPageContent() {
           yPct,
           heightPct,
           layoutTemplateId: template.id,
+          // 디자인(감성 필기체 등)이 기울여 둔 사진이면 다른 레이아웃·디자인으로 바꿀 때 기울기를 풀어요(새 디자인이 기울이면 patch가 다시 정해요)
+          ...(existing.layoutTemplateId?.startsWith("design:") ? { rotation: undefined } : {}),
         };
       }
       // 채울 사진이 없는 칸 — 빈 프레임을 새로 만들어요. 나중에 캔버스에서 "+사진
@@ -14523,6 +14528,7 @@ function UploadPageContent() {
             widthPct: clamped.widthPct,
             heightPct: clamped.heightPct,
             layoutTemplateId: template.id,
+            ...(existing.layoutTemplateId?.startsWith("design:") ? { rotation: undefined } : {}),
           };
         }
         const emptyBox: ImageBoxDef = {
@@ -14838,7 +14844,7 @@ function UploadPageContent() {
         const x = eff === "spread" ? (side === "left" ? s.xPct * 0.5 : 50 + s.xPct * 0.5) : s.xPct;
         const w = eff === "spread" ? s.widthPct * 0.5 : s.widthPct;
         slots.push({ xPct: x, yPct: s.yPct, widthPct: w, heightPct: s.heightPct });
-        patches.push({ ...DESIGN_SLOT_RESET, ...s.patch });
+        patches.push({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + patches.length, ...s.patch });
       }
     }
     const synth: PhotoLayoutTemplate = {
@@ -14880,7 +14886,7 @@ function UploadPageContent() {
           const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
           s[key] = mergeDesignTexts(s[key], d.id, side, layout.texts).boxes;
           layout.stickers.forEach((st, n) => {
-            added.push(makeDesignStickerBox(st, designItemId(d.id, side, "s", n), 500 + counter++, (x, w) => toSpread(side, x, w)));
+            added.push(makeDesignStickerBox(st, designItemId(d.id, side, "s", n), counter++, (x, w) => toSpread(side, x, w)));
           });
           if (layout.bg) s = withInnerBackground(s, side, layout.bg);
         }
@@ -14972,7 +14978,7 @@ function UploadPageContent() {
         slots: layout.slots.map((s) => ({ xPct: s.xPct, yPct: s.yPct, widthPct: s.widthPct, heightPct: s.heightPct })),
       };
       applyCoverLayoutTemplate(target, synth, undefined, {
-        slotPatches: layout.slots.map((s) => ({ ...DESIGN_SLOT_RESET, ...s.patch })),
+        slotPatches: layout.slots.map((s, i) => ({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + i, ...s.patch })),
         syncLegacyPhoto: true,
         mergeTexts: (prev) => mergeDesignTexts(prev, d.id, target, layout.texts).boxes,
         finalizeBoxes: (boxes) => [
@@ -17583,6 +17589,7 @@ function UploadPageContent() {
                                   id: dd.id,
                                   name: dd.name,
                                   note: dd.note,
+                                  style: dd.style,
                                   photoCount: coverDesignPhotoCount(dd),
                                   scene: coverDesignScene(dd, dims.panelMm, dims.bleedMm, dims.spineMm),
                                 }));
@@ -17590,7 +17597,9 @@ function UploadPageContent() {
                                   <DesignPanel
                                     mode="cover"
                                     items={items}
-                                    styleName={DESIGN_STYLE.name}
+                                    styles={DESIGN_STYLES}
+                                    styleFilter={designStyleFilter}
+                                    onStyleFilterChange={setDesignStyleFilter}
                                     sceneKeyOf={(id) => `${id}|${dims.panelMm}|${dims.bleedMm}|${dims.spineMm}`}
                                     isSelected={(id) => coverTextBoxes.some((b) => designIdOfItem(b.id) === id)}
                                     onApply={(id) => applyCoverDesignTemplate(id)}
@@ -18729,6 +18738,7 @@ function UploadPageContent() {
                                   id: dd.id,
                                   name: dd.name,
                                   note: dd.note,
+                                  style: dd.style,
                                   photoCount: innerDesignPhotoCount(dd),
                                   scene: innerDesignScene(dd, designPageMm, range),
                                 }));
@@ -18748,7 +18758,9 @@ function UploadPageContent() {
                                       })
                                     }
                                     items={items}
-                                    styleName={DESIGN_STYLE.name}
+                                    styles={DESIGN_STYLES}
+                                    styleFilter={designStyleFilter}
+                                    onStyleFilterChange={setDesignStyleFilter}
                                     sceneKeyOf={(id) => `${id}|${designPageMm}|${range}`}
                                     isSelected={(id) =>
                                       sidesOf.some((side) =>
