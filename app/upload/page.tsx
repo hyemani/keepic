@@ -830,6 +830,20 @@ const layoutOptions: { id: PageTemplateId; label: string }[] = [
 // 있지만, "지금 화면에 보이는 크기가 실제 크기 대비 몇 %인지"를 대략적으로라도
 // 보여주는 게 0%든 100%든 고정된 숫자보다 훨씬 유용해서 이 근사치를 씀.
 const CSS_PX_PER_MM = 96 / 25.4;
+const ZOOM_PCT_MIN = 10;
+const ZOOM_PCT_MAX = 400;
+
+// ── 화면 글자 크기의 "한 가지 기준" (2026-10, 확대·축소 비율 통일) ─────────────────────
+// 인쇄(lib/printCompose.ts)는 글자 크기를 "그 면(페이지/표지 칸) 폭 × 0.032 × fontScale"로 그려요.
+// 화면도 정확히 같은 식을 써야 확대·축소해도 글자가 사진·박스와 같은 비율로 커지고 줄어요.
+// 예전엔 화면 글자가 `0.85rem × fontScale`(브라우저 rem 고정 px)라서 줌·창 크기와 무관하게
+// 항상 같은 px이었어요(→ 배경·박스는 커지는데 글자만 그대로, 인쇄와도 비율이 달랐어요).
+// 이제 면 폭을 --page-w(= 그 면의 실제 화면 폭, cqw 단위)로 내려주고 글자는 calc(var(--page-w) × 0.032 × 배율)로
+// 그려요. --page-w는 표지 바깥 컨테이너(containerType:size)와 내지 펼침면 줄(containerType:inline-size)에서
+// 정의해요. 이 값은 "보기"일 뿐이라 저장되는 fontScale·행간·자간·위치는 전혀 안 바뀌어요.
+function screenFontSizeCss(fontScale: number): string {
+  return `calc(var(--page-w, 40cqw) * ${Math.round(TEXT_BOX_FONT_SCALE_BASE_RATIO * fontScale * 1e7) / 1e7})`;
+}
 
 // 2026-09-30, 혜민님 요청: "단색 배경 색상부분 컬러차트로 만들어주세요. 예시이미지
 // 참고" — 스위트북처럼 한 줄로 죽 나열하던 예전 SPREAD_BACKGROUND_PRESETS(2026-09-27
@@ -2214,7 +2228,7 @@ function setSelectionByOffsets(container: HTMLElement, start: number, end: numbe
 function applyRunStyleToSpan(span: HTMLSpanElement, run: TextRun, box: TextBoxDef) {
   const style = resolveRunStyle(box, run);
   span.style.fontFamily = style.fontFamily;
-  span.style.fontSize = `${0.85 * style.fontScale}rem`;
+  span.style.fontSize = screenFontSizeCss(style.fontScale);
   span.style.color = style.color;
   span.style.fontWeight = style.bold ? "700" : "400";
   span.style.fontStyle = style.italic ? "italic" : "normal";
@@ -2601,7 +2615,7 @@ function TextBoxRichEditor({
           className="pointer-events-none absolute inset-0 select-none opacity-40"
           style={{
             fontFamily: box.fontFamily,
-            fontSize: `${0.85 * box.fontScale}rem`,
+            fontSize: screenFontSizeCss(box.fontScale),
             textAlign: box.align,
             color: box.color,
           }}
@@ -2628,7 +2642,7 @@ function TextBoxRichEditor({
           // 박스일 때 클릭할 최소 높이도 사라져요(예전 textarea엔 rows=1로 항상 있던
           // 최소 높이가, div는 내용이 없으면 0이 될 수 있어서).
           fontFamily: box.fontFamily,
-          fontSize: `${0.85 * box.fontScale}rem`,
+          fontSize: screenFontSizeCss(box.fontScale),
           ...(box.backgroundColor
             ? isFillBoxMode
               ? // fillBox 모드는 부모(TextBoxOverlay)가 박스 전체 크기로 배경을 따로
@@ -6711,16 +6725,12 @@ function TextBoxToolbar({
         setOverflowFix(null);
         return;
       }
-      // 편집 화면 글자는 0.85rem×배율로 고정이라(줌·페이지 폭과 무관) 화면에서 넘쳐 보이는지와 인쇄에서 넘치는지가 달라요.
-      // 그래서 "인쇄와 같은 비율"(페이지 폭 × 0.032 × 배율)로 글자를 키운 복사본(CSS zoom)을 보이지 않게 그려서 높이를 재요.
-      const pageW = outer.offsetParent?.clientWidth ?? 0;
-      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const r = pageW > 0 ? (pageW * TEXT_BOX_FONT_SCALE_BASE_RATIO) / (0.85 * rootPx) : 1;
+      // 화면 글자가 인쇄와 같은 비율(페이지 폭 × 0.032 × 배율)로 그려지므로 실제 요소 높이를 그대로 재면 돼요.
       const clone = ed.cloneNode(true) as HTMLElement;
       clone.removeAttribute("contenteditable");
       clone.removeAttribute("data-text-box-id");
       clone.setAttribute("aria-hidden", "true");
-      clone.style.cssText += `;position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;height:auto;max-height:none;overflow:visible;zoom:${r};width:${ed.clientWidth / r}px`;
+      clone.style.cssText += `;position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;height:auto;max-height:none;overflow:visible;width:${ed.clientWidth}px`;
       outer.appendChild(clone);
       const needPx = clone.getBoundingClientRect().height;
       outer.removeChild(clone);
@@ -10498,7 +10508,7 @@ const TableBoxOverlay = forwardRef<
                 // 2026-11-9차, 혜민님 요청("표안에... 텍스트크기, 비율 등... 수정할수있게
                 // 일반 텍스트패널과 동일하게") — 위 fontFamily와 같은 패턴으로, 칸별
                 // 개별 설정(cellOverride)이 있으면 표 전체 기본값 대신 그걸 써요.
-                fontSize: `${0.78 * (cellOverride?.fontScale ?? box.fontScale ?? 1)}rem`,
+                fontSize: screenFontSizeCss(cellOverride?.fontScale ?? box.fontScale ?? 1),
                 fontFamily: cellOverride?.fontFamily ?? box.fontFamily ?? "Pretendard, sans-serif",
                 color: cellOverride?.color ?? box.color ?? "#1F2937",
                 fontWeight: (cellOverride?.bold ?? box.bold) ? 700 : 400,
@@ -11023,6 +11033,7 @@ function CoverTitleOverlay({
   return (
     <div
       ref={boxRef}
+      data-cover-title
       className={`group/ct absolute z-28 outline outline-1 ${SELECTION_OUTLINE_OFFSET_CLASS} transition ${selectionOutlineClassName(
         isActive && editMode ? "active" : "idle"
       )}`}
@@ -11340,6 +11351,7 @@ function SpineTitleOverlay({
   return (
     <div
       ref={boxRef}
+      data-spine-title
       onMouseDown={handleDragStart}
       className={`group/st absolute left-0 z-20 flex w-full cursor-move ${alignClass} justify-center overflow-hidden border px-0.5 transition ${
  active ? "border-[var(--color-sky)]" : "border-transparent hover:border-[var(--color-sky)]/50"
@@ -11752,6 +11764,50 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
   );
 }
 
+// 배율 숫자(예: 49%)를 눌러서 직접 입력하는 칸이에요. 눌러 포커스하면 숫자가 전부 선택되고, 숫자를 치고 Enter(또는 다른 곳 클릭)로
+// 확정, Esc로 취소해요. 10~400으로 잘라서 적용해요. 새 버튼을 늘리지 않고 기존 숫자 자리가 그대로 입력칸이에요.
+function ZoomPctField({ percent, onCommit }: { percent: number; onCommit: (pct: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const cancelRef = useRef(false);
+  function commit() {
+    if (draft !== null && !cancelRef.current) {
+      const n = parseFloat(draft);
+      if (Number.isFinite(n)) onCommit(n);
+    }
+    cancelRef.current = false;
+    setDraft(null);
+  }
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label="화면 배율(%)"
+      title="배율 직접 입력 (예: 100 입력 후 Enter) · Ctrl+0 화면에 맞추기 · 실제 크기 대비 %예요"
+      value={draft ?? `${percent}%`}
+      onFocus={(e) => {
+        setDraft(String(percent));
+        const el = e.currentTarget;
+        requestAnimationFrame(() => el.select());
+      }}
+      onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, "").slice(0, 6))}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+          e.currentTarget.blur();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelRef.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+      onBlur={commit}
+      className="h-full w-14 bg-transparent px-1 text-center text-xs tabular-nums text-[var(--color-charcoal)]/70 outline-none transition hover:bg-[var(--color-ivory)] focus:bg-[var(--color-ivory)] focus-visible:ring-1 focus-visible:ring-[var(--color-charcoal)]/40"
+    />
+  );
+}
+
 // 편집 캔버스(표지/소개 페이지/스프레드)를 실제 사용 가능한 화면 크기에 맞춰 보여주는
 // 공용 "무대"예요. 2026-09 화면 배치 개편 — 예전엔 캔버스가 그냥 남는 가로 폭을 꽉 채우고
 // 세로는 그 폭에 비례해서 자동으로 정해지는 방식이라, 모니터가 넓을수록 세로가 커져서
@@ -11761,7 +11817,9 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
 // 딱 하나, 화면에 보여지는 크기(px)뿐이고, 안에 있는 사진·텍스트박스는 항상 그대로예요.
 function CanvasStage({
   aspect,
-  zoom,
+  manualPct,
+  onZoomWheel,
+  zoomAnchorRef,
   fitToken,
   className,
   children,
@@ -11770,7 +11828,14 @@ function CanvasStage({
   overlay,
 }: {
   aspect: number;
-  zoom: number;
+  // 사용자가 직접 정한 배율(실제 크기 대비 %, 100 = 실제 크기). null이면 "화면에 맞춤" 상태 —
+  // 창 크기가 바뀌면 맞춤 크기를 다시 계산해요. 숫자면 창이 바뀌어도 그 배율을 그대로 유지하고,
+  // 화면보다 커지면 가로·세로로 스크롤돼요. (2026-10: 예전 zoom은 "맞춤 크기의 배수"라 맞춤이 곧 확대 한도였어요.)
+  manualPct: number | null;
+  // Ctrl/⌘+휠(핀치) 확대 콜백 — 브라우저 기본 페이지 확대를 막으려고 passive:false 네이티브 리스너로 받아요.
+  onZoomWheel?: (e: { deltaY: number; clientX: number; clientY: number }) => void;
+  // 마우스 휠 확대 때 커서 위치(client 좌표)를 기준점으로 쓰기 위한 통로예요(없으면 화면 가운데 기준).
+  zoomAnchorRef?: React.MutableRefObject<{ x: number; y: number } | null>;
   // "화면에 맞추기" 버튼을 누른 횟수예요 — 이 값이 바뀔 때만 맞춤 크기를 다시 계산해요.
   // 생략하면 최초 진입 시 1번만 맞추고 그 뒤로는 전혀 다시 계산하지 않아요.
   fitToken?: number;
@@ -11808,6 +11873,22 @@ function CanvasStage({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  const onZoomWheelRef = useRef(onZoomWheel);
+  useLayoutEffect(() => {
+    onZoomWheelRef.current = onZoomWheel;
+  });
+  useEffect(() => {
+    const el = measureRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      if (e.deltaY !== 0) onZoomWheelRef.current?.(e);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
   // 눈금자·여백 등 캔버스 바깥 자잘한 요소들을 위한 여유 공간이에요. 정확히 딱 맞추기보다,
@@ -11857,7 +11938,73 @@ function CanvasStage({
   }, [box, aspect, fitToken]);
 
   const ready = !!baseFit;
-  const displayW = baseFit ? baseFit.w * zoom : 0;
+  // 맞춤(manualPct=null)이면 baseFit, 직접 정한 배율이면 "실제 크기(mm → 96dpi px) × %"로 정확히 계산해요.
+  // widthMm이 없는 화면(소개 페이지)은 맞춤 크기 × (%/100)으로 대신해요.
+  const displayW = baseFit
+    ? manualPct === null
+      ? baseFit.w
+      : widthMm && widthMm > 0
+        ? (widthMm * CSS_PX_PER_MM * manualPct) / 100
+        : (baseFit.w * manualPct) / 100
+    : 0;
+  const manual = manualPct !== null;
+
+  // 배율을 바꿔도 보고 있던 자리가 유지되게: 스크롤되는 상태면 기준점(휠 커서 또는 화면 가운데)을
+  // 고정한 채 스크롤 위치를 비례해서 옮겨요. 창 크기만 바뀐 경우(displayW 그대로)엔 아무것도 안 해요.
+  const prevDisplayWRef = useRef(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const prevOffsetRef = useRef({ x: 0, y: 0 });
+  useLayoutEffect(() => {
+    const prev = prevDisplayWRef.current;
+    prevDisplayWRef.current = displayW;
+    const vp = viewportRef.current;
+    const content = contentRef.current;
+    const anchor = zoomAnchorRef?.current ?? null;
+    if (zoomAnchorRef) zoomAnchorRef.current = null;
+    if (!vp || !content) return;
+    const r = vp.getBoundingClientRect();
+    const c = content.getBoundingClientRect();
+    // 스크롤 내용 안에서 캔버스 왼쪽·위쪽이 시작되는 위치(가운데 정렬 여백 포함)
+    const off = { x: c.left - r.left + vp.scrollLeft, y: c.top - r.top + vp.scrollTop };
+    const old = prevOffsetRef.current;
+    prevOffsetRef.current = off;
+    if (!prev || !displayW || prev === displayW) return;
+    const ratio = displayW / prev;
+    const ax = anchor ? Math.min(Math.max(anchor.x - r.left, 0), vp.clientWidth) : vp.clientWidth / 2;
+    const ay = anchor ? Math.min(Math.max(anchor.y - r.top, 0), vp.clientHeight) : vp.clientHeight / 2;
+    // 기준점 아래에 있던 캔버스 위 지점(old 좌표계)이 새 배율에서도 같은 자리에 오도록 스크롤을 옮겨요.
+    vp.scrollLeft = (vp.scrollLeft + ax - old.x) * ratio - ax + off.x;
+    vp.scrollTop = (vp.scrollTop + ay - old.y) * ratio - ay + off.y;
+  }, [displayW, zoomAnchorRef]);
+
+  // Space를 누른 채 끌면 캔버스를 손바닥처럼 옮겨요(스크롤되는 상태일 때만). 글자 입력 중엔 스페이스가 그대로 입력돼요.
+  const [spaceDown, setSpaceDown] = useState(false);
+  const panRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  useEffect(() => {
+    const isTyping = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || isTyping(e.target)) return;
+      const vp = viewportRef.current;
+      if (!vp || (vp.scrollWidth <= vp.clientWidth && vp.scrollHeight <= vp.clientHeight)) return;
+      e.preventDefault();
+      setSpaceDown(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setSpaceDown(false);
+        panRef.current = null;
+      }
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
 
   // 실제 크기(mm) 대비 화면에 지금 몇 %로 보이는지 상위로 알려줘요 — 창을 좁혀서
   // baseFit이 작아지면(줌은 그대로 1이어도) 이 퍼센트는 같이 줄어들어요(2026-09-24).
@@ -11909,12 +12056,38 @@ function CanvasStage({
           뷰포트보다 커질 수 있어서 스크롤 기능(overflow-auto)을 그대로 유지해요 — 이
           경우엔 확대 중인 한 손잡이/팝업이 가끔 잘릴 수 있는데, 혜민님이 보고하신
           증상은 zoom=1(기본 배율) 화면이라 이 변경으로 해결돼요. */}
+      {/* 직접 정한 배율(manual)일 땐 overflow-auto로 가로·세로 스크롤이 되고, 맞춤일 땐 예전처럼 overflow-visible(손잡이가
+          잘리지 않게)이에요. 가운데 정렬은 justify/items-center 대신 자식의 m-auto를 써요 — 내용이 화면보다 커져도
+          왼쪽·위쪽이 잘리지 않고 스크롤 시작점에서 전부 볼 수 있어요. */}
       <div
         ref={viewportRef}
-        className={`flex h-full w-full items-center justify-center ${zoom > 1 ? "overflow-auto" : "overflow-visible"}`}
+        data-canvas-viewport
+        className={`flex h-full w-full ${manual ? "overflow-auto" : "overflow-visible"} ${spaceDown ? "cursor-grab" : ""}`}
+        onMouseDownCapture={(e) => {
+          if (!spaceDown || e.button !== 0) return;
+          const vp = viewportRef.current;
+          if (!vp) return;
+          e.preventDefault();
+          e.stopPropagation();
+          panRef.current = { x: e.clientX, y: e.clientY, sl: vp.scrollLeft, st: vp.scrollTop };
+          const move = (ev: MouseEvent) => {
+            const st = panRef.current;
+            if (!st) return;
+            vp.scrollLeft = st.sl - (ev.clientX - st.x);
+            vp.scrollTop = st.st - (ev.clientY - st.y);
+          };
+          const end = () => {
+            panRef.current = null;
+            window.removeEventListener("mousemove", move);
+            window.removeEventListener("mouseup", end);
+          };
+          window.addEventListener("mousemove", move);
+          window.addEventListener("mouseup", end);
+        }}
       >
         <div
-          className="shrink-0"
+          ref={contentRef}
+          className="m-auto shrink-0"
           style={ready ? { width: `${displayW}px` } : { opacity: 0 }}
         >
           {children}
@@ -15112,12 +15285,19 @@ function UploadPageContent() {
   // 찍어뒀다가 되돌리는 방식이에요(필드 하나하나를 따로 추적하지 않아요). 스냅샷에는
   // 인쇄에 실제로 들어가는 내용만 담고, 화면 전용 설정(가이드선 표시 여부, 확대 배율,
   // 현재 보고 있는 페이지 등)은 담지 않아요 — 그런 것까지 되돌리면 오히려 헷갈려요.
-  const [canvasZoom, setCanvasZoom] = useState(1);
+  // 화면 배율(보기 전용, 문서에 저장 안 돼요): null = "화면에 맞춤"(창 크기에 따라 자동), 숫자 = 직접 정한 배율
+  // (실제 크기 대비 %, 100 = 정확히 실제 크기). 맞춤 크기가 확대 한도가 아니에요 — 10~400%까지 자유롭게.
+  const [manualZoomPct, setManualZoomPct] = useState<number | null>(null);
+  const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null);
   // CanvasStage가 보고해주는 "실제 크기(mm) 대비 지금 화면에 보이는 %"예요 — 창을
   // 좁히면 baseFit이 작아지면서 이 값도 같이 줄어들어요(2026-09-24). 아직 계산 전이거나
   // (소개 페이지처럼) 실제 mm 기준이 없는 화면일 때는 null — 그때는 아래 표시에서
   // canvasZoom(줌 배율)로 되돌아가요.
   const [actualSizePercent, setActualSizePercent] = useState<number | null>(null);
+  const currentZoomPctRef = useRef(100);
+  useLayoutEffect(() => {
+    currentZoomPctRef.current = actualSizePercent ?? manualZoomPct ?? 100;
+  });
   // 편집 영역 높이는 이제(2026-09-23) 상단바 높이를 JS로 재서 calc()로 빼는 방식 대신,
   // <main>을 뷰포트 높이(h-dvh)에 고정하고 그 안을 flex 레이아웃으로 나누는 구조로
   // 바꿨어요(음수 마진이나 수동 높이 계산 없이, 상단바는 shrink-0, 편집 영역은
@@ -15829,16 +16009,36 @@ function UploadPageContent() {
     ];
   }
 
+  // 단계: 10% 간격(10~200), 그 위는 50% 간격(250~400). 지금 배율에서 "바로 다음/이전 단계"로 가서 100%를 건너뛰지 않아요.
+  function stepZoomPct(p: number, dir: 1 | -1): number {
+    const steps: number[] = [];
+    for (let v = ZOOM_PCT_MIN; v <= 200; v += 10) steps.push(v);
+    for (let v = 250; v <= ZOOM_PCT_MAX; v += 50) steps.push(v);
+    const cur = Math.round(p * 10) / 10;
+    if (dir > 0) return steps.find((v) => v > cur + 0.05) ?? ZOOM_PCT_MAX;
+    return [...steps].reverse().find((v) => v < cur - 0.05) ?? ZOOM_PCT_MIN;
+  }
   function handleZoomIn() {
-    setCanvasZoom((z) => Math.min(2, Math.round((z + 0.1) * 100) / 100));
+    setManualZoomPct(stepZoomPct(currentZoomPctRef.current, 1));
   }
   function handleZoomOut() {
-    setCanvasZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 100) / 100));
+    setManualZoomPct(stepZoomPct(currentZoomPctRef.current, -1));
   }
+  // 숫자 입력(예: 100 + Enter)으로 정확한 배율을 정해요. 10~400으로 잘라요.
+  function handleZoomSet(pct: number) {
+    if (!Number.isFinite(pct)) return;
+    setManualZoomPct(Math.min(ZOOM_PCT_MAX, Math.max(ZOOM_PCT_MIN, Math.round(pct))));
+  }
+  // Ctrl/⌘+휠(트랙패드 핀치 포함): 작은 움직임은 연속으로, 휠 한 칸은 한 단계로 바꾸고 커서 자리를 기준으로 삼아요.
+  function handleZoomWheel(e: { deltaY: number; clientX: number; clientY: number }) {
+    zoomAnchorRef.current = { x: e.clientX, y: e.clientY };
+    const cur = currentZoomPctRef.current;
+    if (Math.abs(e.deltaY) >= 40) setManualZoomPct(stepZoomPct(cur, e.deltaY < 0 ? 1 : -1));
+    else setManualZoomPct(Math.min(ZOOM_PCT_MAX, Math.max(ZOOM_PCT_MIN, Math.round(cur * Math.exp(-e.deltaY * 0.01) * 10) / 10)));
+  }
+  // 화면에 맞춤(Ctrl+0): 직접 정한 배율을 풀고, 창 크기에 맞춰 자동으로 다시 계산해요.
   function handleZoomReset() {
-    setCanvasZoom(1);
-    // 창 크기가 바뀌어도 배율을 자동으로 안 바꾸는 대신, 사용자가 이 버튼을 직접 눌렀을
-    // 때만 지금 뷰포트 크기 기준으로 "화면에 맞추기"를 다시 계산해요.
+    setManualZoomPct(null);
     setCanvasFitToken((t) => t + 1);
   }
 
@@ -17083,18 +17283,10 @@ function UploadPageContent() {
                   >
                     −
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleZoomReset}
-                    title="화면에 맞추기 (Ctrl+0) — 지금 화면에 보이는 크기가 실제 크기 대비 몇 %인지예요"
-                    className="flex h-full w-14 items-center justify-center px-1 text-center text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                  >
-                    {/* 2026-09-24, 혜민님 요청: 창을 좁혀 캔버스가 실제로 작아져도 이 숫자가
-                        계속 "100%"로 고정돼 있던 문제 — 이제 CanvasStage가 보고하는 실제
-                        크기(mm) 기준 % (actualSizePercent)를 우선 보여주고, 그 값이 아직
-                        없을 때만(예: 소개 페이지처럼 mm 기준이 없는 화면) 줌 배율로 대체해요. */}
-                    {Math.round(actualSizePercent ?? canvasZoom * 100)}%
-                  </button>
+                  <ZoomPctField
+                    percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
+                    onCommit={handleZoomSet}
+                  />
                   <button
                     type="button"
                     onClick={handleZoomIn}
@@ -17487,12 +17679,6 @@ function UploadPageContent() {
                       (editorMode === "preview" ? "pointer-events-none select-none " : "") +
                       "relative flex min-h-0 flex-1 flex-col"
                     }
-                    onWheel={(e) => {
-                      if (!e.ctrlKey && !e.metaKey) return;
-                      e.preventDefault();
-                      if (e.deltaY < 0) handleZoomIn();
-                      else if (e.deltaY > 0) handleZoomOut();
-                    }}
                   >
                     {editorMode === "preview" && (
                       <button
@@ -17947,7 +18133,9 @@ function UploadPageContent() {
                         {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
                         <CanvasStage
                           aspect={coverTotalWmm / coverTotalHmm}
-                          zoom={canvasZoom}
+                          manualPct={manualZoomPct}
+                          onZoomWheel={handleZoomWheel}
+                          zoomAnchorRef={zoomAnchorRef}
                           fitToken={canvasFitToken}
                           widthMm={coverTotalWmm}
                           onActualSizePercentChange={setActualSizePercent}
@@ -17970,7 +18158,7 @@ function UploadPageContent() {
                             편집 화면에서만 overflow-visible로 바꿨어요. */}
                         <div
                           className={`relative mt-4 flex w-full border border-[var(--color-hairline)] bg-white ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
-                          style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size" }}
+                          style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size", ["--page-w" as string]: `${coverBackPct}cqw`, textRendering: "geometricPrecision", WebkitTextSizeAdjust: "none" }}
                         >
                           <div
                             className={`group relative flex h-full items-center justify-center ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
@@ -18322,7 +18510,9 @@ function UploadPageContent() {
                         </div>
                         )}
                         {/* 소개 페이지도 다른 페이지처럼 실제 폭(mm) 기준 % 를 위쪽 줌 표시에 보고해요 — 안 그러면 직전 페이지의 % 가 그대로 남아 실제 크기와 어긋나 보였어요. */}
-                        <CanvasStage aspect={2} zoom={canvasZoom} fitToken={canvasFitToken} widthMm={guideSpreadWorkMm} onActualSizePercentChange={setActualSizePercent}>
+                        <CanvasStage aspect={2} manualPct={manualZoomPct}
+                          onZoomWheel={handleZoomWheel}
+                          zoomAnchorRef={zoomAnchorRef} fitToken={canvasFitToken} widthMm={guideSpreadWorkMm} onActualSizePercentChange={setActualSizePercent}>
                         <div className="relative flex w-full items-stretch bg-white ">
                           <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-px -translate-x-1/2 bg-[var(--color-charcoal)]/15" />
                           <div className="aspect-square w-1/2">
@@ -18735,7 +18925,9 @@ function UploadPageContent() {
                             {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
                             <CanvasStage
                               aspect={guideSpreadWorkMm / guidePageWorkMm}
-                              zoom={canvasZoom}
+                              manualPct={manualZoomPct}
+                          onZoomWheel={handleZoomWheel}
+                          zoomAnchorRef={zoomAnchorRef}
                               fitToken={canvasFitToken}
                               widthMm={guideSpreadWorkMm}
                               onActualSizePercentChange={setActualSizePercent}
@@ -18810,11 +19002,16 @@ function UploadPageContent() {
                               className={`group relative mt-3 flex w-full items-start bg-white ${
  isPrintPreview ? "" : ""
                               }`}
-                              style={
-                                isPrintPreview
+                              style={{
+                                // 글자 크기 기준 폭(--page-w) — 낱장 한 쪽 = 펼침면 줄 폭의 50%. screenFontSizeCss 참고.
+                                containerType: "inline-size",
+                                ["--page-w" as string]: "50cqw",
+                                textRendering: "geometricPrecision",
+                                WebkitTextSizeAdjust: "none",
+                                ...(isPrintPreview
                                   ? { transform: `scale(${previewScaleX}, ${previewScaleY})`, transformOrigin: "center center" }
-                                  : undefined
-                              }
+                                  : {}),
+                              }}
                             >
                               {/* 스프레드 접힘선 - 두 페이지를 하나로 이어 보이게 하고, 가운데는 이 선 하나로만
                                   구분해요. "접힘·제본 경계" 안내선을 켜면 그 옆으로 옅은 배경(BindingGuide)이
