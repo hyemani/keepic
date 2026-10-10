@@ -148,11 +148,11 @@ import {
 import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
 import { DesignPanel, type DesignListItem } from "./designTemplatePanel";
 import {
-  COVER_DESIGNS,
+  VISIBLE_COVER_DESIGNS,
   COVER_PLACEHOLDER_TITLES,
   DESIGN_PHOTO_Z0,
   DESIGN_STYLES,
-  INNER_DESIGNS,
+  VISIBLE_INNER_DESIGNS,
   coverDesignGeo,
   coverDesignPhotoCount,
   coverDesignScene,
@@ -17431,7 +17431,7 @@ function UploadPageContent() {
                             <div className={PANEL_STACK}>
                               {(() => {
                                 const dims = computeCoverDesignDims();
-                                const items: DesignListItem[] = COVER_DESIGNS.map((dd) => ({
+                                const items: DesignListItem[] = VISIBLE_COVER_DESIGNS.map((dd) => ({
                                   id: dd.id,
                                   name: dd.name,
                                   note: dd.note,
@@ -18542,7 +18542,7 @@ function UploadPageContent() {
                                 const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
                                 const designPageMm = computeInnerPageWorkMm();
                                 const sidesOf: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
-                                const items: DesignListItem[] = INNER_DESIGNS.map((dd) => ({
+                                const items: DesignListItem[] = VISIBLE_INNER_DESIGNS.map((dd) => ({
                                   id: dd.id,
                                   name: dd.name,
                                   note: dd.note,

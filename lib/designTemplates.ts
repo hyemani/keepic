@@ -394,17 +394,50 @@ const EXISTING_THEMES: Record<string, DesignThemeId[]> = {
   "mz-closing": ["travel", "couple"],
   "mz-cover": ["travel", "birthday"],
 };
+// ---------- 비슷한 디자인 정리 (2026-10 20차, 혜민님 요청: "너무 비슷한 건 하나만 남겨주세요") ----------
+// 레이아웃 뼈대(사진 칸 수·위치)·글 자리·스티커·배경·서체를 숫자로 비교하고 썸네일을 눈으로 확인해서, 같은 디자인에 글·색·스티커만 다른 것은
+// 대표 하나만 목록에 보여줘요. 숨긴 디자인도 데이터·id는 그대로 남아 있어서(INNER_DESIGNS / COVER_DESIGNS 전체 목록, findInnerDesign / findCoverDesign)
+// 예전에 저장한 작업(dt-… id)은 똑같이 열리고, 패널·전체 앨범 적용에서만 빠져요.
+export const HIDDEN_DESIGN_IDS: ReadonlySet<string> = new Set([
+  // 내지
+  "mn-photo-caption", // = mn-opening (사진 1칸 + 오른쪽 글, 구성 거의 같음)
+  "hw-couple-closing", // = hw-closing (크라프트 + 폴라로이드 마무리, 문구만 다름)
+  "mz-birthday-dday", // = mz-closing (블랙 + 라임 큰 글자 / 오른쪽 사진 + 라임 띠)
+  "wm-couple-rings", // = wm-family-portrait (큰 사진 1 + 사진 2 + 글귀, 색·스티커만 다름)
+  "wm-family-story", // = wm-opening / wm-couple-dday (큰 사진 + 옆 글 + 동그란 사진 뼈대 같음)
+  // 표지
+  "mz-travel-cover", // = mz-cover (블랙 + 필름 띠, 제목 글자만 다름)
+  "kd-family-cover", // = kd-cover
+  "kd-birthday-cover", // = kd-cover
+  "hw-couple-cover", // = hw-cover
+  "wm-family-cover", // = wm-cover
+  "wm-couple-cover", // = wm-cover (아치 사진 + 제목, 색만 다름)
+  "mn-travel-cover", // = mn-cover
+]);
+// 대표로 남긴 디자인이 숨긴 디자인의 테마까지 맡도록 테마 태그를 넓혀요(탭이 얇아지지 않게).
+const THEME_OVERRIDES: Record<string, DesignThemeId[]> = {
+  "wm-family-portrait": ["family", "couple"],
+  "wm-couple-dday": ["couple", "family"],
+  "mn-opening": ["travel", "couple", "family"],
+  "mz-closing": ["travel", "couple", "birthday"],
+  "wm-cover": ["family", "couple", "travel"],
+  "mn-cover": ["travel", "couple", "family"],
+  "hw-cover": ["couple", "family", "travel"],
+  "kd-cover": ["family", "birthday"],
+  "mz-cover": ["travel", "birthday", "couple"],
+  "mz-birthday-cover": ["birthday"],
+};
 // 접히는 선 안전 여백: 내지 낱장 디자인은 어느 쪽이 접히는 쪽인지에 맞춰 스티커 한계(stk)를 FOLD_SAFE_MM으로 눌러서 받아요(글·사진 칸은 안전영역이 이미 20mm).
 const tagInner = (style: string, defs: InnerDesignDef[]): InnerDesign[] =>
   defs.map((d) => ({
     ...d,
     style: d.style ?? style,
-    themes: d.themes ?? EXISTING_THEMES[d.id] ?? ["family"],
+    themes: THEME_OVERRIDES[d.id] ?? d.themes ?? EXISTING_THEMES[d.id] ?? ["family"],
     left: (g: DesignGeo) => d.left(innerSideGeo(g, "left")),
     right: (g: DesignGeo) => d.right(innerSideGeo(g, "right")),
   }));
 const tagCover = (style: string, defs: CoverDesignDef[]): CoverDesign[] =>
-  defs.map((d) => ({ ...d, style: d.style ?? style, themes: d.themes ?? EXISTING_THEMES[d.id] ?? ["family"] }));
+  defs.map((d) => ({ ...d, style: d.style ?? style, themes: THEME_OVERRIDES[d.id] ?? d.themes ?? EXISTING_THEMES[d.id] ?? ["family"] }));
 export const INNER_DESIGNS: InnerDesign[] = [
   ...tagInner("warm-memory", WM_INNER),
   ...tagInner("minimal", MINIMAL_INNER),
@@ -421,6 +454,9 @@ export const COVER_DESIGNS: CoverDesign[] = [
   ...tagCover("mz", [MZ_COVER]),
   ...tagCover("warm-memory", OCCASION_COVER),
 ];
+// 패널·전체 앨범 적용에 쓰는 "보이는" 목록(숨긴 디자인 제외). 전체 목록은 위 INNER_DESIGNS / COVER_DESIGNS예요.
+export const VISIBLE_INNER_DESIGNS: InnerDesign[] = INNER_DESIGNS.filter((d) => !HIDDEN_DESIGN_IDS.has(d.id));
+export const VISIBLE_COVER_DESIGNS: CoverDesign[] = COVER_DESIGNS.filter((d) => !HIDDEN_DESIGN_IDS.has(d.id));
 // 테마 탭(전체·가족·여행·커플·생일)과 스타일 보조 선택에 쓰는 도우미예요. "all"이면 전부(중복 없이 한 번씩).
 export function designMatches(d: { themes: DesignThemeId[]; style: string }, theme: string, style: string): boolean {
   return (theme === "all" || d.themes.includes(theme as DesignThemeId)) && (style === "all" || d.style === style);
