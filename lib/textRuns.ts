@@ -234,3 +234,28 @@ export function applyRunAwareStyleChange(
   }
   return changes;
 }
+
+// 글자 크기 입력칸이 보여줘야 하는 "진짜 지금 크기(배율)"예요. 글자를 드래그로 골라 크기를 바꾸면 그 구간(run)에만 값이
+// 들어가고 박스 자신의 box.fontScale은 그대로라서(applyRunAwareStyleChange 참고), 예전엔 입력칸이 box.fontScale만 읽어
+// "60으로 바꿨는데 다시 23.6으로 돌아가는" 문제가 있었어요. 선택 범위가 있으면 그 범위에 걸친 구간들의, 없으면 박스 전체
+// 구간들의 크기를 보고 — 전부 같으면 그 값, 서로 다르면 mixed=true(첫 구간 값을 같이 돌려줘요).
+export function getSelectionFontScale(
+  box: TextBoxDef,
+  selectionRange: { boxId: string; start: number; end: number } | null
+): { scale: number; mixed: boolean } {
+  const hasRange = !!selectionRange && selectionRange.boxId === box.id && selectionRange.start !== selectionRange.end;
+  const start = hasRange ? Math.min(selectionRange!.start, selectionRange!.end) : 0;
+  const end = hasRange ? Math.max(selectionRange!.start, selectionRange!.end) : Number.POSITIVE_INFINITY;
+  const scales: number[] = [];
+  let pos = 0;
+  for (const run of getEffectiveRuns(box)) {
+    const runStart = pos;
+    const runEnd = pos + run.text.length;
+    pos = runEnd;
+    if (run.text.length === 0) continue;
+    if (runEnd > start && runStart < end) scales.push(run.fontScale ?? box.fontScale);
+  }
+  if (scales.length === 0) return { scale: box.fontScale, mixed: false };
+  const first = scales[0];
+  return { scale: first, mixed: scales.some((s) => Math.abs(s - first) > 1e-6) };
+}

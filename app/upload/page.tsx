@@ -43,7 +43,7 @@ import {
   calcEstimatedSpineWidthMm,
   printFileSpec,
 } from "@/lib/photobookPricing";
-import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup } from "@/lib/printCompose";
+import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup, TEXT_BOX_FONT_SCALE_BASE_RATIO } from "@/lib/printCompose";
 import {
   borderWidthMm,
   frameBorderMarks,
@@ -69,7 +69,16 @@ import {
   FRAME_DECOR_PRESETS,
   type FrameDecorPreset,
 } from "@/lib/frameDecorations";
-import { textBoxFontScaleToPt, textBoxPtToFontScale } from "@/lib/textBoxFontSize";
+import {
+  TEXT_FONT_PT_MAX,
+  TEXT_FONT_PT_MIN,
+  clampFontPt,
+  fontSizeShortcutDir,
+  stepFontPtField,
+  stepFontPtShortcut,
+  textBoxFontScaleToPt,
+  textBoxPtToFontScale,
+} from "@/lib/textBoxFontSize";
 import {
   readTableStylePresets,
   saveTableStylePreset,
@@ -84,6 +93,7 @@ import {
 import {
   applyRunAwareStyleChange,
   getEffectiveRuns,
+  getSelectionFontScale,
   mergeAdjacentRuns,
   resolveRunStyle,
   runsPlainText,
@@ -3023,6 +3033,7 @@ function TextBoxOverlay({
       // 2026-09-28(통합), SelectionFrame: outline-offset을 6px→0(경계에 딱 붙임)으로
       // 바꿔서 아래 크기조절 손잡이(항상 경계 위)와 테두리가 같은 자리에서 만나도록
       // 통일했어요 — 자세한 이유는 SelectionFrame/selectionOutlineClassName 주석 참고.
+      data-text-box-id={box.id}
       className={`absolute cursor-move outline outline-1 ${SELECTION_OUTLINE_OFFSET_CLASS} transition ${selectionOutlineClassName(
         isActive ? "active" : isMultiSelected ? "multi" : "idle"
       )}`}
@@ -4666,6 +4677,172 @@ function letterSpacingDisplayToEm(display: number): number {
   return display / LETTER_SPACING_DISPLAY_PER_EM;
 }
 
+// 글자 크기(pt) 입력칸 — 숫자 입력 + ▲▼ 버튼(누르고 있으면 반복) + ↑/↓ 키(1pt, Shift 10pt, Alt 0.1pt) + 휠(칸에 커서가 있을 때).
+// 보여주는 값은 항상 "지금 실제 크기"(valuePt)이고, 치는 동안만 draft를 보여줘요. Enter·칸을 벗어남 = 확정, Esc = 취소.
+// 범위는 TEXT_FONT_PT_MIN~MAX(4~400pt)이고 벗어난 값은 가까운 끝값으로 맞춰 안내해요. 소수도 받아요(예: 12.5).
+function FontSizeField({
+  valuePt,
+  mixed,
+  onCommit,
+}: {
+  valuePt: number;
+  mixed?: boolean;
+  onCommit: (pt: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // 누르고 있는 동안 연속으로 바뀌는 값을 다음 렌더 전에도 이어 계산하려고 들고 있는 "지금 값"
+  const liveRef = useRef(valuePt);
+  const holdRef = useRef<{ t?: ReturnType<typeof setTimeout>; i?: ReturnType<typeof setInterval> }>({});
+  const onCommitRef = useRef(onCommit);
+  useEffect(() => {
+    onCommitRef.current = onCommit;
+    if (!holdRef.current.i) liveRef.current = valuePt;
+  });
+  const fmt = (n: number) => String(Math.round(n * 10) / 10);
+  const show = (msg: string) => {
+    setNotice(msg);
+    setTimeout(() => setNotice((m) => (m === msg ? null : m)), 2200);
+  };
+  const apply = (pt: number) => {
+    const c = clampFontPt(pt);
+    if (c !== pt) show(pt > c ? `최대 ${TEXT_FONT_PT_MAX}pt까지예요` : `최소 ${TEXT_FONT_PT_MIN}pt부터예요`);
+    liveRef.current = c;
+    onCommitRef.current(c);
+    return c;
+  };
+  const step = (dir: 1 | -1, mod: "normal" | "shift" | "alt" = "normal") => {
+    const next = stepFontPtField(liveRef.current, dir, mod);
+    if (next === liveRef.current) show(dir > 0 ? `최대 ${TEXT_FONT_PT_MAX}pt까지예요` : `최소 ${TEXT_FONT_PT_MIN}pt부터예요`);
+    liveRef.current = next;
+    onCommitRef.current(next);
+    setDraft(null);
+  };
+  const stopHold = () => {
+    if (holdRef.current.t) clearTimeout(holdRef.current.t);
+    if (holdRef.current.i) clearInterval(holdRef.current.i);
+    holdRef.current = {};
+  };
+  useEffect(() => stopHold, []);
+  // 휠: 칸에 포커스가 있을 때만(그냥 패널을 스크롤하다 값이 바뀌지 않게). passive:false여야 preventDefault가 돼요.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (document.activeElement !== el || e.deltaY === 0) return;
+      e.preventDefault();
+      step(e.deltaY < 0 ? 1 : -1, e.shiftKey ? "shift" : "normal");
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const commitDraft = () => {
+    if (draft === null) return;
+    const n = Number(draft.trim().replace(",", "."));
+    setDraft(null);
+    if (draft.trim() === "" || !Number.isFinite(n) || n <= 0) return; // 잘못된 입력은 버리고 지금 값으로 돌아가요
+    if (!mixed && Math.abs(clampFontPt(n) - valuePt) < 0.05 && clampFontPt(n) === n) return;
+    apply(Math.round(n * 10) / 10);
+  };
+  const holdStart = (dir: 1 | -1, e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    stopHold();
+    step(dir, e.shiftKey ? "shift" : "normal");
+    const mod = e.shiftKey ? "shift" : "normal";
+    holdRef.current.t = setTimeout(() => {
+      holdRef.current.i = setInterval(() => step(dir, mod), 70);
+    }, 420);
+  };
+  const shown = draft ?? (mixed ? "" : fmt(valuePt));
+  const arrowBtn = "flex h-[11px] w-4 items-center justify-center text-[8px] leading-none text-[var(--color-charcoal)]/55 hover:bg-[var(--color-ivory)] hover:text-[var(--color-charcoal)] active:bg-[var(--color-hairline)]";
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="decimal"
+        role="spinbutton"
+        aria-label="글자 크기(pt)"
+        aria-valuemin={TEXT_FONT_PT_MIN}
+        aria-valuemax={TEXT_FONT_PT_MAX}
+        aria-valuenow={mixed ? undefined : Math.round(valuePt * 10) / 10}
+        data-font-size-input
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={mixed ? "혼합" : undefined}
+        value={shown}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9.,]/g, ""))}
+        onBlur={commitDraft}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            if (draft !== null) {
+              // 치던 값이 있으면 그 값을 먼저 확정한 뒤 거기서부터 한 칸 움직여요
+              const n = Number(draft.trim().replace(",", "."));
+              if (Number.isFinite(n) && n > 0) liveRef.current = clampFontPt(Math.round(n * 10) / 10);
+            }
+            step(e.key === "ArrowUp" ? 1 : -1, e.shiftKey ? "shift" : e.altKey ? "alt" : "normal");
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            commitDraft();
+            e.currentTarget.select();
+          } else if (e.key === "Escape") {
+            if (draft !== null) {
+              e.preventDefault();
+              e.stopPropagation();
+              setDraft(null);
+            }
+          }
+        }}
+        style={{ outline: "none" }}
+        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs tabular-nums"
+      />
+      <span aria-hidden className="shrink-0 text-[9px] text-[var(--color-charcoal)]/40">
+        pt
+      </span>
+      <span className="-my-1 -mr-1 flex shrink-0 flex-col border-l border-[var(--color-hairline)]">
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="글자 크기 키우기"
+          onPointerDown={(e) => holdStart(1, e)}
+          onPointerUp={stopHold}
+          onPointerCancel={stopHold}
+          onLostPointerCapture={stopHold}
+          className={arrowBtn}
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="글자 크기 줄이기"
+          onPointerDown={(e) => holdStart(-1, e)}
+          onPointerUp={stopHold}
+          onPointerCancel={stopHold}
+          onLostPointerCapture={stopHold}
+          className={arrowBtn}
+        >
+          ▼
+        </button>
+      </span>
+      {notice ? (
+        <span
+          role="status"
+          className="pointer-events-none absolute left-0 top-full z-10 mt-0.5 whitespace-nowrap bg-white px-1 text-[9.5px] text-red-600"
+        >
+          {notice}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 function TextStyleFieldsPanel({
   syncKey,
   value,
@@ -4673,6 +4850,8 @@ function TextStyleFieldsPanel({
   pageWidthMm,
   background,
   onBackgroundChange,
+  fontSizeMixed,
+  sizeNotice,
 }: {
   syncKey: string;
   value: TextStyleFields;
@@ -4685,6 +4864,10 @@ function TextStyleFieldsPanel({
   // 자체는 전혀 안 건드렸어요 — 배경색·안쪽 여백 기본값 버튼("선택한 칸" 섹션)은
   // 이 컴포넌트 밖 별개 버튼이라 그대로 남아있어요.
   pageWidthMm: number;
+  // 글자 크기가 구간마다 달라서 하나로 말할 수 없을 때(드래그 선택 안에 여러 크기가 섞임) — 입력칸에 "혼합"으로 보여줘요.
+  fontSizeMixed?: boolean;
+  // 크기 입력칸 바로 아래에 보여줄 안내(예: 글자가 박스보다 커서 잘려 보여요).
+  sizeNotice?: React.ReactNode;
   background?: TextBackgroundFields;
   onBackgroundChange?: (patch: {
     backgroundColor?: string;
@@ -4695,7 +4878,6 @@ function TextStyleFieldsPanel({
     heightPct?: number;
   }) => void;
 }) {
-  const [ptDraft, setPtDraft] = useState(() => String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)));
   const [lineHeightDraft, setLineHeightDraft] = useState(() => String(value.lineHeight));
   const [letterSpacingDraft, setLetterSpacingDraft] = useState(() => String(letterSpacingEmToDisplay(value.letterSpacing)));
   const [scaleXDraft, setScaleXDraft] = useState(() => String(value.scaleXPct));
@@ -4715,7 +4897,6 @@ function TextStyleFieldsPanel({
   useEffect(() => {
     if (lastSyncedKeyRef.current === syncKey) return;
     lastSyncedKeyRef.current = syncKey;
-    setPtDraft(String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)));
     setLineHeightDraft(String(value.lineHeight));
     setLetterSpacingDraft(String(letterSpacingEmToDisplay(value.letterSpacing)));
     setScaleXDraft(String(value.scaleXPct));
@@ -4765,26 +4946,14 @@ function TextStyleFieldsPanel({
           옮겨서 박스 어디에 올려도 설명이 보여요. */}
       <div className="mt-1 grid grid-cols-2 gap-1.5">
         <div
-          className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
-          title="글자 크기(pt)"
+          className="relative flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
+          title={`글자 크기(pt) ${TEXT_FONT_PT_MIN}~${TEXT_FONT_PT_MAX} · ↑↓ 1씩 · Shift+↑↓ 10씩 · Alt+↑↓ 0.1씩 · Ctrl/Cmd+Shift+< > 로도 바꿔요`}
         >
           <LayerIcon name="charFontSize" className="h-3.5 w-3.5 shrink-0 text-[var(--color-charcoal)]/50" />
-          <input
-            type="number"
-            min={6}
-            max={200}
-            step={0.5}
-            value={ptDraft}
-            onChange={(e) => {
-              const raw = e.target.value;
-              setPtDraft(raw);
-              const pt = Number(raw);
-              if (Number.isFinite(pt) && pt > 0) {
-                onChange({ fontScale: textBoxPtToFontScale(Math.max(6, Math.min(200, pt)), pageWidthMm) });
-              }
-            }}
-            onBlur={() => setPtDraft(String(textBoxFontScaleToPt(value.fontScale, pageWidthMm)))}
-            className="w-full border-0 bg-transparent p-0 text-xs outline-none"
+          <FontSizeField
+            valuePt={textBoxFontScaleToPt(value.fontScale, pageWidthMm)}
+            mixed={fontSizeMixed}
+            onCommit={(pt) => onChange({ fontScale: textBoxPtToFontScale(pt, pageWidthMm) })}
           />
         </div>
         <div
@@ -4809,6 +4978,7 @@ function TextStyleFieldsPanel({
           />
         </div>
       </div>
+      {sizeNotice}
       <div className="mt-1 grid grid-cols-2 gap-1.5">
         <div
           className="flex items-center gap-1 rounded-md border border-[var(--color-hairline)] bg-white px-1.5 py-1.5 focus-within:border-[var(--color-sky)]"
@@ -6595,6 +6765,82 @@ function TextBoxToolbar({
     readTextStylePresets()
   );
 
+  // ---- 글자 크기: 진짜 지금 크기 + 단축키 + 박스보다 커서 잘릴 때 안내 ----
+  // 입력칸이 보여주는 값은 "선택한 글자(없으면 박스 전체)의 실제 크기"예요(getSelectionFontScale). 예전엔 항상 box.fontScale만
+  // 읽어서, 글자를 선택하고 60으로 바꾸면(구간에만 적용) 칸이 다시 23.6으로 돌아갔어요.
+  const sizeInfo = box ? getSelectionFontScale(box, selectionRange) : { scale: 1, mixed: false };
+  // 단축키(Ctrl/Cmd+Shift+< , >)가 항상 최신 값으로 일하도록 렌더마다 갱신해 둬요.
+  const fontShortcutRef = useRef<{ box: TextBoxDef | null; sel: typeof selectionRange; info: typeof sizeInfo; pageWidthMm: number; onChange: typeof onChange }>({
+    box,
+    sel: selectionRange,
+    info: sizeInfo,
+    pageWidthMm,
+    onChange,
+  });
+  useEffect(() => {
+    fontShortcutRef.current = { box, sel: selectionRange, info: sizeInfo, pageWidthMm, onChange };
+  });
+  useEffect(() => {
+    function isTyping(el: HTMLElement | null) {
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+    }
+    function onKey(e: KeyboardEvent) {
+      const dir = fontSizeShortcutDir(e);
+      if (dir === 0) return;
+      const t = e.target as HTMLElement | null;
+      // 글 상자 안(contenteditable)이나 이 텍스트 패널 안의 입력칸에서만 — 엉뚱한 페이지 입력칸(프로젝트 이름 등)에선 그대로 둬요.
+      if (isTyping(t) && !t?.isContentEditable && !t?.closest?.("[data-text-style-panel]")) return;
+      const cur = fontShortcutRef.current;
+      if (!cur.box) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const curPt = textBoxFontScaleToPt(cur.info.scale, cur.pageWidthMm);
+      const nextPt = stepFontPtShortcut(curPt, dir);
+      if (nextPt === curPt) return;
+      const fontScale = textBoxPtToFontScale(nextPt, cur.pageWidthMm);
+      cur.onChange(applyRunAwareStyleChange(cur.box, cur.sel, { fontScale }));
+    }
+    // 캡처 단계: 글 상자(contenteditable)가 키 이벤트를 먼저 가져가기 전에 받아요. 누르고 있으면 브라우저의 키 반복으로 계속 바뀌어요.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+  // 박스 높이가 고정(heightPct)인데 글자가 더 커서 넘칠 때(편집 화면엔 넘쳐 보이고, 인쇄 파일에선 박스 밖이 잘려요) 알려주고 박스를 맞춰 키워줘요.
+  const [overflowFix, setOverflowFix] = useState<{ needHeightPct: number } | null>(null);
+  useEffect(() => {
+    let raf = 0;
+    raf = requestAnimationFrame(() => {
+      if (!box || box.heightPct === undefined) {
+        setOverflowFix(null);
+        return;
+      }
+      const id = box.id;
+      const outer = document.querySelector<HTMLElement>(`[data-text-box-id="${id}"]`);
+      const ed = outer?.querySelector<HTMLElement>("[contenteditable]");
+      if (!outer || !ed || outer.clientHeight <= 0) {
+        setOverflowFix(null);
+        return;
+      }
+      // 편집 화면 글자는 0.85rem×배율로 고정이라(줌·페이지 폭과 무관) 화면에서 넘쳐 보이는지와 인쇄에서 넘치는지가 달라요.
+      // 그래서 "인쇄와 같은 비율"(페이지 폭 × 0.032 × 배율)로 글자를 키운 복사본(CSS zoom)을 보이지 않게 그려서 높이를 재요.
+      const pageW = outer.offsetParent?.clientWidth ?? 0;
+      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const r = pageW > 0 ? (pageW * TEXT_BOX_FONT_SCALE_BASE_RATIO) / (0.85 * rootPx) : 1;
+      const clone = ed.cloneNode(true) as HTMLElement;
+      clone.removeAttribute("contenteditable");
+      clone.removeAttribute("data-text-box-id");
+      clone.setAttribute("aria-hidden", "true");
+      clone.style.cssText += `;position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;height:auto;max-height:none;overflow:visible;zoom:${r};width:${ed.clientWidth / r}px`;
+      outer.appendChild(clone);
+      const needPx = clone.getBoundingClientRect().height;
+      outer.removeChild(clone);
+      if (needPx - outer.clientHeight > 2) {
+        const need = Math.min(100 - box.yPct, ((needPx + 1) / outer.clientHeight) * (box.heightPct ?? 0));
+        setOverflowFix({ needHeightPct: Math.round(need * 10) / 10 });
+      } else setOverflowFix(null);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [box, box?.fontScale, box?.runs, box?.text, box?.heightPct, box?.widthPct, box?.lineHeight, box?.letterSpacing, box?.scaleXPct, box?.scaleYPct, box?.fontFamily]);
+
   if (!box) return null;
 
   // 지금 텍스트박스의 "꾸밈" 값만 뽑아요(내용(text)·문자 단위 서식(runs) 자체는
@@ -6660,6 +6906,7 @@ function TextBoxToolbar({
       // 이 패널의 최상위 블록 사이 간격을 gap-2(8px)에서 gap-1.5(6px)로 줄였어요.
       // TableBoxToolbar(표 칸 패널)도 같은 값으로 맞춰서 두 패널의 밀도가 똑같아요.
       className="mb-4 flex flex-col gap-1.5 border-b border-[var(--color-hairline)] pb-4"
+      data-text-style-panel
       // e.preventDefault()도 같이 줘요(2026-10-06 추가) — 안 그러면 이 패널 안 버튼을
       // 누르는 순간 브라우저가 포커스를 그 버튼으로 옮기면서 텍스트박스
       // contentEditable의 선택(드래그로 고른 글자 범위)이 먼저 사라져서, "선택 범위에만
@@ -6770,9 +7017,25 @@ function TextBoxToolbar({
           동일, 위치만 이 컴포넌트로 옮겼어요. */}
       <TextStyleFieldsPanel
         syncKey={box.id}
+        fontSizeMixed={sizeInfo.mixed}
+        sizeNotice={
+          overflowFix ? (
+            <div role="status" data-font-overflow className="mt-1 flex items-start gap-1.5 bg-amber-50 px-1.5 py-1.5 text-[10px] leading-snug text-amber-800">
+              <span className="min-w-0 flex-1 break-keep">글자가 박스보다 커요. 인쇄 파일에서는 박스 밖으로 넘친 글자가 잘려요.</span>
+              <button
+                type="button"
+                data-font-overflow-fix
+                onClick={() => onChange({ heightPct: overflowFix.needHeightPct })}
+                className="shrink-0 border border-amber-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-100"
+              >
+                박스 키우기
+              </button>
+            </div>
+          ) : null
+        }
         value={{
           fontFamily: box.fontFamily,
-          fontScale: box.fontScale,
+          fontScale: sizeInfo.scale,
           lineHeight: box.lineHeight ?? 1.375,
           letterSpacing: box.letterSpacing ?? 0,
           scaleXPct: box.scaleXPct ?? 100,

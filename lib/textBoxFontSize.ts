@@ -29,9 +29,58 @@ export function textBoxFontScaleToPt(fontScale: number, pageWidthMm: number): nu
   return Math.round(pt * 10) / 10;
 }
 
-// pt → fontScale(배율). 기존 텍스트박스 크기 조절 버튼과 같은 범위(0.4~4)로 잘라내요.
+// 글자 크기 입력의 진짜 범위(pt). 예전엔 입력칸은 6~200이라고 했지만 실제로는 fontScale을 0.4~4배로 잘라서
+// (페이지 폭 260mm면 9.4~94pt) 60pt를 쳐도 안 맞는 경우가 있었어요. 이제 이 범위가 화면·저장·인쇄 모두의 기준이에요.
+export const TEXT_FONT_PT_MIN = 4;
+export const TEXT_FONT_PT_MAX = 400;
+
+export function clampFontPt(pt: number): number {
+  if (!Number.isFinite(pt)) return TEXT_FONT_PT_MIN;
+  return Math.max(TEXT_FONT_PT_MIN, Math.min(TEXT_FONT_PT_MAX, pt));
+}
+
+// pt → fontScale(배율). pt를 4~400으로 잘라낸 뒤 소수 넷째 자리까지 저장해요(예전엔 소수 둘째 자리라
+// 60pt를 넣으면 59.9로 보이기도 했어요 — 이제 입력한 pt가 소수 첫째 자리까지 그대로 되돌아와요).
 export function textBoxPtToFontScale(pt: number, pageWidthMm: number): number {
   if (!Number.isFinite(pageWidthMm) || pageWidthMm <= 0) return 1;
-  const scale = pt / (pageWidthMm * TEXT_BOX_FONT_SCALE_BASE_RATIO * (PT_PER_INCH / MM_PER_INCH));
-  return Math.max(0.4, Math.min(4, Math.round(scale * 100) / 100));
+  const scale = clampFontPt(pt) / (pageWidthMm * TEXT_BOX_FONT_SCALE_BASE_RATIO * (PT_PER_INCH / MM_PER_INCH));
+  return Math.round(scale * 10000) / 10000;
+}
+
+// ---- 키보드·화살표로 크기 바꾸기 ----
+
+function roundPt(pt: number): number {
+  return Math.round(pt * 10) / 10;
+}
+
+// 입력칸의 ↑/↓·휠·▲▼ 버튼: 지금 값에서 정확히 step만큼(기본 1pt, Shift 10pt, Alt 0.1pt) 더하고 빼요.
+export function stepFontPtField(currentPt: number, dir: 1 | -1, mod: "normal" | "shift" | "alt" = "normal"): number {
+  const step = mod === "shift" ? 10 : mod === "alt" ? 0.1 : 1;
+  return clampFontPt(roundPt(currentPt + dir * step));
+}
+
+// 단축키(Ctrl/Cmd+Shift+< / >)의 한 번 간격: 20pt 미만 1pt, 72pt 미만 2pt, 200pt 미만 5pt, 그 위 10pt.
+// 크기가 클수록 1pt는 눈에 안 띄어서 구간별로 키웠어요. 올릴 땐 "다음 눈금"(예: 23.6 → 24, 60 → 65), 내릴 땐
+// "이전 눈금"(23.6 → 22, 60 → 55)으로 가요 — 올리고 바로 내리면 같은 크기로 돌아오는 대칭이에요.
+function shortcutStep(pt: number): number {
+  return pt < 20 ? 1 : pt < 72 ? 2 : pt < 200 ? 5 : 10;
+}
+export function stepFontPtShortcut(currentPt: number, dir: 1 | -1): number {
+  const eps = 1e-6;
+  const step = shortcutStep(dir === 1 ? currentPt + eps : currentPt - eps);
+  const q = currentPt / step;
+  const next = dir === 1 ? (Math.floor(q + eps) + 1) * step : (Math.ceil(q - eps) - 1) * step;
+  return clampFontPt(roundPt(next));
+}
+
+// 이 키 이벤트가 "글자 크기 줄이기(-1) / 키우기(+1)" 단축키인지: Ctrl 또는 Cmd + Shift + (< 또는 >) — Alt가 같이 눌리면 아니에요.
+// US 배열에서 Shift+, → "<", Shift+. → ">" 인데, 한글 입력기(IME)가 켜져 있거나 다른 배열이면 event.key가 달라질 수 있어서
+// event.key("<" ">")를 먼저 보고, 아니면 물리 키(event.code "Comma"/"Period")로 판단해요.
+export function fontSizeShortcutDir(e: { key: string; code: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }): -1 | 0 | 1 {
+  if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.altKey) return 0;
+  if (e.key === "<") return -1;
+  if (e.key === ">") return 1;
+  if (e.code === "Comma") return -1;
+  if (e.code === "Period") return 1;
+  return 0;
 }
