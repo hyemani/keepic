@@ -16894,7 +16894,7 @@ function UploadPageContent() {
                     <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5">
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
                         {editorMode === "edit" && (
-                        <div data-edit-sidebar="true" className="-ml-2.5 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-2">
+                        <div data-edit-sidebar="true" className="-ml-2.5 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-0">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
                               (2026-09-23, 이전엔 전부 한 화면에 세로로 나열돼 있었어요).
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
@@ -17776,7 +17776,7 @@ function UploadPageContent() {
                         <div className="flex h-full min-h-0 flex-col px-2 pb-2">
                           <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
                             {editorMode === "edit" && (
-                            <div data-edit-sidebar="true" className="-ml-2 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-2">
+                            <div data-edit-sidebar="true" className="-ml-2 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-0">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
                                   아이콘으로 골라요. 예전엔 배경만 항상 펼쳐져 있고 사진·스티커
                                   추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
