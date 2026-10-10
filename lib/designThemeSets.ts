@@ -68,7 +68,7 @@ function rankFor(occasion: DesignThemeId, d: { id?: string; themes: DesignThemeI
   if (d.id && GENERIC_ID.test(d.id)) return 1.5;
   return 2;
 }
-const fitPenalty = (rank: number) => (rank === 0 ? 0 : rank === 1 ? 0.8 : rank === 1.5 ? 1.2 : 6);
+const fitPenalty = (rank: number) => (rank === 0 ? 0 : rank === 1 ? 0.6 : rank === 1.5 ? 1 : 2.5);
 
 function buildSets(): AlbumThemeSet[] {
   const out: AlbumThemeSet[] = [];
@@ -82,7 +82,10 @@ function buildSets(): AlbumThemeSet[] {
     for (const cover of covers) {
       const style = cover.style;
       if (out.some((s) => s.occasion === occ.id && s.style === style)) continue;
-      const pool = (VISIBLE_INNER_DESIGNS as InnerDesign[]).filter((d) => d.style === style && ROLE_OF[d.id]);
+      // 생일 전용 디자인("HAPPY BIRTHDAY" 같은 글이 들어 있는 것)은 다른 행사 세트의 대체 후보로도 넣지 않아요.
+      const pool = (VISIBLE_INNER_DESIGNS as InnerDesign[]).filter(
+        (d) => d.style === style && ROLE_OF[d.id] && !(occ.id !== "birthday" && d.themes.length === 1 && d.themes[0] === "birthday")
+      );
       const roles = {} as Record<InnerRole, string[]>;
       for (const role of ALL_ROLES) {
         roles[role] = pool
@@ -123,37 +126,90 @@ export type SpreadPlanInput = {
   photos: number; // 지금 이 펼침면의 "인쇄되는 면"에 있는 사진 수(스티커·빈 칸 제외)
   printedLeft: boolean; // 첫 펼침면의 왼쪽은 인쇄 안 되는 면이라 false
 };
-const slotCache = new Map<string, { left: number; right: number }>();
-function sideSlots(id: string, designs: InnerDesign[]): { left: number; right: number } {
-  let v = slotCache.get(id);
+type SlotBox = { xPct: number; yPct: number; widthPct: number; heightPct: number };
+const slotGeoCache = new Map<string, { left: SlotBox[]; right: SlotBox[] }>();
+function slotGeo(id: string, designs: InnerDesign[]): { left: SlotBox[]; right: SlotBox[] } {
+  let v = slotGeoCache.get(id);
   if (!v) {
     const d = designs.find((x) => x.id === id);
     const g = innerDesignGeo(260);
-    v = d ? { left: d.left(g).slots.length, right: d.right(g).slots.length } : { left: 0, right: 0 };
-    slotCache.set(id, v);
+    v = d ? { left: d.left(g).slots, right: d.right(g).slots } : { left: [], right: [] };
+    slotGeoCache.set(id, v);
   }
   return v;
 }
-// 비용: 사진이 남으면(칸 부족) 한 장당 3, 칸이 남으면(빈 칸) 한 칸당 1. 이미 쓴 디자인은 +0.6씩(같은 디자인 반복 줄이기).
-// 행사 어울림 벌점: 대표 테마가 아닌데 행사에 속하면 +0.8, 행사와 무관한 디자인(대체용)이면 +4 — 사진 수가 조금 안 맞아도 같은 행사 디자인이 먼저 뽑히게 해요.
+function sideSlots(id: string, designs: InnerDesign[]): { left: number; right: number } {
+  const v = slotGeo(id, designs);
+  return { left: v.left.length, right: v.right.length };
+}
+
+// "같은 구성" 판정: 같은 스타일에서 왼쪽·오른쪽 사진 칸 수가 같고, 사진 칸이 차지하는 자리가 75% 이상 겹치면 사진 배치가 같은 디자인이에요
+// (글·색·스티커만 다른 것). 한 앨범 안에서는 이런 디자인을 두 번 쓰지 않고, 바로 옆 펼침면에도 두지 않아요.
+const COMP_N = 24;
+const maskCache = new Map<string, Uint8Array>();
+function compMask(id: string, designs: InnerDesign[]): Uint8Array {
+  const cached = maskCache.get(id);
+  if (cached) return cached;
+  const m = new Uint8Array(2 * COMP_N * COMP_N);
+  {
+    const v = slotGeo(id, designs);
+    const put = (slots: SlotBox[], off: number) => {
+      for (const s of slots)
+        for (let y = 0; y < COMP_N; y++)
+          for (let x = 0; x < COMP_N; x++) {
+            const px = ((x + 0.5) / COMP_N) * 100;
+            const py = ((y + 0.5) / COMP_N) * 100;
+            if (px >= s.xPct && px <= s.xPct + s.widthPct && py >= s.yPct && py <= s.yPct + s.heightPct) m[y * 2 * COMP_N + off + x] = 1;
+          }
+    };
+    put(v.left, 0);
+    put(v.right, COMP_N);
+    maskCache.set(id, m);
+  }
+  return m;
+}
+export function sameComposition(a: string, b: string, designs: InnerDesign[] = VISIBLE_INNER_DESIGNS): boolean {
+  if (a === b) return true;
+  const da = designs.find((x) => x.id === a);
+  const db = designs.find((x) => x.id === b);
+  if (!da || !db || da.style !== db.style) return false;
+  const sa = sideSlots(a, designs);
+  const sb = sideSlots(b, designs);
+  if (sa.left !== sb.left || sa.right !== sb.right) return false;
+  const ma = compMask(a, designs);
+  const mb = compMask(b, designs);
+  let inter = 0;
+  let uni = 0;
+  for (let i = 0; i < ma.length; i++) {
+    if (ma[i] && mb[i]) inter++;
+    if (ma[i] || mb[i]) uni++;
+  }
+  return uni > 0 && inter / uni >= 0.75;
+}
+
+// 비용(낮을수록 좋아요): 사진이 남으면(칸 부족) 한 장당 6 — 사진을 사진 목록으로 돌려보내는 것보다 같은 디자인을 한 번 더 쓰는 쪽이 낫게,
+// 칸이 남으면(빈 칸) 한 칸당 0.7, 이미 쓴 디자인은 한 번 쓸 때마다 +3.5(후보를 전부 한 번씩 쓴 다음에야 다시 써요).
+// 행사 어울림 벌점은 0(대표) · 0.6(행사에 속함) · 1(범용) · 2.5(같은 스타일의 다른 행사 디자인) — 반복보다는 대체 디자인이 먼저예요.
+const LACK_COST = 6;
+const SPARE_COST = 0.7;
+const REUSE_COST = 3.5;
 function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId): number {
   const s = sideSlots(id, designs);
   const slots = (input.printedLeft ? s.left : 0) + s.right;
   const lack = Math.max(0, input.photos - slots);
   const spare = input.photos > 0 ? Math.max(0, slots - input.photos) : 0;
   const d = designs.find((x) => x.id === id);
-  return lack * 3 + spare + (used.get(id) ?? 0) * 0.6 + fitPenalty(d ? rankFor(occasion, d) : 2);
+  return lack * LACK_COST + spare * SPARE_COST + (used.get(id) ?? 0) * REUSE_COST + fitPenalty(d ? rankFor(occasion, d) : 2);
 }
 
-// 한 앨범의 펼침면마다 어떤 내지 디자인을 쓸지 정해요.
-// 첫 인쇄 펼침면 = 오프닝, 마지막 = 마무리(펼침면이 1개면 오프닝만), 가운데는 사진+캡션 → 두 장+글귀 → 스트립 → 콜라주 순으로 돌아요.
-// 가운데 펼침면은 사진 수에 가장 잘 맞는 디자인을 고르고, 그 역할 후보가 너무 안 맞으면(빈 칸 3개 이상/사진이 남음) 다음 역할에서 찾아요.
+// 한 앨범의 펼침면마다 어떤 내지 디자인을 쓸지 정해요(항상 같은 입력 → 같은 결과).
+// 첫 인쇄 펼침면 = 오프닝, 마지막 = 마무리(펼침면이 1개면 오프닝만). 가운데 펼침면은 이 세트의 "가운데용 후보" 전체(사진+캡션·두 장·스트립·콜라주와
+// 같은 스타일의 행사 전용 디자인)에서 하나씩 골라요: 사진 수에 맞는 것을 우선하되, 앞에서 쓰지 않은 디자인을 먼저 다 쓰고 나서야 다시 써요.
+// 바로 앞 펼침면과 같은 디자인(또는 같은 사진 배치)은 연달아 쓰지 않고, 오프닝·마무리와 같은 배치도 가운데에는 쓰지 않아요.
 export function planAlbumInner(set: AlbumThemeSet, spreads: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS): string[] {
-  const used = new Map<string, number>();
-  const plan: string[] = [];
   const n = spreads.length;
-  let mid = 0;
-  const pick = (cands: string[], input: SpreadPlanInput) => {
+  const plan: string[] = [];
+  const pickBest = (cands: string[], input: SpreadPlanInput, used: Map<string, number>) => {
     let best = cands[0];
     let bc = Infinity;
     for (const id of cands) {
@@ -163,42 +219,43 @@ export function planAlbumInner(set: AlbumThemeSet, spreads: SpreadPlanInput[], d
         best = id;
       }
     }
-    return { id: best, cost: bc };
+    return best;
   };
-  const all = (role: InnerRole) => set.roles[role].length > 0;
-  spreads.forEach((input, i) => {
-    let chosen: string | undefined;
-    if (i === 0) {
-      chosen = pick(set.roles.opening, input).id;
-    } else if (i === n - 1) {
-      chosen = pick(set.roles.closing.length ? set.roles.closing : set.roles.opening, input).id;
-    } else {
-      const start = mid % MIDDLE_ROLES.length;
-      let fallback: { id: string; cost: number; k: number } | undefined;
-      let pickedK = -1;
-      for (let k = 0; k < MIDDLE_ROLES.length; k++) {
-        const role = MIDDLE_ROLES[(start + k) % MIDDLE_ROLES.length];
-        if (!all(role)) continue;
-        const r = pick(set.roles[role], input);
-        const d = designs.find((x) => x.id === r.id);
-        const spareOnly = input.photos > 0 ? r.cost - (used.get(r.id) ?? 0) * 0.6 - fitPenalty(d ? rankFor(set.occasion, d) : 2) : 0;
-        if (spareOnly <= 2) {
-          chosen = r.id;
-          pickedK = k;
-          break;
-        }
-        if (!fallback || r.cost < fallback.cost) fallback = { ...r, k };
-      }
-      if (!chosen && fallback) {
-        chosen = fallback.id;
-        pickedK = fallback.k;
-      }
-      // 다음 가운데 펼침면은 방금 고른 역할 "다음"부터 돌아요(맞는 역할이 없어 건너뛰어도 같은 디자인이 연달아 나오지 않게).
-      mid = pickedK >= 0 ? start + pickedK + 1 : mid + 1;
-      chosen = chosen ?? set.roles.photo[0];
+  const none = new Map<string, number>();
+  const openId = n > 0 ? pickBest(set.roles.opening, spreads[0], none) : undefined;
+  const closeCands = set.roles.closing.length ? set.roles.closing : set.roles.opening;
+  const closeId = n > 1 ? pickBest(closeCands, spreads[n - 1], none) : undefined;
+  const bookends = [openId, closeId].filter((x): x is string => !!x);
+  // 가운데용 후보: 일반 역할 4종 + 행사 전용 오프닝(D-day 등). 범용 오프닝·마무리는 책의 처음·끝에만 써요.
+  const GENERIC_BOOKEND = /^(wm|mn|hw|kd|mz)-(opening|closing)$/;
+  const middle: string[] = [];
+  for (const role of ["opening", ...MIDDLE_ROLES] as InnerRole[]) {
+    for (const id of set.roles[role]) {
+      if (GENERIC_BOOKEND.test(id) || middle.includes(id) || bookends.includes(id)) continue;
+      if (bookends.some((b) => sameComposition(b, id, designs))) continue;
+      if (middle.some((m) => sameComposition(m, id, designs))) continue; // 같은 배치는 행사에 더 어울리는(앞선) 하나만
+      middle.push(id);
     }
-    plan.push(chosen!);
-    used.set(chosen!, (used.get(chosen!) ?? 0) + 1);
+  }
+  // 앞쪽 = 이 행사에 더 어울리는 디자인(동점일 때 먼저 뽑혀요)
+  const rankOf = (id: string) => {
+    const d = designs.find((x) => x.id === id);
+    return d ? rankFor(set.occasion, d) : 2;
+  };
+  middle.sort((a, b) => rankOf(a) - rankOf(b));
+  const used = new Map<string, number>();
+  spreads.forEach((input, i) => {
+    let chosen: string;
+    if (i === 0) chosen = openId!;
+    else if (i === n - 1) chosen = closeId!;
+    else {
+      const prev = plan[i - 1];
+      let cands = middle.filter((id) => !sameComposition(id, prev, designs));
+      if (cands.length === 0) cands = middle.length ? middle : set.roles.photo;
+      chosen = pickBest(cands, input, used);
+    }
+    plan.push(chosen);
+    used.set(chosen, (used.get(chosen) ?? 0) + 1);
   });
   return plan;
 }
