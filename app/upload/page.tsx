@@ -151,8 +151,6 @@ import {
   VISIBLE_COVER_DESIGNS,
   COVER_PLACEHOLDER_TITLES,
   DESIGN_PHOTO_Z0,
-  DESIGN_THEMES,
-  coverTitleAsText,
   DESIGN_STYLES,
   VISIBLE_INNER_DESIGNS,
   coverDesignGeo,
@@ -165,6 +163,7 @@ import {
   innerDesignGeo,
   innerDesignPhotoCount,
   innerDesignScene,
+  type DesignScene,
   isDesignItemId,
   makeDesignStickerBox,
   mergeDesignTexts,
@@ -12540,12 +12539,16 @@ function UploadPageContent() {
   // 내지의 "적용 범위"에 대응하는 값이에요.
   const [coverLayoutApplyTarget, setCoverLayoutApplyTarget] = useState<"front" | "back">("front");
   const [coverLayoutApplyMessage, setCoverLayoutApplyMessage] = useState<string | null>(null);
-  // "디자인" 탭(디자인 템플릿) 적용 결과 안내 문구예요 — 내지/표지 각각.
-  const [innerDesignMessage, setInnerDesignMessage] = useState<string | null>(null);
-  const [coverDesignMessage, setCoverDesignMessage] = useState<string | null>(null);
-  // 앨범 테마(표지 + 내지 전체 한 번에) — 지금 적용돼 있는 세트 id와 결과 안내 문구예요. id는 실행취소 스냅샷·저장 작업에도 같이 들어가요(옛 작업엔 없어요).
+  // "디자인" 탭 적용 뒤 잠깐(4초) 뜨는 한 줄 알림이에요 — 사진이 사진 목록으로 돌아간 경우에만 써요(패널에 안내 문구를 계속 두지 않아요).
+  const [designNotice, setDesignNotice] = useState<string | null>(null);
+  const designNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashDesignNotice = (text: string | null) => {
+    if (designNoticeTimerRef.current) clearTimeout(designNoticeTimerRef.current);
+    setDesignNotice(text);
+    designNoticeTimerRef.current = text ? setTimeout(() => setDesignNotice(null), 4000) : null;
+  };
+  // 앨범 테마(표지 + 내지 전체 한 번에) — 지금 적용돼 있는 세트 id예요. id는 실행취소 스냅샷·저장 작업에도 같이 들어가요(옛 작업엔 없어요).
   const [designThemeId, setDesignThemeId] = useState<string | undefined>(undefined);
-  const [albumThemeMessage, setAlbumThemeMessage] = useState<string | null>(null);
   // 디자인 패널에서 고른 스타일 칩("all" = 전체) — 표지·내지 패널이 같이 써요(2026-10, 스타일 5종).
   const [designStyleFilter, setDesignStyleFilter] = useState<string>("all");
   const [designThemeFilter, setDesignThemeFilter] = useState<string>("all"); // 디자인 패널 맨 위 테마 탭(전체·가족·여행·커플·생일)
@@ -14738,10 +14741,7 @@ function UploadPageContent() {
           batch.extraPhotoCount += r.extraPhotos;
           return;
         }
-        const notes: string[] = [];
-        if (r.extraPhotos > 0) notes.push(`사진 칸이 ${r.slots}개라 남은 사진 ${r.extraPhotos}장은 지우지 않고 사진 목록으로 돌려보냈어요.`);
-        if (keptUser > 0) notes.push(`직접 쓴 글상자 ${keptUser}개는 그대로 뒀어요.`);
-        setInnerDesignMessage(notes.length ? notes.join(" ") : null);
+        flashDesignNotice(r.extraPhotos > 0 ? `사진 ${r.extraPhotos}장을 사진 목록으로 돌려보냈어요` : null);
       },
       finalizeSpread: (s0) => {
         let s: SpreadDef = { ...s0 };
@@ -14866,14 +14866,10 @@ function UploadPageContent() {
         onResult: (r) => results.push(r),
       });
     });
-    const notes: string[] = [];
     const extra = results.reduce((a, r) => a + r.extraPhotos, 0);
-    if (extra > 0) notes.push(`사진 칸이 모자라 남은 사진 ${extra}장은 지우지 않고 사진 목록으로 돌려보냈어요.`);
     const keptUser =
       mergeDesignTexts(coverTextBoxes, d.id, "front", []).keptUser + mergeDesignTexts(backCoverTextBoxes, d.id, "back", []).keptUser;
-    if (keptUser > 0) notes.push(`직접 쓴 글상자 ${keptUser}개는 그대로 뒀어요.`);
-    if (keepTyped) notes.push("입력해 둔 제목 글자는 그대로 두고 모양만 바꿨어요.");
-    if (!quiet) setCoverDesignMessage(notes.length ? notes.join(" ") : null);
+    if (!quiet) flashDesignNotice(extra > 0 ? `사진 ${extra}장을 사진 목록으로 돌려보냈어요` : null);
     return { extraPhotos: extra, keptUser };
   }
 
@@ -14882,38 +14878,58 @@ function UploadPageContent() {
   // 펼침면마다 역할(오프닝 → 사진+캡션 → 두 장+글귀 → 스트립 → 콜라주 … → 마무리)에 맞는 디자인을 정하고(lib/designThemeSets.ts planAlbumInner),
   // 기존 한 페이지 적용(applyInnerDesignTemplate)을 그대로 불러서 모아요 — 그래서 직접 쓴 글은 남고 이전 디자인의 글·스티커만 새것으로 바뀌어요.
   // 디자인 패널 맨 위 "앨범 테마" 카드 데이터 — 표지 앞면 한 장을 같은 그리기 함수로 미리보기해요.
+  // 펼침면마다 "인쇄되는 면"의 사진 수 — 적용(applyAlbumDesignTheme)과 카드 미리보기가 똑같이 이 값으로 디자인을 정해요.
+  function albumPlanInputs() {
+    return customSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0 }));
+  }
   function buildAlbumThemeProps(): AlbumThemeProps {
     const dims = computeCoverDesignDims();
+    const pageMm = computeInnerPageWorkMm();
     const selectedSet = findAlbumThemeSet(designThemeId);
     const colorOf = (bg: unknown): string | undefined => {
       const c = (bg as { color?: string } | undefined)?.color;
       return typeof c === "string" ? c : undefined;
     };
-    const occNames = (s: AlbumThemeSet) => DESIGN_THEMES.filter((t) => s.occasions.includes(t.id)).map((t) => t.name).join("·");
+    // 앨범이 비어 있어도(펼침면 0개) 보통 앨범(10펼침면, 사진 없음)으로 계획해서 미리보기를 보여줘요.
+    const inputs = customSpreads.length > 0 ? albumPlanInputs() : Array.from({ length: 10 }, (_, i) => ({ photos: 0, printedLeft: i !== 0 }));
+    const planOf = (set: AlbumThemeSet) => planAlbumInner(set, inputs);
+    const sceneOf = (designId: string): { scene: DesignScene; sceneKey: string } | null => {
+      const dd = findInnerDesign(designId);
+      return dd ? { scene: innerDesignScene(dd, pageMm, "spread"), sceneKey: `${designId}|${pageMm}|spread` } : null;
+    };
     return {
-      spreadCount: customSpreads.length,
-      message: albumThemeMessage,
       onApply: applyAlbumDesignTheme,
       itemsFor: (occasion, style) => {
         const list = albumThemeSetsFor(occasion).filter((set) => style === "all" || set.style === style);
         // "전체" 탭은 스타일 이름만 보여주되, 같은 스타일 이름이 둘 이상이면(MZ: 여행 표지 / 생일 표지) 행사 이름도 붙여서 구분해요.
         const dupFlavor = (f: string) => list.filter((x) => x.flavor === f).length > 1;
         return list.map((set): AlbumThemeItem => {
-            const cd = findCoverDesign(set.coverId)!;
-            const gf = coverDesignGeo("front", dims.panelMm, dims.bleedMm);
-            const front = cd.front(gf);
-            front.texts = [coverTitleAsText(cd, gf), ...front.texts];
-            const chips = [colorOf(front.bg), colorOf(cd.spine.bg), cd.spine.titleColor].filter((c): c is string => !!c);
-            return {
-              id: set.id,
-              name: occasion === "all" && !dupFlavor(set.flavor) ? set.flavor : set.name,
-              caption: `${occNames(set)}에 어울려요`,
-              chips,
-              scene: { wMm: gf.W, hMm: gf.H, parts: [{ xMm: 0, yMm: 0, wMm: gf.W, hMm: gf.H, layout: front }] },
-              sceneKey: `album|${set.coverId}|${dims.panelMm}|${dims.bleedMm}`,
-              selected: !!selectedSet && (occasion === "all" ? selectedSet.lookKey === set.lookKey : selectedSet.id === set.id),
-            };
-          });
+          const cd = findCoverDesign(set.coverId)!;
+          const chips = [colorOf(cd.front(coverDesignGeo("front", dims.panelMm, dims.bleedMm)).bg), colorOf(cd.spine.bg), cd.spine.titleColor].filter(
+            (c): c is string => !!c
+          );
+          const plan = planOf(set);
+          // 대표 펼침면 = 이 앨범에 실제로 적용될 첫 번째 내용 펼침면(펼침면이 1개면 그 한 장)
+          const repIdx = plan.length > 1 ? 1 : 0;
+          const rep = sceneOf(plan[repIdx])!;
+          return {
+            id: set.id,
+            name: occasion === "all" && !dupFlavor(set.flavor) ? set.flavor : set.name,
+            chips,
+            scene: rep.scene,
+            sceneKey: rep.sceneKey,
+            designId: plan[repIdx],
+            previewFor: () => {
+              // 실제 계획의 가운데 펼침면 3장 + 마지막(마무리) 펼침면
+              const idxs: number[] = [];
+              for (let k = 1; k <= Math.min(3, plan.length - 2); k++) idxs.push(k);
+              if (plan.length >= 2) idxs.push(plan.length - 1);
+              if (idxs.length === 0) idxs.push(0);
+              return idxs.map((k) => ({ ...sceneOf(plan[k])!, designId: plan[k], index: k }));
+            },
+            selected: !!selectedSet && (occasion === "all" ? selectedSet.lookKey === set.lookKey : selectedSet.id === set.id),
+          };
+        });
       },
     };
   }
@@ -14935,10 +14951,8 @@ function UploadPageContent() {
   function applyAlbumDesignTheme(setId: string) {
     const set = findAlbumThemeSet(setId);
     if (!set || customSpreads.length === 0) return;
-    const plan = planAlbumInner(
-      set,
-      customSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0 }))
-    );
+    if (designThemeId === set.id) return; // 이미 적용된 테마를 다시 눌러도 아무것도 안 바뀌고 실행취소 기록도 안 늘어요
+    const plan = planAlbumInner(set, albumPlanInputs());
     const batch: AlbumApplyBatch = { spreadFns: new Map(), removePhotoIdx: new Set(), addPhotos: [], extraPhotoCount: 0, keptUserTexts: 0 };
     plan.forEach((designId, i) => applyInnerDesignTemplate(i, "spread", designId, batch));
     setCustomSpreads((prev) => prev.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp));
@@ -14948,13 +14962,7 @@ function UploadPageContent() {
     const cover = applyCoverDesignTemplate(set.coverId, true);
     setDesignThemeId(set.id);
     const extra = batch.extraPhotoCount + (cover?.extraPhotos ?? 0);
-    const kept = batch.keptUserTexts + (cover?.keptUser ?? 0);
-    const notes = [`${set.name} 테마를 표지와 내지 ${customSpreads.length}펼침면에 적용했어요.`];
-    if (extra > 0) notes.push(`사진 칸이 모자라 남은 사진 ${extra}장은 지우지 않고 사진 목록으로 돌려보냈어요.`);
-    if (kept > 0) notes.push(`직접 쓴 글상자 ${kept}개는 그대로 뒀어요.`);
-    setAlbumThemeMessage(notes.join(" "));
-    setCoverDesignMessage(null);
-    setInnerDesignMessage(null);
+    flashDesignNotice(extra > 0 ? `사진 ${extra}장을 사진 목록으로 돌려보냈어요` : null);
   }
 
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
@@ -17566,7 +17574,7 @@ function UploadPageContent() {
                                     sceneKeyOf={(id) => `${id}|${dims.panelMm}|${dims.bleedMm}|${dims.spineMm}`}
                                     isSelected={(id) => coverTextBoxes.some((b) => designIdOfItem(b.id) === id)}
                                     onApply={(id) => applyCoverDesignTemplate(id)}
-                                    message={coverDesignMessage}
+                                    notice={designNotice}
                                     album={buildAlbumThemeProps()}
                                   />
                                 );
@@ -18694,7 +18702,7 @@ function UploadPageContent() {
                                       )
                                     }
                                     onApply={(id) => applyInnerDesignTemplate(i, range, id)}
-                                    message={innerDesignMessage}
+                                    notice={designNotice}
                                     album={buildAlbumThemeProps()}
                                   />
                                 );
