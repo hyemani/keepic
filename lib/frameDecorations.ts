@@ -162,6 +162,14 @@ export const FRAME_DECOR_PRESETS: FrameDecorPreset[] = [
   { id: "badge-teal", decor: "badge", variant: "teal", label: "민트 뱃지", group: "badge" },
   { id: "badge-pink", decor: "badge", variant: "pink", label: "핑크 뱃지", group: "badge" },
   { id: "badge-gold", decor: "badge", variant: "gold", label: "골드 뱃지", group: "badge" },
+  { id: "badge-sky", decor: "badge", variant: "sky", label: "하늘 뱃지", group: "badge" },
+  { id: "badge-lavender", decor: "badge", variant: "lavender", label: "라벤더 뱃지", group: "badge" },
+  { id: "badge-peach", decor: "badge", variant: "peach", label: "복숭아 뱃지", group: "badge" },
+  { id: "badge-sage", decor: "badge", variant: "sage", label: "세이지 뱃지", group: "badge" },
+  { id: "badge-navy", decor: "badge", variant: "navy", label: "네이비 뱃지", group: "badge" },
+  { id: "badge-burgundy", decor: "badge", variant: "burgundy", label: "버건디 뱃지", group: "badge" },
+  { id: "badge-mocha", decor: "badge", variant: "mocha", label: "모카 뱃지", group: "badge" },
+  { id: "badge-slate", decor: "badge", variant: "slate", label: "슬레이트 뱃지", group: "badge" },
   // 새 캐릭터 10종 (variant는 한 가지뿐이라 "default")
   { id: "dog", decor: "dog", variant: "default", label: "강아지", group: "character" },
   { id: "chick", decor: "chick", variant: "default", label: "병아리", group: "character" },
@@ -1634,6 +1642,16 @@ const BADGE_PALETTES: Record<string, { ring: string; ribbon: string; ribbonEdge:
   teal: { ring: "#44BBAD", ribbon: "#2F9F92", ribbonEdge: "#238376", line: "#FFFFFF" },
   pink: { ring: "#F396B5", ribbon: "#E57BA0", ribbonEdge: "#CC628A", line: "#FFFFFF" },
   gold: { ring: "#EDBE4F", ribbon: "#DBA337", ribbonEdge: "#BF8A26", line: "#FFFFFF" },
+  // 새 8색(12색 중 뒤쪽) — 앞 4색과 같은 규칙: 고리 = 밝은 쪽, 리본 = 한 단계 진하게, 리본 윤곽 = 더 진하게, 흰 선.
+  // 파스텔 4(하늘·라벤더·복숭아·세이지) + 깊은 톤 4(네이비·버건디·모카·슬레이트) — 인쇄에서 탁해지지 않게 채도를 낮춰 잡았어요.
+  sky: { ring: "#7DB8EA", ribbon: "#5F9CD8", ribbonEdge: "#4780BD", line: "#FFFFFF" },
+  lavender: { ring: "#B8A3E8", ribbon: "#9D86D6", ribbonEdge: "#836BBC", line: "#FFFFFF" },
+  peach: { ring: "#F6AB7E", ribbon: "#E98F5E", ribbonEdge: "#CE7646", line: "#FFFFFF" },
+  sage: { ring: "#A9C39C", ribbon: "#8CA97F", ribbonEdge: "#738F67", line: "#FFFFFF" },
+  navy: { ring: "#4F6CAB", ribbon: "#3E5894", ribbonEdge: "#2E437A", line: "#FFFFFF" },
+  burgundy: { ring: "#AA485D", ribbon: "#913749", ribbonEdge: "#782C3C", line: "#FFFFFF" },
+  mocha: { ring: "#B88E6C", ribbon: "#9F7655", ribbonEdge: "#835F42", line: "#FFFFFF" },
+  slate: { ring: "#8F98A6", ribbon: "#757E8D", ribbonEdge: "#5D6573", line: "#FFFFFF" },
 };
 
 // 꼭짓점을 둥글게 깎은 다각형 path — 각 꼭짓점에서 양쪽 변으로 r만큼 떨어진 두 점을 2차 곡선으로 이어요.
