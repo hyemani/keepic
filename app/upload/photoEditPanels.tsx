@@ -20,7 +20,7 @@ import {
 } from "@/lib/photoAdjust";
 import { usePhotoFilterThumbs } from "./photoEditHooks";
 import { PrimaryActionButton } from "./primaryActionButton";
-import { SEG_TAB_ROW, segTabClass } from "./sidePanelShell";
+import { ACTION_BUTTON_BASE, PANEL_STACK, SECONDARY_ACTION_BUTTON_CLASS, SegTabs } from "./sidePanelShell";
 
 export type PhotoEditSection = "crop" | "filter" | "adjust";
 
@@ -168,7 +168,7 @@ function PanelToolButton({
       aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-h-[34px] min-w-[44px] items-center justify-center gap-1 border px-1 py-1 text-[12px] leading-tight transition disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`${ACTION_BUTTON_BASE} min-w-[44px] border px-1 ${
         active
           ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
           : `border-[var(--color-hairline)] bg-white ${TEXT_MAIN} hover:bg-[var(--color-ivory)]`
@@ -318,7 +318,7 @@ export function PhotoEditPanel({
         onKeyUp={(e) => {
           if (e.key === " " || e.key === "Enter") setHolding(false);
         }}
-        className="flex min-h-[34px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-40"
+        className={SECONDARY_ACTION_BUTTON_CLASS}
       >
         <PhotoToolIcon name="compare" className="h-5 w-5 shrink-0" />
         <span className="whitespace-nowrap">원본과 비교 (누르고 있기)</span>
@@ -330,7 +330,7 @@ export function PhotoEditPanel({
         aria-pressed={pinned}
         disabled={!hasEdit}
         onClick={() => setPinned((v) => !v)}
-        className={`min-h-[34px] w-full border px-2 text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`${ACTION_BUTTON_BASE} border px-2 ${
           pinned
             ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
             : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]"
@@ -348,7 +348,7 @@ export function PhotoEditPanel({
       aria-label="보정 초기화"
       disabled={!hasEdit}
       onClick={resetEdits}
-      className="flex min-h-[34px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-40"
+      className={SECONDARY_ACTION_BUTTON_CLASS}
     >
       <PhotoToolIcon name="reset" className="h-5 w-5 shrink-0" />
       <span className="whitespace-nowrap">보정 초기화</span>
@@ -356,7 +356,7 @@ export function PhotoEditPanel({
   );
 
   return (
-    <div className="flex flex-col gap-2" data-photo-edit-panel>
+    <div className={PANEL_STACK} data-photo-edit-panel>
       <PrimaryActionButton
         title="이 사진을 다른 사진으로 바꿔요 (모양·액자·테두리·위치·크기는 그대로)"
         ariaLabel="사진 변경"
@@ -366,20 +366,12 @@ export function PhotoEditPanel({
         <span className="whitespace-nowrap">사진 변경</span>
       </PrimaryActionButton>
 
-      <div role="tablist" aria-label="사진 편집 구역" className={SEG_TAB_ROW}>
-        {SECTION_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={section === t.id}
-            onClick={() => onSectionChange(t.id)}
-            className={segTabClass(section === t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <SegTabs
+        ariaLabel="사진 편집 구역"
+        items={SECTION_TABS.map((t) => ({ id: t.id, label: t.label }))}
+        value={section}
+        onChange={(id) => onSectionChange(id as PhotoEditSection)}
+      />
 
       {section === "crop" && (
         <div className="border border-[var(--color-hairline)] bg-white p-2">
@@ -428,7 +420,7 @@ export function PhotoEditPanel({
             title="위치·확대·회전·반전만 처음으로 (필터와 보정은 그대로)"
             aria-label="위치 초기화"
             onClick={resetPosition}
-            className="flex min-h-[34px] w-full items-center justify-center gap-1.5 border border-[var(--color-hairline)] bg-white px-2 text-[12px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)]"
+            className={SECONDARY_ACTION_BUTTON_CLASS}
           >
             <PhotoToolIcon name="reset" className="h-5 w-5 shrink-0" />
             <span className="whitespace-nowrap">위치 초기화</span>

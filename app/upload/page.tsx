@@ -117,7 +117,7 @@ import {
   type ReplaceLibraryPhoto,
 } from "./photoEditPanels";
 import { PrimaryFileButton } from "./primaryActionButton";
-import { SidePanelShell, SEG_TAB_ROW, segTabClass } from "./sidePanelShell";
+import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
@@ -7716,7 +7716,7 @@ function ImageBoxPanel({
                           </p>
                         )}
                         {lib.length > 0 && onAddLibraryPhoto && (
-                          <div className="grid max-h-[264px] grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
+                          <div className={`grid max-h-[264px] grid-cols-3 gap-1.5 ${NESTED_SCROLL}`}>
                             {lib.map((lp, li) => {
                               const orderIndex = managed.findIndex((m) => m.url === lp.url);
                               return (
@@ -7775,7 +7775,7 @@ function ImageBoxPanel({
                           </div>
                         )}
                         {fullPhotoManager && (
-                          <label className="mt-2 flex min-h-[34px] cursor-pointer items-center justify-center border border-[var(--color-hairline)] bg-white px-2 text-[11px] font-medium text-[var(--color-charcoal)] transition focus-within:border-[var(--color-sky)] hover:border-[var(--color-sky)]">
+                          <label className={`mt-1.5 ${SECONDARY_ACTION_BUTTON_CLASS} focus-within:border-[var(--color-sky)] hover:border-[var(--color-sky)]`}>
                             사진 여러 장 더 올리기
                             <input
                               type="file"
@@ -11700,29 +11700,19 @@ function CategoryTabbedGrid({
     : items.filter((item) => item.category === activeCategoryId);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={PANEL_STACK}>
       {/* 2026-09-25, 혜민님 요청: "보라색·파란색 상단 메뉴는 통일감도없고 크기도
           제각각이라 텍스트메뉴처럼 맞춰주세요" — 색상을 텍스트 서브탭(글쓰기/표만들기/
           이모티콘)과 같은 톤(선택: 차콜+흰 글자, 비선택: 아이보리)으로 통일. */}
       {/* 2026-09-28, 혜민님 요청: "검은색 탭 길이를 가로폭에 맞춰주세요" — 폭을
           넘으면 가로 스크롤되던 flex 대신, "글쓰기/표만들기/이모티콘" 탭과 같은
           grid(칸 수만큼 정확히 등분)로 바꿔서 항상 패널 폭에 딱 맞게 해요. */}
-      <div className="grid pb-1 text-[11px]" style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))` }}>
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => onSelectCategory(cat.id)}
-            className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
-              activeCategoryId === cat.id
-                ? "bg-[var(--color-charcoal)] text-white"
-                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
+      <SegTabs
+        ariaLabel="카테고리"
+        items={categories.map((cat) => ({ id: cat.id, label: cat.label }))}
+        value={activeCategoryId}
+        onChange={onSelectCategory}
+      />
       {visibleItems.length === 0 ? (
         <div className=" bg-[var(--color-ivory)]/60 p-1.5 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
           {emptyMessage}
@@ -16938,27 +16928,17 @@ function UploadPageContent() {
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
                             // 표지 디자인 예시로만 보여줄 예정이라, 화면 안내문은 필요 없다고
                             // 확인해주셨어요).
-                            <div className="flex flex-col gap-2">
+                            <div className={PANEL_STACK}>
                               {/* 2026-09-25, 혜민님 요청(항목5): "테마는 가족 여행 커플
                                   아기 생일 이렇게 5개 메뉴로 나눠주세요" — 위의 글쓰기/
                                   표만들기/이모티콘 탭과 같은 스타일(진한 차콜=선택,
                                   아이보리=선택안됨)로 카테고리 탭을 만들었어요. */}
-                              <div className="grid text-[11px]" style={{ gridTemplateColumns: `repeat(${THEME_CATEGORIES.length}, minmax(0, 1fr))` }}>
-                                {THEME_CATEGORIES.map((cat) => (
-                                  <button
-                                    key={cat.id}
-                                    type="button"
-                                    onClick={() => setThemeCategoryTab(cat.id)}
-                                    className={`border-r border-white/40 px-1 py-1.5 font-medium transition last:border-r-0 ${
-                                      themeCategoryTab === cat.id
-                                        ? "bg-[var(--color-charcoal)] text-white"
-                                        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-                                    }`}
-                                  >
-                                    {cat.label}
-                                  </button>
-                                ))}
-                              </div>
+                              <SegTabs
+                                ariaLabel="테마 종류"
+                                items={THEME_CATEGORIES.map((cat) => ({ id: cat.id, label: cat.label }))}
+                                value={themeCategoryTab}
+                                onChange={(id) => setThemeCategoryTab(id as typeof themeCategoryTab)}
+                              />
                               <div className="flex flex-wrap gap-2">
                                 {COVER_THEMES.filter((theme) => theme.category === themeCategoryTab).map((theme) => (
                                   <button

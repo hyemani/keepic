@@ -106,3 +106,10 @@ body {
     opacity: 0.8;
   }
 }
+
+/* 편집 화면 왼쪽 패널 공통 키보드 포커스 링(2026-10): 선택 상태(검정 탭·파란 테두리 썸네일)와 구분되도록
+   "키보드로 이동했을 때(:focus-visible)"만 보이고, outline이라 요소 크기·위치를 바꾸지 않아요(안쪽으로 -2px). */
+[data-edit-sidebar] :focus-visible {
+  outline: 2px solid var(--color-sky);
+  outline-offset: -2px;
+}

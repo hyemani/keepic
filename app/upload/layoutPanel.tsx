@@ -9,6 +9,7 @@
 // applyLayoutTemplate / applyCoverLayoutTemplate가 해요(기존 동작 그대로).
 import type { PhotoLayoutTemplate, LayoutSlot } from "@/lib/photoLayoutTemplates";
 import { captionSlotFor, slotToSpreadCoords } from "@/lib/photoLayoutTemplates";
+import { NESTED_SCROLL, PANEL_STACK, SegTabs } from "./sidePanelShell";
 
 export type LayoutCountFilter = "all" | 1 | 2 | 3 | 4 | 5 | "6+";
 
@@ -150,29 +151,14 @@ export function LayoutPanel({
   const isCover = frame.kind === "cover";
   const countOf = (f: LayoutCountFilter) => templates.filter((t) => matchesLayoutCountFilter(t.photoCount, f)).length;
   return (
-    <div className="flex flex-col gap-1.5" data-layout-panel data-layout-mode={isCover ? "cover" : "inner"}>
-      <div role="tablist" aria-label="레이아웃 적용 대상" className="grid" style={{ gridTemplateColumns: `repeat(${targets.length}, minmax(0, 1fr))` }}>
-        {targets.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={target === t.id}
-            aria-disabled={t.disabled}
-            disabled={t.disabled}
-            title={t.title}
-            data-layout-target={t.id}
-            onClick={() => onTargetChange(t.id)}
-            className={`flex min-h-[34px] items-center justify-center whitespace-nowrap px-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35 ${
-              target === t.id
-                ? "bg-[var(--color-charcoal)] text-white"
-                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:text-[var(--color-charcoal)]"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <div className={PANEL_STACK} data-layout-panel data-layout-mode={isCover ? "cover" : "inner"}>
+      <SegTabs
+        ariaLabel="레이아웃 적용 대상"
+        dataAttr="data-layout-target"
+        items={targets}
+        value={target}
+        onChange={onTargetChange}
+      />
       <div className="grid grid-cols-4 gap-px bg-[var(--color-hairline)] text-[11px]" role="group" aria-label="사진 칸 개수">
         {LAYOUT_COUNT_FILTERS.map((f) => (
           <button
@@ -199,7 +185,7 @@ export function LayoutPanel({
       ) : null}
       <div
         data-layout-list
-        className={`grid gap-1.5 overflow-y-auto pr-0.5 max-h-[calc(100vh-15rem)] ${isCover ? "grid-cols-1" : "grid-cols-2"}`}
+        className={`grid gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-15rem)] ${isCover ? "grid-cols-1" : "grid-cols-2"}`}
       >
         {visible.map((t) => {
           const selected = isSelected(t);

@@ -15,6 +15,7 @@ import {
   type BackgroundPatternCategory,
   type BackgroundPatternPreset,
 } from "@/lib/backgroundPatterns";
+import { ACTION_BUTTON_BASE, NESTED_SCROLL, PANEL_STACK, SECONDARY_ACTION_BUTTON_CLASS, SETTING_BOX, SegTabs } from "./sidePanelShell";
 import { drawBackgroundSpecOnCanvas, effectivePreset, solidColorOf, type BackgroundSpec } from "@/lib/backgroundSpec";
 
 type TabId = BackgroundPatternCategory | "solid";
@@ -99,52 +100,26 @@ export function BackgroundPanel({
   const hasPresetControls = !!current && current.kind !== "solid" && !!currentPreset;
   const solidNow = current?.kind === "solid" ? solidColorOf(current) : "";
   return (
-    <div className="flex flex-col gap-1.5" data-bg-panel>
-      <div role="tablist" aria-label="배경 종류" className="grid grid-cols-4">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            data-bg-tab={t.id}
-            aria-selected={tab === t.id}
-            onClick={() => setTabState(t.id)}
-            className={`flex min-h-[34px] items-center justify-center whitespace-nowrap px-0.5 text-xs font-medium transition ${
-              tab === t.id
-                ? "bg-[var(--color-charcoal)] text-white"
-                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:text-[var(--color-charcoal)]"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div role="tablist" aria-label="배경 적용 대상" className="grid" style={{ gridTemplateColumns: `repeat(${targets.length}, minmax(0, 1fr))` }}>
-        {targets.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            data-bg-target={t.id}
-            aria-selected={target === t.id}
-            disabled={t.disabled}
-            title={t.title}
-            onClick={() => {
-              setConfirmAll(false);
-              onTargetChange(t.id);
-            }}
-            className={`flex min-h-[30px] items-center justify-center whitespace-nowrap border-b-2 px-0.5 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35 ${
-              target === t.id
-                ? "border-[var(--color-sky)] text-[var(--color-charcoal)]"
-                : "border-[var(--color-hairline)] text-[var(--color-charcoal)]/55 hover:text-[var(--color-charcoal)]"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <div className={PANEL_STACK} data-bg-panel>
+      <SegTabs
+        ariaLabel="배경 종류"
+        dataAttr="data-bg-tab"
+        items={TABS}
+        value={tab}
+        onChange={(id) => setTabState(id as TabId)}
+      />
+      <SegTabs
+        ariaLabel="배경 적용 대상"
+        dataAttr="data-bg-target"
+        items={targets}
+        value={target}
+        onChange={(id) => {
+          setConfirmAll(false);
+          onTargetChange(id);
+        }}
+      />
       {hasPresetControls && currentPreset ? (
-        <div className="flex flex-col gap-1.5 border border-[var(--color-hairline)] bg-white p-1.5" data-bg-controls>
+        <div className={`${PANEL_STACK} ${SETTING_BOX}`} data-bg-controls>
           <div className="flex items-center gap-2 text-[11px] text-[var(--color-charcoal)]/70">
             <span className="min-w-0 flex-1 truncate">{currentPreset.label}</span>
             <label className="flex cursor-pointer items-center gap-1 whitespace-nowrap" title="바탕색">
@@ -193,7 +168,7 @@ export function BackgroundPanel({
           ) : null}
         </div>
       ) : null}
-      <div className="grid grid-cols-1 gap-1">
+      <div className={PANEL_STACK}>
         <button
           type="button"
           data-bg-reset
@@ -201,13 +176,13 @@ export function BackgroundPanel({
             setConfirmAll(false);
             onReset();
           }}
-          className="flex min-h-[30px] w-full items-center justify-center whitespace-nowrap border border-[var(--color-hairline)] bg-white text-[11px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)]"
+          className={SECONDARY_ACTION_BUTTON_CLASS}
         >
           배경 초기화
         </button>
         {onApplyAllInner ? (
           confirmAll ? (
-            <div className="flex items-center gap-1" data-bg-all-confirm>
+            <div className="flex items-center gap-1.5" data-bg-all-confirm>
               <span className="min-w-0 flex-1 text-[11px] leading-tight text-[var(--color-charcoal)]/70">모든 내지 배경이 바뀌어요.</span>
               <button
                 type="button"
@@ -216,14 +191,14 @@ export function BackgroundPanel({
                   setConfirmAll(false);
                   onApplyAllInner();
                 }}
-                className="min-h-[30px] whitespace-nowrap bg-[var(--color-charcoal)] px-2 text-[11px] text-white"
+                className={`${ACTION_BUTTON_BASE} w-auto shrink-0 bg-[var(--color-charcoal)] px-2 text-white`}
               >
                 적용
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmAll(false)}
-                className="min-h-[30px] whitespace-nowrap border border-[var(--color-hairline)] bg-white px-2 text-[11px]"
+                className={`${SECONDARY_ACTION_BUTTON_CLASS} w-auto shrink-0`}
               >
                 취소
               </button>
@@ -233,14 +208,14 @@ export function BackgroundPanel({
               type="button"
               data-bg-all-inner
               onClick={() => setConfirmAll(true)}
-              className="flex min-h-[30px] w-full items-center justify-center whitespace-nowrap border border-[var(--color-hairline)] bg-white text-[11px] text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)]"
+              className={SECONDARY_ACTION_BUTTON_CLASS}
             >
               전체 내지 배경 변경
             </button>
           )
         ) : null}
       </div>
-      <div data-bg-list className="max-h-[calc(100vh-21rem)] min-h-[8rem] overflow-y-auto pr-0.5">
+      <div data-bg-list className={`max-h-[calc(100vh-21rem)] min-h-[8rem] ${NESTED_SCROLL}`}>
         {tab === "solid" ? (
           renderColorChart({
             activeColor: solidNow,
