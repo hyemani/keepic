@@ -90,6 +90,48 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     colors: ["#F6F3EC", "#E4E3DF"],
   },
   {
+    id: "g-block-bottom",
+    label: "하단 컬러블록(베이지)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#f7f3ec", "#c8a98a"],
+  },
+  {
+    id: "g-block-sage",
+    label: "하단 컬러블록(세이지)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#fbfaf4", "#a9c1a0"],
+  },
+  {
+    id: "g3-block-sky",
+    label: "하단 컬러블록(하늘)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#f7f3ec", "#a9c3d6"],
+  },
+  {
+    id: "g3-block-blush",
+    label: "하단 컬러블록(블러시)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#f7f3ec", "#e0b5ae"],
+  },
+  {
+    id: "g3-block-gray",
+    label: "하단 컬러블록(그레이)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#f7f3ec", "#b9b8b3"],
+  },
+  {
+    id: "g3-block-lavender",
+    label: "하단 컬러블록(라벤더)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#f7f3ec", "#c3b5d6"],
+  },
+  {
     id: "g2-split-sage",
     label: "좌우 분할(세이지)",
     category: "graphic",
@@ -555,20 +597,6 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     colors: ["#fbf3e6", "#e2b98a"],
   },
   {
-    id: "g-block-bottom",
-    label: "하단 컬러블록",
-    category: "graphic",
-    kind: "blockBottom",
-    colors: ["#f7f3ec", "#c8a98a"],
-  },
-  {
-    id: "g-block-sage",
-    label: "하단 컬러블록(세이지)",
-    category: "graphic",
-    kind: "blockBottom",
-    colors: ["#fbfaf4", "#a9c1a0"],
-  },
-  {
     id: "g-block-split",
     label: "좌우 컬러 분할",
     category: "graphic",
@@ -751,7 +779,8 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
 
 
 // ---- 목록 분류(2026-12) ----
-// "default"는 기본 추천 목록, "kids"는 키즈·성장앨범용(동화풍), "legacy"는 이전 소재(색 대비가 크거나 큰 무늬 — '더 보기'에서만 보여요).
+// "default"는 기본 추천 목록, "kids"는 키즈·성장앨범용(동화풍), "legacy"는 목록에서 숨긴 예전 소재예요(목록에는 안 나오지만
+// id·그리기는 그대로라 이미 저장된 포토북은 똑같이 열리고, 그때는 목록 맨 위에 '현재 배경'으로 보여요).
 // 분류만 바꾸는 거라 그리는 결과·저장 id는 그대로예요(저장된 포토북은 예전과 똑같이 열려요).
 export type BackgroundPresetGroup = "default" | "kids" | "legacy";
 const KIDS_IDS = new Set([
@@ -760,7 +789,9 @@ const KIDS_IDS = new Set([
 ]);
 const LEGACY_IDS = new Set([
   // 그래픽: 옛 덩굴(큰 잎·굵은 선), 색 대비가 큰 그라데이션, 진한 색면
-  "g-leaves", "g-leaves-deep", "g-block-bottom", "g-block-sage", "g-block-split",
+  "g-leaves", "g-leaves-deep", "g-block-split",
+  // 2026-12 인쇄 위험(재단선 6mm 안쪽의 얇은 사각 프레임 — 재단 오차에 선이 잘리거나 한쪽으로 치우쳐 보임)
+  "g2-frame-sage", "g2-frame-gray",
   "gradient-sunset", "gradient-lavender-teal", "gradient-teal-olive", "gradient-pastel-multi", "gradient-navy-sky",
   "gradient-sunset-sage", "gradient-blush-peach", "gradient-sunset-blue", "gradient-rose-mauve", "gradient-grey-blue",
   "gradient-lime-olive", "gradient-red-olive", "gradient-plum-slate",
