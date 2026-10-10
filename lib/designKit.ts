@@ -51,9 +51,19 @@ export type DesignPageLayout = {
   stickers: DesignSticker[];
 };
 
+// 디자인이 어울리는 "테마"(행사·상황별 분류) — 패널 맨 위 5칸 탭(전체·가족·여행·커플·생일)이에요. 한 디자인이 여러 테마에 속할 수 있어요.
+export type DesignThemeId = "family" | "travel" | "couple" | "birthday";
+export const DESIGN_THEMES: { id: DesignThemeId; name: string }[] = [
+  { id: "family", name: "가족" },
+  { id: "travel", name: "여행" },
+  { id: "couple", name: "커플" },
+  { id: "birthday", name: "생일" },
+];
+
 export type InnerDesign = {
   id: string;
   style: string; // DESIGN_STYLES의 id
+  themes: DesignThemeId[]; // 어울리는 테마(1개 이상)
   name: string;
   note: string;
   left: (g: DesignGeo) => DesignPageLayout;
@@ -62,6 +72,7 @@ export type InnerDesign = {
 export type CoverDesign = {
   id: string;
   style: string;
+  themes: DesignThemeId[];
   name: string;
   note: string;
   front: (g: DesignGeo) => DesignPageLayout;
@@ -83,11 +94,16 @@ export type CoverDesign = {
   };
 };
 // 스타일 파일이 만드는 디자인 정의(style은 designTemplates.ts가 붙여줘요)
-export type InnerDesignDef = Omit<InnerDesign, "style">;
-export type CoverDesignDef = Omit<CoverDesign, "style">;
+// (스타일·테마는 designTemplates.ts가 붙여줘요. 테마·스타일을 정의 안에 직접 적은 새 디자인은 그 값이 우선이에요)
+export type InnerDesignDef = Omit<InnerDesign, "style" | "themes"> & { style?: string; themes?: DesignThemeId[] };
+export type CoverDesignDef = Omit<CoverDesign, "style" | "themes"> & { style?: string; themes?: DesignThemeId[] };
 
 // ---------- 판 크기 → 안전영역 ----------
 export const DESIGN_SAFE_EDGE_MM = 15; // GUIDE_SAFETY_MARGIN_MM(재단선 안쪽 안전여백)과 같아요
+// 접히는 곳(내지 펼침면 가운데 · 표지 책등 쪽)의 안전 여백이에요(mm). 편집기의 회색 "접힘·제본 경계" 띠(app/upload/page.tsx의
+// GUIDE_BINDING_MARGIN_MM = 도련 5 + 안전 15 = 20mm)와 같은 값 — 접히는 선에서 "한쪽 면 기준" 20mm(띠 전체 폭은 가운데 기준 양쪽 20mm씩 40mm)예요.
+// 글·글상자·사진 칸·스티커는 이 안쪽(접힘선에서 20mm 이내)으로 들어가지 않아요. 편집기 쪽 값이 설정으로 바뀌는 게 아니라 고정값이라 여기도 상수예요.
+export const FOLD_SAFE_MM = 20;
 const REF_SAFE_MM = 220;
 
 export function innerDesignGeo(pageWorkMm: number, bleedMm = 5): DesignGeo {
@@ -96,13 +112,18 @@ export function innerDesignGeo(pageWorkMm: number, bleedMm = 5): DesignGeo {
   return { W: pageWorkMm, H: pageWorkMm, x0: inset, y0: inset, sw: s, sh: s, k: s / REF_SAFE_MM, stk: { l: bleedMm, r: bleedMm, t: bleedMm, b: bleedMm } };
 }
 
+// 낱장 한 장(left/right)의 접힘 쪽 스티커 한계를 FOLD_SAFE_MM으로 눌러요: 왼쪽 낱장은 오른쪽(가운데), 오른쪽 낱장은 왼쪽이 접히는 쪽이에요.
+export function innerSideGeo(g: DesignGeo, side: "left" | "right"): DesignGeo {
+  return { ...g, stk: side === "left" ? { ...g.stk, r: FOLD_SAFE_MM } : { ...g.stk, l: FOLD_SAFE_MM } };
+}
+
 // 앞표지/뒤표지 칸: 가로 = 판 + 바깥쪽 도련(책등 쪽은 도련 없음), 세로 = 판 + 위아래 도련.
-// 책등 쪽 안쪽 여백은 앞·뒤 표지 사진 칸 안전 보정(clampSlotToCoverSafety)처럼 따로 두지 않지만, 접히는 자리라 15mm 비워요.
+// 책등 쪽 안쪽 여백은 접히는 자리라 FOLD_SAFE_MM(20mm, 편집기 안내선과 같은 값) 비워요 — 글·사진 칸·스티커 모두 책등에서 20mm 안쪽으로는 안 들어가요.
 export function coverDesignGeo(side: "front" | "back", panelMm: number, bleedMm: number): DesignGeo {
   const W = panelMm + bleedMm;
   const H = panelMm + bleedMm * 2;
   const outer = bleedMm + DESIGN_SAFE_EDGE_MM;
-  const spineSide = DESIGN_SAFE_EDGE_MM;
+  const spineSide = FOLD_SAFE_MM;
   const x0 = side === "front" ? spineSide : outer;
   const x1 = side === "front" ? W - outer : W - spineSide;
   const sw = Math.max(10, x1 - x0);
@@ -115,7 +136,7 @@ export function coverDesignGeo(side: "front" | "back", panelMm: number, bleedMm:
     sw,
     sh,
     k: Math.min(sw, sh) / REF_SAFE_MM,
-    stk: side === "front" ? { l: 0, r: bleedMm, t: bleedMm, b: bleedMm } : { l: bleedMm, r: 0, t: bleedMm, b: bleedMm },
+    stk: side === "front" ? { l: FOLD_SAFE_MM, r: bleedMm, t: bleedMm, b: bleedMm } : { l: bleedMm, r: FOLD_SAFE_MM, t: bleedMm, b: bleedMm },
   };
 }
 

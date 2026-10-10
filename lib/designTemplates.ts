@@ -14,12 +14,14 @@ import {
   DESIGN_ID_PREFIX,
   coverDesignGeo,
   innerDesignGeo,
+  innerSideGeo,
   solid,
   toolkit as kitToolkit,
   type CoverDesign,
   type CoverDesignDef,
   type DesignGeo,
   type DesignPageLayout,
+  type DesignThemeId,
   type DesignSticker,
   type DesignText,
   type InnerDesign,
@@ -29,6 +31,7 @@ import { MINIMAL_COVER, MINIMAL_FONTS, MINIMAL_INNER } from "./designFamilies/mi
 import { HANDWRITING_COVER, HANDWRITING_FONTS, HANDWRITING_INNER } from "./designFamilies/handwriting";
 import { KIDS_COVER, KIDS_FONTS, KIDS_INNER } from "./designFamilies/kids";
 import { MZ_COVER, MZ_FONTS, MZ_INNER } from "./designFamilies/mz";
+import { OCCASION_COVER, OCCASION_FONTS, OCCASION_INNER } from "./designFamilies/occasion";
 
 export * from "./designKit";
 
@@ -353,14 +356,62 @@ const WM_COVER: CoverDesignDef[] = [
   },
 ];
 
-const tagInner = (style: string, defs: InnerDesignDef[]): InnerDesign[] => defs.map((d) => ({ ...d, style }));
-const tagCover = (style: string, defs: CoverDesignDef[]): CoverDesign[] => defs.map((d) => ({ ...d, style }));
+// 기존 35종(스타일 5 × 표지 1 + 내지 6)에 붙이는 테마예요 — 한 디자인이 여러 테마에 속할 수 있어요(패널 탭 "전체"는 중복 없이 한 번씩만 보여줘요).
+const EXISTING_THEMES: Record<string, DesignThemeId[]> = {
+  "wm-opening": ["family", "couple"],
+  "wm-photo-caption": ["family", "couple", "travel"],
+  "wm-two-quote": ["couple", "family"],
+  "wm-strip-date": ["travel", "family"],
+  "wm-collage": ["family", "travel"],
+  "wm-closing": ["family", "couple"],
+  "wm-cover": ["family", "couple"],
+  "mn-opening": ["travel", "couple"],
+  "mn-photo-caption": ["travel", "family"],
+  "mn-two-quote": ["couple"],
+  "mn-strip-date": ["travel"],
+  "mn-collage": ["travel", "family"],
+  "mn-closing": ["couple", "family"],
+  "mn-cover": ["travel", "couple"],
+  "hw-opening": ["couple", "family"],
+  "hw-photo-caption": ["couple", "family"],
+  "hw-two-quote": ["couple"],
+  "hw-strip-date": ["couple", "travel"],
+  "hw-collage": ["family", "travel"],
+  "hw-closing": ["couple", "family"],
+  "hw-cover": ["couple", "family"],
+  "kd-opening": ["birthday", "family"],
+  "kd-photo-caption": ["family", "birthday"],
+  "kd-two-quote": ["family"],
+  "kd-strip-date": ["birthday", "family"],
+  "kd-collage": ["birthday", "family"],
+  "kd-closing": ["family", "birthday"],
+  "kd-cover": ["family", "birthday"],
+  "mz-opening": ["travel", "birthday"],
+  "mz-photo-caption": ["travel", "birthday"],
+  "mz-two-quote": ["couple", "travel"],
+  "mz-strip-date": ["travel", "birthday"],
+  "mz-collage": ["birthday", "travel"],
+  "mz-closing": ["travel", "couple"],
+  "mz-cover": ["travel", "birthday"],
+};
+// 접히는 선 안전 여백: 내지 낱장 디자인은 어느 쪽이 접히는 쪽인지에 맞춰 스티커 한계(stk)를 FOLD_SAFE_MM으로 눌러서 받아요(글·사진 칸은 안전영역이 이미 20mm).
+const tagInner = (style: string, defs: InnerDesignDef[]): InnerDesign[] =>
+  defs.map((d) => ({
+    ...d,
+    style: d.style ?? style,
+    themes: d.themes ?? EXISTING_THEMES[d.id] ?? ["family"],
+    left: (g: DesignGeo) => d.left(innerSideGeo(g, "left")),
+    right: (g: DesignGeo) => d.right(innerSideGeo(g, "right")),
+  }));
+const tagCover = (style: string, defs: CoverDesignDef[]): CoverDesign[] =>
+  defs.map((d) => ({ ...d, style: d.style ?? style, themes: d.themes ?? EXISTING_THEMES[d.id] ?? ["family"] }));
 export const INNER_DESIGNS: InnerDesign[] = [
   ...tagInner("warm-memory", WM_INNER),
   ...tagInner("minimal", MINIMAL_INNER),
   ...tagInner("handwriting", HANDWRITING_INNER),
   ...tagInner("kids", KIDS_INNER),
   ...tagInner("mz", MZ_INNER),
+  ...tagInner("warm-memory", OCCASION_INNER), // 테마별 새 디자인(각 정의가 style·themes를 직접 가져요)
 ];
 export const COVER_DESIGNS: CoverDesign[] = [
   ...tagCover("warm-memory", WM_COVER),
@@ -368,9 +419,14 @@ export const COVER_DESIGNS: CoverDesign[] = [
   ...tagCover("handwriting", [HANDWRITING_COVER]),
   ...tagCover("kids", [KIDS_COVER]),
   ...tagCover("mz", [MZ_COVER]),
+  ...tagCover("warm-memory", OCCASION_COVER),
 ];
+// 테마 탭(전체·가족·여행·커플·생일)과 스타일 보조 선택에 쓰는 도우미예요. "all"이면 전부(중복 없이 한 번씩).
+export function designMatches(d: { themes: DesignThemeId[]; style: string }, theme: string, style: string): boolean {
+  return (theme === "all" || d.themes.includes(theme as DesignThemeId)) && (style === "all" || d.style === style);
+}
 export const DESIGN_FONT_FAMILIES: string[] = Array.from(
-  new Set([FONT.serif, FONT.hand, FONT.pen, FONT.sans, ...MINIMAL_FONTS, ...HANDWRITING_FONTS, ...KIDS_FONTS, ...MZ_FONTS])
+  new Set([FONT.serif, FONT.hand, FONT.pen, FONT.sans, ...MINIMAL_FONTS, ...HANDWRITING_FONTS, ...KIDS_FONTS, ...MZ_FONTS, ...OCCASION_FONTS])
 );
 
 export const COVER_PLACEHOLDER_TITLES: string[] = COVER_DESIGNS.map((d) => d.title(coverDesignGeo("front", 250, 5)).text);
