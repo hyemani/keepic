@@ -908,9 +908,6 @@ const layoutOptions: { id: PageTemplateId; label: string }[] = [
 // 내지(스프레드) 배경색 미리 정해둔 팔레트예요. 포토북 인쇄에 무난하게 쓸 수 있는
 // 톤 위주로 골랐어요 — 사용자가 직접 색을 고르고 싶으면 옆의 색상 선택 버튼으로 자유롭게
 // 고를 수도 있어요.
-// "전체 사진 목록" 펼침 패널에서 한 번에 몇 장씩 보여줄지예요. 사진이 많을 때
-// 한꺼번에 다 나열하지 않고, 이 수만큼 나눠서 옆으로 넘겨가며 보게 해요.
-const PHOTO_GRID_PAGE_SIZE = 8;
 
 // 화면 CSS px ↔ 실제 물리적 mm 환산 기준이에요(브라우저 표준 96dpi 가정: 1인치=96px,
 // 1인치=25.4mm). "줌 배율" 표시를 실제 크기 기준 %로 보여주기 위해 씀
@@ -7224,10 +7221,6 @@ type ImageBoxOverlayHandle = {
 // 내지에만 있는 "전체 사진 관리" 섹션만 fullPhotoManager prop 유무로 갈라요).
 type ImageBoxPanelFullPhotoManager = {
   photos: Photo[];
-  lowResCount: number;
-  requiredMinPx: number;
-  photoGridPage: number;
-  setPhotoGridPage: (page: number) => void;
   onUploadMore: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemovePhoto: (index: number) => void;
 };
@@ -7317,6 +7310,7 @@ function ImageBoxPanel({
   fullPhotoManager,
   libraryPhotos,
   onAddLibraryPhoto,
+  lowResMinPx,
 }: {
   // 사진박스를 선택하고 사진 위치 조정 모드(더블클릭)에도 들어가 있는지 — 이때만
   // "선택한 사진박스" 화면(확대/축소/반전/초기화/완료)을 보여줘요.
@@ -7342,6 +7336,8 @@ function ImageBoxPanel({
   // "사진 추가" 탭의 사진 보관함(이미 올린 사진) 썸네일과, 누르면 새 사진 칸으로 추가하는 동작.
   libraryPhotos?: ReplaceLibraryPhoto[];
   onAddLibraryPhoto?: (photo: ReplaceLibraryPhoto) => void;
+  // 올린 사진 목록에서 "저해상도" 표시를 할 기준(짧은 변 px) — 없으면 표시하지 않아요.
+  lowResMinPx?: number;
 }) {
   const canFrame = !!frameTargetBox;
   // 사진 편집(변경·크롭·필터·보정)은 진짜 사진(스티커·빈 프레임 제외)에만 있어요.
@@ -7691,140 +7687,116 @@ function ImageBoxPanel({
                 <PrimaryFileButton onFiles={onAddPhotoFile}>
                   <span>사진 불러오기</span>
                 </PrimaryFileButton>
-                {/* 이미 올린 사진(사진 보관함) 썸네일 — 사진 불러오기 바로 아래. 누르면 그 사진이 새 사진 칸으로 추가돼요
-                    (PhotoReplaceDialog와 같은 보관함 목록 buildReplaceLibrary()를 써요). 한 번에 많이 보여도 패널이 길어지지
-                    않게 이 칸만 스크롤돼요. 사진을 바꾸는 기능은 "사진 편집" 탭 맨 위 "사진 변경"과 선택한 사진 위 도구 막대에 있어요. */}
-                {libraryPhotos && libraryPhotos.length > 0 && onAddLibraryPhoto ? (
-                  <div className="mt-1" data-photo-library>
-                    <p className="mb-1 text-[11px] font-semibold text-[var(--color-charcoal)]">
-                      올린 사진 <span className="font-normal text-[var(--color-charcoal)]/50">({libraryPhotos.length}장)</span>
-                    </p>
-                    <p className="mb-1.5 text-[10px] text-[var(--color-charcoal)]/50">누르면 새 사진 칸으로 추가돼요</p>
-                    <div className="grid max-h-[240px] grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
-                      {libraryPhotos.map((lp, li) => (
-                        <button
-                          key={lp.url}
-                          type="button"
-                          data-library-photo
-                          title={`올린 사진 ${li + 1}번 — 누르면 사진 칸으로 추가`}
-                          aria-label={`올린 사진 ${li + 1}번 추가`}
-                          onClick={() => onAddLibraryPhoto(lp)}
-                          className="relative aspect-square overflow-hidden rounded-sm border border-[var(--color-hairline)] bg-[var(--color-ivory)] transition hover:border-[var(--color-sky)]"
-                        >
-                          <span
-                            aria-hidden
-                            className="block h-full w-full bg-cover bg-center"
-                            style={{ backgroundImage: `url("${lp.url}")` }}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-          {/* "전체 사진 관리"(사진 더 올리기·전체 목록·삭제)는 내지에만 있는
-              기능이에요 — 표지는 칸이 2~3개뿐이라 이 목록 자체가 필요 없었어요. */}
-          {fullPhotoManager && (
-            <details className="border-t border-[var(--color-hairline)] pt-3">
-              <summary className="cursor-pointer text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)]">
-                전체 사진 관리 ({fullPhotoManager.photos.length}장)
-              </summary>
-              <div className="mt-2">
-                <label className="inline-block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white transition hover:opacity-90">
-                  사진 더 올리기
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={fullPhotoManager.onUploadMore}
-                    className="hidden"
-                  />
-                </label>
-                {fullPhotoManager.lowResCount > 0 && (
-                  <p className="mt-2 bg-red-50 px-1.5 py-2 text-[11px] text-red-600 break-keep">
-                    해상도가 낮은 사진이 {fullPhotoManager.lowResCount}장 있어요. 인쇄 시 흐릿하게
-                    나올 수 있으니, 가능하면 더 큰 사진으로 교체해주세요.
-                  </p>
-                )}
-                {fullPhotoManager.photos.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-xs text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)]">
-                      전체 사진 목록 보기 (순서 확인 · 삭제)
-                    </summary>
-                    {(() => {
-                      const { photos, photoGridPage, setPhotoGridPage, requiredMinPx, onRemovePhoto } =
-                        fullPhotoManager;
-                      const pageCount = Math.max(1, Math.ceil(photos.length / PHOTO_GRID_PAGE_SIZE));
-                      const page = Math.min(photoGridPage, pageCount - 1);
-                      const start = page * PHOTO_GRID_PAGE_SIZE;
-                      const visiblePhotos = photos.slice(start, start + PHOTO_GRID_PAGE_SIZE);
-                      return (
-                        <div className="mt-3">
-                          {pageCount > 1 && (
-                            <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-[var(--color-charcoal)]/60">
-                              <button
-                                type="button"
-                                onClick={() => setPhotoGridPage(Math.max(0, page - 1))}
-                                disabled={page === 0}
-                                className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
-                              >
-                                ‹ 이전
-                              </button>
-                              <span>
-                                {page + 1} / {pageCount}페이지 · {start + 1}–
-                                {Math.min(start + PHOTO_GRID_PAGE_SIZE, photos.length)}번째 (전체 {photos.length}장)
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setPhotoGridPage(Math.min(pageCount - 1, page + 1))}
-                                disabled={page >= pageCount - 1}
-                                className="border border-[var(--color-hairline)] px-2.5 py-1 transition disabled:opacity-30"
-                              >
-                                다음 ›
-                              </button>
-                            </div>
-                          )}
-                          <div className="grid grid-cols-3 gap-2">
-                            {visiblePhotos.map((photo, pi) => {
-                              const index = start + pi;
+                {/* 올린 사진 목록은 여기 한 곳뿐이에요(예전엔 아래 "전체 사진 관리 / 전체 사진 목록 보기"에 같은 사진이 한 번 더
+                    보였어요). 누르면 그 사진이 새 사진 칸으로 추가돼요(PhotoReplaceDialog와 같은 보관함 목록 buildReplaceLibrary()).
+                    예전 목록의 기능이 모두 여기로 왔어요: 저해상도 표시·경고, 순서 번호(사진 목록에 든 사진), ✕ 삭제,
+                    "사진 더 올리기". 페이지 넘김 대신 이 칸만 스크롤돼요. 사진을 바꾸는 기능은 "사진 편집" 탭 맨 위
+                    "사진 변경"과 선택한 사진 위 도구 막대에 있어요. */}
+                {(libraryPhotos && libraryPhotos.length > 0 && onAddLibraryPhoto) || fullPhotoManager ? (
+                  (() => {
+                    const lib = libraryPhotos ?? [];
+                    const managed = fullPhotoManager?.photos ?? [];
+                    const isLow = (lp: ReplaceLibraryPhoto) =>
+                      lowResMinPx != null && Math.min(lp.width, lp.height) < lowResMinPx;
+                    const lowCount = lib.filter(isLow).length;
+                    return (
+                      <div className="mt-1" data-photo-library>
+                        <p className="mb-1 text-[11px] font-semibold text-[var(--color-charcoal)]">
+                          올린 사진{" "}
+                          <span className="font-normal text-[var(--color-charcoal)]/50">({lib.length}장)</span>
+                        </p>
+                        {lib.length > 0 && (
+                          <p className="mb-1.5 text-[10px] text-[var(--color-charcoal)]/50 break-keep">
+                            누르면 새 사진 칸으로 추가돼요
+                          </p>
+                        )}
+                        {lowCount > 0 && (
+                          <p
+                            role="status"
+                            data-lowres-warning
+                            className="mb-1.5 bg-red-50 px-1.5 py-1.5 text-[10px] leading-snug text-red-600 break-keep"
+                          >
+                            해상도가 낮은 사진이 {lowCount}장 있어요. 인쇄 시 흐릿할 수 있으니 더 큰 사진으로 바꿔주세요.
+                          </p>
+                        )}
+                        {lib.length > 0 && onAddLibraryPhoto && (
+                          <div className="grid max-h-[264px] grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
+                            {lib.map((lp, li) => {
+                              const orderIndex = managed.findIndex((m) => m.url === lp.url);
                               return (
                                 <div
-                                  key={index}
-                                  className="group relative aspect-square overflow-hidden border border-[var(--color-hairline)]"
+                                  key={lp.url}
+                                  data-library-photo-cell
+                                  className="group relative aspect-square overflow-hidden rounded-sm border border-[var(--color-hairline)] bg-[var(--color-ivory)] transition focus-within:border-[var(--color-sky)] hover:border-[var(--color-sky)]"
                                 >
-                                  <img
-                                    src={photo.url}
-                                    alt={`선택한 사진 ${index + 1}`}
-                                    className="h-full w-full object-cover"
-                                  />
-                                  {isLowRes(photo, requiredMinPx / 2) && (
+                                  <button
+                                    type="button"
+                                    data-library-photo
+                                    title={`올린 사진 ${li + 1}번 — 누르면 사진 칸으로 추가`}
+                                    aria-label={`올린 사진 ${li + 1}번 추가`}
+                                    onClick={() => onAddLibraryPhoto(lp)}
+                                    className="absolute inset-0 block h-full w-full"
+                                  >
                                     <span
+                                      aria-hidden
+                                      className="block h-full w-full bg-cover bg-center"
+                                      style={{ backgroundImage: `url("${lp.url}")` }}
+                                    />
+                                  </button>
+                                  {isLow(lp) && (
+                                    <span
+                                      data-lowres-badge
                                       title="인쇄 기준 화질이 낮아요"
-                                      className="absolute left-1 top-1 bg-red-500/90 px-1.5 py-0.5 text-[9px] font-medium text-white"
+                                      className="pointer-events-none absolute bottom-0.5 left-0.5 bg-red-500/90 px-1 py-px text-[9px] font-medium leading-tight text-white"
                                     >
                                       저해상도
                                     </span>
                                   )}
-                                  <button
-                                    onClick={() => onRemovePhoto(index)}
-                                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
-                                  >
-                                    ✕
-                                  </button>
+                                  {orderIndex >= 0 && (
+                                    <span
+                                      aria-hidden
+                                      data-order-badge
+                                      className="pointer-events-none absolute left-0.5 top-0.5 min-w-[16px] bg-black/55 px-1 text-center text-[9px] font-medium leading-4 tabular-nums text-white"
+                                    >
+                                      {orderIndex + 1}
+                                    </span>
+                                  )}
+                                  {orderIndex >= 0 && fullPhotoManager && (
+                                    <button
+                                      type="button"
+                                      data-library-remove
+                                      title="이 사진 삭제"
+                                      aria-label={`올린 사진 ${li + 1}번 삭제`}
+                                      onClick={() => fullPhotoManager.onRemovePhoto(orderIndex)}
+                                      className="absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center bg-black/60 text-xs text-white opacity-0 transition hover:bg-black/80 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
                                 </div>
                               );
                             })}
                           </div>
-                        </div>
-                      );
-                    })()}
-                  </details>
-                )}
+                        )}
+                        {fullPhotoManager && (
+                          <label className="mt-2 flex min-h-[34px] cursor-pointer items-center justify-center border border-[var(--color-hairline)] bg-white px-2 text-[11px] font-medium text-[var(--color-charcoal)] transition focus-within:border-[var(--color-sky)] hover:border-[var(--color-sky)]">
+                            사진 여러 장 더 올리기
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={fullPhotoManager.onUploadMore}
+                              className="sr-only"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : null}
               </div>
-            </details>
-          )}
+            )}
+          </div>
         </>
       )}
     </div>
@@ -12237,9 +12209,7 @@ function UploadPageContent() {
     const spreadKeys = customSpreads.map((_, i) => i);
     return isPhotobook ? (["cover", ...spreadKeys, "intro"] as ("cover" | "intro" | number)[]) : spreadKeys;
   }, [isPhotobook, customSpreads]);
-  // "전체 사진 목록" 펼침 패널의 현재 페이지(0부터 시작, PHOTO_GRID_PAGE_SIZE장씩)예요.
-  const [photoGridPage, setPhotoGridPage] = useState(0);
-  // 스티커·손글씨 탭에서 지금 선택된 카테고리예요(각 탭 독립, 기본값 "전체").
+    // 스티커·손글씨 탭에서 지금 선택된 카테고리예요(각 탭 독립, 기본값 "전체").
   const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("decor");
   const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("daily");
   // 2026-09-25, 혜민님 요청(항목5): 표지 "테마" 탭도 가족/여행/커플/아기/생일 5개
@@ -15761,7 +15731,6 @@ function UploadPageContent() {
     // requiredCount가 늘 0으로 계산돼요) 사진을 몇 장을 올리든 자유롭게 배치할 수 있어요 —
     // 그래서 "정확히 N장" 검사 대신 최소 1장만 있으면 다음으로 넘어갈 수 있게 해요.
     const isPhotoCountValid = isAiAuto ? photos.length >= 1 : photos.length === requiredCount;
-    const lowResCount = photos.filter((p) => isLowRes(p, requiredMinPx / 2)).length;
 
     const nextUrl = `/checkout?product=${encodeURIComponent(
       productName
@@ -17095,6 +17064,7 @@ function UploadPageContent() {
                               onAddPhotoFile={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
                               libraryPhotos={buildReplaceLibrary()}
                               onAddLibraryPhoto={(lp) => handleAddCoverImageBoxFromUrl("front", lp.url, 36, "photo")}
+                              lowResMinPx={requiredMinPx / 2}
                             />
                           )}
                           {activeCoverEditTab === "sticker" && (
@@ -18020,12 +17990,9 @@ function UploadPageContent() {
                                   }}
                                   libraryPhotos={buildReplaceLibrary()}
                                   onAddLibraryPhoto={(lp) => handleAddImageBoxFromUrl(i, lp.url, 36, "photo")}
+                                  lowResMinPx={requiredMinPx / 2}
                                   fullPhotoManager={{
                                     photos,
-                                    lowResCount,
-                                    requiredMinPx,
-                                    photoGridPage,
-                                    setPhotoGridPage,
                                     onUploadMore: handleFileSelect,
                                     onRemovePhoto: handleRemovePhoto,
                                   }}
