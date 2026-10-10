@@ -578,7 +578,7 @@ function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
 function drawRepeat(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span: Rect, ppm: number) {
   const [, c1] = p.colors;
   const mm = (v: number) => v * ppm;
-  const defaults: Record<string, number> = { checks: 8, gingham: 8, diamonds: 10, zigzag: 8, stars: 14, hearts: 14, scallops: 10, dotsFine: 6, pinstripes: 6 };
+  const defaults: Record<string, number> = { checks: 8, gingham: 8, diamonds: 10, zigzag: 8, stars: 14, hearts: 14, scallops: 10, dotsFine: 6, pinstripes: 6, windowpane: 12, tattersall: 16, harlequin: 10, bands: 8 };
   const s = mm(p.spacingMm ?? defaults[p.kind] ?? 8);
   const ox = span.x;
   const oy = span.y;
@@ -699,6 +699,62 @@ function drawRepeat(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span: 
       for (let i = i0; i <= i1; i++) ctx.fillRect(ox + i * s - lw / 2, r.y - 1, lw, r.h + 2);
       break;
     }
+    // ---- 2026-14 체크 계열 새 패턴(옛 id의 그림은 그대로). 선 굵기는 인쇄 안전을 위해 0.35mm 아래로 안 내려가요 ----
+    case "windowpane": {
+      // 가는 격자(창살) 체크: 가로·세로 선이 s마다 한 줄씩.
+      const lw = Math.max(mm(0.35), s * 0.03);
+      for (let i = i0; i <= i1; i++) ctx.fillRect(ox + i * s - lw / 2, r.y - 1, lw, r.h + 2);
+      for (let j = j0; j <= j1; j++) ctx.fillRect(r.x - 1, oy + j * s - lw / 2, r.w + 2, lw);
+      break;
+    }
+    case "tattersall": {
+      // 태터솔 체크: s마다 가는 "두 줄", 그 사이(s/2)에 옅은 한 줄씩(가로·세로 모두).
+      const lw = Math.max(mm(0.35), s * 0.03);
+      const gap = Math.max(mm(0.8), s * 0.06);
+      for (let i = i0; i <= i1; i++) {
+        const x = ox + i * s;
+        ctx.fillRect(x - gap / 2 - lw / 2, r.y - 1, lw, r.h + 2);
+        ctx.fillRect(x + gap / 2 - lw / 2, r.y - 1, lw, r.h + 2);
+      }
+      for (let j = j0; j <= j1; j++) {
+        const y = oy + j * s;
+        ctx.fillRect(r.x - 1, y - gap / 2 - lw / 2, r.w + 2, lw);
+        ctx.fillRect(r.x - 1, y + gap / 2 - lw / 2, r.w + 2, lw);
+      }
+      ctx.fillStyle = rgba(c1, 0.5);
+      for (let i = i0; i <= i1; i++) ctx.fillRect(ox + (i + 0.5) * s - lw / 2, r.y - 1, lw, r.h + 2);
+      for (let j = j0; j <= j1; j++) ctx.fillRect(r.x - 1, oy + (j + 0.5) * s - lw / 2, r.w + 2, lw);
+      break;
+    }
+    case "harlequin": {
+      // 다이아 체크: 체크를 45도 돌린 모양(한 칸의 변 길이가 s).
+      const k = Math.SQRT1_2;
+      const cs = [
+        [r.x - ox, r.y - oy],
+        [r.x + r.w - ox, r.y - oy],
+        [r.x - ox, r.y + r.h - oy],
+        [r.x + r.w - ox, r.y + r.h - oy],
+      ];
+      const us = cs.map(([dx, dy]) => (dx + dy) * k);
+      const vs = cs.map(([dx, dy]) => (dy - dx) * k);
+      const a0 = Math.floor(Math.min(...us) / s) - 1;
+      const a1 = Math.ceil(Math.max(...us) / s) + 1;
+      const b0 = Math.floor(Math.min(...vs) / s) - 1;
+      const b1 = Math.ceil(Math.max(...vs) / s) + 1;
+      ctx.save();
+      ctx.translate(ox, oy);
+      ctx.rotate(Math.PI / 4);
+      for (let b = b0; b <= b1; b++)
+        for (let a = a0; a <= a1; a++)
+          if (((a + b) & 1) === 0) ctx.fillRect(a * s, b * s, s + 0.5, s + 0.5);
+      ctx.restore();
+      break;
+    }
+    case "bands": {
+      // 부드러운 세로 줄무늬: 폭 s/2의 줄이 s마다.
+      for (let i = i0; i <= i1; i++) ctx.fillRect(ox + i * s, r.y - 1, s * 0.5, r.h + 2);
+      break;
+    }
     default:
       break;
   }
@@ -748,7 +804,7 @@ function drawTexture(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
 }
 
 export const ART_GRAPHIC_KINDS = ["clouds", "cloudsSoft", "archesLow", "meadow", "leaves", "wave", "blockBottom", "blockSplit", "arches", "cornerVine", "cornerVine4", "cornerArc", "thinFrame", "rules", "splitPlain"];
-export const ART_PATTERN_KINDS = ["checks", "gingham", "diamonds", "zigzag", "stars", "hearts", "scallops", "dotsFine", "pinstripes"];
+export const ART_PATTERN_KINDS = ["checks", "gingham", "diamonds", "zigzag", "stars", "hearts", "scallops", "dotsFine", "pinstripes", "windowpane", "tattersall", "harlequin", "bands"];
 export const ART_TEXTURE_KINDS = ["paper", "linen", "watercolor", "grain"];
 
 export function isArtKind(kind: string): boolean {

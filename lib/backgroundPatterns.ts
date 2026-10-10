@@ -43,6 +43,11 @@ export type BackgroundPatternKind =
   // 2026-12 차분한 새 패턴(아주 작은 점·가는 줄)
   | "dotsFine"
   | "pinstripes"
+  // 2026-14 체크 계열 새 패턴(얇은 선·돌린 체크·부드러운 줄)
+  | "windowpane"
+  | "tattersall"
+  | "harlequin"
+  | "bands"
   // 텍스처
   | "paper"
   | "linen"
@@ -266,6 +271,119 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     category: "graphic",
     kind: "gradient",
     colors: ["#F0F0EE", "#DFDFDB"],
+  },
+  // ---- 2026-14 체크 중심 새 패턴(작은 깅엄·피크닉·창살·태터솔 …). 무늬색은 부드럽게, 선은 0.35mm 이상 ----
+  {
+    id: "p5-ging-pink",
+    label: "깅엄 체크 · 핑크",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FFFAF9", "#F4B6C0"],
+    spacingMm: 5,
+  },
+  {
+    id: "p5-ging-sky",
+    label: "깅엄 체크 · 하늘",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FBFDFE", "#A3C6E2"],
+    spacingMm: 5,
+  },
+  {
+    id: "p5-ging-sage",
+    label: "깅엄 체크 · 세이지",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FAFCF7", "#AECBA9"],
+    spacingMm: 5,
+  },
+  {
+    id: "p5-ging-butter",
+    label: "깅엄 체크 · 버터",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FFFDF3", "#F0D78A"],
+    spacingMm: 5,
+  },
+  {
+    id: "p5-ging-lilac",
+    label: "깅엄 체크 · 라일락",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FCFAFE", "#C7B6E2"],
+    spacingMm: 5,
+  },
+  {
+    id: "p5-ging-peach",
+    label: "깅엄 체크 · 피치",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FFFAF5", "#F4B895"],
+    spacingMm: 5,
+  },
+  {
+    id: "p5-picnic-rose",
+    label: "피크닉 체크 · 로즈",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FFFDFB", "#EDA8A8"],
+    spacingMm: 14,
+  },
+  {
+    id: "p5-picnic-blue",
+    label: "피크닉 체크 · 블루",
+    category: "pattern",
+    kind: "gingham",
+    colors: ["#FDFEFF", "#9DBBE0"],
+    spacingMm: 14,
+  },
+  {
+    id: "p5-window-sky",
+    label: "창살 체크 · 하늘",
+    category: "pattern",
+    kind: "windowpane",
+    colors: ["#F8FBFD", "#A8C4DA"],
+    spacingMm: 12,
+  },
+  {
+    id: "p5-window-blush",
+    label: "창살 체크 · 블러시",
+    category: "pattern",
+    kind: "windowpane",
+    colors: ["#FFF9F7", "#E3A9A5"],
+    spacingMm: 12,
+  },
+  {
+    id: "p5-tatt-blue",
+    label: "태터솔 체크 · 블루",
+    category: "pattern",
+    kind: "tattersall",
+    colors: ["#FBFAF5", "#93AACB"],
+    spacingMm: 16,
+  },
+  {
+    id: "p5-tatt-rose",
+    label: "태터솔 체크 · 로즈",
+    category: "pattern",
+    kind: "tattersall",
+    colors: ["#FBFAF5", "#DE9F99"],
+    spacingMm: 16,
+  },
+  {
+    id: "p5-harlequin-lilac",
+    label: "다이아 체크 · 라일락",
+    category: "pattern",
+    kind: "harlequin",
+    colors: ["#FBF9FD", "#E3DAF0"],
+    spacingMm: 10,
+  },
+  {
+    id: "p5-bands-sage",
+    label: "부드러운 줄무늬 · 세이지",
+    category: "pattern",
+    kind: "bands",
+    colors: ["#FAFBF6", "#DCE7D4"],
+    spacingMm: 8,
   },
   // 패턴: 작은 점·가는 줄·조용한 체크·얇은 격자(무늬색은 바탕과 밝기 차 6~12%)
   {
