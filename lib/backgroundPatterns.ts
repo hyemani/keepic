@@ -23,6 +23,8 @@ export type BackgroundPatternKind =
   | "blockBottom"
   | "blockSplit"
   | "arches"
+  | "cloudsSoft"
+  | "archesLow"
   // 2026-12 차분한 새 그래픽(얇은 선·작은 모서리 장식·색면)
   | "cornerVine"
   | "cornerVine4"
@@ -554,6 +556,28 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     kind: "clouds",
     colors: ["#f8e3e3", "#ffffff"],
   },
+  // 2026-13 새 구름·아치(옛 id g-clouds-*, g-arches는 목록에서만 숨기고 그림은 그대로)
+  {
+    id: "g4-clouds-sky",
+    label: "구름(하늘)",
+    category: "graphic",
+    kind: "cloudsSoft",
+    colors: ["#cfe6f5", "#ffffff"],
+  },
+  {
+    id: "g4-clouds-blush",
+    label: "구름(블러시)",
+    category: "graphic",
+    kind: "cloudsSoft",
+    colors: ["#f8e3e3", "#ffffff"],
+  },
+  {
+    id: "g4-arches-low",
+    label: "아치 하단",
+    category: "graphic",
+    kind: "archesLow",
+    colors: ["#fbf4ec", "#d99a8c"],
+  },
   {
     id: "g-meadow",
     label: "들판",
@@ -784,12 +808,14 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
 // 분류만 바꾸는 거라 그리는 결과·저장 id는 그대로예요(저장된 포토북은 예전과 똑같이 열려요).
 export type BackgroundPresetGroup = "default" | "kids" | "legacy";
 const KIDS_IDS = new Set([
-  "g-clouds-sky", "g-clouds-blush", "g-meadow", "g-meadow-sky", "g-arches", "g-wave", "g-wave-sand",
+  "g4-clouds-sky", "g4-clouds-blush", "g-meadow", "g-meadow-sky", "g4-arches-low", "g-wave", "g-wave-sand",
   "p-stars", "p-hearts",
 ]);
 const LEGACY_IDS = new Set([
   // 그래픽: 옛 덩굴(큰 잎·굵은 선), 색 대비가 큰 그라데이션, 진한 색면
   "g-leaves", "g-leaves-deep", "g-block-split",
+  // 2026-13 새 구름·아치로 교체(옛 그림은 저장된 포토북용으로 그대로 둠)
+  "g-clouds-sky", "g-clouds-blush", "g-arches",
   // 2026-12 인쇄 위험(재단선 6mm 안쪽의 얇은 사각 프레임 — 재단 오차에 선이 잘리거나 한쪽으로 치우쳐 보임)
   "g2-frame-sage", "g2-frame-gray",
   "gradient-sunset", "gradient-lavender-teal", "gradient-teal-olive", "gradient-pastel-multi", "gradient-navy-sky",

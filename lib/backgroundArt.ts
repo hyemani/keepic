@@ -178,6 +178,24 @@ function cloudPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: num
   ctx.closePath();
 }
 
+
+// ---- 2026-13 새 구름·아치(옛 id의 그림은 그대로 두고 새 kind만 써요) ----
+// 부드러운 작은 구름 한 송이(밑이 둥근 캡슐 + 위로 봉긋한 두 덩이를 한 번에 채워서 겹침 얼룩이 없어요). u = 구름 폭.
+function softCloudPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, u: number) {
+  const k = (v: number) => v * u;
+  ctx.beginPath();
+  ctx.moveTo(cx - k(0.35), cy - k(0.05));
+  ctx.lineTo(cx + k(0.35), cy - k(0.05));
+  ctx.arc(cx + k(0.35), cy + k(0.1), k(0.15), -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(cx - k(0.35), cy + k(0.25));
+  ctx.arc(cx - k(0.35), cy + k(0.1), k(0.15), Math.PI / 2, Math.PI * 1.5);
+  ctx.closePath();
+  ctx.moveTo(cx - k(0.17) + k(0.2), cy - k(0.02));
+  ctx.arc(cx - k(0.17), cy - k(0.02), k(0.2), 0, Math.PI * 2);
+  ctx.moveTo(cx + k(0.1) + k(0.27), cy - k(0.08));
+  ctx.arc(cx + k(0.1), cy - k(0.08), k(0.27), 0, Math.PI * 2);
+}
+
 function drawFlower(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, petal: string, centre: string) {
   ctx.fillStyle = petal;
   for (let k = 0; k < 5; k++) {
@@ -334,7 +352,7 @@ function drawCornerOrnaments(
 }
 
 function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span: Rect, ppm: number) {
-  const [, c1] = p.colors;
+  const [c0, c1] = p.colors;
   const rnd = mulberry32(seedOf(p.id));
   const mm = (v: number) => v * ppm;
   const sw = span.w;
@@ -359,6 +377,63 @@ function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
           ctx.fill();
         }
       }
+      break;
+    }
+    case "cloudsSoft": {
+      // 작은 구름이 엇갈린 줄(홀수 줄은 반 칸 밀림)로 빈틈없이 고르게 반복돼요. 하늘·블러시는 바탕색만 달라요.
+      const pitchX = mm(30);
+      const pitchY = mm(17);
+      const j0 = Math.floor((r.y - oy) / pitchY) - 1;
+      const j1 = Math.ceil((r.y + r.h - oy) / pitchY) + 1;
+      const i0 = Math.floor((r.x - ox) / pitchX) - 2;
+      const i1 = Math.ceil((r.x + r.w - ox) / pitchX) + 1;
+      ctx.fillStyle = rgba(c1, 0.92);
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          const u = mm(15 + hash2(i, j, 7) * 6);
+          const cx = ox + (i + 0.5 + ((j & 1) ? 0.5 : 0)) * pitchX;
+          const cy = oy + (j + 0.5) * pitchY;
+          if (cx + u < r.x || cx - u > r.x + r.w || cy + u < r.y || cy - u > r.y + r.h) continue;
+          softCloudPath(ctx, cx, cy, u);
+          ctx.fill();
+        }
+      }
+      break;
+    }
+    case "archesLow": {
+      // 낮고 얇은 아치가 한 줄로 이어지는 하단 장식. 선은 바탕과 비슷한 옅은 색, 속은 아주 옅게만 칠해요.
+      const R = mm(8);
+      const leg = mm(2.5);
+      const bleed = mm(inferBleedMm(span));
+      const topLegY = oy + sh - bleed - leg;
+      const bottomY = oy + sh + 1;
+      const line = mixHex(c0, c1, 0.7);
+      const tint = mixHex(c0, c1, 0.13);
+      const i0 = Math.floor((r.x - ox) / (R * 2)) - 1;
+      const i1 = Math.ceil((r.x + r.w - ox) / (R * 2)) + 1;
+      if (topLegY - R > r.y + r.h) break;
+      ctx.beginPath();
+      ctx.moveTo(ox + i0 * R * 2, bottomY);
+      for (let i = i0; i < i1; i++) {
+        const x = ox + i * R * 2;
+        ctx.lineTo(x, topLegY);
+        ctx.arc(x + R, topLegY, R, Math.PI, Math.PI * 2);
+      }
+      ctx.lineTo(ox + i1 * R * 2, bottomY);
+      ctx.closePath();
+      ctx.fillStyle = tint;
+      ctx.fill();
+      ctx.strokeStyle = line;
+      ctx.lineWidth = Math.max(0.8, mm(0.55));
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      for (let i = i0; i <= i1; i++) {
+        const x = ox + i * R * 2;
+        ctx.moveTo(x, bottomY);
+        ctx.lineTo(x, topLegY);
+        if (i < i1) ctx.arc(x + R, topLegY, R, Math.PI, Math.PI * 2);
+      }
+      ctx.stroke();
       break;
     }
     case "meadow": {
@@ -672,7 +747,7 @@ function drawTexture(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
   }
 }
 
-export const ART_GRAPHIC_KINDS = ["clouds", "meadow", "leaves", "wave", "blockBottom", "blockSplit", "arches", "cornerVine", "cornerVine4", "cornerArc", "thinFrame", "rules", "splitPlain"];
+export const ART_GRAPHIC_KINDS = ["clouds", "cloudsSoft", "archesLow", "meadow", "leaves", "wave", "blockBottom", "blockSplit", "arches", "cornerVine", "cornerVine4", "cornerArc", "thinFrame", "rules", "splitPlain"];
 export const ART_PATTERN_KINDS = ["checks", "gingham", "diamonds", "zigzag", "stars", "hearts", "scallops", "dotsFine", "pinstripes"];
 export const ART_TEXTURE_KINDS = ["paper", "linen", "watercolor", "grain"];
 
