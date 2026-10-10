@@ -23,6 +23,13 @@ export type BackgroundPatternKind =
   | "blockBottom"
   | "blockSplit"
   | "arches"
+  // 2026-12 차분한 새 그래픽(얇은 선·작은 모서리 장식·색면)
+  | "cornerVine"
+  | "cornerVine4"
+  | "cornerArc"
+  | "thinFrame"
+  | "rules"
+  | "splitPlain"
   // 패턴
   | "checks"
   | "gingham"
@@ -31,6 +38,9 @@ export type BackgroundPatternKind =
   | "stars"
   | "hearts"
   | "scallops"
+  // 2026-12 차분한 새 패턴(아주 작은 점·가는 줄)
+  | "dotsFine"
+  | "pinstripes"
   // 텍스처
   | "paper"
   | "linen"
@@ -49,6 +59,276 @@ export type BackgroundPatternPreset = {
 };
 
 export const backgroundPatterns: BackgroundPatternPreset[] = [
+  // ---- 2026-12 사진이 주인공인 차분한 새 소재(기본 목록). 옛 id는 아래에 그대로 남아 있어요 ----
+  // 색면·얇은 선·작은 모서리 장식
+  {
+    id: "g2-block-sage",
+    label: "하단 색면(세이지)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#F6F3EC", "#DDE5D6"],
+  },
+  {
+    id: "g2-block-sky",
+    label: "하단 색면(하늘)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#F6F3EC", "#DCE7EE"],
+  },
+  {
+    id: "g2-block-sand",
+    label: "하단 색면(샌드)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#F8F5EE", "#E8DFCF"],
+  },
+  {
+    id: "g2-block-gray",
+    label: "하단 색면(그레이)",
+    category: "graphic",
+    kind: "blockBottom",
+    colors: ["#F6F3EC", "#E4E3DF"],
+  },
+  {
+    id: "g2-split-sage",
+    label: "좌우 분할(세이지)",
+    category: "graphic",
+    kind: "splitPlain",
+    colors: ["#F6F3EC", "#E3E9DE"],
+  },
+  {
+    id: "g2-split-sky",
+    label: "좌우 분할(하늘)",
+    category: "graphic",
+    kind: "splitPlain",
+    colors: ["#F6F3EC", "#E1EAF0"],
+  },
+  {
+    id: "g2-frame-sage",
+    label: "얇은 프레임(세이지)",
+    category: "graphic",
+    kind: "thinFrame",
+    colors: ["#F6F3EC", "#B5C0AE"],
+  },
+  {
+    id: "g2-frame-gray",
+    label: "얇은 프레임(그레이)",
+    category: "graphic",
+    kind: "thinFrame",
+    colors: ["#F6F3EC", "#BEBDB8"],
+  },
+  {
+    id: "g2-rules-sage",
+    label: "위아래 얇은 선(세이지)",
+    category: "graphic",
+    kind: "rules",
+    colors: ["#F6F3EC", "#B5C0AE"],
+  },
+  {
+    id: "g2-rules-sky",
+    label: "위아래 얇은 선(하늘)",
+    category: "graphic",
+    kind: "rules",
+    colors: ["#EEF3F6", "#A9BCC9"],
+  },
+  {
+    id: "g2-vine-2",
+    label: "모서리 덩굴(2곳)",
+    category: "graphic",
+    kind: "cornerVine",
+    colors: ["#F6F3EC", "#7E927A"],
+  },
+  {
+    id: "g2-vine-4",
+    label: "모서리 덩굴(4곳)",
+    category: "graphic",
+    kind: "cornerVine4",
+    colors: ["#F6F3EC", "#7E927A"],
+  },
+  {
+    id: "g2-vine-sage",
+    label: "모서리 덩굴(세이지 바탕)",
+    category: "graphic",
+    kind: "cornerVine",
+    colors: ["#EEF2E9", "#7E927A"],
+  },
+  {
+    id: "g2-vine-sky",
+    label: "모서리 덩굴(하늘 바탕)",
+    category: "graphic",
+    kind: "cornerVine",
+    colors: ["#EEF3F6", "#7E927A"],
+  },
+  {
+    id: "g2-arc-ivory",
+    label: "모서리 곡선(아이보리)",
+    category: "graphic",
+    kind: "cornerArc",
+    colors: ["#F6F3EC", "#C3B9A5"],
+  },
+  {
+    id: "g2-arc-sage",
+    label: "모서리 곡선(세이지)",
+    category: "graphic",
+    kind: "cornerArc",
+    colors: ["#EEF2E9", "#A3B59D"],
+  },
+  // 그라데이션: 아이보리·연회색·세이지·연하늘 안에서 비슷한 색 두 개, 밝기 차 작게
+  {
+    id: "g2-grad-ivory-sand",
+    label: "그라데이션(아이보리-샌드)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F6F3EC", "#ECE6D8"],
+  },
+  {
+    id: "g2-grad-ivory-sage",
+    label: "그라데이션(아이보리-세이지)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F6F3EC", "#E2E8DA"],
+  },
+  {
+    id: "g2-grad-ivory-sky",
+    label: "그라데이션(아이보리-하늘)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F6F3EC", "#DFE8EF"],
+  },
+  {
+    id: "g2-grad-ivory-gray",
+    label: "그라데이션(아이보리-그레이)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F6F3EC", "#E6E5E1"],
+  },
+  {
+    id: "g2-grad-sage",
+    label: "그라데이션(세이지)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#EEF2E9", "#D8E1D2"],
+  },
+  {
+    id: "g2-grad-sky",
+    label: "그라데이션(연하늘)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#EEF3F6", "#D6E2EA"],
+  },
+  {
+    id: "g2-grad-gray",
+    label: "그라데이션(연회색)",
+    category: "graphic",
+    kind: "gradient",
+    colors: ["#F0F0EE", "#DFDFDB"],
+  },
+  // 패턴: 작은 점·가는 줄·조용한 체크·얇은 격자(무늬색은 바탕과 밝기 차 6~12%)
+  {
+    id: "p2-dots-ivory",
+    label: "작은 점(아이보리)",
+    category: "pattern",
+    kind: "dotsFine",
+    colors: ["#F6F3EC", "#E1DACB"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-dots-sage",
+    label: "작은 점(세이지)",
+    category: "pattern",
+    kind: "dotsFine",
+    colors: ["#F4F6EF", "#D4DCCE"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-dots-sky",
+    label: "작은 점(하늘)",
+    category: "pattern",
+    kind: "dotsFine",
+    colors: ["#F1F5F8", "#CCDAE5"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-dots-gray",
+    label: "작은 점(그레이)",
+    category: "pattern",
+    kind: "dotsFine",
+    colors: ["#F4F4F2", "#D9D9D5"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-pin-ivory",
+    label: "가는 줄(아이보리)",
+    category: "pattern",
+    kind: "pinstripes",
+    colors: ["#F6F3EC", "#E0DACB"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-pin-sage",
+    label: "가는 줄(세이지)",
+    category: "pattern",
+    kind: "pinstripes",
+    colors: ["#F4F6EF", "#D3DBCD"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-pin-sky",
+    label: "가는 줄(하늘)",
+    category: "pattern",
+    kind: "pinstripes",
+    colors: ["#F1F5F8", "#CFDCE6"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-pin-gray",
+    label: "가는 줄(그레이)",
+    category: "pattern",
+    kind: "pinstripes",
+    colors: ["#F4F4F2", "#DADAD6"],
+    spacingMm: 6,
+  },
+  {
+    id: "p2-check-ivory",
+    label: "조용한 체크(아이보리)",
+    category: "pattern",
+    kind: "checks",
+    colors: ["#F6F3EC", "#E9E3D5"],
+    spacingMm: 10,
+  },
+  {
+    id: "p2-check-sage",
+    label: "조용한 체크(세이지)",
+    category: "pattern",
+    kind: "checks",
+    colors: ["#F4F6EF", "#E1E8D8"],
+    spacingMm: 10,
+  },
+  {
+    id: "p2-check-sky",
+    label: "조용한 체크(하늘)",
+    category: "pattern",
+    kind: "checks",
+    colors: ["#F1F5F8", "#DDE7EF"],
+    spacingMm: 10,
+  },
+  {
+    id: "p2-grid-ivory",
+    label: "얇은 격자(아이보리)",
+    category: "pattern",
+    kind: "grid",
+    colors: ["#F6F3EC", "#E0D9CA"],
+    spacingMm: 8,
+  },
+  {
+    id: "p2-grid-sky",
+    label: "얇은 격자(하늘)",
+    category: "pattern",
+    kind: "grid",
+    colors: ["#F1F5F8", "#D2DFE9"],
+    spacingMm: 8,
+  },
+  // ---- 아래는 옛 소재(저장된 포토북이 그대로 열리도록 id·그림 변경 없음) ----
   // 그래픽
   {
     id: "diagonal-ivory-beige",
@@ -468,6 +748,31 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     colors: ["#faf6fb", "#b79bd6"],
   },
 ];
+
+
+// ---- 목록 분류(2026-12) ----
+// "default"는 기본 추천 목록, "kids"는 키즈·성장앨범용(동화풍), "legacy"는 이전 소재(색 대비가 크거나 큰 무늬 — '더 보기'에서만 보여요).
+// 분류만 바꾸는 거라 그리는 결과·저장 id는 그대로예요(저장된 포토북은 예전과 똑같이 열려요).
+export type BackgroundPresetGroup = "default" | "kids" | "legacy";
+const KIDS_IDS = new Set([
+  "g-clouds-sky", "g-clouds-blush", "g-meadow", "g-meadow-sky", "g-arches", "g-wave", "g-wave-sand",
+  "p-stars", "p-hearts",
+]);
+const LEGACY_IDS = new Set([
+  // 그래픽: 옛 덩굴(큰 잎·굵은 선), 색 대비가 큰 그라데이션, 진한 색면
+  "g-leaves", "g-leaves-deep", "g-block-bottom", "g-block-sage", "g-block-split",
+  "gradient-sunset", "gradient-lavender-teal", "gradient-teal-olive", "gradient-pastel-multi", "gradient-navy-sky",
+  "gradient-sunset-sage", "gradient-blush-peach", "gradient-sunset-blue", "gradient-rose-mauve", "gradient-grey-blue",
+  "gradient-lime-olive", "gradient-red-olive", "gradient-plum-slate",
+  // 패턴: 큰 점·굵은 줄·진한 색 대비
+  "dots-sand", "dots-sky", "stripes-mint", "stripes-blush", "grid-linen", "p-checks-pink", "p-gingham-red", "p-gingham-blue",
+  "p-diamonds", "p-zigzag", "p-scallops", "p-dots-mint", "p-stripes-navy",
+]);
+export function backgroundPresetGroup(p: { id: string }): BackgroundPresetGroup {
+  if (KIDS_IDS.has(p.id)) return "kids";
+  if (LEGACY_IDS.has(p.id)) return "legacy";
+  return "default";
+}
 
 export const backgroundPatternCategories: { id: BackgroundPatternCategory; label: string }[] = [
   { id: "graphic", label: "그래픽" },

@@ -8,7 +8,13 @@
 // 썸네일은 실제 화면·인쇄와 같은 그리기 함수(lib/backgroundSpec.ts → drawBackgroundPatternOnCanvas)로 그려서
 // 보이는 그대로 적용돼요. 이 파일은 그리기·선택만 하고, 실제로 배경을 바꾸고 저장하는 건 page.tsx가 해요.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { backgroundPatterns, type BackgroundPatternCategory } from "@/lib/backgroundPatterns";
+import {
+  backgroundPatterns,
+  backgroundPresetGroup,
+  findBackgroundPattern,
+  type BackgroundPatternCategory,
+  type BackgroundPatternPreset,
+} from "@/lib/backgroundPatterns";
 import { drawBackgroundSpecOnCanvas, effectivePreset, solidColorOf, type BackgroundSpec } from "@/lib/backgroundSpec";
 
 type TabId = BackgroundPatternCategory | "solid";
@@ -86,6 +92,8 @@ export function BackgroundPanel({
 }) {
   const [tabState, setTabState] = useState<TabId | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
+  // 이전 소재('더 보기')는 접어두되, 지금 고른 무늬가 이전 소재면 자동으로 펼쳐서 선택 표시가 보이게 해요.
+  const [legacyOpen, setLegacyOpen] = useState(false);
   const tab: TabId = tabState ?? (current ? (current.kind === "solid" ? "solid" : current.kind) : "graphic");
   const currentPreset = current ? effectivePreset(current) : undefined;
   const isPatternKind = current?.kind === "pattern";
@@ -243,33 +251,61 @@ export function BackgroundPanel({
             onCustomChange: (c) => onApply({ kind: "solid", color: c }),
           })
         ) : (
-          <div className="grid grid-cols-2 gap-1.5">
-            {backgroundPatterns
-              .filter((p) => p.category === tab)
-              .map((p) => {
-                const spec: BackgroundSpec = { kind: p.category, presetId: p.id };
-                const selected = current?.presetId === p.id && current.kind !== "solid";
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    data-bg-id={p.id}
-                    data-bg-selected={selected ? "true" : "false"}
-                    aria-pressed={selected}
-                    title={p.label}
-                    onClick={() => onApply(spec)}
-                    className={`block overflow-hidden border-2 p-0 text-left transition ${
-                      selected
-                        ? "border-[var(--color-sky)]"
-                        : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]/60"
-                    }`}
-                  >
-                    <BackgroundThumb spec={spec} pageMm={pageMm} />
-                    <span className="block truncate bg-white px-1 py-0.5 text-[10px] text-[var(--color-charcoal)]/70">{p.label}</span>
-                  </button>
-                );
-              })}
-          </div>
+          (() => {
+            const items = backgroundPatterns.filter((p) => p.category === tab);
+            const byGroup = (g: "default" | "kids" | "legacy") => items.filter((p) => backgroundPresetGroup(p) === g);
+            const kids = byGroup("kids");
+            const legacy = byGroup("legacy");
+            const currentBase = current && current.kind !== "solid" ? findBackgroundPattern(current.presetId) : undefined;
+            const legacyShown = legacyOpen || (!!currentBase && legacy.some((p) => p.id === currentBase.id));
+            const renderItem = (p: BackgroundPatternPreset) => {
+              const spec: BackgroundSpec = { kind: p.category, presetId: p.id };
+              const selected = current?.presetId === p.id && current.kind !== "solid";
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  data-bg-id={p.id}
+                  data-bg-group={backgroundPresetGroup(p)}
+                  data-bg-selected={selected ? "true" : "false"}
+                  aria-pressed={selected}
+                  title={p.label}
+                  onClick={() => onApply(spec)}
+                  className={`block overflow-hidden border-2 p-0 text-left transition ${
+                    selected ? "border-[var(--color-sky)]" : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]/60"
+                  }`}
+                >
+                  <BackgroundThumb spec={spec} pageMm={pageMm} />
+                  <span className="block truncate bg-white px-1 py-0.5 text-[10px] text-[var(--color-charcoal)]/70">{p.label}</span>
+                </button>
+              );
+            };
+            return (
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-1.5">{byGroup("default").map(renderItem)}</div>
+                {kids.length ? (
+                  <section data-bg-section="kids" className="flex flex-col gap-1">
+                    <h3 className="text-[11px] font-medium text-[var(--color-charcoal)]/70">키즈·성장앨범용</h3>
+                    <div className="grid grid-cols-2 gap-1.5">{kids.map(renderItem)}</div>
+                  </section>
+                ) : null}
+                {legacy.length ? (
+                  <section data-bg-section="legacy" className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      data-bg-legacy-toggle
+                      aria-expanded={legacyShown}
+                      onClick={() => setLegacyOpen((v) => !v)}
+                      className="flex min-h-[30px] w-full items-center justify-center whitespace-nowrap border border-[var(--color-hairline)] bg-white text-[11px] text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)]"
+                    >
+                      {legacyShown ? "이전 소재 접기" : `이전 소재 더 보기 (${legacy.length})`}
+                    </button>
+                    {legacyShown ? <div className="grid grid-cols-2 gap-1.5">{legacy.map(renderItem)}</div> : null}
+                  </section>
+                ) : null}
+              </div>
+            );
+          })()
         )}
       </div>
     </div>

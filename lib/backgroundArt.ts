@@ -248,6 +248,78 @@ function drawVine(
   });
 }
 
+// 모서리 장식(가는 선 식물 그림·가는 호). 펼침면(span)의 바깥 모서리에 붙이고, 안쪽으로 낱장 폭의 15% 안에서만 그려서
+// 사진 영역으로 들어가지 않아요. 모든 크기는 mm 기준(선 굵기 0.4~0.5mm, 잎 길이 3~6mm)이라 화면·썸네일·인쇄가 같아요.
+function drawCornerOrnaments(
+  ctx: CanvasRenderingContext2D,
+  kind: "vine" | "arc",
+  allFour: boolean,
+  span: Rect,
+  ppm: number,
+  color: string
+) {
+  const mm = (v: number) => v * ppm;
+  // 가로로 긴 펼침면(내지 두 쪽, 표지 전체)이면 낱장 폭은 절반으로 봐요.
+  const pageW = span.w / (span.w > span.h * 1.3 ? 2 : 1);
+  const R = Math.min(mm(30), pageW * 0.15, span.h * 0.15);
+  const corners: [number, number][] = allFour
+    ? [[1, 1], [-1, 1], [-1, -1], [1, -1]]
+    : [[1, 1], [-1, -1]];
+  ctx.strokeStyle = color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const [sx, sy] of corners) {
+    ctx.save();
+    ctx.translate(sx === 1 ? span.x : span.x + span.w, sy === 1 ? span.y : span.y + span.h);
+    ctx.scale(sx, sy);
+    if (kind === "arc") {
+      ctx.lineWidth = Math.max(0.8, mm(0.4));
+      for (const f of [0.55, 0.85]) {
+        ctx.beginPath();
+        ctx.arc(0, 0, R * f, 0, Math.PI / 2);
+        ctx.stroke();
+      }
+    } else {
+      // 줄기: 모서리를 감싸는 완만한 곡선(가장자리에서 5mm 안쪽에서 시작·끝)
+      const a = { x: mm(5), y: R * 0.92 };
+      const c = { x: R * 0.1, y: R * 0.1 };
+      const b = { x: R * 0.92, y: mm(5) };
+      const at = (t: number) => ({
+        x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * c.x + t * t * b.x,
+        y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * c.y + t * t * b.y,
+      });
+      const tan = (t: number) =>
+        Math.atan2(2 * (1 - t) * (c.y - a.y) + 2 * t * (b.y - c.y), 2 * (1 - t) * (c.x - a.x) + 2 * t * (b.x - c.x));
+      ctx.lineWidth = Math.max(0.8, mm(0.5));
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.quadraticCurveTo(c.x, c.y, b.x, b.y);
+      ctx.stroke();
+      // 잎 5장(작게): 줄기 양옆에 번갈아, 가운데가 가장 크고 끝으로 갈수록 작아져요
+      const ts = [0.14, 0.31, 0.5, 0.69, 0.86];
+      const sizes = [0.19, 0.23, 0.25, 0.22, 0.18];
+      ctx.lineWidth = Math.max(0.7, mm(0.4));
+      ts.forEach((t, i) => {
+        const pt = at(t);
+        const ang = tan(t) + (i % 2 ? -1 : 1) * 0.85;
+        const len = R * sizes[i] * 1.0;
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+        ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(len * 0.5, -len * 0.3, len, 0);
+        ctx.quadraticCurveTo(len * 0.5, len * 0.3, 0, 0);
+        ctx.moveTo(len * 0.1, 0);
+        ctx.lineTo(len * 0.7, 0);
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
+    ctx.restore();
+  }
+}
+
 function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span: Rect, ppm: number) {
   const [, c1] = p.colors;
   const rnd = mulberry32(seedOf(p.id));
@@ -374,6 +446,41 @@ function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
       }
       break;
     }
+    // ---- 2026-12 차분한 새 그래픽(사진이 주인공): 얇은 선·색면·작은 모서리 장식. 옛 id의 그림은 그대로 두고 새 id만 써요 ----
+    case "cornerVine":
+      drawCornerOrnaments(ctx, "vine", false, span, ppm, c1);
+      break;
+    case "cornerVine4":
+      drawCornerOrnaments(ctx, "vine", true, span, ppm, c1);
+      break;
+    case "cornerArc":
+      drawCornerOrnaments(ctx, "arc", false, span, ppm, c1);
+      break;
+    case "thinFrame": {
+      const inset = mm(8);
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = Math.max(0.8, mm(0.4));
+      ctx.strokeRect(r.x + inset, r.y + inset, r.w - inset * 2, r.h - inset * 2);
+      break;
+    }
+    case "rules": {
+      if (r.w < mm(40)) break;
+      const inset = mm(10);
+      ctx.strokeStyle = c1;
+      ctx.lineWidth = Math.max(0.8, mm(0.35));
+      for (const yy of [r.y + inset, r.y + r.h - inset]) {
+        ctx.beginPath();
+        ctx.moveTo(r.x + inset, yy);
+        ctx.lineTo(r.x + r.w - inset, yy);
+        ctx.stroke();
+      }
+      break;
+    }
+    case "splitPlain": {
+      ctx.fillStyle = c1;
+      ctx.fillRect(ox + sw * 0.5, oy, sw * 0.5 + 1, sh);
+      break;
+    }
     default:
       break;
   }
@@ -383,14 +490,14 @@ function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
 function drawRepeat(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span: Rect, ppm: number) {
   const [, c1] = p.colors;
   const mm = (v: number) => v * ppm;
-  const defaults: Record<string, number> = { checks: 8, gingham: 8, diamonds: 10, zigzag: 8, stars: 14, hearts: 14, scallops: 10 };
+  const defaults: Record<string, number> = { checks: 8, gingham: 8, diamonds: 10, zigzag: 8, stars: 14, hearts: 14, scallops: 10, dotsFine: 6, pinstripes: 6 };
   const s = mm(p.spacingMm ?? defaults[p.kind] ?? 8);
   const ox = span.x;
   const oy = span.y;
   const i0 = Math.floor((r.x - ox) / s) - 1;
   const i1 = Math.ceil((r.x + r.w - ox) / s) + 1;
   // 줄 간격이 s보다 촘촘한 무늬(다이아몬드 0.5s, 별·하트 0.75s)는 줄 번호 범위를 그만큼 넓혀요.
-  const rowStep = p.kind === "diamonds" ? 0.5 : p.kind === "stars" || p.kind === "hearts" ? 0.75 : 1;
+  const rowStep = p.kind === "diamonds" ? 0.5 : p.kind === "stars" || p.kind === "hearts" ? 0.75 : p.kind === "dotsFine" ? 0.866 : 1;
   const j0 = Math.floor((r.y - oy) / (s * rowStep)) - 1;
   const j1 = Math.ceil((r.y + r.h - oy) / (s * rowStep)) + 1;
   ctx.fillStyle = c1;
@@ -486,6 +593,24 @@ function drawRepeat(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span: 
         }
       break;
     }
+    // ---- 2026-12 차분한 새 패턴: 아주 작은 점, 얇은 세로 줄(옛 id의 그림은 그대로) ----
+    case "dotsFine": {
+      const R = Math.max(mm(0.45), s * 0.08);
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const cx = ox + (i + ((j & 1) ? 0.5 : 0)) * s;
+          const cy = oy + j * s * 0.866;
+          ctx.beginPath();
+          ctx.arc(cx, cy, R, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      break;
+    }
+    case "pinstripes": {
+      const lw = Math.max(mm(0.3), s * 0.05);
+      for (let i = i0; i <= i1; i++) ctx.fillRect(ox + i * s - lw / 2, r.y - 1, lw, r.h + 2);
+      break;
+    }
     default:
       break;
   }
@@ -534,8 +659,8 @@ function drawTexture(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
   }
 }
 
-export const ART_GRAPHIC_KINDS = ["clouds", "meadow", "leaves", "wave", "blockBottom", "blockSplit", "arches"];
-export const ART_PATTERN_KINDS = ["checks", "gingham", "diamonds", "zigzag", "stars", "hearts", "scallops"];
+export const ART_GRAPHIC_KINDS = ["clouds", "meadow", "leaves", "wave", "blockBottom", "blockSplit", "arches", "cornerVine", "cornerVine4", "cornerArc", "thinFrame", "rules", "splitPlain"];
+export const ART_PATTERN_KINDS = ["checks", "gingham", "diamonds", "zigzag", "stars", "hearts", "scallops", "dotsFine", "pinstripes"];
 export const ART_TEXTURE_KINDS = ["paper", "linen", "watercolor", "grain"];
 
 export function isArtKind(kind: string): boolean {
