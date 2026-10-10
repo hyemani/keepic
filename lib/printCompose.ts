@@ -302,6 +302,22 @@ function textGradientFillStyle(
   return grad;
 }
 
+// 글자를 캔버스에 그리기 전에, 쓰이는 서체(와 그 글자 조각)를 브라우저가 다 불러왔는지 확인해요 — 웹 폰트는 화면에 쓰인 만큼만 늦게
+// 불러오는데, 안 불러온 채로 캔버스에 그리면 기본 서체로 찍혀요(인쇄 PDF에 엉뚱한 서체가 박히는 문제 방지). 실패해도 그냥 진행해요.
+async function ensureTextFontsLoaded(items: { fontFamily?: string; text?: string; bold?: boolean }[]): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  const seen = new Set<string>();
+  const jobs: Promise<unknown>[] = [];
+  for (const it of items) {
+    if (!it.fontFamily || !it.text || !it.text.trim()) continue;
+    const key = `${it.bold ? "b" : ""}|${it.fontFamily}|${it.text}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    jobs.push(document.fonts.load(`${it.bold ? "bold " : ""}20px ${it.fontFamily}`, it.text).catch(() => null));
+  }
+  await Promise.all(jobs);
+}
+
 export function parseWorkSizeMm(productionFileSizeMm: string | null): { w: number; h: number } {
   const match = (productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)\s*x\s*(\d+(\.\d+)?)/i);
   if (!match) return { w: 310, h: 310 }; // 혹시 규격을 못 읽으면 L사이즈 기준으로 안전하게
@@ -730,7 +746,7 @@ function drawTextBoxOnCanvasRuns(
 }
 
 
-function drawTextBoxOnCanvas(
+export function drawTextBoxOnCanvas(
   ctx: CanvasRenderingContext2D,
   box: TextBoxDef,
   pageW: number,
@@ -2252,6 +2268,13 @@ export async function buildInnerPrintPdf({
     coverEdit?: IntroCoverEdit | null;
   } | null;
 }): Promise<PrintPdfResult> {
+  await ensureTextFontsLoaded(
+    customSpreads.flatMap((s) => [...(s.textBoxesLeft ?? []), ...(s.textBoxesRight ?? [])]).map((b) => ({
+      fontFamily: b.fontFamily,
+      text: b.text,
+      bold: b.bold,
+    }))
+  );
   const { w: workW, h: workH } = parseWorkSizeMm(productionFileSizeMm);
   const pxW = mmToPx(workW);
   const pxH = mmToPx(workH);
@@ -2869,6 +2892,11 @@ export async function buildCoverPrintPdf({
   coverTableBoxes?: TableBoxDef[];
   backCoverTableBoxes?: TableBoxDef[];
 }): Promise<PrintPdfResult> {
+  await ensureTextFontsLoaded([
+    { fontFamily: coverTitleFontFamily, text: coverTitle, bold: coverTitleBold },
+    { fontFamily: spineTitleFontFamily, text: spineTitle, bold: spineTitleBold },
+    ...[...(coverTextBoxes ?? []), ...(backCoverTextBoxes ?? [])].map((b) => ({ fontFamily: b.fontFamily, text: b.text, bold: b.bold })),
+  ]);
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
   const bleedMm = cover === "hard" ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
