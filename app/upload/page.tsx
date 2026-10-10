@@ -622,30 +622,6 @@ const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconNam
   { id: "background", label: "배경", icon: "background" },
 ];
 
-// 표지 "테마" 프리셋에 쓰는 타입이에요 — 실제 배열(COVER_THEMES)은 fontOptions
-// 선언 다음에 있어요(테마 기본 서체가 fontOptions를 참조해서, 선언 순서상 그 뒤에
-// 와야 해요).
-// 2026-09-25, 혜민님 요청(항목5): "테마는 가족 여행 커플 아기 생일 이렇게 5개 메뉴로
-// 나눠주세요" — 테마 카테고리 id는 손글씨 카테고리(HANDWRITING_CATEGORIES)와 같은
-// 이름을 재사용해서(family/travel/love/baby/birthday) 코드 전체에서 일관되게 맞췄어요.
-type CoverThemeCategory = "family" | "travel" | "love" | "baby" | "birthday";
-type CoverTheme = {
-  id: string;
-  label: string;
-  category: CoverThemeCategory;
-  frontBackgroundColor: string;
-  spineBackgroundColor: string;
-  backBackgroundColor: string;
-  backPatternId?: string;
-  titleFontFamily?: string;
-};
-const THEME_CATEGORIES: { id: CoverThemeCategory; label: string }[] = [
-  { id: "family", label: "가족" },
-  { id: "travel", label: "여행" },
-  { id: "love", label: "커플" },
-  { id: "baby", label: "아기" },
-  { id: "birthday", label: "생일" },
-];
 function measureSpineTitleFontSizeMm(
   title: string,
   spineMm: number,
@@ -774,120 +750,6 @@ const fontOptions = [
   { id: "'Nosifer', cursive", label: "Nosifer" },
   { id: "'DM Serif Display', serif", label: "DM Serif Display" },
   { id: "'Bodoni Moda', serif", label: "Bodoni Moda" },
-];
-
-// 표지 "테마" 프리셋 — 앞표지·책등·뒤표지 배경색(+ 뒤표지 무늬)과 제목 서체를 한 세트로
-// 묶어둔 거예요. 적용해도 기존에 넣은 사진·텍스트박스는 전혀 건드리지 않고, 배경·서체만
-// 바꿔요(레이아웃 템플릿 적용과 같은 "비파괴적" 원칙). 2026-09-26, 혜민님이 스위트북
-// 참고 화면을 보여주며 "표지를 테마 형식으로 바꿔달라"고 요청 — 이번 라운드엔 실제 테마
-// 2개를 우선 만들고, 더 필요하면 이 배열에 계속 추가하면 돼요.
-// 2026-09-25, 혜민님 요청(항목5) — "카테고리 구조부터" 확인해주셔서, 이번 라운드는
-// 5개 카테고리 탭 구조를 먼저 만들고 각 칸에 2개씩 테마를 채웠어요(총 10개). 새로
-// 그린 무늬 없이 이미 검증된 lib/backgroundPatterns.ts 무늬 id와 fontOptions 서체
-// id만 재사용했어요(이 환경에서는 실제 브라우저로 미리보기를 확인할 수 없어서, 이미
-// 다른 곳에 쓰이고 있는 값만 고르는 게 더 안전해요). 색감·무늬는 1차 구조이고,
-// 더 구별되는 디자인은 다음 라운드에 이 배열에 계속 추가하면 돼요.
-const COVER_THEMES: CoverTheme[] = [
-  {
-    id: "white-simple",
-    label: "화이트 심플",
-    category: "family",
-    frontBackgroundColor: "#ffffff",
-    spineBackgroundColor: "#ffffff",
-    backBackgroundColor: "#ffffff",
-    backPatternId: undefined,
-    titleFontFamily: fontOptions[0].id,
-  },
-  {
-    id: "warm-beige",
-    label: "포근한 가족",
-    category: "family",
-    frontBackgroundColor: "#f5efe6",
-    spineBackgroundColor: "#e8ddc9",
-    backBackgroundColor: "#f5efe6",
-    backPatternId: "grain-kraft",
-    titleFontFamily: fontOptions[1].id,
-  },
-  {
-    id: "blue-sky",
-    label: "블루 스카이",
-    category: "travel",
-    frontBackgroundColor: "#eaf4fb",
-    spineBackgroundColor: "#cfe3f2",
-    backBackgroundColor: "#eaf4fb",
-    backPatternId: "dots-sky",
-    titleFontFamily: fontOptions[0].id,
-  },
-  {
-    id: "navy-sunset",
-    label: "네이비 선셋",
-    category: "travel",
-    frontBackgroundColor: "#e4ecf5",
-    spineBackgroundColor: "#c7d6ea",
-    backBackgroundColor: "#e4ecf5",
-    backPatternId: "gradient-navy-sky",
-    titleFontFamily: fontOptions[3].id,
-  },
-  {
-    id: "blush-romance",
-    label: "블러쉬 로맨스",
-    category: "love",
-    frontBackgroundColor: "#fbeae6",
-    spineBackgroundColor: "#f6d4ce",
-    backBackgroundColor: "#fbeae6",
-    backPatternId: "gradient-blush-peach",
-    titleFontFamily: fontOptions[2].id,
-  },
-  {
-    id: "rose-mauve",
-    label: "로즈 모브",
-    category: "love",
-    frontBackgroundColor: "#f6e9ee",
-    spineBackgroundColor: "#ecd2dc",
-    backBackgroundColor: "#f6e9ee",
-    backPatternId: "gradient-rose-mauve",
-    titleFontFamily: fontOptions[7].id,
-  },
-  {
-    id: "pastel-baby",
-    label: "파스텔 베이비",
-    category: "baby",
-    frontBackgroundColor: "#f7f0f7",
-    spineBackgroundColor: "#ecdcec",
-    backBackgroundColor: "#f7f0f7",
-    backPatternId: "gradient-pastel-multi",
-    titleFontFamily: fontOptions[6].id,
-  },
-  {
-    id: "mint-stripe",
-    label: "민트 스트라이프",
-    category: "baby",
-    frontBackgroundColor: "#eef8f4",
-    spineBackgroundColor: "#d7eee4",
-    backBackgroundColor: "#eef8f4",
-    backPatternId: "stripes-mint",
-    titleFontFamily: fontOptions[8].id,
-  },
-  {
-    id: "sunset-party",
-    label: "선셋 파티",
-    category: "birthday",
-    frontBackgroundColor: "#fdf0e3",
-    spineBackgroundColor: "#fbdcb8",
-    backBackgroundColor: "#fdf0e3",
-    backPatternId: "gradient-sunset",
-    titleFontFamily: fontOptions[12].id,
-  },
-  {
-    id: "blush-stripe",
-    label: "블러쉬 스트라이프",
-    category: "birthday",
-    frontBackgroundColor: "#fdeeee",
-    spineBackgroundColor: "#f8d6d6",
-    backBackgroundColor: "#fdeeee",
-    backPatternId: "stripes-blush",
-    titleFontFamily: fontOptions[13].id,
-  },
 ];
 
 const PRINT_DPI = 200;
@@ -12584,7 +12446,6 @@ function UploadPageContent() {
   const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("daily");
   // 2026-09-25, 혜민님 요청(항목5): 표지 "테마" 탭도 가족/여행/커플/아기/생일 5개
   // 카테고리로 나눠서 골라 볼 수 있게 했어요.
-  const [themeCategoryTab, setThemeCategoryTab] = useState<CoverThemeCategory>("family");
   // 2026-09-25, 혜민님 요청: "사진 프레임 변경 버튼을 만들어주세요(말 그대로 사진
   // 프레임 변경하는거예요)" — 캔버스에서 사진박스를 선택했을 때 뜨는
   // StackOrderToolbar의 테두리 두께·색·모서리 둥글게 조절판과 똑같은 기능을,
@@ -12672,6 +12533,7 @@ function UploadPageContent() {
   const [coverDesignMessage, setCoverDesignMessage] = useState<string | null>(null);
   // 디자인 패널에서 고른 스타일 칩("all" = 전체) — 표지·내지 패널이 같이 써요(2026-10, 스타일 5종).
   const [designStyleFilter, setDesignStyleFilter] = useState<string>("all");
+  const [designThemeFilter, setDesignThemeFilter] = useState<string>("all"); // 디자인 패널 맨 위 테마 탭(전체·가족·여행·커플·생일)
   const [pendingCoverLayoutApply, setPendingCoverLayoutApply] = useState<{
     target: "front" | "back";
     template: PhotoLayoutTemplate;
@@ -14778,24 +14640,8 @@ function UploadPageContent() {
   }
 
 
-  // 표지 "테마" 하나를 골라 앞표지·책등·뒤표지 배경(+ 뒤표지 무늬)·제목 서체를 한 번에
-  // 맞춰요. 사진·텍스트박스는 전혀 안 건드려요 — 배경·서체만 바꾸는 비파괴적 적용이라,
-  // 테마를 고른 뒤에도 사진·텍스트는 원래대로 남아있어요(레이아웃 탭에서처럼 따로
-  // 편집 가능). titleFontFamily가 있으면 표지·책등 제목 서체를 "연결" 여부와 상관없이
-  // 둘 다 같은 테마 서체로 맞춰요.
-  function applyCoverTheme(themeId: string) {
-    const theme = COVER_THEMES.find((t) => t.id === themeId);
-    if (!theme) return;
-    setCoverFrontBackgroundColor(theme.frontBackgroundColor);
-    setCoverSpineBackgroundColor(theme.spineBackgroundColor);
-    setBackCoverBackgroundColor(theme.backBackgroundColor);
-    setCoverPatternId(theme.backPatternId);
-    setCoverBackgrounds({});
-    if (theme.titleFontFamily) {
-      setCoverTitleFontFamily(theme.titleFontFamily);
-      setSpineTitleFontFamily(theme.titleFontFamily);
-    }
-  }
+  // (예전 "배경 색 테마" 프리셋 메뉴는 2026-19차에 없앴어요 — 이미 저장된 표지의 배경색·서체는 값 그대로 저장돼 있어서 똑같이 열려요.
+  //  색만 바꾸고 싶으면 배경 탭에서 직접 고를 수 있어요.)
 
   // ---- 디자인 템플릿(lib/designTemplates.ts) 적용 ----
   // 한 번 누르면 사진 칸(+모양)·예쁜 글상자·스티커·배경이 같은 setState 묶음으로 바뀌어서 되돌리기 한 번에 전부 돌아와요.
@@ -17590,6 +17436,7 @@ function UploadPageContent() {
                                   name: dd.name,
                                   note: dd.note,
                                   style: dd.style,
+                                  themes: dd.themes,
                                   photoCount: coverDesignPhotoCount(dd),
                                   scene: coverDesignScene(dd, dims.panelMm, dims.bleedMm, dims.spineMm),
                                 }));
@@ -17600,6 +17447,8 @@ function UploadPageContent() {
                                     styles={DESIGN_STYLES}
                                     styleFilter={designStyleFilter}
                                     onStyleFilterChange={setDesignStyleFilter}
+                                    themeFilter={designThemeFilter}
+                                    onThemeFilterChange={setDesignThemeFilter}
                                     sceneKeyOf={(id) => `${id}|${dims.panelMm}|${dims.bleedMm}|${dims.spineMm}`}
                                     isSelected={(id) => coverTextBoxes.some((b) => designIdOfItem(b.id) === id)}
                                     onApply={(id) => applyCoverDesignTemplate(id)}
@@ -17607,47 +17456,6 @@ function UploadPageContent() {
                                   />
                                 );
                               })()}
-                              <div className="mt-1 border-t border-[var(--color-hairline)] px-0.5 pt-2 text-[11px] font-medium text-[var(--color-charcoal)]">
-                                배경 색 테마
-                              </div>
-                              {/* 2026-09-25, 혜민님 요청(항목5): "테마는 가족 여행 커플
-                                  아기 생일 이렇게 5개 메뉴로 나눠주세요" — 위의 글쓰기/
-                                  표만들기/이모티콘 탭과 같은 스타일(진한 차콜=선택,
-                                  아이보리=선택안됨)로 카테고리 탭을 만들었어요. */}
-                              <SegTabs
-                                ariaLabel="테마 종류"
-                                items={THEME_CATEGORIES.map((cat) => ({ id: cat.id, label: cat.label }))}
-                                value={themeCategoryTab}
-                                onChange={(id) => setThemeCategoryTab(id as typeof themeCategoryTab)}
-                              />
-                              <div className="flex flex-wrap gap-2">
-                                {COVER_THEMES.filter((theme) => theme.category === themeCategoryTab).map((theme) => (
-                                  <button
-                                    key={theme.id}
-                                    type="button"
-                                    onClick={() => applyCoverTheme(theme.id)}
-                                    className="flex w-24 flex-col items-center gap-1 border border-[var(--color-hairline)] bg-white p-1.5 text-center transition hover:border-[var(--color-charcoal)]"
-                                  >
-                                    <span className="flex h-10 w-full overflow-hidden">
-                                      <span
-                                        className="h-full flex-1"
-                                        style={{ backgroundColor: theme.frontBackgroundColor }}
-                                      />
-                                      <span
-                                        className="h-full w-1.5"
-                                        style={{ backgroundColor: theme.spineBackgroundColor }}
-                                      />
-                                      <span
-                                        className="h-full flex-1"
-                                        style={{ backgroundColor: theme.backBackgroundColor }}
-                                      />
-                                    </span>
-                                    <span className="text-[11px] text-[var(--color-charcoal)]/70">
-                                      {theme.label}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
                             </div>
                           )}
                           {activeCoverEditTab === "photo" && (
@@ -18739,6 +18547,7 @@ function UploadPageContent() {
                                   name: dd.name,
                                   note: dd.note,
                                   style: dd.style,
+                                  themes: dd.themes,
                                   photoCount: innerDesignPhotoCount(dd),
                                   scene: innerDesignScene(dd, designPageMm, range),
                                 }));
@@ -18761,6 +18570,8 @@ function UploadPageContent() {
                                     styles={DESIGN_STYLES}
                                     styleFilter={designStyleFilter}
                                     onStyleFilterChange={setDesignStyleFilter}
+                                    themeFilter={designThemeFilter}
+                                    onThemeFilterChange={setDesignThemeFilter}
                                     sceneKeyOf={(id) => `${id}|${designPageMm}|${range}`}
                                     isSelected={(id) =>
                                       sidesOf.some((side) =>

@@ -2,14 +2,15 @@
 
 // 왼쪽 "디자인 템플릿" 패널 화면 부품이에요(내지·표지 공용). 위에서부터
 //   1) (내지만) 적용 대상(왼쪽/오른쪽/현재 펼침) 선택
-//   2) 스타일 칩(전체 · 포근한 기억 · 미니멀 · 감성 필기체 · 키즈 · MZ) — 232px 폭에서 줄바꿈되는 칩 줄
-//   3) 디자인 목록 — 큰 썸네일 1열 + 이름·사진 칸 수. "전체"일 땐 스타일별 작은 제목으로 묶어서 보여줘요.
+//   2) 테마 탭 5칸(전체 · 가족 · 여행 · 커플 · 생일) — 다른 패널과 같은 SegTabs 규격(232px를 5등분, 높이 34px)
+//   3) 스타일 보조 선택(전체 · 포근한 기억 · 미니멀 · 감성 필기체 · 키즈 · MZ) — 탭과 좌우 끝이 같은 한 줄 select
+//   4) 디자인 목록 — 큰 썸네일 1열 + 이름·사진 칸 수 + 작은 스타일 이름. 고른 테마의 대표 디자인이 앞에 와요.
 // 썸네일은 손으로 그린 그림이 아니라, 실제로 적용할 때 쓰는 데이터(lib/designTemplates.ts의 layout)를 인쇄 PDF와 같은 그리기 함수
 // (drawTextBoxOnCanvas·drawBackgroundSpecOnCanvas·framePerimeterPoints)로 그려요 → 썸네일 모양 = 적용 결과예요.
 // 목록이 길어도(내지 30종) 가볍게: 썸네일은 화면에 보일 때(IntersectionObserver)만 처음 그리고, 한 번 그린 건 장면이 바뀔 때만 다시 그려요.
 // 이 파일은 그리기만 하고, 실제 적용·사진 보존은 page.tsx의 applyInnerDesignTemplate / applyCoverDesignTemplate이 해요.
 import { useEffect, useRef, useState } from "react";
-import { DESIGN_PHOTO_Z0, type DesignScene, type DesignScenePart, type DesignStyleInfo } from "@/lib/designTemplates";
+import { DESIGN_PHOTO_Z0, DESIGN_THEMES, designMatches, designStyleName, type DesignScene, type DesignScenePart, type DesignStyleInfo, type DesignThemeId } from "@/lib/designTemplates";
 import type { TextBoxDef } from "@/lib/albumTemplates";
 import { drawTextBoxOnCanvas } from "@/lib/printCompose";
 import { drawBackgroundSpecOnCanvas } from "@/lib/backgroundSpec";
@@ -19,6 +20,7 @@ import { NESTED_SCROLL, PANEL_STACK, SegTabs, type SegTabItem } from "./sidePane
 export type DesignListItem = {
   id: string;
   style: string; // DESIGN_STYLES의 id
+  themes: DesignThemeId[]; // 어울리는 테마(첫 번째가 대표 테마)
   name: string;
   note: string;
   photoCount: number;
@@ -261,12 +263,8 @@ export function DesignThumb({ scene, sceneKey }: { scene: DesignScene; sceneKey:
   return <canvas ref={ref} data-design-thumb-canvas data-drawn={seen ? "true" : "false"} className="block h-auto w-full" style={{ aspectRatio: `${scene.wMm} / ${scene.hMm}` }} />;
 }
 
-const chipClass = (active: boolean) =>
-  `box-border h-7 min-w-0 border px-2.5 text-[11px] font-medium leading-none whitespace-nowrap transition ${
-    active
-      ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-      : "border-[var(--color-hairline)] bg-[var(--color-ivory)] text-[var(--color-charcoal)]/65 hover:text-[var(--color-charcoal)]"
-  }`;
+// 테마 탭 5칸(전체 + 가족·여행·커플·생일)
+const THEME_TAB_ITEMS: SegTabItem[] = [{ id: "all", label: "전체" }, ...DESIGN_THEMES.map((t) => ({ id: t.id as string, label: t.name }))];
 
 export function DesignPanel({
   mode,
@@ -280,6 +278,8 @@ export function DesignPanel({
   styles,
   styleFilter,
   onStyleFilterChange,
+  themeFilter,
+  onThemeFilterChange,
   sceneKeyOf,
 }: {
   mode: "inner" | "cover";
@@ -293,14 +293,18 @@ export function DesignPanel({
   styles: DesignStyleInfo[];
   styleFilter: string;
   onStyleFilterChange: (id: string) => void;
+  themeFilter: string;
+  onThemeFilterChange: (id: string) => void;
   sceneKeyOf: (id: string) => string;
 }) {
-  const filter = styles.some((s) => s.id === styleFilter) ? styleFilter : "all";
-  const groups = styles
-    .filter((s) => filter === "all" || s.id === filter)
-    .map((s) => ({ style: s, list: items.filter((it) => it.style === s.id) }))
-    .filter((g) => g.list.length > 0);
-  const shown = groups.reduce((n, g) => n + g.list.length, 0);
+  const theme = THEME_TAB_ITEMS.some((t) => t.id === themeFilter) ? themeFilter : "all";
+  const style = styles.some((x) => x.id === styleFilter) ? styleFilter : "all";
+  // 고른 테마가 대표 테마인 디자인을 앞에(원래 순서는 그대로 유지)
+  const list = items
+    .filter((it) => designMatches(it, theme, style))
+    .map((it, i) => ({ it, i, primary: theme === "all" || it.themes[0] === theme ? 0 : 1 }))
+    .sort((a, b) => a.primary - b.primary || a.i - b.i)
+    .map((x) => x.it);
   const renderItem = (it: DesignListItem) => {
     const selected = isSelected(it.id);
     return (
@@ -309,6 +313,7 @@ export function DesignPanel({
         type="button"
         data-design-id={it.id}
         data-design-style={it.style}
+        data-design-themes={it.themes.join(",")}
         data-selected={selected ? "true" : "false"}
         aria-pressed={selected}
         title={`${it.name} · ${it.note}`}
@@ -318,9 +323,12 @@ export function DesignPanel({
         }`}
       >
         <DesignThumb scene={it.scene} sceneKey={sceneKeyOf(it.id)} />
-        <span className="mt-0.5 flex items-baseline justify-between gap-1 px-0.5 pb-0.5 text-[11px] text-[var(--color-charcoal)]/70">
+        <span className="mt-0.5 flex items-baseline justify-between gap-1 px-0.5 text-[11px] text-[var(--color-charcoal)]/70">
           <span className="truncate font-medium text-[var(--color-charcoal)]">{it.name}</span>
           <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">사진 {it.photoCount}장</span>
+        </span>
+        <span data-design-style-caption className="block truncate px-0.5 pb-0.5 text-[10px] text-[var(--color-charcoal)]/45">
+          {designStyleName(it.style)}
         </span>
       </button>
     );
@@ -330,29 +338,24 @@ export function DesignPanel({
       {targets && target !== undefined && onTargetChange ? (
         <SegTabs ariaLabel="디자인 적용 대상" dataAttr="data-design-target" items={targets} value={target} onChange={onTargetChange} />
       ) : null}
+      <SegTabs ariaLabel="디자인 테마" dataAttr="data-design-theme" items={THEME_TAB_ITEMS} value={theme} onChange={onThemeFilterChange} />
+      <select
+        data-design-style-select
+        aria-label="디자인 스타일"
+        value={style}
+        onChange={(e) => onStyleFilterChange(e.target.value)}
+        className="box-border h-8 w-full min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
+      >
+        <option value="all">스타일: 전체</option>
+        {styles.map((x) => (
+          <option key={x.id} value={x.id}>
+            스타일: {x.name}
+          </option>
+        ))}
+      </select>
       <div className="flex items-baseline justify-between px-0.5 text-[11px] text-[var(--color-charcoal)]/60">
         <span className="font-medium text-[var(--color-charcoal)]">디자인 템플릿</span>
-        <span data-design-count>
-          {filter === "all" ? `${styles.length}가지 스타일` : (styles.find((s) => s.id === filter)?.name ?? "")} · {shown}종
-        </span>
-      </div>
-      <div role="group" aria-label="디자인 스타일" data-design-styles className="flex flex-wrap gap-1">
-        <button type="button" data-design-style-chip="all" aria-pressed={filter === "all"} onClick={() => onStyleFilterChange("all")} className={chipClass(filter === "all")}>
-          전체
-        </button>
-        {styles.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            data-design-style-chip={s.id}
-            aria-pressed={filter === s.id}
-            title={s.name}
-            onClick={() => onStyleFilterChange(s.id)}
-            className={chipClass(filter === s.id)}
-          >
-            {s.short}
-          </button>
-        ))}
+        <span data-design-count>{list.length}종</span>
       </div>
       <p className="px-0.5 text-[11px] leading-snug break-keep text-[var(--color-charcoal)]/55">
         {mode === "cover"
@@ -364,18 +367,8 @@ export function DesignPanel({
           {message}
         </p>
       ) : null}
-      <div data-design-list className={`flex flex-col gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-15rem)]`}>
-        {filter === "all"
-          ? groups.map((g) => (
-              <section key={g.style.id} data-design-group={g.style.id} className="flex flex-col gap-1.5">
-                <h3 className="flex items-baseline justify-between px-0.5 pt-1.5 text-[11px] font-semibold text-[var(--color-charcoal)]">
-                  <span>{g.style.name}</span>
-                  <span className="text-[10px] font-normal text-[var(--color-charcoal)]/50">{g.list.length}종</span>
-                </h3>
-                {g.list.map(renderItem)}
-              </section>
-            ))
-          : groups.flatMap((g) => g.list.map(renderItem))}
+      <div data-design-list className={`flex flex-col gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-17rem)]`}>
+        {list.length > 0 ? list.map(renderItem) : <p className="px-0.5 py-4 text-center text-[11px] text-[var(--color-charcoal)]/50">이 조건에 맞는 디자인이 아직 없어요.</p>}
       </div>
     </div>
   );
