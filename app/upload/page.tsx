@@ -146,7 +146,7 @@ import {
   spreadBrowseTemplates,
 } from "@/lib/photoLayoutTemplates";
 import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
-import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type DesignListItem } from "./designTemplatePanel";
+import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type CoverCardProps, type DesignKind, type DesignListItem, type SingleSpreadProps } from "./designTemplatePanel";
 import {
   VISIBLE_COVER_DESIGNS,
   COVER_PLACEHOLDER_TITLES,
@@ -154,7 +154,6 @@ import {
   DESIGN_STYLES,
   VISIBLE_INNER_DESIGNS,
   coverDesignGeo,
-  coverDesignPhotoCount,
   coverDesignScene,
   designIdOfItem,
   designItemId,
@@ -12804,6 +12803,10 @@ function UploadPageContent() {
   };
   // 앨범 테마(표지 + 내지 전체 한 번에) — 지금 적용돼 있는 세트 id예요. id는 실행취소 스냅샷·저장 작업에도 같이 들어가요(옛 작업엔 없어요).
   const [designThemeId, setDesignThemeId] = useState<string | undefined>(undefined);
+  // 표지 디자인 탭에서 지금 고른 표지 디자인 id — 앨범 테마 선택(designThemeId)과 따로 기억해요(둘 다 실행취소 스냅샷·저장 작업에 같이 들어가요, 옛 작업엔 없어요).
+  const [designCoverId, setDesignCoverId] = useState<string | undefined>(undefined);
+  // 디자인 패널 맨 위 종류 탭(앨범 테마 / 표지 디자인) — 탭을 바꾸는 것만으로는 아무것도 적용되지 않아요.
+  const [designKind, setDesignKind] = useState<DesignKind>("theme");
   // 디자인 패널에서 고른 스타일 칩("all" = 전체) — 표지·내지 패널이 같이 써요(2026-10, 스타일 5종).
   const [designStyleFilter, setDesignStyleFilter] = useState<string>("all");
   const [designThemeFilter, setDesignThemeFilter] = useState<string>("all"); // 디자인 패널 맨 위 테마 탭(전체·가족·여행·커플·생일)
@@ -15030,7 +15033,7 @@ function UploadPageContent() {
   function applyCoverDesignTemplate(designId: string, quiet = false): { extraPhotos: number; keptUser: number } | undefined {
     const d = findCoverDesign(designId);
     if (!d) return undefined;
-    if (!quiet) setDesignThemeId(undefined);
+    setDesignCoverId(designId); // 표지 선택은 앨범 테마 선택과 따로 기억해요(표지만 바꿔도 앨범 테마 선택은 그대로 남아요)
     const { panelMm, bleedMm } = computeCoverDesignDims();
     const gf = coverDesignGeo("front", panelMm, bleedMm);
     const gb = coverDesignGeo("back", panelMm, bleedMm);
@@ -15188,6 +15191,30 @@ function UploadPageContent() {
       },
     };
   }
+  // 표지 디자인 탭 카드 데이터 — 뒷표지·책등·앞표지를 한 장면으로 같은 그리기 함수로 미리보기해요. 선택 표시는 앨범 테마와 따로(designCoverId) 기억해요.
+  function buildCoverCardProps(): CoverCardProps {
+    const dims = computeCoverDesignDims();
+    const colorOf = (bg: unknown): string | undefined => {
+      const c = (bg as { color?: string } | undefined)?.color;
+      return typeof c === "string" ? c : undefined;
+    };
+    // 옛 작업(designCoverId 없음)은 앞표지에 깔린 디자인 글상자 id로 알아내요.
+    const derivedId = coverTextBoxes.map((b) => designIdOfItem(b.id)).find((id) => !!id && !!findCoverDesign(id)) ?? undefined;
+    const currentId = designCoverId ?? derivedId;
+    return {
+      onApply: (id) => applyCoverDesignTemplate(id),
+      items: VISIBLE_COVER_DESIGNS.map((dd) => ({
+        id: dd.id,
+        name: dd.name,
+        style: dd.style,
+        themes: dd.themes,
+        chips: [colorOf(dd.front(coverDesignGeo("front", dims.panelMm, dims.bleedMm)).bg), colorOf(dd.spine.bg), dd.spine.titleColor].filter((c): c is string => !!c),
+        scene: coverDesignScene(dd, dims.panelMm, dims.bleedMm, dims.spineMm),
+        sceneKey: `${dd.id}|${dims.panelMm}|${dims.bleedMm}|${dims.spineMm}`,
+        selected: currentId === dd.id,
+      })),
+    };
+  }
   function countPrintedPhotosOnSpread(spreadIndex: number): number {
     const sp = customSpreads[spreadIndex];
     if (!sp) return 0;
@@ -15206,7 +15233,7 @@ function UploadPageContent() {
   function applyAlbumDesignTheme(setId: string) {
     const set = findAlbumThemeSet(setId);
     if (!set || customSpreads.length === 0) return;
-    if (designThemeId === set.id) return; // 이미 적용된 테마를 다시 눌러도 아무것도 안 바뀌고 실행취소 기록도 안 늘어요
+    if (designThemeId === set.id && designCoverId === set.coverId) return; // 이미 적용된 테마를 다시 눌러도 아무것도 안 바뀌고 실행취소 기록도 안 늘어요(표지만 따로 바꿨다면 다시 눌러 테마 표지로 되돌릴 수 있어요)
     const plan = planAlbumInner(set, albumPlanInputs());
     const batch: AlbumApplyBatch = { spreadFns: new Map(), removePhotoIdx: new Set(), addPhotos: [], extraPhotoCount: 0, keptUserTexts: 0 };
     plan.forEach((designId, i) => applyInnerDesignTemplate(i, "spread", designId, batch));
@@ -15438,6 +15465,7 @@ function UploadPageContent() {
   function buildHistorySnapshot() {
     return JSON.stringify({
       designTheme: designThemeId,
+      designCover: designCoverId,
       customSpreads,
       coverPhoto,
       coverTitle,
@@ -15533,6 +15561,7 @@ function UploadPageContent() {
     isRestoringHistoryRef.current = true;
     setCustomSpreads(s.customSpreads);
     setDesignThemeId(typeof s.designTheme === "string" && findAlbumThemeSet(s.designTheme) ? s.designTheme : undefined);
+    setDesignCoverId(typeof s.designCover === "string" && findCoverDesign(s.designCover) ? s.designCover : undefined);
     setCoverPhoto(s.coverPhoto);
     setCoverTitle(s.coverTitle);
     setCoverTitleFontSizePt(s.coverTitleFontSizePt ?? 36);
@@ -15680,6 +15709,7 @@ function UploadPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     designThemeId,
+    designCoverId,
     customSpreads,
     coverPhoto,
     coverTitle,
@@ -17806,36 +17836,19 @@ function UploadPageContent() {
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
                             // 표지 디자인 예시로만 보여줄 예정이라, 화면 안내문은 필요 없다고
                             // 확인해주셨어요).
-                            <div className={PANEL_STACK}>
-                              {(() => {
-                                const dims = computeCoverDesignDims();
-                                const items: DesignListItem[] = VISIBLE_COVER_DESIGNS.map((dd) => ({
-                                  id: dd.id,
-                                  name: dd.name,
-                                  note: dd.note,
-                                  style: dd.style,
-                                  themes: dd.themes,
-                                  photoCount: coverDesignPhotoCount(dd),
-                                  scene: coverDesignScene(dd, dims.panelMm, dims.bleedMm, dims.spineMm),
-                                }));
-                                return (
-                                  <DesignPanel
-                                    mode="cover"
-                                    items={items}
-                                    styles={DESIGN_STYLES}
-                                    styleFilter={designStyleFilter}
-                                    onStyleFilterChange={setDesignStyleFilter}
-                                    themeFilter={designThemeFilter}
-                                    onThemeFilterChange={setDesignThemeFilter}
-                                    sceneKeyOf={(id) => `${id}|${dims.panelMm}|${dims.bleedMm}|${dims.spineMm}`}
-                                    isSelected={(id) => coverTextBoxes.some((b) => designIdOfItem(b.id) === id)}
-                                    onApply={(id) => applyCoverDesignTemplate(id)}
-                                    notice={designNotice}
-                                    album={buildAlbumThemeProps()}
-                                  />
-                                );
-                              })()}
-                            </div>
+                            <DesignPanel
+                              mode="cover"
+                              kind={designKind}
+                              onKindChange={setDesignKind}
+                              album={buildAlbumThemeProps()}
+                              cover={buildCoverCardProps()}
+                              styles={DESIGN_STYLES}
+                              styleFilter={designStyleFilter}
+                              onStyleFilterChange={setDesignStyleFilter}
+                              themeFilter={designThemeFilter}
+                              onThemeFilterChange={setDesignThemeFilter}
+                              notice={designNotice}
+                            />
                           )}
                           {activeCoverEditTab === "photo" && (
                             <ImageBoxPanel
@@ -18934,36 +18947,40 @@ function UploadPageContent() {
                                   photoCount: innerDesignPhotoCount(dd),
                                   scene: innerDesignScene(dd, designPageMm, range),
                                 }));
+                                const single: SingleSpreadProps = {
+                                  targets: [
+                                    { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
+                                    { id: "right", label: "오른쪽" },
+                                    { id: "spread", label: "현재 펼침" },
+                                  ],
+                                  target: range,
+                                  onTargetChange: (id) =>
+                                    setInnerLayoutTargetState({
+                                      forPageKey: selectedPageKey,
+                                      target: id === "left" ? "left" : id === "right" ? "right" : "spread",
+                                    }),
+                                  items,
+                                  sceneKeyOf: (id) => `${id}|${designPageMm}|${range}`,
+                                  isSelected: (id) =>
+                                    sidesOf.some((side) =>
+                                      (side === "left" ? spread.textBoxesLeft : spread.textBoxesRight)?.some((b) => designIdOfItem(b.id) === id)
+                                    ),
+                                  onApply: (id) => applyInnerDesignTemplate(i, range, id),
+                                };
                                 return (
                                   <DesignPanel
                                     mode="inner"
-                                    targets={[
-                                      { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
-                                      { id: "right", label: "오른쪽" },
-                                      { id: "spread", label: "현재 펼침" },
-                                    ]}
-                                    target={range}
-                                    onTargetChange={(id) =>
-                                      setInnerLayoutTargetState({
-                                        forPageKey: selectedPageKey,
-                                        target: id === "left" ? "left" : id === "right" ? "right" : "spread",
-                                      })
-                                    }
-                                    items={items}
+                                    kind={designKind}
+                                    onKindChange={setDesignKind}
+                                    album={buildAlbumThemeProps()}
+                                    cover={buildCoverCardProps()}
+                                    single={single}
                                     styles={DESIGN_STYLES}
                                     styleFilter={designStyleFilter}
                                     onStyleFilterChange={setDesignStyleFilter}
                                     themeFilter={designThemeFilter}
                                     onThemeFilterChange={setDesignThemeFilter}
-                                    sceneKeyOf={(id) => `${id}|${designPageMm}|${range}`}
-                                    isSelected={(id) =>
-                                      sidesOf.some((side) =>
-                                        (side === "left" ? spread.textBoxesLeft : spread.textBoxesRight)?.some((b) => designIdOfItem(b.id) === id)
-                                      )
-                                    }
-                                    onApply={(id) => applyInnerDesignTemplate(i, range, id)}
                                     notice={designNotice}
-                                    album={buildAlbumThemeProps()}
                                   />
                                 );
                               })()}
