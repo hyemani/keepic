@@ -124,7 +124,7 @@ import {
   LayoutSlot,
   slotToSpreadCoords,
   captionSlotFor,
-  HALF_LAYOUT_TEMPLATES,
+  LISTED_HALF_LAYOUT_TEMPLATES,
   spreadBrowseTemplates,
 } from "@/lib/photoLayoutTemplates";
 import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
@@ -17086,7 +17086,7 @@ function UploadPageContent() {
                                 ]}
                                 target={target}
                                 onTargetChange={(id) => setCoverLayoutApplyTarget(id === "back" ? "back" : "front")}
-                                templates={HALF_LAYOUT_TEMPLATES}
+                                templates={LISTED_HALF_LAYOUT_TEMPLATES}
                                 frame={{
                                   kind: "cover",
                                   target,
@@ -17969,7 +17969,7 @@ function UploadPageContent() {
                                     : defaultRange;
                                 const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
                                 // 대상 안의 사진 칸 총 개수로 필터해요: 한쪽 면은 한 판짜리(half) 템플릿, 펼침면은 펼침면 템플릿.
-                                const templates = range === "spread" ? spreadBrowseTemplates() : HALF_LAYOUT_TEMPLATES;
+                                const templates = range === "spread" ? spreadBrowseTemplates() : LISTED_HALF_LAYOUT_TEMPLATES;
                                 const rangeBoxes = imageBoxesInRange(
                                   (spread.imageBoxes ?? []).filter((b) => !isStickerImageBox(b)),
                                   range

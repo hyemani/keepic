@@ -347,7 +347,7 @@ export const SPREAD_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = [
   },
   {
     id: "spread-4-grid",
-    name: "2x2(양쪽 페이지 각 2장)",
+    name: "양쪽 페이지 각 위아래 2컷",
     photoCount: 4,
     scope: "spread",
     slots: [...grid(2, 1, SPREAD_LEFT), ...grid(2, 1, SPREAD_RIGHT)],
@@ -499,15 +499,47 @@ export const SPREAD_AUTO_TO_HALF: Record<string, PhotoLayoutTemplate> = Object.f
 // 편집 패널 "레이아웃" 탭이 기본적으로 보여주는 목록이에요 — 원래 half 전용이던 템플릿들도
 // 미러링된 스프레드 형태로 하나로 합쳐서 보여줘요(전부 펼치면 미리보기, "냱장으로 되어있는거
 // 전부 스프레드로" 요청).
+// ---- 2026-13 목록 정리(혜민님 요청: "거의 같은 레이아웃이 여러 번 나와요 / 가늘고 긴 칸이라 쓰기 어려운 구성 정리") ----
+// 아래 id는 "새로 고르는 목록"에서만 숨겨요. 템플릿 정의·id·배치 계산은 그대로 남아 있어서, 이미 저장된 포토북의
+// 이미지박스(ImageBoxDef.layoutTemplateId)는 예전과 똑같이 열려요(목록에 안 보일 뿐 파란 '선택됨' 표시만 없어요).
+// 근거(실제 칸 좌표 비교, .agent_scratch/round13/layout_geom.ts — 페이지 한 변=1.0 기준 칸 네 변의 최대 오차):
+//  · 같은 구성(최대 오차 0.10 이하, 둘 다 여백 없음 또는 둘 다 여백형) → 대표 1개만 남겨요.
+//  · 가장 가는 칸의 짧은변/긴변 비율이 0.32 미만(세로 4컷=0.25, 세로 3컷 여백형=0.30)이거나, 가늘고 긴 칸+가운데 작은 칸이 섞인 구성은
+//    사진을 넣으면 거의 잘려서 쓰기 어려워 목록에서 뺐어요.
+export const HIDDEN_LAYOUT_TEMPLATE_IDS: ReadonlySet<string> = new Set([
+  // 중복 — 좌우 페이지 각 1장(spread-2-sideBySide)과 칸 좌표가 완전히 같음(오차 0)
+  "spread-auto-half-1-fill",
+  // 중복 — spread-4-grid(양쪽 페이지 각 위아래 2컷)와 완전히 같음(오차 0)
+  "spread-auto-half-2-stacked",
+  // 중복 — spread-6-topBottomEachSide(각 페이지 위 큰 사진+아래 2컷)와 같은 구성, 위 칸 높이만 10% 차이(최대 오차 0.10)
+  "spread-auto-half-3-topBigBottomTwo",
+  // 중복 — 양쪽 페이지 각 1장 여백형(spread-2-marginSideBySide)과 여백 차이만 8%
+  "spread-auto-half-1-margin",
+  // 가늘고 긴 칸(짧은변/긴변 0.25, 0.30)
+  "half-4-cols",
+  "spread-auto-half-4-cols",
+  "half-3-marginCols",
+  "spread-auto-half-3-marginCols",
+  // 가늘고 긴 모서리 칸 4개+가운데 작은 칸이 섞여 쓰기 어려운 구성
+  "half-5-centerBigFourCorner",
+  "spread-auto-half-5-centerBigFourCorner",
+]);
+
+export function isListedLayoutTemplate(t: { id: string }): boolean {
+  return !HIDDEN_LAYOUT_TEMPLATE_IDS.has(t.id);
+}
+
+export const LISTED_HALF_LAYOUT_TEMPLATES: PhotoLayoutTemplate[] = HALF_LAYOUT_TEMPLATES.filter(isListedLayoutTemplate);
+
 export function spreadBrowseTemplates(): PhotoLayoutTemplate[] {
-  return [...SPREAD_LAYOUT_TEMPLATES, ...HALF_AS_SPREAD_TEMPLATES];
+  return [...SPREAD_LAYOUT_TEMPLATES, ...HALF_AS_SPREAD_TEMPLATES].filter(isListedLayoutTemplate);
 }
 
 
 export type LayoutApplyRange = "left" | "right" | "spread";
 
 export function templatesForRange(range: LayoutApplyRange): PhotoLayoutTemplate[] {
-  return range === "spread" ? SPREAD_LAYOUT_TEMPLATES : HALF_LAYOUT_TEMPLATES;
+  return range === "spread" ? SPREAD_LAYOUT_TEMPLATES.filter(isListedLayoutTemplate) : LISTED_HALF_LAYOUT_TEMPLATES;
 }
 
 // 사진 아래 문구 공간(hasCaptionSpace) 템플릿에서 "사진 슬롯들이 안 쓰는 나머지 세로
