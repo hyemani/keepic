@@ -34,6 +34,8 @@ import { MZ_COVER, MZ_FONTS, MZ_INNER } from "./designFamilies/mz";
 import { OCCASION_COVER, OCCASION_FONTS, OCCASION_INNER } from "./designFamilies/occasion";
 
 export * from "./designKit";
+export * from "./designIntro";
+import { findIntroDesign } from "./designIntro";
 
 export type DesignStyleInfo = { id: string; name: string; short: string };
 // 패널 칩 순서 = 이 배열 순서예요. short는 좁은 칩에 쓰는 이름이에요.
@@ -477,7 +479,7 @@ export function coverDesignPhotoCount(d: CoverDesign): number {
 }
 
 export function findInnerDesign(id: string): InnerDesign | undefined {
-  return INNER_DESIGNS.find((d) => d.id === id);
+  return INNER_DESIGNS.find((d) => d.id === id) ?? findIntroDesign(id);
 }
 export function findCoverDesign(id: string): CoverDesign | undefined {
   return COVER_DESIGNS.find((d) => d.id === id);
@@ -550,17 +552,21 @@ export function coverDesignScene(d: CoverDesign, panelMm: number, bleedMm: numbe
   const gf = coverDesignGeo("front", panelMm, bleedMm);
   const front = d.front(gf);
   front.texts = [coverTitleAsText(d, gf), ...front.texts];
-  // 썸네일은 글씨가 읽히도록 앞표지를 크게, 책등·뒤표지는 55% 크기로 옆에 나란히 둬요(실제 표지 폭 비율은 아니에요).
-  const s = 0.55;
-  const gap = 6;
-  const sx = gf.W + gap;
+  // 실제 표지 펼침 그대로: 뒷표지 | 책등 | 앞표지 (같은 축척). 카드는 앨범 테마 카드(내지 펼침면, 가로:세로 = 2:1)와 같은 2:1 칸이라
+  // 표지 장면을 그 칸 가운데에 놓고 남는 쪽은 바탕색으로 채워요(두 목록의 카드 높이·이름 자리가 같아요).
+  const w0 = gb.W + spineMm + gf.W;
+  const h0 = gf.H;
+  const wMm = Math.max(w0, h0 * 2);
+  const hMm = Math.max(h0, w0 / 2);
+  const ox = (wMm - w0) / 2;
+  const oy = (hMm - h0) / 2;
   return {
-    wMm: sx + (spineMm + gb.W) * s,
-    hMm: gf.H,
+    wMm,
+    hMm,
     parts: [
-      { xMm: 0, yMm: 0, wMm: gf.W, hMm: gf.H, layout: front },
-      { xMm: sx, yMm: 0, wMm: spineMm * s, hMm: gb.H * s, layout: { slots: [], texts: [], stickers: [] }, band: d.spine.bg },
-      { xMm: sx + spineMm * s, yMm: 0, wMm: gb.W * s, hMm: gb.H * s, layout: d.back(gb), logo: d.backLogo(gb) },
+      { xMm: ox, yMm: oy, wMm: gb.W, hMm: gb.H, layout: d.back(gb), logo: d.backLogo(gb) },
+      { xMm: ox + gb.W, yMm: oy, wMm: spineMm, hMm: gb.H, layout: { slots: [], texts: [], stickers: [] }, band: d.spine.bg },
+      { xMm: ox + gb.W + spineMm, yMm: oy, wMm: gf.W, hMm: gf.H, layout: front },
     ],
   };
 }
@@ -576,12 +582,13 @@ export function mergeDesignTexts(
   existing: TextBoxDef[] | undefined,
   designId: string,
   side: string,
-  texts: DesignText[]
+  texts: (DesignText | null)[]
 ): { boxes: TextBoxDef[]; keptUser: number } {
   const keep = (existing ?? []).filter(
     (b) => !isDesignItemId(b.id) && !b.id.startsWith(AUTO_CAPTION_PREFIX) && b.text.trim().length > 0
   );
-  const fresh: TextBoxDef[] = texts.map((t, n) => ({ ...t, id: designItemId(designId, side, "t", n) }));
+  // null 자리는 비워 둬요(소개 페이지의 "만든이"처럼 입력이 없으면 아예 안 만드는 글상자) — 번호(n)는 그대로 유지돼요.
+  const fresh: TextBoxDef[] = texts.flatMap((t, n) => (t ? [{ ...t, id: designItemId(designId, side, "t", n) }] : []));
   return { boxes: [...keep, ...fresh], keptUser: keep.length };
 }
 
