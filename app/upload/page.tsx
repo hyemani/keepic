@@ -150,6 +150,10 @@ import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type CoverCardP
 import {
   VISIBLE_COVER_DESIGNS,
   COVER_PLACEHOLDER_TITLES,
+  INTRO_DEFAULT_MAKER_PREFIX,
+  INTRO_ROLE,
+  introDesignId,
+  isIntroDesignId,
   DESIGN_PHOTO_Z0,
   DESIGN_STYLES,
   VISIBLE_INNER_DESIGNS,
@@ -162,7 +166,10 @@ import {
   innerDesignGeo,
   innerDesignPhotoCount,
   innerDesignScene,
+  type DesignGeo,
   type DesignScene,
+  type DesignText,
+  type InnerDesign,
   isDesignItemId,
   makeDesignStickerBox,
   mergeDesignTexts,
@@ -785,6 +792,11 @@ type AlbumApplyBatch = {
   extraPhotoCount: number;
   keptUserTexts: number;
 };
+
+// 포토북 내지 맨 끝에 "소개 페이지" 펼침면(intro)을 항상 하나 두어요(없으면 빈 것을 붙여요) — 책 페이지 수·번호에는 안 들어가요.
+function withIntroSpread(spreads: SpreadDef[]): SpreadDef[] {
+  return spreads.some((s) => s.intro) ? spreads : [...spreads, { left: "freeform", right: "freeform", intro: true }];
+}
 
 function computeSpreadPhotoGroups(customSpreads: SpreadDef[]): SpreadPhotoGroup[] {
   let cursor = 0;
@@ -12301,13 +12313,20 @@ function UploadPageContent() {
 
   const [photos, setPhotos] = useState<Photo[]>([]);
   const isAiAuto = isPhotobook && templateId === AI_AUTO_LAYOUT_TEMPLATE_ID;
-  const [customSpreads, setCustomSpreads] = useState<SpreadDef[]>(() =>
-    template
+  const [customSpreads, setCustomSpreads] = useState<SpreadDef[]>(() => {
+    const base = template
       ? template.id === AI_AUTO_LAYOUT_TEMPLATE_ID
         ? generateEmptyFreeformSpreads(requiredSpreadCount)
         : fitSpreadsToCount(template.spreads, requiredSpreadCount)
-      : []
-  );
+      : [];
+    return template && isPhotobook ? withIntroSpread(base) : base;
+  });
+  // 책 본문 펼침면(소개 페이지 제외)과 소개 페이지 펼침면의 자리예요. 소개 페이지는 항상 맨 끝이라 인덱스는 책 펼침면 수와 같아요.
+  const introIdx = customSpreads.findIndex((s) => s.intro);
+  const bookSpreads = introIdx >= 0 ? customSpreads.slice(0, introIdx) : customSpreads;
+  const introSpread: SpreadDef | undefined = introIdx >= 0 ? customSpreads[introIdx] : undefined;
+  // 앨범 테마가 소개 페이지 디자인을 입혔으면 새 소개 페이지(사진·글 따로 편집), 아니면 예전 자동 소개 페이지를 그대로 보여줘요.
+  const introDesigned = !!introSpread?.introDesign;
 
   // "AI 맞춤 레이아웃"은 2026-09-24부터 칸(분할) 배정을 아예 안 해요 — 사진을 올리면
   // (handleFileSelect) 그 즉시 findAutoPhotoSlotPosition()이 정해주는 자리에 자유 배치
@@ -12680,6 +12699,43 @@ function UploadPageContent() {
     setIntroPublishDate((prev) => (prev ? prev : formatKoreanDate(new Date())));
   }, []);
 
+  // 디자인이 입혀진 소개 페이지의 발행일·만든이 글상자를 위 입력칸과 맞춰요(입력칸 → 글상자 한 방향): 발행일은 글상자 글을 바꾸고,
+  // 만든이는 입력하면 "Made by 이름" 글상자를 만들고 비우면 글상자를 아예 없애요(출력 안 됨). 앞표지와는 전혀 상관없어요.
+  // 값이 같으면 아무것도 안 바꿔서(prev 그대로) 저장 작업을 열거나 실행취소해도 기록이 늘지 않아요.
+  useEffect(() => {
+    if (!introDesigned) return;
+    const g = innerDesignGeo(computeInnerPageWorkMm());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCustomSpreads((prev) => {
+      const idx = prev.findIndex((sp) => sp.intro && sp.introDesign);
+      if (idx < 0) return prev;
+      const sp = prev[idx];
+      const d = findInnerDesign(sp.introDesign!);
+      if (!d) return prev;
+      const boxes = sp.textBoxesLeft ?? [];
+      const idOf = (n: number) => designItemId(d.id, "left", "t", n);
+      let next = boxes;
+      const dateTxt = introPublishDate.trim();
+      const dateBox = boxes.find((b) => b.id === idOf(INTRO_ROLE.date));
+      if (dateBox && dateTxt && dateBox.text !== dateTxt) next = next.map((b) => (b.id === dateBox.id ? { ...b, text: dateTxt } : b));
+      const maker = introMakerName.trim();
+      const makerBox = boxes.find((b) => b.id === idOf(INTRO_ROLE.maker));
+      const makerTxt = `${INTRO_DEFAULT_MAKER_PREFIX}${maker}`;
+      if (maker) {
+        if (makerBox) {
+          if (makerBox.text !== makerTxt) next = next.map((b) => (b.id === makerBox.id ? { ...b, text: makerTxt } : b));
+        } else {
+          const t = d.left(g).texts[INTRO_ROLE.maker];
+          if (t) next = [...next, { ...t, id: idOf(INTRO_ROLE.maker), text: makerTxt }];
+        }
+      } else if (makerBox) {
+        next = next.filter((b) => b.id !== makerBox.id);
+      }
+      return next === boxes ? prev : prev.map((x, i) => (i === idx ? { ...x, textBoxesLeft: next } : x));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [introDesigned, introPublishDate, introMakerName]);
+
   // 앞표지 제목을 입력하면 책등 제목도 자동으로 같이 채워요. 단, 사용자가 책등 제목을
   // 한 번이라도 직접 고친 적이 있으면(spineTitleEditedRef) 그 뒤로는 더 이상 안 따라가요
   // (spineTitle 상태 선언부 주석 참고, 2026-10-08).
@@ -12703,9 +12759,10 @@ function UploadPageContent() {
   // 하단 페이지 목록의 이전·다음 이동, 페이지 번호 표시용 — 표지 → 스프레드들 → 소개
   // 페이지 순서예요(포토북이 아니면 표지·소개 페이지가 없어서 스프레드만 있어요).
   const pageOrder = useMemo<("cover" | "intro" | number)[]>(() => {
-    const spreadKeys = customSpreads.map((_, i) => i);
-    return isPhotobook ? (["cover", ...spreadKeys, "intro"] as ("cover" | "intro" | number)[]) : spreadKeys;
-  }, [isPhotobook, customSpreads]);
+    const spreadKeys = bookSpreads.map((_, i) => i);
+    // 소개 페이지가 디자인을 입었으면 숫자 키(그 펼침면 번호)로, 아니면 예전 "intro" 키로 이동해요.
+    return isPhotobook ? (["cover", ...spreadKeys, introDesigned ? introIdx : "intro"] as ("cover" | "intro" | number)[]) : spreadKeys;
+  }, [isPhotobook, bookSpreads, introDesigned, introIdx]);
     // 스티커·손글씨 탭에서 지금 선택된 카테고리예요(각 탭 독립, 기본값 "전체").
   const [stickerCategoryTab, setStickerCategoryTab] = useState<string>("decor");
   const [handwritingCategoryTab, setHandwritingCategoryTab] = useState<string>("daily");
@@ -13117,7 +13174,7 @@ function UploadPageContent() {
     setCustomSpreads((prev) => prev.map((s, i) => (i === spreadIndex ? withInnerBackground(s, range, spec) : s)));
   }
   function handleApplyInnerBackgroundToAll(spec: BackgroundSpec | undefined) {
-    setCustomSpreads((prev) => prev.map((s) => withInnerBackground(s, "spread", spec)));
+    setCustomSpreads((prev) => prev.map((s) => (s.intro ? s : withInnerBackground(s, "spread", spec)))); // 소개 페이지는 건드리지 않아요
   }
   // 표지: 앞표지 / 뒤표지 / 표지 전체(책등 포함)
   function handleApplyCoverBackground(scope: "front" | "back" | "whole", spec: BackgroundSpec | undefined) {
@@ -13937,7 +13994,12 @@ function UploadPageContent() {
       // 스프레드 1(spreadIndex === 0)은 왼쪽 면이 인쇄 안 되는 표지 안쪽 면이라, 오른쪽
       // 페이지(1페이지) 안쪽에만 들어오도록 기본 위치를 오른쪽 절반(50~100%)으로 옮겨요.
       // 다른 스프레드는 기존처럼 펼침면 정중앙에 걸치도록 둬요.
-      const xPct = spreadIndex === 0 ? Math.max(50, 100 - widthPct - 7) : 32;
+      // 소개 페이지는 인쇄되는 왼쪽 낱장(0~50%) 안에서, 접히는 쪽(오른쪽)에서 떨어뜨려 가운데에 놓아요.
+      const xPct = customSpreads[spreadIndex]?.intro
+        ? Math.max(6, Math.min(44 - widthPct, (44 - widthPct) / 2))
+        : spreadIndex === 0
+          ? Math.max(50, 100 - widthPct - 7)
+          : 32;
       const yPct = 25;
       // 새로 만들 때는 박스(틀) 크기 자체가 이미 사진 비율과 정확히 일치하도록 계산했으니
       // (heightPct 계산식 참고), 확대/위치는 기본값(꽉 채움, 이동 없음)으로 시작해요 —
@@ -14956,16 +15018,51 @@ function UploadPageContent() {
     borderColor: undefined,
   };
 
+  // 소개 페이지 디자인의 글상자 내용을 채워요(글상자 순서 약속은 lib/designIntro.ts의 INTRO_ROLE):
+  //  제목 = 사용자가 소개 페이지에서 직접 고친 글이 있으면 그대로, 없으면 지금 앞표지 제목을 "한 번만 복사"(그 뒤로는 서로 영향 없어요), 그것도 없으면 디자인 기본 글
+  //  글귀 = 직접 고친 글이 있으면 그대로, 없으면 디자인 기본 글 / 발행일 = 발행일 입력칸 / 만든이 = 입력했을 때만(비어 있으면 null → 글상자를 아예 만들지 않아요)
+  function personalizeIntroTexts(d: InnerDesign, existing: TextBoxDef[] | undefined, g: DesignGeo): (DesignText | null)[] {
+    const out: (DesignText | null)[] = [...d.left(g).texts];
+    const roleBox = (n: number) => (existing ?? []).find((b) => isDesignItemId(b.id) && b.id.endsWith(`~left~t${n}`));
+    const prevDefault = (n: number): string | undefined => {
+      const box = roleBox(n);
+      const pid = box ? designIdOfItem(box.id) : null;
+      const pd = pid ? findInnerDesign(pid) : undefined;
+      return pd?.left(g).texts[n]?.text;
+    };
+    const edited = (n: number): string | undefined => {
+      const box = roleBox(n);
+      if (!box || !box.text.trim()) return undefined;
+      return box.text !== prevDefault(n) ? box.text : undefined;
+    };
+    const setText = (n: number, text: string) => {
+      const cur = out[n];
+      if (cur) out[n] = { ...cur, text };
+    };
+    const typed = coverTitle.replace(/\n/g, " ").trim();
+    const coverUsable = typed.length > 0 && !COVER_PLACEHOLDER_TITLES.includes(coverTitle.trim());
+    setText(INTRO_ROLE.title, edited(INTRO_ROLE.title) ?? (coverUsable ? typed : (out[INTRO_ROLE.title]?.text ?? "")));
+    const q = edited(INTRO_ROLE.quote);
+    if (q !== undefined) setText(INTRO_ROLE.quote, q);
+    if (introPublishDate.trim()) setText(INTRO_ROLE.date, introPublishDate.trim());
+    const maker = introMakerName.trim();
+    if (maker) setText(INTRO_ROLE.maker, `${INTRO_DEFAULT_MAKER_PREFIX}${maker}`);
+    else out[INTRO_ROLE.maker] = null;
+    return out;
+  }
+
   function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string, batch?: AlbumApplyBatch) {
     const d = findInnerDesign(designId);
     const spread = customSpreads[spreadIndex];
     if (!d || !spread) return;
+    const isIntroApply = !!spread.intro && isIntroDesignId(d.id);
     let sides: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
     if (spreadIndex === 0) sides = sides.filter((s) => s !== "left"); // 첫 펼침면의 왼쪽은 인쇄 안 되는 면
     if (sides.length === 0) return;
     const eff: LayoutApplyRange = sides.length === 2 ? "spread" : sides[0];
     const g = innerDesignGeo(computeInnerPageWorkMm());
     const layouts = { left: sides.includes("left") ? d.left(g) : null, right: sides.includes("right") ? d.right(g) : null };
+    const introTexts = isIntroApply ? personalizeIntroTexts(d, spread.textBoxesLeft, g) : null;
     const slots: LayoutSlot[] = [];
     const patches: (Partial<ImageBoxDef> | undefined)[] = [];
     for (const side of sides) {
@@ -15017,7 +15114,7 @@ function UploadPageContent() {
         for (const side of sides) {
           const layout = layouts[side]!;
           const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
-          s[key] = mergeDesignTexts(s[key], d.id, side, layout.texts).boxes;
+          s[key] = mergeDesignTexts(s[key], d.id, side, introTexts && side === "left" ? introTexts : layout.texts).boxes;
           layout.stickers.forEach((st, n) => {
             added.push(makeDesignStickerBox(st, designItemId(d.id, side, "s", n), counter++, (x, w) => toSpread(side, x, w)));
           });
@@ -15025,6 +15122,24 @@ function UploadPageContent() {
         }
         s.imageBoxes = [...keptBoxes, ...added];
         if (removed.size > 0) s.imageBoxOrder = (s.imageBoxOrder ?? []).filter((id) => !removed.has(id));
+        if (isIntroApply) {
+          s.introDesign = d.id;
+          // 처음 한 번만 앞표지 사진을 소개 페이지 사진 칸에 "복사"해요(이 뒤로 두 사진은 서로 영향 없어요). 이미 사진이 있으면 그대로 두고 복사 표시만 남겨요.
+          if (!s.introSeeded) {
+            const photoBoxes = (s.imageBoxes ?? []).filter((b) => !isStickerImageBox(b));
+            if (photoBoxes.some((b) => b.url)) s.introSeeded = true;
+            else {
+              const cb = coverImageBoxes.find(isRealPhotoBox);
+              const slotBox = photoBoxes[0];
+              if (cb && slotBox) {
+                s.imageBoxes = (s.imageBoxes ?? []).map((b) =>
+                  b.id === slotBox.id ? { ...b, url: cb.url, naturalWidth: cb.naturalWidth, naturalHeight: cb.naturalHeight, innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 } : b
+                );
+                s.introSeeded = true;
+              }
+            }
+          }
+        }
         return s;
       },
     });
@@ -15138,7 +15253,7 @@ function UploadPageContent() {
   // 디자인 패널 맨 위 "앨범 테마" 카드 데이터 — 표지 앞면 한 장을 같은 그리기 함수로 미리보기해요.
   // 펼침면마다 "인쇄되는 면"의 사진 수 — 적용(applyAlbumDesignTheme)과 카드 미리보기가 똑같이 이 값으로 디자인을 정해요.
   function albumPlanInputs() {
-    return customSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0 }));
+    return bookSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0 }));
   }
   function buildAlbumThemeProps(): AlbumThemeProps {
     const dims = computeCoverDesignDims();
@@ -15149,7 +15264,7 @@ function UploadPageContent() {
       return typeof c === "string" ? c : undefined;
     };
     // 앨범이 비어 있어도(펼침면 0개) 보통 앨범(10펼침면, 사진 없음)으로 계획해서 미리보기를 보여줘요.
-    const inputs = customSpreads.length > 0 ? albumPlanInputs() : Array.from({ length: 10 }, (_, i) => ({ photos: 0, printedLeft: i !== 0 }));
+    const inputs = bookSpreads.length > 0 ? albumPlanInputs() : Array.from({ length: 10 }, (_, i) => ({ photos: 0, printedLeft: i !== 0 }));
     const planOf = (set: AlbumThemeSet) => planAlbumInner(set, inputs);
     const sceneOf = (designId: string): { scene: DesignScene; sceneKey: string } | null => {
       const dd = findInnerDesign(designId);
@@ -15232,11 +15347,16 @@ function UploadPageContent() {
   }
   function applyAlbumDesignTheme(setId: string) {
     const set = findAlbumThemeSet(setId);
-    if (!set || customSpreads.length === 0) return;
+    if (!set || bookSpreads.length === 0) return;
     if (designThemeId === set.id && designCoverId === set.coverId) return; // 이미 적용된 테마를 다시 눌러도 아무것도 안 바뀌고 실행취소 기록도 안 늘어요(표지만 따로 바꿨다면 다시 눌러 테마 표지로 되돌릴 수 있어요)
     const plan = planAlbumInner(set, albumPlanInputs());
     const batch: AlbumApplyBatch = { spreadFns: new Map(), removePhotoIdx: new Set(), addPhotos: [], extraPhotoCount: 0, keptUserTexts: 0 };
     plan.forEach((designId, i) => applyInnerDesignTemplate(i, "spread", designId, batch));
+    // 마지막 소개 페이지도 같은 테마의 소개 페이지 디자인으로(사진·직접 쓴 글은 그대로, 디자인이 만든 글상자·스티커만 바꿔 끼워요)
+    if (introIdx >= 0) {
+      applyInnerDesignTemplate(introIdx, "left", introDesignId(set.style, set.occasion), batch);
+      if (selectedPageKey === "intro") setSelectedPageKey(introIdx); // 옛 소개 페이지 화면을 보고 있었다면 새 소개 페이지 화면으로
+    }
     setCustomSpreads((prev) => prev.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp));
     if (batch.removePhotoIdx.size > 0 || batch.addPhotos.length > 0) {
       setPhotos((prev) => [...prev.filter((_, i) => !batch.removePhotoIdx.has(i)), ...batch.addPhotos]);
@@ -15559,7 +15679,14 @@ function UploadPageContent() {
   function restoreHistorySnapshot(snapshotJson: string) {
     const s = JSON.parse(snapshotJson);
     isRestoringHistoryRef.current = true;
-    setCustomSpreads(s.customSpreads);
+    const restoredSpreads: SpreadDef[] = isPhotobook ? withIntroSpread(s.customSpreads) : s.customSpreads;
+    setCustomSpreads(restoredSpreads);
+    // 실행취소·불러오기로 소개 페이지 디자인이 생기거나 사라지면, 보고 있던 소개 페이지 화면 키도 같이 맞춰요(디자인 있음 = 펼침면 번호, 없음 = 옛 "intro" 화면).
+    {
+      const ri = restoredSpreads.findIndex((sp) => sp.intro);
+      const rd = ri >= 0 && !!restoredSpreads[ri].introDesign;
+      setSelectedPageKey((cur) => (cur === "intro" && rd ? ri : typeof cur === "number" && cur >= ri && ri >= 0 && !rd ? "intro" : cur));
+    }
     setDesignThemeId(typeof s.designTheme === "string" && findAlbumThemeSet(s.designTheme) ? s.designTheme : undefined);
     setDesignCoverId(typeof s.designCover === "string" && findCoverDesign(s.designCover) ? s.designCover : undefined);
     setCoverPhoto(s.coverPhoto);
@@ -16357,19 +16484,26 @@ function UploadPageContent() {
   > {
     if (!template) return [];
 
-    const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
+    const spreadPhotoGroups = computeSpreadPhotoGroups(bookSpreads);
     const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
     const innerPaper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
     const trimMatch = (sizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
     const trimCm = trimMatch ? parseFloat(trimMatch[1]) : 30;
 
     const { printBlob: innerBlob, guideBlob: innerGuideBlob } = await buildInnerPrintPdf({
-      customSpreads,
+      customSpreads: bookSpreads,
       spreadPhotoGroups,
       photos,
       productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
-      // "마지막 소개 페이지"를 내지 맨 마지막 장으로 자동으로 붙여요.
-      introPage: { coverPhoto, coverTitle, introDate: introPublishDate, introMaker: introMakerName, coverEdit: introCoverEdit },
+      // "마지막 소개 페이지"를 내지 맨 마지막 장으로 자동으로 붙여요. 디자인이 입혀진 소개 페이지는 편집 화면과 같은 데이터(introSpread)로 그려요.
+      introPage: {
+        coverPhoto,
+        coverTitle,
+        introDate: introPublishDate,
+        introMaker: introMakerName,
+        coverEdit: introCoverEdit,
+        ...(introDesigned && introSpread ? { spread: introSpread } : {}),
+      },
     });
     const { printBlob: coverBlob, guideBlob: coverGuideBlob } = await buildCoverPrintPdf({
       cover: photobookCover === "hard" ? "hard" : "soft",
@@ -16496,10 +16630,10 @@ function UploadPageContent() {
   async function handlePdfLibTest() {
     setPdfLibTestState({ status: "running" });
     try {
-      const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
+      const spreadPhotoGroups = computeSpreadPhotoGroups(bookSpreads);
       const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
       const result = await buildInnerPrintPdfLib({
-        customSpreads,
+        customSpreads: bookSpreads,
         spreadPhotoGroups,
         photos,
         productionFileSizeMm: sizeInfo?.productionFileSizeMm ?? null,
@@ -16533,14 +16667,14 @@ function UploadPageContent() {
   async function handleCoverPdfLibTest() {
     setCoverPdfLibTestState({ status: "running" });
     try {
-      const spreadPhotoGroups = computeSpreadPhotoGroups(customSpreads);
+      const spreadPhotoGroups = computeSpreadPhotoGroups(bookSpreads);
       const sizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
       const innerPaper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
       const trimMatch = (sizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
       const trimCm = trimMatch ? parseFloat(trimMatch[1]) : 30;
 
-      const firstSpread = customSpreads[0];
-      const lastSpread = customSpreads[customSpreads.length - 1];
+      const firstSpread = bookSpreads[0];
+      const lastSpread = bookSpreads[bookSpreads.length - 1];
       const firstGroup = spreadPhotoGroups[0];
       const lastGroup = spreadPhotoGroups[spreadPhotoGroups.length - 1];
       const firstPage =
@@ -16639,7 +16773,7 @@ function UploadPageContent() {
   if (config.maxPhotos > 1 && template) {
     // 스프레드 1(index 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 고정돼서
     // 필요한 사진 장수에서 제외해요. (computeSpreadPhotoGroups와 같은 기준)
-    const requiredCount = customSpreads.reduce(
+    const requiredCount = bookSpreads.reduce(
       (total, s, i) =>
         total + (i === 0 ? 0 : pageTemplates[s.left].photoCount) + pageTemplates[s.right].photoCount,
       0
@@ -17624,7 +17758,7 @@ function UploadPageContent() {
                       <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">표지</p>
                     </button>
                   )}
-                  {customSpreads.map((spread, i) => {
+                  {bookSpreads.map((spread, i) => {
                     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
                     const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
                     const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
@@ -17702,11 +17836,31 @@ function UploadPageContent() {
                   {isPhotobook && (
                     <button
                       type="button"
-                      onClick={() => setSelectedPageKey("intro")}
+                      data-intro-strip-item
+                      onClick={() => setSelectedPageKey(introDesigned ? introIdx : "intro")}
                       className={`shrink-0 border-2 p-1 transition lg:w-full ${
- selectedPageKey === "intro" ? "border-[var(--color-sky)]" : "border-transparent"
+ selectedPageKey === (introDesigned ? introIdx : "intro") ? "border-[var(--color-sky)]" : "border-transparent"
                       }`}
                     >
+                      {introDesigned && introSpread ? (
+                        <div className="pointer-events-none relative h-14 overflow-hidden bg-white lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
+                          <div className="grid h-full grid-cols-2 overflow-hidden">
+                            <div className="overflow-hidden" style={{ background: innerSideBackgroundCss(introSpread, "left") ?? "#ffffff" }} />
+                            <div className="overflow-hidden bg-[var(--color-ivory)]" />
+                          </div>
+                          {(introSpread.imageBoxes ?? [])
+                            .filter((box) => box.url)
+                            .map((box) => (
+                              <EditedPhotoThumb
+                                key={box.id}
+                                url={box.url}
+                                edit={box}
+                                className="pointer-events-none absolute"
+                                style={{ left: `${box.xPct}%`, top: `${box.yPct}%`, width: `${box.widthPct}%`, height: `${box.heightPct}%` }}
+                              />
+                            ))}
+                        </div>
+                      ) : (
                       <div className="pointer-events-none flex h-14 items-end overflow-hidden bg-white p-1 lg:h-auto lg:w-full" style={{ aspectRatio: "2 / 1" }}>
                         {(coverPhoto?.url ?? coverImageBoxes[0]?.url) && (
                           <EditedPhotoThumb
@@ -17716,6 +17870,7 @@ function UploadPageContent() {
                           />
                         )}
                       </div>
+                      )}
                       <p className="mt-1 text-center text-[10px] text-[var(--color-charcoal)]/60">
                         소개 페이지
                       </p>
@@ -18618,6 +18773,7 @@ function UploadPageContent() {
                     (() => {
                       const i = selectedPageKey;
                       const spread = customSpreads[i];
+                      const isIntroView = !!spread?.intro; // 마지막 소개 페이지(인쇄되는 왼쪽 낱장 + 인쇄 안 되는 빈 오른쪽 면)
                       const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
                       const leftPhotos = leftIndexes.map((idx) => photos[idx]).filter(Boolean);
                       const rightPhotos = rightIndexes.map((idx) => photos[idx]).filter(Boolean);
@@ -18677,7 +18833,7 @@ function UploadPageContent() {
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
-                                {EDIT_TABS.filter((tab) => tab.id !== "layout" || isAiAuto).map((tab) => (
+                                {EDIT_TABS.filter((tab) => (tab.id !== "layout" || isAiAuto) && !(isIntroView && (tab.id === "layout" || tab.id === "theme"))).map((tab) => (
                                   <button
                                     key={tab.id}
                                     type="button"
@@ -18893,12 +19049,12 @@ function UploadPageContent() {
                                 // 빈 면)이라 고를 수 없고 기본도 "오른쪽"). 그 아래 "전체 내지 배경 변경"은 모든 내지에 한 번에 바꾸는
                                 // 따로 있는 버튼이에요.
                                 const allowLeft = i !== 0;
-                                const defaultRange: LayoutApplyRange = allowLeft ? "spread" : "right";
+                                const defaultRange: LayoutApplyRange = isIntroView ? "left" : allowLeft ? "spread" : "right";
                                 const picked =
                                   innerBgTargetState && innerBgTargetState.forPageKey === selectedPageKey
                                     ? innerBgTargetState.target
                                     : defaultRange;
-                                const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
+                                const range: LayoutApplyRange = isIntroView ? "left" : !allowLeft && picked === "left" ? "right" : picked;
                                 const legacySpec = specFromLegacy(spread.backgroundColor, spread.backgroundPattern);
                                 const currentSpec: BackgroundSpec | undefined =
                                   range === "spread"
@@ -18908,8 +19064,8 @@ function UploadPageContent() {
                                   <BackgroundPanel
                                     targets={[
                                       { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
-                                      { id: "right", label: "오른쪽" },
-                                      { id: "spread", label: "현재 펼침" },
+                                      { id: "right", label: "오른쪽", disabled: isIntroView, title: isIntroView ? "소개 페이지의 오른쪽은 인쇄되지 않는 면이에요" : undefined },
+                                      { id: "spread", label: "현재 펼침", disabled: isIntroView, title: isIntroView ? "소개 페이지는 인쇄되는 왼쪽 면만 꾸밀 수 있어요" : undefined },
                                     ]}
                                     target={range}
                                     onTargetChange={(id) =>
@@ -19010,6 +19166,29 @@ function UploadPageContent() {
                             )}
                             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                             {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
+                            {editorMode === "edit" && isIntroView && (
+                              <div data-intro-info className="flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-1 pb-1.5 pt-2">
+                                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/70">
+                                  <span className="shrink-0">발행일</span>
+                                  <input
+                                    data-intro-date-input
+                                    value={introPublishDate}
+                                    onChange={(e) => setIntroPublishDate(e.target.value)}
+                                    className="box-border h-8 w-40 min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
+                                  />
+                                </label>
+                                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/70">
+                                  <span className="shrink-0">만든이</span>
+                                  <input
+                                    data-intro-maker-input
+                                    value={introMakerName}
+                                    onChange={(e) => setIntroMakerName(e.target.value)}
+                                    placeholder="비워 두면 표시 안 해요"
+                                    className="box-border h-8 w-44 min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)] placeholder:text-[var(--color-charcoal)]/35"
+                                  />
+                                </label>
+                              </div>
+                            )}
                             <CanvasStage
                               aspect={guideSpreadWorkMm / guidePageWorkMm}
                               manualPct={manualZoomPct}
@@ -19109,7 +19288,7 @@ function UploadPageContent() {
                                   <div className="flex aspect-square w-full items-center justify-center bg-[var(--color-ivory)] p-2" />
                                 ) : (
                                   <>
-                                    {!isAiAuto && (
+                                    {!isAiAuto && !isIntroView && (
                                       <select
                                         value={spread.left}
                                         onChange={(e) => handleChangeLayout(i, "left", e.target.value as PageTemplateId)}
@@ -19170,6 +19349,14 @@ function UploadPageContent() {
                                   </>
                                 )}
                               </div>
+                              {isIntroView ? (
+                                <div className="group relative w-1/2">
+                                  {/* 소개 페이지의 오른쪽 낱장은 인쇄되지 않는 빈 면이에요(안쪽 표지 쪽) */}
+                                  <div data-intro-nonprint-side className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-[var(--color-ivory)]">
+                                    <div className="pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-black/10 to-transparent" />
+                                  </div>
+                                </div>
+                              ) : (
                               <div className="group relative w-1/2">
                                 {!isAiAuto && (
                                   <select
@@ -19230,6 +19417,7 @@ function UploadPageContent() {
                                   docMm={{ w: guidePageWorkMm, h: guidePageWorkMm }}
                                 />
                               </div>
+                              )}
                               {/* 2026-09-30, 혜민님 확인: "맨뒤로 보내기를 누르면 이미지가
                                   사라지거나 생기는 현상" — 원인은 위 두 w-1/2(왼쪽/오른쪽 낱장, 배경색을
                                   담음) div가 이 자유배치 레이어보다 DOM상 나중에 오면서, z-index가 같은
@@ -19327,13 +19515,15 @@ function UploadPageContent() {
                                       bottom={100 - safetyYPct}
                                       variant="dotted"
                                     />
-                                    <CoverGuideBox
-                                      left={rightPageSafetyLeftPct}
-                                      right={rightPageSafetyRightPct}
-                                      top={safetyYPct}
-                                      bottom={100 - safetyYPct}
-                                      variant="dotted"
-                                    />
+                                    {!isIntroView && (
+                                      <CoverGuideBox
+                                        left={rightPageSafetyLeftPct}
+                                        right={rightPageSafetyRightPct}
+                                        top={safetyYPct}
+                                        bottom={100 - safetyYPct}
+                                        variant="dotted"
+                                      />
+                                    )}
                                   </>
                                 ) : (
                                   <div className="pointer-events-none absolute inset-x-0 top-1 z-20 text-center text-[10px] text-[#e0524c]">

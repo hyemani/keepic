@@ -125,10 +125,10 @@ const mz: Maker = (g, occ) => {
     bg: solid("#111111"),
     slots: [fr.slot],
     texts: [
-      t.text({ t: INTRO_DEFAULT_TITLE, f: [0, 0.55, 1, 0.13], font: MZ.black, pt: 30, color: "#CCFF00", lh: 1.1 }),
-      t.text({ t: QUOTE[occ], f: [0, 0.69, 0.9, 0.11], font: MZ.dh, pt: 14, color: "#F2F0EA", lh: 1.55 }),
-      t.text({ t: INTRO_DEFAULT_DATE, f: [0, 0.84, 0.42, 0.06], font: MZ.dh, pt: 12, color: "#111111", align: "center", va: "middle", bg: "#CCFF00", ls: 0.06 }),
-      t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.46, 0.84, 0.54, 0.06], font: MZ.sans, pt: 10, color: "#8D8D86", bold: true, va: "middle", ls: 0.12 }),
+      t.text({ t: INTRO_DEFAULT_TITLE, f: [0, 0.545, 1, 0.115], font: MZ.black, pt: 30, color: "#CCFF00", lh: 1.1 }),
+      t.text({ t: QUOTE[occ], f: [0, 0.675, 0.9, 0.11], font: MZ.dh, pt: 14, color: "#F2F0EA", lh: 1.55 }),
+      t.text({ t: INTRO_DEFAULT_DATE, f: [0, 0.84, 0.36, 0.06], font: MZ.dh, pt: 12, color: "#111111", align: "center", va: "middle", bg: "#CCFF00", ls: 0.06 }),
+      t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.4, 0.84, 0.6, 0.06], font: MZ.sans, pt: 10, color: "#8D8D86", bold: true, va: "middle", ls: 0.12 }),
       t.rule([0.6, 0.925, 0.4, 0.065], "#F2F0EA", 50, DESIGN_BACK_Z),
     ],
     stickers: [

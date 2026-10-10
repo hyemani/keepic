@@ -592,6 +592,13 @@ export type SpreadDef = {
   imageBoxOrder?: string[];
   // 자유 배치 표(테이블) 박스예요 — imageBoxes와 같은 스프레드 전체 폭 기준 좌표계를 써요.
   tableBoxes?: TableBoxDef[];
+  // 마지막 "소개 페이지"(포토북 내지 맨 끝의 인쇄되는 왼쪽 낱장 한 장)를 담는 특별한 펼침면이에요 — 페이지 수·번호·인쇄 순서에는 안 들어가고,
+  // 앞표지와 완전히 따로 저장돼요(사진·글 모두 독립). 오른쪽 낱장은 인쇄되지 않는 빈 면이에요. 옛 작업엔 없어요(열 때 빈 것을 하나 붙여요).
+  intro?: boolean;
+  // 앨범 테마가 입혀 준 소개 페이지 디자인 id(lib/designIntro.ts). 없으면 예전 자동 소개 페이지(왼쪽 아래 제목·발행 정보·로고)를 그대로 보여줘요.
+  introDesign?: string;
+  // 처음 한 번만 앞표지 사진을 소개 페이지 사진 칸에 복사했다는 표시(사진을 지운 뒤 테마를 다시 눌러도 또 채우지 않아요).
+  introSeeded?: boolean;
 };
 
 export type AlbumTemplate = {

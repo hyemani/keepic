@@ -2266,10 +2266,13 @@ export async function buildInnerPrintPdf({
     introDate: string;
     introMaker: string;
     coverEdit?: IntroCoverEdit | null;
+    // 앨범 테마가 디자인을 입힌 소개 페이지(편집 화면과 같은 데이터). 있으면 위 옛 자동 소개 페이지(drawIntroPage) 대신 이 펼침면의
+    // "인쇄되는 왼쪽 낱장"을 다른 내지 낱장과 똑같은 함수(drawPage)로 그려요 — 오른쪽 낱장은 예전처럼 인쇄되지 않는 빈 면이에요.
+    spread?: SpreadDef;
   } | null;
 }): Promise<PrintPdfResult> {
   await ensureTextFontsLoaded(
-    customSpreads.flatMap((s) => [...(s.textBoxesLeft ?? []), ...(s.textBoxesRight ?? [])]).map((b) => ({
+    [...customSpreads.flatMap((s) => [...(s.textBoxesLeft ?? []), ...(s.textBoxesRight ?? [])]), ...(introPage?.spread?.textBoxesLeft ?? [])].map((b) => ({
       fontFamily: b.fontFamily,
       text: b.text,
       bold: b.bold,
@@ -2367,18 +2370,37 @@ export async function buildInnerPrintPdf({
   if (introPage) {
     // "마지막 소개 페이지"는 실제로 인쇄되는 내지의 마지막 장이라서, 다른 내지 페이지들과
     // 똑같이 순서대로 이어서 한 장 더 그려요(짝이 되는 스프레드 없이 이 장 혼자예요).
-    await drawIntroPage(
-      ctx,
-      pxW,
-      pxH,
-      introPage.coverPhoto,
-      introPage.coverTitle,
-      introPage.introDate,
-      introPage.introMaker,
-      introPage.coverEdit
-    );
+    if (introPage.spread) {
+      const sp = introPage.spread;
+      await drawPage(
+        ctx,
+        sp.left,
+        [],
+        pxW,
+        pxH,
+        sp.backgroundColor ?? "#ffffff",
+        sp.backgroundPattern,
+        sp.textBoxesLeft,
+        sp.imageBoxes,
+        0,
+        pxW * 2, // 이미지박스 좌표는 "스프레드 전체 폭"(낱장 두 개) 기준이에요 — 오른쪽(인쇄 안 되는 면)으로 넘어간 부분은 자동으로 잘려요.
+        sp.tableBoxes,
+        resolveSpreadSideSpec(sp, "left")
+      );
+    } else {
+      await drawIntroPage(
+        ctx,
+        pxW,
+        pxH,
+        introPage.coverPhoto,
+        introPage.coverTitle,
+        introPage.introDate,
+        introPage.introMaker,
+        introPage.coverEdit
+      );
+    }
     const introCleanDataUrl = canvasToJpegDataUrl(canvas);
-    drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label);
+    drawGuideOverlay(ctx, pxW, pxH, bleedPx, safetyPx, label, introPage.spread ? "right" : undefined);
     const introGuideDataUrl = canvasToJpegDataUrl(canvas);
 
     if (!pdf || !guidePdf) {
