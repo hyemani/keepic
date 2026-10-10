@@ -15,7 +15,24 @@ import type { TextBoxDef } from "@/lib/albumTemplates";
 import { drawTextBoxOnCanvas } from "@/lib/printCompose";
 import { drawBackgroundSpecOnCanvas } from "@/lib/backgroundSpec";
 import { framePerimeterPoints } from "@/lib/frameShapes";
-import { NESTED_SCROLL, PANEL_STACK, SegTabs, type SegTabItem } from "./sidePanelShell";
+import { ACTION_BUTTON_BASE, NESTED_SCROLL, PANEL_STACK, SECONDARY_ACTION_BUTTON_CLASS, SegTabs, type SegTabItem } from "./sidePanelShell";
+
+// 앨범 테마 카드 한 장(표지 미니 미리보기 + 이름 + 색 칩) — 데이터는 page.tsx가 lib/designThemeSets.ts에서 만들어 넘겨줘요.
+export type AlbumThemeItem = {
+  id: string;
+  name: string;
+  caption: string; // "가족·여행·커플에 어울려요" 같은 한 줄
+  chips: string[]; // 표지 배경·책등·제목 색
+  scene: DesignScene; // 앞표지 한 장
+  sceneKey: string;
+  selected: boolean;
+};
+export type AlbumThemeProps = {
+  itemsFor: (occasion: string, style: string) => AlbumThemeItem[];
+  onApply: (id: string) => void;
+  message?: string | null;
+  spreadCount: number; // 내지 펼침면 수(확인 문구용)
+};
 
 export type DesignListItem = {
   id: string;
@@ -281,7 +298,9 @@ export function DesignPanel({
   themeFilter,
   onThemeFilterChange,
   sceneKeyOf,
+  album,
 }: {
+  album?: AlbumThemeProps;
   mode: "inner" | "cover";
   targets?: SegTabItem[];
   target?: string;
@@ -299,12 +318,41 @@ export function DesignPanel({
 }) {
   const theme = THEME_TAB_ITEMS.some((t) => t.id === themeFilter) ? themeFilter : "all";
   const style = styles.some((x) => x.id === styleFilter) ? styleFilter : "all";
+  const [pendingAlbumId, setPendingAlbumId] = useState<string | null>(null);
   // 고른 테마가 대표 테마인 디자인을 앞에(원래 순서는 그대로 유지)
   const list = items
     .filter((it) => designMatches(it, theme, style))
     .map((it, i) => ({ it, i, primary: theme === "all" || it.themes[0] === theme ? 0 : 1 }))
     .sort((a, b) => a.primary - b.primary || a.i - b.i)
     .map((x) => x.it);
+  const albumItems = album ? album.itemsFor(theme, style) : [];
+  const pendingAlbum = albumItems.find((a) => a.id === pendingAlbumId);
+  const renderAlbumCard = (a: AlbumThemeItem) => (
+    <button
+      key={a.id}
+      type="button"
+      data-album-theme-id={a.id}
+      data-selected={a.selected ? "true" : "false"}
+      aria-pressed={a.selected}
+      title={`${a.name} 테마를 앨범 전체에 적용`}
+      onClick={() => setPendingAlbumId(a.id)}
+      className={`flex min-w-0 flex-col border-2 p-0.5 text-left transition ${
+        a.selected ? "border-[var(--color-sky)] bg-[var(--color-sky)]/10" : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]/60"
+      } ${pendingAlbumId === a.id ? "ring-1 ring-[var(--color-charcoal)]" : ""}`}
+    >
+      <div className="mx-auto w-[78%]">
+        <DesignThumb scene={a.scene} sceneKey={a.sceneKey} />
+      </div>
+      <span className="mt-1 block truncate px-0.5 text-[11px] font-medium text-[var(--color-charcoal)]">{a.name}</span>
+      <span className="flex items-center gap-1 px-0.5 pb-1 pt-0.5">
+        {a.chips.map((c, i) => (
+          <span key={i} className="h-2.5 w-2.5 rounded-full border border-black/10" style={{ background: c }} aria-hidden />
+        ))}
+        {a.selected ? <span className="ml-auto text-[10px] font-medium text-[var(--color-sky)]">적용 중</span> : null}
+      </span>
+      <span className="block bg-[var(--color-charcoal)] px-1 py-1 text-center text-[11px] font-medium leading-none whitespace-nowrap text-white">앨범 전체에 적용</span>
+    </button>
+  );
   const renderItem = (it: DesignListItem) => {
     const selected = isSelected(it.id);
     return (
@@ -353,8 +401,55 @@ export function DesignPanel({
           </option>
         ))}
       </select>
-      <div className="flex items-baseline justify-between px-0.5 text-[11px] text-[var(--color-charcoal)]/60">
-        <span className="font-medium text-[var(--color-charcoal)]">디자인 템플릿</span>
+      {album ? (
+        <section data-album-theme-section className={PANEL_STACK} aria-label="앨범 테마">
+          <div className="flex items-baseline justify-between px-0.5 text-[11px] text-[var(--color-charcoal)]/60">
+            <span className="font-medium text-[var(--color-charcoal)]">앨범 테마</span>
+            <span data-album-theme-count>{albumItems.length}종</span>
+          </div>
+          <p className="px-0.5 text-[11px] leading-snug break-keep text-[var(--color-charcoal)]/55">
+            하나만 누르면 표지와 내지 전체가 그 테마로 한 번에 바뀌어요. 사진은 그대로 옮겨져요.
+          </p>
+          {album.message ? (
+            <p data-album-theme-message className="bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] break-keep text-[var(--color-charcoal)]/70" role="status">
+              {album.message}
+            </p>
+          ) : null}
+          {albumItems.length > 0 ? (
+            <div data-album-theme-grid className="grid grid-cols-2 gap-1.5">
+              {albumItems.map(renderAlbumCard)}
+            </div>
+          ) : (
+            <p className="px-0.5 py-3 text-center text-[11px] text-[var(--color-charcoal)]/50">이 조건에 맞는 앨범 테마가 아직 없어요.</p>
+          )}
+          {pendingAlbum ? (
+            <div data-album-theme-confirm className="flex flex-col gap-1.5 border border-[var(--color-hairline)] bg-white p-2">
+              <span className="text-[11px] leading-snug break-keep text-[var(--color-charcoal)]/75">
+                “{pendingAlbum.name}” 테마로 표지와 내지 {album.spreadCount}펼침면의 디자인이 바뀌어요. 사진은 그대로 유지돼요.
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  data-album-theme-ok
+                  onClick={() => {
+                    const id = pendingAlbum.id;
+                    setPendingAlbumId(null);
+                    album.onApply(id);
+                  }}
+                  className={`${ACTION_BUTTON_BASE} min-w-0 flex-1 bg-[var(--color-charcoal)] px-2 text-white`}
+                >
+                  적용
+                </button>
+                <button type="button" data-album-theme-cancel onClick={() => setPendingAlbumId(null)} className={`${SECONDARY_ACTION_BUTTON_CLASS} min-w-0 flex-1`}>
+                  취소
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+      <div className="flex items-baseline justify-between px-0.5 pt-1 text-[11px] text-[var(--color-charcoal)]/60">
+        <span className="font-medium text-[var(--color-charcoal)]">{album ? (mode === "cover" ? "표지만 바꾸기" : "한 페이지만 바꾸기") : "디자인 템플릿"}</span>
         <span data-design-count>{list.length}종</span>
       </div>
       <p className="px-0.5 text-[11px] leading-snug break-keep text-[var(--color-charcoal)]/55">

@@ -146,11 +146,13 @@ import {
   spreadBrowseTemplates,
 } from "@/lib/photoLayoutTemplates";
 import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
-import { DesignPanel, type DesignListItem } from "./designTemplatePanel";
+import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type DesignListItem } from "./designTemplatePanel";
 import {
   VISIBLE_COVER_DESIGNS,
   COVER_PLACEHOLDER_TITLES,
   DESIGN_PHOTO_Z0,
+  DESIGN_THEMES,
+  coverTitleAsText,
   DESIGN_STYLES,
   VISIBLE_INNER_DESIGNS,
   coverDesignGeo,
@@ -168,6 +170,7 @@ import {
   mergeDesignTexts,
   sideOfDesignItem,
 } from "@/lib/designTemplates";
+import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
   backgroundSpecToCss,
@@ -776,6 +779,15 @@ function isLowRes(photo: Photo, requiredMinPx: number) {
 // 스프레드 1(index 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요 —
 // 그 칸에는 사진을 배정하지 않고, 사진 1장이 실제 내지 1페이지(스프레드 1 오른쪽)부터
 // 채워지도록 건너뛰어요.
+// 앨범 테마 한 번에 적용용 묶음(applyLayoutTemplate의 opts.batch) — 펼침면별 바꾸기 함수와 사진 목록 변경을 모아요.
+type AlbumApplyBatch = {
+  spreadFns: Map<number, (s: SpreadDef) => SpreadDef>;
+  removePhotoIdx: Set<number>;
+  addPhotos: Photo[];
+  extraPhotoCount: number;
+  keptUserTexts: number;
+};
+
 function computeSpreadPhotoGroups(customSpreads: SpreadDef[]): SpreadPhotoGroup[] {
   let cursor = 0;
   return customSpreads.map((spread, i) => {
@@ -12531,6 +12543,9 @@ function UploadPageContent() {
   // "디자인" 탭(디자인 템플릿) 적용 결과 안내 문구예요 — 내지/표지 각각.
   const [innerDesignMessage, setInnerDesignMessage] = useState<string | null>(null);
   const [coverDesignMessage, setCoverDesignMessage] = useState<string | null>(null);
+  // 앨범 테마(표지 + 내지 전체 한 번에) — 지금 적용돼 있는 세트 id와 결과 안내 문구예요. id는 실행취소 스냅샷·저장 작업에도 같이 들어가요(옛 작업엔 없어요).
+  const [designThemeId, setDesignThemeId] = useState<string | undefined>(undefined);
+  const [albumThemeMessage, setAlbumThemeMessage] = useState<string | null>(null);
   // 디자인 패널에서 고른 스타일 칩("all" = 전체) — 표지·내지 패널이 같이 써요(2026-10, 스타일 5종).
   const [designStyleFilter, setDesignStyleFilter] = useState<string>("all");
   const [designThemeFilter, setDesignThemeFilter] = useState<string>("all"); // 디자인 패널 맨 위 테마 탭(전체·가족·여행·커플·생일)
@@ -14140,6 +14155,9 @@ function UploadPageContent() {
       slotPatches?: (Partial<ImageBoxDef> | undefined)[];
       finalizeSpread?: (s: SpreadDef) => SpreadDef;
       onResult?: (r: { extraPhotos: number; slots: number }) => void;
+      // 앨범 테마(전체 펼침면 한 번에 적용)용: 상태를 바로 안 바꾸고 이 묶음에 "펼침면 바꾸기 함수·사진 목록 변경"만 모아 둬요.
+      // 호출한 쪽이 한 번에 반영해서 사진 목록 번호(index)가 어긋나지 않고 실행취소도 한 번이에요.
+      batch?: AlbumApplyBatch;
     }
   ) {
     const spread = customSpreads[spreadIndex];
@@ -14271,7 +14289,7 @@ function UploadPageContent() {
     opts?.onResult?.({ extraPhotos: extraPhotos.length, slots: template.slots.length });
 
     // 사진이 든 초과 박스만 "전체 사진 목록으로 돌려보냈다"고 알려요(빈 프레임은 사진이 아니라 조용히 정리돼요).
-    setLayoutApplyMessage(
+    if (!opts?.batch) setLayoutApplyMessage(
       extraPhotos.length > 0
         ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${extraPhotos.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
         : null
@@ -14297,25 +14315,29 @@ function UploadPageContent() {
           : "textBoxesRight"
         : null;
 
-    setCustomSpreads((prev) =>
-      prev.map((s, i) => {
-        if (i !== spreadIndex) return s;
-        const next: SpreadDef = {
-          ...s,
-          imageBoxes: [...stickerBoxes, ...outOfRange, ...placed],
-          imageBoxOrder: preservedOrder,
-        };
-        if (freeformSides.includes("left")) next.left = "freeform";
-        if (freeformSides.includes("right")) next.right = "freeform";
-        if (captionKey && captionSlot) {
-          const existingTextBoxes = s[captionKey] ?? [];
-          if (!hasAutoCaptionBox(existingTextBoxes)) {
-            next[captionKey] = [...existingTextBoxes, makeCaptionTextBox(captionSlot)];
-          }
+    const transformSpread = (s: SpreadDef): SpreadDef => {
+      const next: SpreadDef = {
+        ...s,
+        imageBoxes: [...stickerBoxes, ...outOfRange, ...placed],
+        imageBoxOrder: preservedOrder,
+      };
+      if (freeformSides.includes("left")) next.left = "freeform";
+      if (freeformSides.includes("right")) next.right = "freeform";
+      if (captionKey && captionSlot) {
+        const existingTextBoxes = s[captionKey] ?? [];
+        if (!hasAutoCaptionBox(existingTextBoxes)) {
+          next[captionKey] = [...existingTextBoxes, makeCaptionTextBox(captionSlot)];
         }
-        return opts?.finalizeSpread ? opts.finalizeSpread(next) : next;
-      })
-    );
+      }
+      return opts?.finalizeSpread ? opts.finalizeSpread(next) : next;
+    };
+    if (opts?.batch) {
+      opts.batch.spreadFns.set(spreadIndex, transformSpread);
+      legacyRemovedPhotoIndexes.forEach((idx) => opts.batch!.removePhotoIdx.add(idx));
+      opts.batch.addPhotos.push(...extraPhotos);
+      return;
+    }
+    setCustomSpreads((prev) => prev.map((s, i) => (i === spreadIndex ? transformSpread(s) : s)));
     if (legacyRemovedPhotoIndexes.size > 0) {
       setPhotos((prev) => prev.filter((_, i) => !legacyRemovedPhotoIndexes.has(i)));
     }
@@ -14673,7 +14695,7 @@ function UploadPageContent() {
     borderColor: undefined,
   };
 
-  function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string) {
+  function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string, batch?: AlbumApplyBatch) {
     const d = findInnerDesign(designId);
     const spread = customSpreads[spreadIndex];
     if (!d || !spread) return;
@@ -14706,9 +14728,16 @@ function UploadPageContent() {
     for (const side of sides) {
       keptUser += mergeDesignTexts(side === "left" ? spread.textBoxesLeft : spread.textBoxesRight, d.id, side, []).keptUser;
     }
+    if (batch) batch.keptUserTexts += keptUser;
+    else setDesignThemeId(undefined); // 한 페이지만 바꾸면 "앨범 테마 전체 적용" 상태는 풀려요
     applyLayoutTemplate(spreadIndex, eff, synth, undefined, {
+      batch,
       slotPatches: patches,
       onResult: (r) => {
+        if (batch) {
+          batch.extraPhotoCount += r.extraPhotos;
+          return;
+        }
         const notes: string[] = [];
         if (r.extraPhotos > 0) notes.push(`사진 칸이 ${r.slots}개라 남은 사진 ${r.extraPhotos}장은 지우지 않고 사진 목록으로 돌려보냈어요.`);
         if (keptUser > 0) notes.push(`직접 쓴 글상자 ${keptUser}개는 그대로 뒀어요.`);
@@ -14743,9 +14772,10 @@ function UploadPageContent() {
     });
   }
 
-  function applyCoverDesignTemplate(designId: string) {
+  function applyCoverDesignTemplate(designId: string, quiet = false): { extraPhotos: number; keptUser: number } | undefined {
     const d = findCoverDesign(designId);
-    if (!d) return;
+    if (!d) return undefined;
+    if (!quiet) setDesignThemeId(undefined);
     const { panelMm, bleedMm } = computeCoverDesignDims();
     const gf = coverDesignGeo("front", panelMm, bleedMm);
     const gb = coverDesignGeo("back", panelMm, bleedMm);
@@ -14843,7 +14873,88 @@ function UploadPageContent() {
       mergeDesignTexts(coverTextBoxes, d.id, "front", []).keptUser + mergeDesignTexts(backCoverTextBoxes, d.id, "back", []).keptUser;
     if (keptUser > 0) notes.push(`직접 쓴 글상자 ${keptUser}개는 그대로 뒀어요.`);
     if (keepTyped) notes.push("입력해 둔 제목 글자는 그대로 두고 모양만 바꿨어요.");
-    setCoverDesignMessage(notes.length ? notes.join(" ") : null);
+    if (!quiet) setCoverDesignMessage(notes.length ? notes.join(" ") : null);
+    return { extraPhotos: extra, keptUser };
+  }
+
+  // ---- 앨범 테마: 표지 + 책등·뒤표지 + 모든 내지 펼침면을 한 번에 같은 테마로 ----
+  // 한 번의 클릭 = 같은 이벤트 안의 setState 묶음이라 실행취소 한 번에 표지까지 전부 돌아와요. 사진은 지우지 않아요(칸이 모자라 남는 사진만 사진 목록으로).
+  // 펼침면마다 역할(오프닝 → 사진+캡션 → 두 장+글귀 → 스트립 → 콜라주 … → 마무리)에 맞는 디자인을 정하고(lib/designThemeSets.ts planAlbumInner),
+  // 기존 한 페이지 적용(applyInnerDesignTemplate)을 그대로 불러서 모아요 — 그래서 직접 쓴 글은 남고 이전 디자인의 글·스티커만 새것으로 바뀌어요.
+  // 디자인 패널 맨 위 "앨범 테마" 카드 데이터 — 표지 앞면 한 장을 같은 그리기 함수로 미리보기해요.
+  function buildAlbumThemeProps(): AlbumThemeProps {
+    const dims = computeCoverDesignDims();
+    const selectedSet = findAlbumThemeSet(designThemeId);
+    const colorOf = (bg: unknown): string | undefined => {
+      const c = (bg as { color?: string } | undefined)?.color;
+      return typeof c === "string" ? c : undefined;
+    };
+    const occNames = (s: AlbumThemeSet) => DESIGN_THEMES.filter((t) => s.occasions.includes(t.id)).map((t) => t.name).join("·");
+    return {
+      spreadCount: customSpreads.length,
+      message: albumThemeMessage,
+      onApply: applyAlbumDesignTheme,
+      itemsFor: (occasion, style) => {
+        const list = albumThemeSetsFor(occasion).filter((set) => style === "all" || set.style === style);
+        // "전체" 탭은 스타일 이름만 보여주되, 같은 스타일 이름이 둘 이상이면(MZ: 여행 표지 / 생일 표지) 행사 이름도 붙여서 구분해요.
+        const dupFlavor = (f: string) => list.filter((x) => x.flavor === f).length > 1;
+        return list.map((set): AlbumThemeItem => {
+            const cd = findCoverDesign(set.coverId)!;
+            const gf = coverDesignGeo("front", dims.panelMm, dims.bleedMm);
+            const front = cd.front(gf);
+            front.texts = [coverTitleAsText(cd, gf), ...front.texts];
+            const chips = [colorOf(front.bg), colorOf(cd.spine.bg), cd.spine.titleColor].filter((c): c is string => !!c);
+            return {
+              id: set.id,
+              name: occasion === "all" && !dupFlavor(set.flavor) ? set.flavor : set.name,
+              caption: `${occNames(set)}에 어울려요`,
+              chips,
+              scene: { wMm: gf.W, hMm: gf.H, parts: [{ xMm: 0, yMm: 0, wMm: gf.W, hMm: gf.H, layout: front }] },
+              sceneKey: `album|${set.coverId}|${dims.panelMm}|${dims.bleedMm}`,
+              selected: !!selectedSet && (occasion === "all" ? selectedSet.lookKey === set.lookKey : selectedSet.id === set.id),
+            };
+          });
+      },
+    };
+  }
+  function countPrintedPhotosOnSpread(spreadIndex: number): number {
+    const sp = customSpreads[spreadIndex];
+    if (!sp) return 0;
+    const boxes = (sp.imageBoxes ?? []).filter((b) => !isStickerImageBox(b) && b.url);
+    const sides: ("left" | "right")[] = spreadIndex === 0 ? ["right"] : ["left", "right"];
+    let n = boxes.filter((b) => sides.includes(imageBoxSide(b))).length;
+    const group = computeSpreadPhotoGroups(customSpreads)[spreadIndex];
+    for (const side of sides) {
+      const tid = sp[side];
+      if (tid === "freeform" || tid === "blank") continue;
+      const idxs = side === "left" ? group.leftIndexes : group.rightIndexes;
+      n += idxs.filter((idx) => !!photos[idx]).length;
+    }
+    return n;
+  }
+  function applyAlbumDesignTheme(setId: string) {
+    const set = findAlbumThemeSet(setId);
+    if (!set || customSpreads.length === 0) return;
+    const plan = planAlbumInner(
+      set,
+      customSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0 }))
+    );
+    const batch: AlbumApplyBatch = { spreadFns: new Map(), removePhotoIdx: new Set(), addPhotos: [], extraPhotoCount: 0, keptUserTexts: 0 };
+    plan.forEach((designId, i) => applyInnerDesignTemplate(i, "spread", designId, batch));
+    setCustomSpreads((prev) => prev.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp));
+    if (batch.removePhotoIdx.size > 0 || batch.addPhotos.length > 0) {
+      setPhotos((prev) => [...prev.filter((_, i) => !batch.removePhotoIdx.has(i)), ...batch.addPhotos]);
+    }
+    const cover = applyCoverDesignTemplate(set.coverId, true);
+    setDesignThemeId(set.id);
+    const extra = batch.extraPhotoCount + (cover?.extraPhotos ?? 0);
+    const kept = batch.keptUserTexts + (cover?.keptUser ?? 0);
+    const notes = [`${set.name} 테마를 표지와 내지 ${customSpreads.length}펼침면에 적용했어요.`];
+    if (extra > 0) notes.push(`사진 칸이 모자라 남은 사진 ${extra}장은 지우지 않고 사진 목록으로 돌려보냈어요.`);
+    if (kept > 0) notes.push(`직접 쓴 글상자 ${kept}개는 그대로 뒀어요.`);
+    setAlbumThemeMessage(notes.join(" "));
+    setCoverDesignMessage(null);
+    setInnerDesignMessage(null);
   }
 
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
@@ -15056,6 +15167,7 @@ function UploadPageContent() {
 
   function buildHistorySnapshot() {
     return JSON.stringify({
+      designTheme: designThemeId,
       customSpreads,
       coverPhoto,
       coverTitle,
@@ -15150,6 +15262,7 @@ function UploadPageContent() {
     const s = JSON.parse(snapshotJson);
     isRestoringHistoryRef.current = true;
     setCustomSpreads(s.customSpreads);
+    setDesignThemeId(typeof s.designTheme === "string" && findAlbumThemeSet(s.designTheme) ? s.designTheme : undefined);
     setCoverPhoto(s.coverPhoto);
     setCoverTitle(s.coverTitle);
     setCoverTitleFontSizePt(s.coverTitleFontSizePt ?? 36);
@@ -15296,6 +15409,7 @@ function UploadPageContent() {
     lastHistorySnapshotRef.current = snap;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    designThemeId,
     customSpreads,
     coverPhoto,
     coverTitle,
@@ -17453,6 +17567,7 @@ function UploadPageContent() {
                                     isSelected={(id) => coverTextBoxes.some((b) => designIdOfItem(b.id) === id)}
                                     onApply={(id) => applyCoverDesignTemplate(id)}
                                     message={coverDesignMessage}
+                                    album={buildAlbumThemeProps()}
                                   />
                                 );
                               })()}
@@ -18580,6 +18695,7 @@ function UploadPageContent() {
                                     }
                                     onApply={(id) => applyInnerDesignTemplate(i, range, id)}
                                     message={innerDesignMessage}
+                                    album={buildAlbumThemeProps()}
                                   />
                                 );
                               })()}
