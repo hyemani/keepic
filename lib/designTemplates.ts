@@ -1,20 +1,52 @@
-// 디자인 템플릿(2026-10, 혜민님 요청: "예시 이미지처럼 텍스트도 이쁜 서체로 구성해서 템플릿을 만들어두고 싶어") —
+// 디자인 템플릿(2026-10, 혜민님 요청: "예시 이미지처럼 텍스트도 이쁜 서체로 구성해서 템플릿을 만들어두고 싶어", "깔끔한 미니멀, 감성 필기체,
+// 키즈 앨범 전부 각각 넣어줘야해 요즘 젊은 느낌의 MZ 느낌도") —
 // 사진 칸(빈 프레임)·예쁜 글상자(서체·크기·색 포함)·스티커·배경을 한 세트로 묶어 둔 "페이지 디자인"이에요.
 // 레이아웃 템플릿(lib/photoLayoutTemplates.ts)이 사진 칸 위치만 정하는 것과 달리, 이 템플릿은 글까지 같이 깔아줘요.
 //
-// 지금은 "포근한 기억"(warm-memory) 스타일 한 세트: 아이보리 바탕 + 세이지 + 버터 옐로 포인트,
-//   제목 = 고운바탕(Gowun Batang, 세리프) / 손글씨 포인트 = 개구(Gaegu)·나눔펜(Nanum Pen Script) / 캡션 = 고운돋움(Gowun Dodum).
-// 세 서체 모두 app/layout.tsx에서 이미 불러오는 구글 폰트(OFL)라 새로 추가한 서체는 없어요.
-//
-// 좌표 규칙: 모든 자리는 mm 기준 "안전영역"(재단선에서 15mm 안쪽 = 작업 파일 가장자리에서 20mm 안쪽) 안의 비율(0~1)로 적고,
-// buildXxx 함수가 실제 판 크기(S/M/L, 하드/소프트)에 맞춰 % 좌표와 pt로 바꿔줘요 → 어떤 크기에서도 같은 비율로 보여요.
-// 글자 크기는 220mm 안전영역(= M 사이즈 내지) 기준 pt이고, 판이 작거나 크면 같은 비율로 줄이고 늘려요.
+// 스타일(= 디자인 가족) 5종, 각각 표지 1 + 내지 펼침면 6(오프닝·큰 사진+캡션·두 장+글귀·세 장 스트립+날짜·콜라주·마무리):
+//   포근한 기억(warm-memory, 이 파일) · 미니멀(lib/designFamilies/minimal.ts) · 감성 필기체(handwriting.ts) · 키즈 앨범(kids.ts) · MZ(mz.ts)
+// 판 크기 → 안전영역 좌표 변환·타입·글상자/스티커/사진 틀 도우미는 lib/designKit.ts에 있고, 이 파일이 그대로 다시 내보내요.
+// 쓰는 서체는 전부 app/layout.tsx(구글 폰트, OFL)·public/fonts에서 이미 불러오는 것이라 새로 추가한 서체는 없어요.
 import type { ImageBoxDef, TextBoxDef } from "./albumTemplates";
 import type { BackgroundSpec } from "./backgroundSpec";
 import { textBoxPtToFontScale } from "./textBoxFontSize";
+import {
+  DESIGN_ID_PREFIX,
+  coverDesignGeo,
+  innerDesignGeo,
+  solid,
+  toolkit as kitToolkit,
+  type CoverDesign,
+  type CoverDesignDef,
+  type DesignGeo,
+  type DesignPageLayout,
+  type DesignSticker,
+  type DesignText,
+  type InnerDesign,
+  type InnerDesignDef,
+} from "./designKit";
+import { MINIMAL_COVER, MINIMAL_FONTS, MINIMAL_INNER } from "./designFamilies/minimal";
+import { HANDWRITING_COVER, HANDWRITING_FONTS, HANDWRITING_INNER } from "./designFamilies/handwriting";
+import { KIDS_COVER, KIDS_FONTS, KIDS_INNER } from "./designFamilies/kids";
+import { MZ_COVER, MZ_FONTS, MZ_INNER } from "./designFamilies/mz";
 
-export const DESIGN_STYLE = { id: "warm-memory", name: "포근한 기억" } as const;
-export const DESIGN_ID_PREFIX = "dt-"; // 디자인 템플릿이 만든 글상자·스티커 id 머리글(다시 적용할 때 이것만 바꿔 끼워요)
+export * from "./designKit";
+
+export type DesignStyleInfo = { id: string; name: string; short: string };
+// 패널 칩 순서 = 이 배열 순서예요. short는 좁은 칩에 쓰는 이름이에요.
+export const DESIGN_STYLES: DesignStyleInfo[] = [
+  { id: "warm-memory", name: "포근한 기억", short: "포근한 기억" },
+  { id: "minimal", name: "미니멀", short: "미니멀" },
+  { id: "handwriting", name: "감성 필기체", short: "감성 필기체" },
+  { id: "kids", name: "키즈 앨범", short: "키즈" },
+  { id: "mz", name: "MZ", short: "MZ" },
+];
+export function designStyleName(id: string): string {
+  return DESIGN_STYLES.find((s) => s.id === id)?.name ?? id;
+}
+
+// 이 파일의 기본 글자색(포근한 기억 디자인이 색을 안 적은 글상자에 쓰던 값 그대로)
+const toolkit = (g: DesignGeo) => kitToolkit(g, "#4A4036");
 
 const FONT = {
   serif: "'Gowun Batang', serif",
@@ -22,7 +54,6 @@ const FONT = {
   pen: "'Nanum Pen Script', cursive",
   sans: "'Gowun Dodum', sans-serif",
 } as const;
-export const DESIGN_FONT_FAMILIES: string[] = [FONT.serif, FONT.hand, FONT.pen, FONT.sans];
 
 const C = {
   ivory: "#FBF7EE",
@@ -43,160 +74,6 @@ const STK = {
   note: "/stickers/tape/tape-sticker-08.png",
 } as const;
 
-// ---------- 타입 ----------
-// 판(앞표지·뒤표지·내지 낱장 한 장)의 실제 크기와 안전영역이에요(mm). 좌표 변환에 써요.
-export type DesignGeo = {
-  W: number; // 이 판(텍스트박스·사진박스가 기준으로 삼는 칸)의 가로 mm
-  H: number; // 세로 mm
-  x0: number; // 안전영역 왼쪽 끝(mm)
-  y0: number;
-  sw: number; // 안전영역 폭(mm)
-  sh: number;
-  k: number; // 글자·스티커 크기 배율(안전영역 220mm가 1)
-  // 스티커(장식)가 넘어가면 안 되는 바깥 한계(mm) — 재단선. 스티커는 안전영역을 살짝 넘어도 되지만 재단선 밖(도련)으로는 안 나가게 눌러요.
-  stk: { l: number; r: number; t: number; b: number };
-};
-
-export type DesignSlot = {
-  xPct: number;
-  yPct: number;
-  widthPct: number;
-  heightPct: number;
-  patch?: Partial<ImageBoxDef>; // 모양(아치·둥근 모서리)·테두리 등 이 칸에만 붙는 값
-};
-export type DesignText = Omit<TextBoxDef, "id">;
-export type DesignSticker = {
-  url: string;
-  xPct: number;
-  yPct: number;
-  widthPct: number;
-  heightPct: number;
-  rotation?: number;
-};
-// 판 하나(낱장 한 장 / 앞표지 / 뒤표지)의 디자인이에요. 좌표는 전부 "그 판 자신"을 0~100%로 본 값이에요.
-export type DesignPageLayout = {
-  bg?: BackgroundSpec;
-  slots: DesignSlot[];
-  texts: DesignText[];
-  stickers: DesignSticker[];
-};
-
-export type InnerDesign = {
-  id: string;
-  name: string;
-  note: string;
-  left: (g: DesignGeo) => DesignPageLayout;
-  right: (g: DesignGeo) => DesignPageLayout;
-};
-export type CoverDesign = {
-  id: string;
-  name: string;
-  note: string;
-  front: (g: DesignGeo) => DesignPageLayout;
-  back: (g: DesignGeo) => DesignPageLayout;
-  spine: { bg: BackgroundSpec; titleFontFamily: string; titleColor: string };
-  // 뒤표지 아래쪽의 키픽 로고 자리(로고 가운데 위치 %, 크기 %) — 디자인이 정한 자리로 옮겨서 글·사진과 안 겹치게 해요.
-  backLogo: (g: DesignGeo) => { xPct: number; yPct: number; scalePct: number };
-  // 표지 제목(coverTitle) — 표지 제목은 일반 글상자가 아니라 따로 저장돼서 템플릿은 서식만 정해줘요.
-  title: (g: DesignGeo) => {
-    text: string;
-    xPct: number;
-    yPct: number;
-    widthPct: number;
-    fontFamily: string;
-    pt: number;
-    color: string;
-    lineHeight: number;
-    letterSpacing: number;
-  };
-};
-
-// ---------- 판 크기 → 안전영역 ----------
-export const DESIGN_SAFE_EDGE_MM = 15; // GUIDE_SAFETY_MARGIN_MM(재단선 안쪽 안전여백)과 같아요
-const REF_SAFE_MM = 220;
-
-export function innerDesignGeo(pageWorkMm: number, bleedMm = 5): DesignGeo {
-  const inset = bleedMm + DESIGN_SAFE_EDGE_MM;
-  const s = Math.max(10, pageWorkMm - inset * 2);
-  return { W: pageWorkMm, H: pageWorkMm, x0: inset, y0: inset, sw: s, sh: s, k: s / REF_SAFE_MM, stk: { l: bleedMm, r: bleedMm, t: bleedMm, b: bleedMm } };
-}
-
-// 앞표지/뒤표지 칸: 가로 = 판 + 바깥쪽 도련(책등 쪽은 도련 없음), 세로 = 판 + 위아래 도련.
-// 책등 쪽 안쪽 여백은 앞·뒤 표지 사진 칸 안전 보정(clampSlotToCoverSafety)처럼 따로 두지 않지만, 접히는 자리라 15mm 비워요.
-export function coverDesignGeo(side: "front" | "back", panelMm: number, bleedMm: number): DesignGeo {
-  const W = panelMm + bleedMm;
-  const H = panelMm + bleedMm * 2;
-  const outer = bleedMm + DESIGN_SAFE_EDGE_MM;
-  const spineSide = DESIGN_SAFE_EDGE_MM;
-  const x0 = side === "front" ? spineSide : outer;
-  const x1 = side === "front" ? W - outer : W - spineSide;
-  const sw = Math.max(10, x1 - x0);
-  const sh = Math.max(10, H - outer * 2);
-  return {
-    W,
-    H,
-    x0,
-    y0: outer,
-    sw,
-    sh,
-    k: Math.min(sw, sh) / REF_SAFE_MM,
-    stk: side === "front" ? { l: 0, r: bleedMm, t: bleedMm, b: bleedMm } : { l: bleedMm, r: 0, t: bleedMm, b: bleedMm },
-  };
-}
-
-// ---------- 좌표 도우미 ----------
-type Frac4 = [number, number, number, number];
-function toolkit(g: DesignGeo) {
-  const px = (mm: number) => (mm / g.W) * 100;
-  const py = (mm: number) => (mm / g.H) * 100;
-  const r = (f: Frac4) => ({
-    xPct: px(g.x0 + f[0] * g.sw),
-    yPct: py(g.y0 + f[1] * g.sh),
-    widthPct: px(f[2] * g.sw),
-    heightPct: py(f[3] * g.sh),
-  });
-  const slot = (f: Frac4, patch?: Partial<ImageBoxDef>): DesignSlot => ({ ...r(f), ...(patch ? { patch } : {}) });
-  const text = (o: {
-    t: string;
-    f: Frac4;
-    font: string;
-    pt: number; // 220mm 안전영역(M 내지) 기준 pt
-    color?: string;
-    align?: "left" | "center" | "right";
-    lh?: number;
-    ls?: number; // 자간(em)
-    va?: "top" | "middle" | "bottom";
-    bold?: boolean;
-  }): DesignText => ({
-    text: o.t,
-    ...r(o.f),
-    fontFamily: o.font,
-    fontScale: textBoxPtToFontScale(o.pt * g.k, g.W),
-    color: o.color ?? C.ink,
-    align: o.align ?? "left",
-    bold: o.bold ?? false,
-    verticalAlign: o.va ?? "top",
-    lineHeight: o.lh ?? 1.5,
-    ...(o.ls !== undefined ? { letterSpacing: o.ls } : {}),
-  });
-  // 스티커: 안전영역 비율로 정한 "가운데" 위치 + mm 크기(정사각)
-  const sticker = (url: string, cx: number, cy: number, sizeMm: number, rotation?: number): DesignSticker => {
-    const s = sizeMm * g.k;
-    const left = Math.min(Math.max(g.x0 + cx * g.sw - s / 2, g.stk.l), g.W - g.stk.r - s);
-    const top = Math.min(Math.max(g.y0 + cy * g.sh - s / 2, g.stk.t), g.H - g.stk.b - s);
-    return {
-      url,
-      xPct: px(left),
-      yPct: py(top),
-      widthPct: px(s),
-      heightPct: py(s),
-      ...(rotation ? { rotation } : {}),
-    };
-  };
-  return { r, slot, text, sticker };
-}
-
-const solid = (color: string): BackgroundSpec => ({ kind: "solid", color });
 const SOFT = { borderRadiusPct: 1.2 } as const; // 사진 모서리를 살짝 둥글게
 const ARCH = { frameShape: "arch" as const };
 const ROUND = { borderRadiusPct: 50 } as const;
@@ -205,7 +82,7 @@ const withRing = (color: string): Partial<ImageBoxDef> => ({ ...ROUND, borderWid
 // =====================================================================
 // 내지: 펼침면 6종 (왼쪽 낱장 + 오른쪽 낱장 = 한 디자인, 한쪽 낱장에만 따로 적용도 돼요)
 // =====================================================================
-export const INNER_DESIGNS: InnerDesign[] = [
+const WM_INNER: InnerDesignDef[] = [
   {
     // 1) 챕터 오프닝: 왼쪽 큰 사진 + 오른쪽 세로글(두 줄) 제목 페이지
     id: "wm-opening",
@@ -423,7 +300,7 @@ export const INNER_DESIGNS: InnerDesign[] = [
 // =====================================================================
 // 표지: 앞표지 + 책등 + 뒤표지 한 세트
 // =====================================================================
-export const COVER_DESIGNS: CoverDesign[] = [
+const WM_COVER: CoverDesignDef[] = [
   {
     id: "wm-cover",
     name: "포근한 기억",
@@ -475,6 +352,26 @@ export const COVER_DESIGNS: CoverDesign[] = [
     },
   },
 ];
+
+const tagInner = (style: string, defs: InnerDesignDef[]): InnerDesign[] => defs.map((d) => ({ ...d, style }));
+const tagCover = (style: string, defs: CoverDesignDef[]): CoverDesign[] => defs.map((d) => ({ ...d, style }));
+export const INNER_DESIGNS: InnerDesign[] = [
+  ...tagInner("warm-memory", WM_INNER),
+  ...tagInner("minimal", MINIMAL_INNER),
+  ...tagInner("handwriting", HANDWRITING_INNER),
+  ...tagInner("kids", KIDS_INNER),
+  ...tagInner("mz", MZ_INNER),
+];
+export const COVER_DESIGNS: CoverDesign[] = [
+  ...tagCover("warm-memory", WM_COVER),
+  ...tagCover("minimal", [MINIMAL_COVER]),
+  ...tagCover("handwriting", [HANDWRITING_COVER]),
+  ...tagCover("kids", [KIDS_COVER]),
+  ...tagCover("mz", [MZ_COVER]),
+];
+export const DESIGN_FONT_FAMILIES: string[] = Array.from(
+  new Set([FONT.serif, FONT.hand, FONT.pen, FONT.sans, ...MINIMAL_FONTS, ...HANDWRITING_FONTS, ...KIDS_FONTS, ...MZ_FONTS])
+);
 
 export const COVER_PLACEHOLDER_TITLES: string[] = COVER_DESIGNS.map((d) => d.title(coverDesignGeo("front", 250, 5)).text);
 
@@ -608,7 +505,7 @@ export function makeDesignStickerBox(
   return {
     id,
     url: st.url,
-    naturalWidth: 800,
+    naturalWidth: Math.round(800 * (st.aspect ?? 1)),
     naturalHeight: 800,
     xPct: m.xPct,
     yPct: st.yPct,
