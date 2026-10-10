@@ -12595,6 +12595,19 @@ function UploadPageContent() {
   function setEditorMode(mode: "preview" | "edit") {
     setEditorModeState({ forPageKey: selectedPageKey, mode });
   }
+  // 미리보기(인쇄 미리보기 포함)로 돌아갈 땐 선택을 모두 풀어요 — 선택 테두리·손잡이·회전 점은 편집 전용 표시라
+  // 미리보기 화면에 남아 있으면 안 돼요(2026-11, 선택박스 재디자인 검증 중 발견: 예전엔 선택한 채 "미리보기로 돌아가기"를 누르면 손잡이가 그대로 보였어요).
+  function clearAllCanvasSelection() {
+    setActiveTextBox(null);
+    setMultiTextSelection(null);
+    setActiveImageBox(null);
+    setMultiImageSelection(null);
+    setActiveCoverImageBox(null);
+    setBackCoverLogoSelected(false);
+    setActiveTableBox(null);
+    setSpineTitleSelected(false);
+    setCoverTitleSelected(false);
+  }
   // 편집 화면 왼쪽 아이콘 메뉴(레이아웃/배경/표지변경/스티커/손글씨스티커/텍스트/꾸미기) — 어떤
   // 탭이 열려 있는지예요. 페이지를 새로 고르면 항상 "레이아웃" 탭부터 보여줘요(2026-09-23,
   // 독립 "사진" 탭 제거하면서 기본 탭도 바꿨어요).
@@ -16756,7 +16769,10 @@ function UploadPageContent() {
             {editorMode === "edit" && photos.length > 0 ? (
               <button
                 type="button"
-                onClick={() => setEditorMode("preview")}
+                onClick={() => {
+                  clearAllCanvasSelection();
+                  setEditorMode("preview");
+                }}
                 aria-label="미리보기로 돌아가기"
                 className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
               >
