@@ -146,6 +146,27 @@ import {
   spreadBrowseTemplates,
 } from "@/lib/photoLayoutTemplates";
 import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
+import { DesignPanel, type DesignListItem } from "./designTemplatePanel";
+import {
+  COVER_DESIGNS,
+  COVER_PLACEHOLDER_TITLES,
+  DESIGN_STYLE,
+  INNER_DESIGNS,
+  coverDesignGeo,
+  coverDesignPhotoCount,
+  coverDesignScene,
+  designIdOfItem,
+  designItemId,
+  findCoverDesign,
+  findInnerDesign,
+  innerDesignGeo,
+  innerDesignPhotoCount,
+  innerDesignScene,
+  isDesignItemId,
+  makeDesignStickerBox,
+  mergeDesignTexts,
+  sideOfDesignItem,
+} from "@/lib/designTemplates";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
   backgroundSpecToCss,
@@ -560,7 +581,7 @@ type EditTabId = "layout" | "background" | "theme" | "sticker" | "handwriting" |
 // 안내)과 맞지 않는 오기였음 — "테마"로 수정. 탭 내용(준비 중 안내 문구)은 그대로 둠:
 // 아직 구현되지 않은 기능을 구현된 것처럼 보이게 만들지 않기 위함.
 const EDIT_TABS: { id: EditTabId; label: string; icon: MenuTabIconName }[] = [
-  { id: "theme", label: "테마", icon: "theme" },
+  { id: "theme", label: "디자인", icon: "theme" },
   { id: "layout", label: "레이아웃", icon: "layout" },
   // 2026-09-23, 혜민님 요청: 독립된 "사진" 탭(과 별도 "사진 추가" 버튼)을 없애고, 레이아웃
   // 밖에서 사진을 자유롭게 추가·정리하는 기능(사진 보관함 업로드·전체 목록·이 페이지에
@@ -580,7 +601,7 @@ const COVER_EDIT_TABS: { id: CoverEditTabId; label: string; icon: MenuTabIconNam
   // "테마"를 골라 한 번에 어울리는 배경(+ 뒤표지 무늬)·제목 서체로 맞출 수 있는 탭이에요.
   // 맨 앞에 둬서 제일 먼저 보이게 했어요 — 테마를 고른 뒤에도 사진·텍스트는 아래 탭에서
   // 그대로 따로 편집할 수 있어요(테마가 사진·텍스트를 지우거나 건드리지 않음).
-  { id: "theme", label: "테마", icon: "theme" },
+  { id: "theme", label: "디자인", icon: "theme" },
   // 2026-09-24, 혜민님 요청: 표지도 내지처럼 사진 여러 장을 미리 정해둔 배치로 한 번에
   // 넣을 수 있는 "레이아웃" 탭이에요. 앞표지/뒤표지 각각 따로 적용해요(책등은 사진 칸이
   // 없어서 대상에서 빼고, 표지 전체를 가로지르는 파노라마는 별도 기능이라 여기 포함 안 해요).
@@ -12645,6 +12666,9 @@ function UploadPageContent() {
   // 내지의 "적용 범위"에 대응하는 값이에요.
   const [coverLayoutApplyTarget, setCoverLayoutApplyTarget] = useState<"front" | "back">("front");
   const [coverLayoutApplyMessage, setCoverLayoutApplyMessage] = useState<string | null>(null);
+  // "디자인" 탭(디자인 템플릿) 적용 결과 안내 문구예요 — 내지/표지 각각.
+  const [innerDesignMessage, setInnerDesignMessage] = useState<string | null>(null);
+  const [coverDesignMessage, setCoverDesignMessage] = useState<string | null>(null);
   const [pendingCoverLayoutApply, setPendingCoverLayoutApply] = useState<{
     target: "front" | "back";
     template: PhotoLayoutTemplate;
@@ -14244,7 +14268,14 @@ function UploadPageContent() {
     spreadIndex: number,
     range: LayoutApplyRange,
     template: PhotoLayoutTemplate,
-    selectedIds?: string[]
+    selectedIds?: string[],
+    // 디자인 템플릿(applyInnerDesignTemplate)이 같은 적용 흐름을 그대로 쓰면서 칸 모양·글·스티커·배경을 한 번에(같은
+    // setState 묶음 = 되돌리기 한 번) 얹을 수 있게 하는 선택 인자예요. 안 넘기면(기존 레이아웃 패널) 예전과 완전히 같아요.
+    opts?: {
+      slotPatches?: (Partial<ImageBoxDef> | undefined)[];
+      finalizeSpread?: (s: SpreadDef) => SpreadDef;
+      onResult?: (r: { extraPhotos: number; slots: number }) => void;
+    }
   ) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
@@ -14311,7 +14342,7 @@ function UploadPageContent() {
       ? orderedExisting.filter((b) => !selectedIds.includes(b.id))
       : orderedExisting.slice(template.slots.length);
     const clampedSlots = placeInnerTemplateSlots(template, range);
-    const placed = template.slots.map((slot, idx) => {
+    const placedRaw = template.slots.map((slot, idx) => {
       const clamped = clampedSlots[idx];
       const { xPct, yPct, widthPct, heightPct } = clamped;
       const existing = usable[idx];
@@ -14367,6 +14398,10 @@ function UploadPageContent() {
     // template.slots.length개를 그대로 쓰므로(usable, 위에서 이미 계산됨) 순서는
     // 전혀 안 바뀌어요 — 앞 N장은 새 칸에 순서대로, 그 뒤 초과분만 사진 목록으로.
     const extraPhotos: Photo[] = extraBoxes.filter((b) => b.url).map(boxToLibraryPhoto);
+    const placed = opts?.slotPatches
+      ? placedRaw.map((b, i) => (opts.slotPatches?.[i] ? { ...b, ...opts.slotPatches[i] } : b))
+      : placedRaw;
+    opts?.onResult?.({ extraPhotos: extraPhotos.length, slots: template.slots.length });
 
     // 사진이 든 초과 박스만 "전체 사진 목록으로 돌려보냈다"고 알려요(빈 프레임은 사진이 아니라 조용히 정리돼요).
     setLayoutApplyMessage(
@@ -14411,7 +14446,7 @@ function UploadPageContent() {
             next[captionKey] = [...existingTextBoxes, makeCaptionTextBox(captionSlot)];
           }
         }
-        return next;
+        return opts?.finalizeSpread ? opts.finalizeSpread(next) : next;
       })
     );
     if (legacyRemovedPhotoIndexes.size > 0) {
@@ -14441,7 +14476,19 @@ function UploadPageContent() {
     );
   }
 
-  function applyCoverLayoutTemplate(target: "front" | "back", template: PhotoLayoutTemplate, selectedIds?: string[]) {
+  function applyCoverLayoutTemplate(
+    target: "front" | "back",
+    template: PhotoLayoutTemplate,
+    selectedIds?: string[],
+    // applyLayoutTemplate의 opts와 같은 역할(디자인 템플릿용) — 안 넘기면 예전과 완전히 같아요.
+    opts?: {
+      slotPatches?: (Partial<ImageBoxDef> | undefined)[];
+      finalizeBoxes?: (boxes: ImageBoxDef[]) => ImageBoxDef[];
+      mergeTexts?: (prev: TextBoxDef[]) => TextBoxDef[];
+      syncLegacyPhoto?: boolean; // 예전 방식 표지 사진 1장을 이미지 크기 읽기를 기다리지 않고 바로 첫 칸으로 이어받아요
+      onResult?: (r: { extraPhotos: number; slots: number }) => void;
+    }
+  ) {
     const isFront = target === "front";
     // 2026-09-27, 혜민님 요청 — 내지와 같은 이유로 표지 스티커도 레이아웃 대상에서 빼요.
     const existingBoxesRaw = isFront ? coverImageBoxes : backCoverImageBoxes;
@@ -14462,7 +14509,7 @@ function UploadPageContent() {
       const extraBoxes = selectedIds
         ? baseBoxes.filter((b) => !selectedIds.includes(b.id))
         : baseBoxes.slice(template.slots.length);
-      const placed = template.slots.map((slot, idx) => {
+      const placedRaw = template.slots.map((slot, idx) => {
         // 안전영역 보정은 placeCoverTemplateSlots가 이미 해둔 값이에요(썸네일과 같은 값).
         const clamped = placedSlots[idx];
         const existing = usable[idx];
@@ -14497,20 +14544,30 @@ function UploadPageContent() {
       // 새 칸 수보다 사진이 많으면: 앞 N장은 읽는 순서대로 새 칸에 넣고, 남는 사진은 지우지 않고 "전체 사진 목록"으로
       // 돌려보내요(내지 applyLayoutTemplate와 같은 방식 — 예전엔 남는 사진 박스가 옛 자리에 겹쳐 남았어요).
       const extraLibraryPhotos = extraBoxes.filter((b) => b.url).map(boxToLibraryPhoto);
+      const placed = opts?.slotPatches
+        ? placedRaw.map((b, i) => (opts.slotPatches?.[i] ? { ...b, ...opts.slotPatches[i] } : b))
+        : placedRaw;
+      opts?.onResult?.({ extraPhotos: extraLibraryPhotos.length, slots: template.slots.length });
       setCoverLayoutApplyMessage(
         extraLibraryPhotos.length > 0
           ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${extraLibraryPhotos.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
           : null
       );
       if (extraLibraryPhotos.length > 0) setPhotos((prev) => [...prev, ...extraLibraryPhotos]);
+      const withOpts = (list: ImageBoxDef[]) => (opts?.finalizeBoxes ? opts.finalizeBoxes(list) : list);
+      if (opts?.mergeTexts) {
+        const merge = opts.mergeTexts;
+        if (isFront) setCoverTextBoxes((prev) => merge(prev));
+        else setBackCoverTextBoxes((prev) => merge(prev));
+      }
       if (isFront) {
-        setCoverImageBoxes([...coverStickerBoxes, ...placed]);
+        setCoverImageBoxes(withOpts([...coverStickerBoxes, ...placed]));
         setCoverPhoto(null);
         if (captionSlot) {
           setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
         }
       } else {
-        setBackCoverImageBoxes([...coverStickerBoxes, ...placed]);
+        setBackCoverImageBoxes(withOpts([...coverStickerBoxes, ...placed]));
         setBackCoverPhoto(null);
         if (captionSlot) {
           setBackCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
@@ -14520,6 +14577,24 @@ function UploadPageContent() {
 
     if (existingBoxes.length > 0 || !legacyPhoto) {
       finish(existingBoxes);
+      return;
+    }
+    if (opts?.syncLegacyPhoto && legacyPhoto.width > 0 && legacyPhoto.height > 0) {
+      finish([
+        {
+          id: crypto.randomUUID(),
+          url: legacyPhoto.url,
+          naturalWidth: legacyPhoto.width,
+          naturalHeight: legacyPhoto.height,
+          xPct: 0,
+          yPct: 0,
+          widthPct: 100,
+          heightPct: 100,
+          innerOffsetXPct: 0,
+          innerOffsetYPct: 0,
+          innerScale: 1,
+        },
+      ]);
       return;
     }
     const img = new window.Image();
@@ -14714,6 +14789,209 @@ function UploadPageContent() {
       setCoverTitleFontFamily(theme.titleFontFamily);
       setSpineTitleFontFamily(theme.titleFontFamily);
     }
+  }
+
+  // ---- 디자인 템플릿(lib/designTemplates.ts) 적용 ----
+  // 한 번 누르면 사진 칸(+모양)·예쁜 글상자·스티커·배경이 같은 setState 묶음으로 바뀌어서 되돌리기 한 번에 전부 돌아와요.
+  // 사진은 절대 지우지 않아요: 이미 넣어 둔 사진은 새 칸에 순서대로 옮겨 담고(확대·이동·회전·반전 값 그대로),
+  // 칸이 모자라 남는 사진은 "사진 목록"으로 돌려보내요. 직접 쓴 글(글이 든 글상자)도 안 지우고 그대로 둬요.
+  function computeInnerPageWorkMm(): number {
+    const info = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+    const m = (info?.productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)/);
+    return m ? parseFloat(m[1]) : 310;
+  }
+  function computeCoverDesignDims() {
+    const isHard = photobookCover === "hard";
+    const info = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
+    const m = (info?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
+    const trimMm = (m ? parseFloat(m[1]) : 30) * 10;
+    const panelMm = isHard ? trimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : trimMm;
+    const bleedMm = isHard ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
+    const paper = innerPaperOptions.find((o) => o.id === photobookInnerPaper) ?? innerPaperOptions[0];
+    const pages = photobookPages ? Number(photobookPages) : 20;
+    const sp = calcEstimatedSpineWidthMm(paper.weightG, pages, isHard ? "hard" : "soft");
+    const spineMm = sp.isConfirmed ? sp.estimateMm : sp.maxMm;
+    return { panelMm, bleedMm, spineMm };
+  }
+  // 사진 칸 모양(아치·둥근 모서리·링 테두리)은 디자인이 정한 대로 맞추고, 이전 디자인이 남긴 모양은 지워요.
+  const DESIGN_SLOT_RESET: Partial<ImageBoxDef> = {
+    frameShape: undefined,
+    borderRadiusPct: undefined,
+    borderWidthPx: undefined,
+    borderColor: undefined,
+  };
+
+  function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string) {
+    const d = findInnerDesign(designId);
+    const spread = customSpreads[spreadIndex];
+    if (!d || !spread) return;
+    let sides: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
+    if (spreadIndex === 0) sides = sides.filter((s) => s !== "left"); // 첫 펼침면의 왼쪽은 인쇄 안 되는 면
+    if (sides.length === 0) return;
+    const eff: LayoutApplyRange = sides.length === 2 ? "spread" : sides[0];
+    const g = innerDesignGeo(computeInnerPageWorkMm());
+    const layouts = { left: sides.includes("left") ? d.left(g) : null, right: sides.includes("right") ? d.right(g) : null };
+    const slots: LayoutSlot[] = [];
+    const patches: (Partial<ImageBoxDef> | undefined)[] = [];
+    for (const side of sides) {
+      for (const s of layouts[side]!.slots) {
+        const x = eff === "spread" ? (side === "left" ? s.xPct * 0.5 : 50 + s.xPct * 0.5) : s.xPct;
+        const w = eff === "spread" ? s.widthPct * 0.5 : s.widthPct;
+        slots.push({ xPct: x, yPct: s.yPct, widthPct: w, heightPct: s.heightPct });
+        patches.push({ ...DESIGN_SLOT_RESET, ...s.patch });
+      }
+    }
+    const synth: PhotoLayoutTemplate = {
+      id: `design:${d.id}`,
+      name: d.name,
+      photoCount: slots.length,
+      scope: eff === "spread" ? "spread" : "half",
+      slots,
+    };
+    const toSpread = (side: "left" | "right", xPct: number, widthPct: number) =>
+      side === "left" ? { xPct: xPct * 0.5, widthPct: widthPct * 0.5 } : { xPct: 50 + xPct * 0.5, widthPct: widthPct * 0.5 };
+    let keptUser = 0;
+    for (const side of sides) {
+      keptUser += mergeDesignTexts(side === "left" ? spread.textBoxesLeft : spread.textBoxesRight, d.id, side, []).keptUser;
+    }
+    applyLayoutTemplate(spreadIndex, eff, synth, undefined, {
+      slotPatches: patches,
+      onResult: (r) => {
+        const notes: string[] = [];
+        if (r.extraPhotos > 0) notes.push(`사진 칸이 ${r.slots}개라 남은 사진 ${r.extraPhotos}장은 지우지 않고 사진 목록으로 돌려보냈어요.`);
+        if (keptUser > 0) notes.push(`직접 쓴 글상자 ${keptUser}개는 그대로 뒀어요.`);
+        setInnerDesignMessage(notes.length ? notes.join(" ") : null);
+      },
+      finalizeSpread: (s0) => {
+        let s: SpreadDef = { ...s0 };
+        let counter = 0;
+        const removed = new Set<string>();
+        const keptBoxes = (s.imageBoxes ?? []).filter((b) => {
+          const sd = sideOfDesignItem(b.id);
+          if (sd && (sides as string[]).includes(sd)) {
+            removed.add(b.id);
+            return false;
+          }
+          return true;
+        });
+        const added: ImageBoxDef[] = [];
+        for (const side of sides) {
+          const layout = layouts[side]!;
+          const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
+          s[key] = mergeDesignTexts(s[key], d.id, side, layout.texts).boxes;
+          layout.stickers.forEach((st, n) => {
+            added.push(makeDesignStickerBox(st, designItemId(d.id, side, "s", n), 500 + counter++, (x, w) => toSpread(side, x, w)));
+          });
+          if (layout.bg) s = withInnerBackground(s, side, layout.bg);
+        }
+        s.imageBoxes = [...keptBoxes, ...added];
+        if (removed.size > 0) s.imageBoxOrder = (s.imageBoxOrder ?? []).filter((id) => !removed.has(id));
+        return s;
+      },
+    });
+  }
+
+  function applyCoverDesignTemplate(designId: string) {
+    const d = findCoverDesign(designId);
+    if (!d) return;
+    const { panelMm, bleedMm } = computeCoverDesignDims();
+    const gf = coverDesignGeo("front", panelMm, bleedMm);
+    const gb = coverDesignGeo("back", panelMm, bleedMm);
+    const front = d.front(gf);
+    const back = d.back(gb);
+    // 1) 제목 — 직접 입력해 둔 제목은 그대로 쓰고(글자만 유지), 서식·자리·색만 디자인대로 바꿔요.
+    const ti = d.title(gf);
+    const typed = coverTitle.trim();
+    const keepTyped = typed.length > 0 && !COVER_PLACEHOLDER_TITLES.includes(typed);
+    handleCoverTitleChange(keepTyped ? coverTitle : ti.text);
+    setCoverTitleXPct(Math.round(ti.xPct * 100) / 100);
+    setCoverTitleYPct(Math.round(ti.yPct * 100) / 100);
+    setCoverTitleWidthPct(Math.round(ti.widthPct * 100) / 100);
+    setCoverTitleHeightPct(undefined);
+    setCoverTitleCornerRadiusPct(undefined);
+    setCoverTitleFontFamily(ti.fontFamily);
+    setCoverTitleFontSizePt(Math.round(ti.pt * 10) / 10);
+    setCoverTitleColor(ti.color);
+    setCoverTitleAlign("center");
+    setCoverTitleBold(false);
+    setCoverTitleItalic(false);
+    setCoverTitleUnderline(false);
+    setCoverTitleUnderlineColor(undefined);
+    setCoverTitleStrikethrough(false);
+    setCoverTitleStrikethroughColor(undefined);
+    setCoverTitleStrokeColor(undefined);
+    setCoverTitleStrokeWidth(undefined);
+    // 그림자 칸을 비워 두면(undefined) 사진 위에서도 읽히라고 기본 검은 번짐 그림자가 깔려요 — 디자인 제목은 깔끔해야 해서
+    // 투명도 0%의 그림자를 "직접 지정"해서 기본 그림자를 꺼요(화면·인쇄 모두 같은 값을 읽어요).
+    setCoverTitleShadowColor("#000000");
+    setCoverTitleShadowBlur(0);
+    setCoverTitleShadowOffsetX(0);
+    setCoverTitleShadowOffsetY(0);
+    setCoverTitleShadowOpacity(0);
+    setCoverTitleGradientEnabled(undefined);
+    setCoverTitleGradientColorStart(undefined);
+    setCoverTitleGradientColorEnd(undefined);
+    setCoverTitleGradientAngle(undefined);
+    setCoverTitleTextTransformUppercase(undefined);
+    setCoverTitleFontVariantSmallCaps(undefined);
+    setCoverTitleBackgroundColor(undefined);
+    setCoverTitleBackgroundPaddingXPct(40);
+    setCoverTitleBackgroundPaddingYPct(25);
+    setCoverTitleBackgroundWidthPct(undefined);
+    setCoverTitleBackgroundMode(undefined);
+    setCoverTitleScaleXPct(100);
+    setCoverTitleScaleYPct(100);
+    setCoverTitleVerticalAlign("top");
+    setCoverTitleLineHeightEm(ti.lineHeight);
+    setCoverTitleLetterSpacingEm(ti.letterSpacing);
+    // 뒤표지 키픽 로고는 지우지 않고 디자인이 정한 자리(아래쪽 작게)로만 옮겨요
+    setBackCoverLogo((prev) => (prev === null ? prev : d.backLogo(gb)));
+    // 2) 책등 서체·색
+    setSpineTitleFontFamily(d.spine.titleFontFamily);
+    setSpineTitleColor(d.spine.titleColor);
+    setSpineTitleBold(false);
+    // 3) 배경(앞·뒤·책등) — 옛 방식 값은 비워서 새 설정이 항상 이겨요
+    setCoverBackgrounds({
+      ...(front.bg ? { front: { ...front.bg, span: "page" as const } } : {}),
+      ...(back.bg ? { back: { ...back.bg, span: "page" as const } } : {}),
+      spine: { ...d.spine.bg, span: "page" as const },
+    });
+    setCoverPatternId(undefined);
+    setBackCoverBackgroundColor(undefined);
+    setCoverSpineBackgroundColor(undefined);
+    setCoverFrontBackgroundColor(undefined);
+    // 4) 사진 칸·글상자·스티커 — 앞/뒤 각각 기존 표지 레이아웃 적용 흐름(사진 보존)을 그대로 써요
+    const results: { extraPhotos: number; slots: number }[] = [];
+    (["front", "back"] as const).forEach((target) => {
+      const layout = target === "front" ? front : back;
+      const synth: PhotoLayoutTemplate = {
+        id: `design:${d.id}`,
+        name: d.name,
+        photoCount: layout.slots.length,
+        scope: "half",
+        slots: layout.slots.map((s) => ({ xPct: s.xPct, yPct: s.yPct, widthPct: s.widthPct, heightPct: s.heightPct })),
+      };
+      applyCoverLayoutTemplate(target, synth, undefined, {
+        slotPatches: layout.slots.map((s) => ({ ...DESIGN_SLOT_RESET, ...s.patch })),
+        syncLegacyPhoto: true,
+        mergeTexts: (prev) => mergeDesignTexts(prev, d.id, target, layout.texts).boxes,
+        finalizeBoxes: (boxes) => [
+          ...boxes.filter((b) => !isDesignItemId(b.id)),
+          ...layout.stickers.map((st, n) =>
+            makeDesignStickerBox(st, designItemId(d.id, target, "s", n), 500 + n, (x, w) => ({ xPct: x, widthPct: w }))
+          ),
+        ],
+        onResult: (r) => results.push(r),
+      });
+    });
+    const notes: string[] = [];
+    const extra = results.reduce((a, r) => a + r.extraPhotos, 0);
+    if (extra > 0) notes.push(`사진 칸이 모자라 남은 사진 ${extra}장은 지우지 않고 사진 목록으로 돌려보냈어요.`);
+    const keptUser =
+      mergeDesignTexts(coverTextBoxes, d.id, "front", []).keptUser + mergeDesignTexts(backCoverTextBoxes, d.id, "back", []).keptUser;
+    if (keptUser > 0) notes.push(`직접 쓴 글상자 ${keptUser}개는 그대로 뒀어요.`);
+    if (keepTyped) notes.push("입력해 둔 제목 글자는 그대로 두고 모양만 바꿨어요.");
+    setCoverDesignMessage(notes.length ? notes.join(" ") : null);
   }
 
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
@@ -17299,6 +17577,30 @@ function UploadPageContent() {
                             // 표지 디자인 예시로만 보여줄 예정이라, 화면 안내문은 필요 없다고
                             // 확인해주셨어요).
                             <div className={PANEL_STACK}>
+                              {(() => {
+                                const dims = computeCoverDesignDims();
+                                const items: DesignListItem[] = COVER_DESIGNS.map((dd) => ({
+                                  id: dd.id,
+                                  name: dd.name,
+                                  note: dd.note,
+                                  photoCount: coverDesignPhotoCount(dd),
+                                  scene: coverDesignScene(dd, dims.panelMm, dims.bleedMm, dims.spineMm),
+                                }));
+                                return (
+                                  <DesignPanel
+                                    mode="cover"
+                                    items={items}
+                                    styleName={DESIGN_STYLE.name}
+                                    sceneKeyOf={(id) => `${id}|${dims.panelMm}|${dims.bleedMm}|${dims.spineMm}`}
+                                    isSelected={(id) => coverTextBoxes.some((b) => designIdOfItem(b.id) === id)}
+                                    onApply={(id) => applyCoverDesignTemplate(id)}
+                                    message={coverDesignMessage}
+                                  />
+                                );
+                              })()}
+                              <div className="mt-1 border-t border-[var(--color-hairline)] px-0.5 pt-2 text-[11px] font-medium text-[var(--color-charcoal)]">
+                                배경 색 테마
+                              </div>
                               {/* 2026-09-25, 혜민님 요청(항목5): "테마는 가족 여행 커플
                                   아기 생일 이렇게 5개 메뉴로 나눠주세요" — 위의 글쓰기/
                                   표만들기/이모티콘 탭과 같은 스타일(진한 차콜=선택,
@@ -18412,12 +18714,52 @@ function UploadPageContent() {
                                   />
                                 );
                               })()}
-                              {activeEditTab === "theme" && (
-                                <div className=" bg-[var(--color-ivory)]/60 p-1.5 text-[11px] text-[var(--color-charcoal)]/60 break-keep">
-                                  테마변경은 준비 중이에요. 완성되면 여기서 디자인 테마를 골라
-                                  사진 배치를 한 번에 바꿀 수 있게 돼요.
-                                </div>
-                              )}
+                              {activeEditTab === "theme" && (() => {
+                                // 디자인 템플릿(사진 칸 + 글 + 스티커 + 배경) — 적용 대상은 레이아웃 탭과 같은 값을 같이 써요.
+                                const allowLeft = i !== 0;
+                                const defaultRange: LayoutApplyRange = allowLeft ? "spread" : "right";
+                                const picked =
+                                  innerLayoutTargetState && innerLayoutTargetState.forPageKey === selectedPageKey
+                                    ? innerLayoutTargetState.target
+                                    : defaultRange;
+                                const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
+                                const designPageMm = computeInnerPageWorkMm();
+                                const sidesOf: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
+                                const items: DesignListItem[] = INNER_DESIGNS.map((dd) => ({
+                                  id: dd.id,
+                                  name: dd.name,
+                                  note: dd.note,
+                                  photoCount: innerDesignPhotoCount(dd),
+                                  scene: innerDesignScene(dd, designPageMm, range),
+                                }));
+                                return (
+                                  <DesignPanel
+                                    mode="inner"
+                                    targets={[
+                                      { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
+                                      { id: "right", label: "오른쪽" },
+                                      { id: "spread", label: "현재 펼침" },
+                                    ]}
+                                    target={range}
+                                    onTargetChange={(id) =>
+                                      setInnerLayoutTargetState({
+                                        forPageKey: selectedPageKey,
+                                        target: id === "left" ? "left" : id === "right" ? "right" : "spread",
+                                      })
+                                    }
+                                    items={items}
+                                    styleName={DESIGN_STYLE.name}
+                                    sceneKeyOf={(id) => `${id}|${designPageMm}|${range}`}
+                                    isSelected={(id) =>
+                                      sidesOf.some((side) =>
+                                        (side === "left" ? spread.textBoxesLeft : spread.textBoxesRight)?.some((b) => designIdOfItem(b.id) === id)
+                                      )
+                                    }
+                                    onApply={(id) => applyInnerDesignTemplate(i, range, id)}
+                                    message={innerDesignMessage}
+                                  />
+                                );
+                              })()}
                               {activeEditTab === "sticker" && (
                                 <CategoryTabbedGrid
                                   categories={STICKER_CATEGORIES}
