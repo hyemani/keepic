@@ -89,7 +89,8 @@ export type DecorLayout = {
 //            인쇄: PRINT_DPI÷25.4). 이 값만 다르고 문서 기준 크기는 같으니 화면과 인쇄가 똑같아요.
 //   elementScale: "꽃·잎 크기" 슬라이더(ImageBoxDef.frameDecorScale, 기본 1, 0.5~2.5).
 // 둘 다 안 주면(구버전 호출·모르는 경우) 예전처럼 박스 짧은 변 기준으로 그려요(안전한 폴백).
-export type DecorBuildOpts = { pxPerMm?: number; elementScale?: number };
+//   frameSize: 꽃 화환이 아닌 장식 프레임의 "테두리 크기" 배율(ImageBoxDef.frameDecorSize, 기본 1) — 아래 FRAME_SIZE_RANGES 참고.
+export type DecorBuildOpts = { pxPerMm?: number; elementScale?: number; frameSize?: number };
 
 // 꽃/잎 기준 길이 "50mm"가 곧 예전 설계식의 u(짧은 변)예요 — 기본(배율 1) 꽃·잎은 지름 4~9mm쯤의 작고
 // 섬세한 크기(예: 데이지 꽃 반지름 2.2mm, 칸 간격 3.5mm)이고 슬라이더로 0.5~2.5배까지 바꿔요.
@@ -259,9 +260,9 @@ const PETAL_PALETTES: Record<string, { petal: string; dot: string; line: string 
   gray: { petal: "#C4C9D0", dot: "#E6E9ED", line: "#FFFFFF" },
 };
 
-function buildPetalBorder(variant: string, w: number, h: number): DecorLayout {
+function buildPetalBorder(variant: string, w: number, h: number, k: number = 1): DecorLayout {
   const pal = PETAL_PALETTES[variant] ?? PETAL_PALETTES.pink;
-  const u = Math.min(w, h);
+  const u = Math.min(w, h) * k;
   const pr = 0.05 * u;
   const inset = 2.25 * pr;
   const win = safeWindow(inset, inset, w - 2 * inset, h - 2 * inset, 0, w, h);
@@ -311,9 +312,9 @@ const AIRMAIL_PALETTES: Record<string, { a: string; b: string; bg: string }> = {
   yellowGray: { a: "#F7D154", b: "#B8BDC6", bg: "#FFFFFF" },
 };
 
-function buildAirmail(variant: string, w: number, h: number): DecorLayout {
+function buildAirmail(variant: string, w: number, h: number, k: number = 1): DecorLayout {
   const pal = AIRMAIL_PALETTES[variant] ?? AIRMAIL_PALETTES.redBlue;
-  const u = Math.min(w, h);
+  const u = Math.min(w, h) * k;
   const b = 0.06 * u;
   const win = safeWindow(b, b, w - 2 * b, h - 2 * b, 0, w, h);
   const ringD = rectD(0, 0, w, h) + decorWindowPathD(win);
@@ -367,9 +368,10 @@ function patternRingLayout(
   bg: string,
   makeMark: (cx: number, cy: number, b: number) => string,
   spacingB: number,
-  outline: string
+  outline: string,
+  k: number = 1
 ): DecorLayout {
-  const u = Math.min(w, h);
+  const u = Math.min(w, h) * k;
   const b = 0.09 * u;
   const win = safeWindow(b, b, w - 2 * b, h - 2 * b, 0, w, h);
   const ringD = rectD(0, 0, w, h) + decorWindowPathD(win);
@@ -404,12 +406,12 @@ function patternRingLayout(
   };
 }
 
-function buildDots(variant: string, w: number, h: number): DecorLayout {
+function buildDots(variant: string, w: number, h: number, k: number = 1): DecorLayout {
   const pal = DOT_PALETTES[variant] ?? DOT_PALETTES.yellow;
-  return patternRingLayout(w, h, "#FFFFFF", (cx, cy, b) => circleD(cx, cy, 0.2 * b), 0.62, pal.dot);
+  return patternRingLayout(w, h, "#FFFFFF", (cx, cy, b) => circleD(cx, cy, 0.2 * b), 0.62, pal.dot, k);
 }
 
-function buildStars(variant: string, w: number, h: number): DecorLayout {
+function buildStars(variant: string, w: number, h: number, k: number = 1): DecorLayout {
   const pal = STAR_PALETTES[variant] ?? STAR_PALETTES.navy;
   const star = starShapePoints(5, 1, 0.45);
   return patternRingLayout(
@@ -418,7 +420,8 @@ function buildStars(variant: string, w: number, h: number): DecorLayout {
     pal.bg,
     (cx, cy, b) => polyD(star.map((p) => ({ x: cx + p.x * 0.3 * b, y: cy + p.y * 0.3 * b }))),
     0.8,
-    pal.star
+    pal.star,
+    k
   );
 }
 
@@ -449,10 +452,10 @@ const CHAR_PALETTES: Record<string, Record<string, CharPalette>> = {
   },
 };
 
-function buildCharacter(kind: "bear" | "frog" | "bunny" | "cat", variant: string, w: number, h: number): DecorLayout {
+function buildCharacter(kind: "bear" | "frog" | "bunny" | "cat", variant: string, w: number, h: number, k: number = 1): DecorLayout {
   const pals = CHAR_PALETTES[kind];
   const pal = pals[variant] ?? Object.values(pals)[0];
-  const u = Math.min(w, h);
+  const u = Math.min(w, h) * k;
   // 위쪽으로 튀어나오는 부분(귀/눈) 높이 m, 위/아래/좌우 띠 두께
   const m = kind === "bunny" ? 0.26 * u : kind === "frog" ? 0.1 * u : 0.12 * u;
   const topBand = kind === "bunny" ? 0.1 * u : kind === "frog" ? 0.12 * u : 0.15 * u;
@@ -794,9 +797,9 @@ function blushPair(front: DecorPrim[], cx: number, y: number, dx: number, u: num
   for (const sx of [-1, 1]) front.push({ d: ellipseD(cx + sx * dx, y, 0.036 * u, 0.023 * u), fill: color, opacity: 0.8 });
 }
 
-function buildAnimal(kind: AnimalKind, w: number, h: number): DecorLayout {
+function buildAnimal(kind: AnimalKind, w: number, h: number, k: number = 1): DecorLayout {
   const pal = ANIMAL_PALETTES[kind];
-  const u = Math.min(w, h);
+  const u = Math.min(w, h) * k;
   const m =
     (({ dog: 0.15, chick: 0.11, tiger: 0.12, penguin: 0.04, panda: 0.12, fox: 0.17, koala: 0.16, sheep: 0.17, elephant: 0.17, raccoon: 0.12 }) as Record<AnimalKind, number>)[kind] * u;
   const topBand = 0.15 * u;
@@ -1105,8 +1108,8 @@ function ringOf(w: number, h: number, l: number, t: number, r: number, b: number
 }
 
 // 6. 즉석사진: 흰 카드, 아래가 두꺼움(0.2u), 나머지 0.06u. 은은한 회색 윤곽선 + 아래 손글씨 느낌 선과 하트
-function buildInstant(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildInstant(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const side = 0.06 * u;
   const bottom = 0.2 * u;
   const { win, ringD } = ringOf(w, h, side, side, side, bottom);
@@ -1134,8 +1137,8 @@ function buildInstant(w: number, h: number): DecorLayout {
 }
 
 // 7. 필름: 짙은 필름 띠. 위·아래 띠 0.1u에 둥근 구멍(0.05u×0.034u)을 정수 개수로, 좌우 띠 0.04u
-function buildFilm(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildFilm(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const band = 0.1 * u;
   const sideB = 0.04 * u;
   const { win, ringD } = ringOf(w, h, sideB, band, sideB, band);
@@ -1167,8 +1170,8 @@ function buildFilm(w: number, h: number): DecorLayout {
 
 // 8. 티켓: 크림색 표. 오른쪽에 점선이 있는 두꺼운 "조각"(0.14u), 나머지 0.06u. 위·아래 모서리 둥글림 0.03u,
 //    좌우 가운데에 반원 홈(반지름 0.04u). 홈은 윤곽선 자체에 호로 파서 뒤가 투명하게 보여요.
-function buildTicket(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildTicket(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const side = 0.06 * u;
   const stub = 0.14 * u;
   const { win } = ringOf(w, h, side, side, stub, side);
@@ -1213,8 +1216,8 @@ function buildTicket(w: number, h: number): DecorLayout {
 }
 
 // 9. 리본: 분홍 리본 띠(0.055u, 위쪽만 0.11u) + 흰 바느질 점선 + 위 가운데 리본 매듭(고리 2개·매듭·꼬리)
-function buildRibbon(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildRibbon(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const b = 0.055 * u;
   const top = 0.11 * u;
   const { win, ringD } = ringOf(w, h, b, top, b, b);
@@ -1251,8 +1254,8 @@ function buildRibbon(w: number, h: number): DecorLayout {
 }
 
 // 10. 깅엄체크: 띠 0.07u를 체크 칸 한 변 0.035u로 정확히 2칸 두께 — 흰 바탕 위에 분홍 가로줄·세로줄(반투명)이 겹쳐 진한 칸이 생겨요
-function buildGingham(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildGingham(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const b = 0.07 * u;
   const { win, ringD } = ringOf(w, h, b, b, b, b);
   const p = b / 2;
@@ -1281,8 +1284,8 @@ function buildGingham(w: number, h: number): DecorLayout {
 }
 
 // 11. 파스텔 도트: 띠 0.08u, 크림 바탕에 5가지 파스텔 점(반지름 0.012~0.02u)을 엇갈린 격자(간격 0.056u)에 고정 의사난수로
-function buildPastelDots(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildPastelDots(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const b = 0.08 * u;
   const { win, ringD } = ringOf(w, h, b, b, b, b);
   const colors = ["#F9B9C9", "#B9DDF4", "#FBE08A", "#BDE8CF", "#D5C5F2"];
@@ -1334,8 +1337,8 @@ function wavyRectD(x: number, y: number, w: number, h: number, amp: number, wl: 
   return polyD(pts);
 }
 
-function buildSoftWave(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildSoftWave(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const b = 0.075 * u;
   const win = safeWindow(b, b, w - 2 * b, h - 2 * b, 0, w, h);
   const winD = decorWindowPathD(win);
@@ -1359,8 +1362,8 @@ function buildSoftWave(w: number, h: number): DecorLayout {
 }
 
 // 13. 심플 이중선: 흰 띠(0.055u)에 얇은 선 2줄(바깥 0.012u, 안쪽 0.036u 위치, 두께 0.005u)
-function buildDoubleLine(w: number, h: number): DecorLayout {
-  const u = Math.min(w, h);
+function buildDoubleLine(w: number, h: number, k: number = 1): DecorLayout {
+  const u = Math.min(w, h) * k;
   const b = 0.055 * u;
   const { win, ringD } = ringOf(w, h, b, b, b, b);
   return {
@@ -1652,9 +1655,9 @@ function roundedPolyD(pts: { x: number; y: number }[], r: number): string {
   return d + "Z";
 }
 
-function buildBadge(variant: string, w: number, h: number): DecorLayout {
+function buildBadge(variant: string, w: number, h: number, k: number = 1): DecorLayout {
   const pal = BADGE_PALETTES[variant] ?? BADGE_PALETTES.red;
-  const D = Math.max(1, Math.min(w, h / 1.3) * 0.985);
+  const D = Math.max(1, Math.min(w, h / 1.3) * 0.985 * k);
   const cx = w / 2;
   const top = (h - 1.3 * D) / 2;
   const cy = top + D / 2;
@@ -1706,8 +1709,104 @@ function buildBadge(variant: string, w: number, h: number): DecorLayout {
 
 // ---- 공개 함수 ----
 
+// ---- 장식 프레임 "테두리 크기" (꽃 화환 외 모든 장식) ----
+// 꽃 화환은 "꽃·잎 크기"(mm 기준, 위 DECOR_SCALE_RANGE)이고, 나머지 장식(테두리 무늬·리본 뱃지·캐릭터)은 "테두리 크기" 배율이에요.
+// 배율 k는 그림 전체 기준 길이 u(짧은 변)에 곱해져서 띠 두께·무늬·귀·눈이 같은 비율로 커지고 작아져요(k=1이 예전 모양 그대로).
+// 리본 뱃지는 박스를 이미 꽉 채우고 있어서 최대 1배(작게만) — 줄이면 가운데에 작아진 뱃지가 놓여요.
+// 저장 필드는 화환의 frameDecorScale과 따로 frameDecorSize예요(옛 저장본에 남아 있을 수 있는 화환 배율 값이 다른 장식을 바꾸지 않게). 장식 종류가 바뀌면 화면에서 값을 지워 기본(1배)으로 돌아가요.
+export type DecorSizeControl = { label: string; hint: string; min: number; max: number; step: number; default: number };
+
+const FRAME_SIZE_RANGES: Partial<Record<FrameDecorKey, { min: number; max: number; hint: string }>> = {
+  petalBorder: { min: 0.6, max: 1.8, hint: "꽃잎 띠 두께" },
+  airmail: { min: 0.6, max: 2, hint: "줄무늬 띠 두께" },
+  dots: { min: 0.6, max: 1.6, hint: "띠 두께와 물방울 크기" },
+  stars: { min: 0.6, max: 1.6, hint: "띠 두께와 별 크기" },
+  instant: { min: 0.6, max: 1.6, hint: "흰 테두리 두께" },
+  film: { min: 0.6, max: 1.8, hint: "필름 띠 두께" },
+  ticket: { min: 0.6, max: 1.8, hint: "티켓 테두리 두께" },
+  ribbon: { min: 0.6, max: 2, hint: "리본 띠 두께" },
+  gingham: { min: 0.6, max: 2, hint: "체크 띠 두께" },
+  pastelDots: { min: 0.6, max: 2, hint: "띠 두께와 점 크기" },
+  softWave: { min: 0.6, max: 2, hint: "물결 띠 두께" },
+  doubleLine: { min: 0.6, max: 2.5, hint: "흰 띠와 선 두께" },
+  badge: { min: 0.6, max: 1, hint: "뱃지 크기(박스 안에서 작아져요)" },
+  bear: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  frog: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  bunny: { min: 0.7, max: 1.2, hint: "얼굴 띠 두께" },
+  cat: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  dog: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  chick: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  tiger: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  penguin: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  panda: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  fox: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  koala: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  sheep: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  elephant: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+  raccoon: { min: 0.7, max: 1.3, hint: "얼굴 띠 두께" },
+};
+
+// 화면 패널용 — 이 장식에 "테두리 크기" 컨트롤을 보여줄지/범위가 어떤지. 꽃 화환(또는 모르는 종류)은 null(별도 "꽃·잎 크기" 슬라이더).
+export function decorSizeControl(decor: FrameDecorKey | undefined): DecorSizeControl | null {
+  const r = decor ? FRAME_SIZE_RANGES[decor] : undefined;
+  if (!r) return null;
+  return { label: "테두리 크기", hint: r.hint, min: r.min, max: r.max, step: 0.05, default: 1 };
+}
+
+// 사진 창이 박스의 이 비율보다 작아지면(작은 박스에 큰 배율) 배율을 1까지 되돌려요 — 사진이 거의 안 남는 걸 막는 안전장치.
+const DECOR_MIN_WINDOW_FRACTION = 0.3;
+
+function buildByKind(decor: FrameDecorKey, v: string, w: number, h: number, k: number): DecorLayout | null {
+  switch (decor) {
+    case "petalBorder":
+      return buildPetalBorder(v, w, h, k);
+    case "airmail":
+      return buildAirmail(v, w, h, k);
+    case "dots":
+      return buildDots(v, w, h, k);
+    case "stars":
+      return buildStars(v, w, h, k);
+    case "bear":
+    case "frog":
+    case "bunny":
+    case "cat":
+      return buildCharacter(decor, v, w, h, k);
+    case "instant":
+      return buildInstant(w, h, k);
+    case "film":
+      return buildFilm(w, h, k);
+    case "ticket":
+      return buildTicket(w, h, k);
+    case "ribbon":
+      return buildRibbon(w, h, k);
+    case "gingham":
+      return buildGingham(w, h, k);
+    case "pastelDots":
+      return buildPastelDots(w, h, k);
+    case "softWave":
+      return buildSoftWave(w, h, k);
+    case "doubleLine":
+      return buildDoubleLine(w, h, k);
+    case "badge":
+      return buildBadge(v, w, h, k);
+    case "dog":
+    case "chick":
+    case "tiger":
+    case "penguin":
+    case "panda":
+    case "fox":
+    case "koala":
+    case "sheep":
+    case "elephant":
+    case "raccoon":
+      return buildAnimal(decor, w, h, k);
+    default:
+      return null;
+  }
+}
+
 // 종류/색상/박스 크기(px) → 그림 설계도. 인식 못 하는 종류면 null이에요(옛 문서 안전). opts는 꽃 화환의
-// 문서 단위 크기 입력이에요(DecorBuildOpts 참고) — 화환이 아닌 장식(캐릭터·테두리)은 안 써요.
+// 문서 단위 크기 입력(pxPerMm, elementScale)이고, 화환이 아닌 장식은 opts.frameSize를 "테두리 크기" 배율(기본 1)로 써요.
 export function buildFrameDecorLayout(
   decor: FrameDecorKey | undefined,
   variant: string | undefined,
@@ -1718,19 +1817,6 @@ export function buildFrameDecorLayout(
   if (!decor || !(w > 0) || !(h > 0)) return null;
   const v = variant ?? "";
   switch (decor) {
-    case "petalBorder":
-      return buildPetalBorder(v, w, h);
-    case "airmail":
-      return buildAirmail(v, w, h);
-    case "dots":
-      return buildDots(v, w, h);
-    case "stars":
-      return buildStars(v, w, h);
-    case "bear":
-    case "frog":
-    case "bunny":
-    case "cat":
-      return buildCharacter(decor, v, w, h);
     case "wreath":
       return buildWreath(w, h, opts);
     case "daisy":
@@ -1742,38 +1828,23 @@ export function buildFrameDecorLayout(
     case "babysBreath":
     case "eucalyptus":
       return buildWreathKind(decor, w, h, opts);
-    case "instant":
-      return buildInstant(w, h);
-    case "film":
-      return buildFilm(w, h);
-    case "ticket":
-      return buildTicket(w, h);
-    case "ribbon":
-      return buildRibbon(w, h);
-    case "gingham":
-      return buildGingham(w, h);
-    case "pastelDots":
-      return buildPastelDots(w, h);
-    case "softWave":
-      return buildSoftWave(w, h);
-    case "doubleLine":
-      return buildDoubleLine(w, h);
-    case "badge":
-      return buildBadge(v, w, h);
-    case "dog":
-    case "chick":
-    case "tiger":
-    case "penguin":
-    case "panda":
-    case "fox":
-    case "koala":
-    case "sheep":
-    case "elephant":
-    case "raccoon":
-      return buildAnimal(decor, w, h);
     default:
-      return null;
+      break;
   }
+  const range = FRAME_SIZE_RANGES[decor];
+  let k = 1;
+  if (range && opts?.frameSize !== undefined && Number.isFinite(opts.frameSize)) {
+    k = Math.min(range.max, Math.max(range.min, opts.frameSize));
+  }
+  let layout = buildByKind(decor, v, w, h, k);
+  // 사진 창이 너무 작아지면 배율을 줄여가며 다시 그려요(1보다 작은 배율은 그대로 둬요).
+  for (let i = 0; layout && k > 1 && i < 24; i++) {
+    const win = layout.window;
+    if (decor === "badge" || (win.w >= DECOR_MIN_WINDOW_FRACTION * w && win.h >= DECOR_MIN_WINDOW_FRACTION * h)) break;
+    k = Math.max(1, k - 0.05);
+    layout = buildByKind(decor, v, w, h, k);
+  }
+  return layout;
 }
 
 // 가장자리 페이드(lib/edgeFade.ts)를 "사진 창" 기준으로 쓰는 장식 프레임인지(리본 뱃지) — 화면 패널이 페이드 칸을 보여줄지 정해요.

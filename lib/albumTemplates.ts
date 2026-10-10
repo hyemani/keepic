@@ -320,6 +320,8 @@ export type ImageBoxDef = {
   // 꽃/잎의 실제 크기는 "문서 단위(mm)"로 정해져서(lib/frameDecorations.ts DecorBuildOpts) 사진 틀을 키워도
   // 그대로고 개수만 늘어나요. 이 값은 그 기준 크기에 곱하는 배율이에요. 화환이 아닌 장식은 무시해요.
   frameDecorScale?: number;
+  // 꽃 화환이 아닌 장식 프레임의 "테두리 크기" 배율(종류마다 범위가 달라요 — lib/frameDecorations.ts decorSizeControl). 없으면 1배(기존 저장본 전부).
+  frameDecorSize?: number;
   // 2026-11, 혜민님 요청("사진 변경 / 위치·크롭 / 필터 / 보정") — 사진 "안쪽" 편집값이에요. 전부 선택 필드라
   // 없으면(기존 저장본 전부) 예전과 똑같이 나와요(하위 호환). 원본 파일/url 은 절대 안 바뀌고, 이 값들은
   // 그릴 때마다 원본 복사본에만 적용돼요(액자·장식·테두리·스티커·글자에는 안 닿음).

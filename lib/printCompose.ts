@@ -1159,6 +1159,7 @@ function drawDecoratedImageBox(
   const layout = buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxWidthPx, boxHeightPx, {
     pxPerMm: PRINT_DPI / MM_PER_INCH,
     elementScale: box.frameDecorScale,
+    frameSize: box.frameDecorSize,
   });
   if (!layout) return false;
   const win = layout.window;

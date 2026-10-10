@@ -65,6 +65,7 @@ import {
   decorWindowPathD,
   decorPhotoClipWindow,
   decorSupportsPhotoFade,
+  decorSizeControl,
   FRAME_DECOR_PRESETS,
   type FrameDecorPreset,
 } from "@/lib/frameDecorations";
@@ -7565,6 +7566,24 @@ function ImageBoxPanel({
                           onChange={(v) => onFrameChange(frameTargetBox.id, { frameDecorScale: v })}
                         />
                       )}
+                      {(() => {
+                        // 꽃 화환 말고 모든 장식 프레임 — "테두리 크기"(띠 두께·무늬가 함께 커지고 작아져요). 기본 1배 = 예전 모양.
+                        const sc = decorSizeControl(frameTargetBox.frameDecor);
+                        if (!sc) return null;
+                        const cur = Math.min(sc.max, Math.max(sc.min, frameTargetBox.frameDecorSize ?? sc.default));
+                        return (
+                          <SliderNumberField
+                            label={sc.label}
+                            unit="배"
+                            hint={sc.hint}
+                            min={sc.min}
+                            max={sc.max}
+                            step={sc.step}
+                            value={cur}
+                            onChange={(v) => onFrameChange(frameTargetBox.id, { frameDecorSize: v })}
+                          />
+                        );
+                      })()}
                     </>
                   ) : (
                     <>
@@ -7669,9 +7688,18 @@ function ImageBoxPanel({
                           active={
                             frameTargetBox.frameDecor === pr.decor && (frameTargetBox.frameDecorVariant ?? "") === pr.variant
                           }
-                          onClick={() =>
-                            onFrameChange(frameTargetBox.id, { frameDecor: pr.decor, frameDecorVariant: pr.variant })
-                          }
+                          onClick={() => {
+                            // 크기 배율은 장식 종류마다 범위·뜻이 달라서, 다른 종류로 바꾸면 기본(1배)으로 돌려요
+                            // (꽃 화환끼리 바꿀 때만 예전처럼 유지). 같은 장식의 색만 바꿀 땐 그대로예요.
+                            const prev = FRAME_DECOR_PRESETS.find((q) => q.decor === frameTargetBox.frameDecor);
+                            const keepScale = frameTargetBox.frameDecor === pr.decor || (prev?.group === "wreath" && pr.group === "wreath");
+                            onFrameChange(frameTargetBox.id, {
+                              frameDecor: pr.decor,
+                              frameDecorVariant: pr.variant,
+                              ...(frameTargetBox.frameDecor === pr.decor ? {} : { frameDecorSize: undefined }),
+                              ...(keepScale ? {} : { frameDecorScale: undefined }),
+                            });
+                          }}
                         />
                       ))}
                     </div>
@@ -7902,8 +7930,9 @@ const ImageBoxOverlay = forwardRef<
         : buildFrameDecorLayout(box.frameDecor, box.frameDecorVariant, boxSizePx.w, boxSizePx.h, {
             pxPerMm: decorPxPerMm,
             elementScale: box.frameDecorScale,
+            frameSize: box.frameDecorSize,
           }),
-    [isSticker, box.frameDecor, box.frameDecorVariant, box.frameDecorScale, boxSizePx.w, boxSizePx.h, decorPxPerMm]
+    [isSticker, box.frameDecor, box.frameDecorVariant, box.frameDecorScale, box.frameDecorSize, boxSizePx.w, boxSizePx.h, decorPxPerMm]
   );
   // 사진이 실제로 보이는 영역의 크기(px) — 장식이 없으면 박스 전체, 있으면 안쪽 창이에요.
   const photoAreaPx = useMemo(
