@@ -13941,21 +13941,16 @@ function UploadPageContent() {
       const { xPct, yPct, widthPct, heightPct } = clamped;
       const existing = usable[idx];
       if (existing) {
-        // 기존 사진을 새 칸에 다시 배정할 때 이전 칸 기준으로 맞춰뒀던 확대/이동값
-        // (innerOffsetXPct/innerOffsetYPct/innerScale)을 그대로 들고 오면, 새 칸의
-        // 가로세로 비율이 달라서 사진이 중앙에서 벗어나 보이거나 심하면 화면 밖으로
-        // 완전히 밀려나 "사진이 안 보이는" 것처럼 보일 수 있었어요 — 새 칸 기준으로
-        // 가운데 정렬된 기본값(오프셋 0, 배율 1)으로 리셋해서 항상 중앙 기준점에
-        // 맞도록 고쳤어요(2026-09-24, 혜민님 확인).
+        // 2026-13, 혜민님 요청("레이아웃을 바꿔도 사진의 원본·자르기·회전은 그대로"): 기존 사진을 새 칸에 배정할 때
+        // 확대/이동값(innerOffsetXPct/innerOffsetYPct/innerScale)·회전·뒤집기 등 박스 속성을 그대로 들고 가요.
+        // 예전(2026-09-24)에는 새 칸 비율이 달라 사진이 밀려나 보일까 봐 0/0/1로 리셋했는데, 지금은 그려질 때마다
+        // computeImageBoxCoverRect가 이동값을 허용 범위 안으로 잘라서(clampImageBoxInnerOffset) 칸을 항상 꽉 채워요(화면·인쇄 공통).
         return {
           ...existing,
           xPct,
           widthPct,
           yPct,
           heightPct,
-          innerOffsetXPct: 0,
-          innerOffsetYPct: 0,
-          innerScale: 1,
           layoutTemplateId: template.id,
         };
       }
@@ -14105,9 +14100,6 @@ function UploadPageContent() {
             yPct: clamped.yPct,
             widthPct: clamped.widthPct,
             heightPct: clamped.heightPct,
-            innerOffsetXPct: 0,
-            innerOffsetYPct: 0,
-            innerScale: 1,
             layoutTemplateId: template.id,
           };
         }
