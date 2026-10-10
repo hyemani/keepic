@@ -248,6 +248,15 @@ function drawVine(
   });
 }
 
+// 도련(재단선 바깥 여분) 크기를 펼침면(span) 모양으로 짐작해요: 내지 펼침(가로:세로 2:1)·내지 낱장(1:1)은 5mm,
+// 그 외(표지 전체·표지 한 면)는 하드커버 날개 도련 20mm로 넉넉히 봐요. 장식은 재단선 안쪽에 두려는 거라
+// 화면·썸네일·인쇄 모두 같은 span을 받으니 같은 결과가 나와요.
+function inferBleedMm(span: Rect): number {
+  const ratio = span.w / span.h;
+  if (Math.abs(ratio - 2) < 0.03 || Math.abs(ratio - 1) < 0.005) return 5;
+  return 20;
+}
+
 // 모서리 장식(가는 선 식물 그림·가는 호). 펼침면(span)의 바깥 모서리에 붙이고, 안쪽으로 낱장 폭의 15% 안에서만 그려서
 // 사진 영역으로 들어가지 않아요. 모든 크기는 mm 기준(선 굵기 0.4~0.5mm, 잎 길이 3~6mm)이라 화면·썸네일·인쇄가 같아요.
 function drawCornerOrnaments(
@@ -260,8 +269,11 @@ function drawCornerOrnaments(
 ) {
   const mm = (v: number) => v * ppm;
   // 가로로 긴 펼침면(내지 두 쪽, 표지 전체)이면 낱장 폭은 절반으로 봐요.
-  const pageW = span.w / (span.w > span.h * 1.3 ? 2 : 1);
-  const R = Math.min(mm(30), pageW * 0.15, span.h * 0.15);
+  const bleed = mm(inferBleedMm(span));
+  const trimW = span.w - bleed * 2;
+  const trimH = span.h - bleed * 2;
+  const pageW = trimW / (span.w > span.h * 1.3 ? 2 : 1);
+  const R = Math.min(mm(30), pageW * 0.15, trimH * 0.15);
   const corners: [number, number][] = allFour
     ? [[1, 1], [-1, 1], [-1, -1], [1, -1]]
     : [[1, 1], [-1, -1]];
@@ -270,7 +282,7 @@ function drawCornerOrnaments(
   ctx.lineJoin = "round";
   for (const [sx, sy] of corners) {
     ctx.save();
-    ctx.translate(sx === 1 ? span.x : span.x + span.w, sy === 1 ? span.y : span.y + span.h);
+    ctx.translate(sx === 1 ? span.x + bleed : span.x + span.w - bleed, sy === 1 ? span.y + bleed : span.y + span.h - bleed);
     ctx.scale(sx, sy);
     if (kind === "arc") {
       ctx.lineWidth = Math.max(0.8, mm(0.4));
@@ -280,10 +292,11 @@ function drawCornerOrnaments(
         ctx.stroke();
       }
     } else {
-      // 줄기: 모서리를 감싸는 완만한 곡선(가장자리에서 5mm 안쪽에서 시작·끝)
-      const a = { x: mm(5), y: R * 0.92 };
-      const c = { x: R * 0.1, y: R * 0.1 };
-      const b = { x: R * 0.92, y: mm(5) };
+      // 줄기: 모서리를 감싸는 완만한 곡선(재단선에서 12mm 안쪽에서 시작·끝(잎이 바깥으로 나와도 재단선에서 5mm 이상 안쪽))
+      const q = mm(12);
+      const a = { x: q, y: R * 0.92 };
+      const c = { x: q + R * 0.04, y: q + R * 0.04 };
+      const b = { x: R * 0.92, y: q };
       const at = (t: number) => ({
         x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * c.x + t * t * b.x,
         y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * c.y + t * t * b.y,
@@ -457,21 +470,21 @@ function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
       drawCornerOrnaments(ctx, "arc", false, span, ppm, c1);
       break;
     case "thinFrame": {
-      const inset = mm(8);
+      const inset = mm(inferBleedMm(span) + 6);
       ctx.strokeStyle = c1;
       ctx.lineWidth = Math.max(0.8, mm(0.4));
-      ctx.strokeRect(r.x + inset, r.y + inset, r.w - inset * 2, r.h - inset * 2);
+      ctx.strokeRect(ox + inset, oy + inset, sw - inset * 2, sh - inset * 2);
       break;
     }
     case "rules": {
-      if (r.w < mm(40)) break;
-      const inset = mm(10);
+      const bleed = mm(inferBleedMm(span));
+      const inset = bleed + mm(8);
       ctx.strokeStyle = c1;
       ctx.lineWidth = Math.max(0.8, mm(0.35));
-      for (const yy of [r.y + inset, r.y + r.h - inset]) {
+      for (const yy of [oy + inset, oy + sh - inset]) {
         ctx.beginPath();
-        ctx.moveTo(r.x + inset, yy);
-        ctx.lineTo(r.x + r.w - inset, yy);
+        ctx.moveTo(ox + inset, yy);
+        ctx.lineTo(ox + sw - inset, yy);
         ctx.stroke();
       }
       break;
