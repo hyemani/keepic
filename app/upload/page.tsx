@@ -117,6 +117,7 @@ import {
   type ReplaceLibraryPhoto,
 } from "./photoEditPanels";
 import { PrimaryFileButton } from "./primaryActionButton";
+import { SidePanelShell, SEG_TAB_ROW, segTabClass } from "./sidePanelShell";
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
@@ -7349,12 +7350,7 @@ function ImageBoxPanel({
   // 표만들기 이모티콘 버튼과 동일하게 해주세요" — 탭(선택 상태를 보여주는 요소)은
   // 그라데이션이 아니라 다른 카테고리 탭들과 같은 차콜/아이보리 톤으로. 그라데이션은
   // 진짜 실행 버튼(아래 "사진 불러오기")에만 남김.
-  const tabButtonClass = (active: boolean) =>
-    `flex min-h-[34px] items-center justify-center whitespace-nowrap px-1 text-xs font-medium transition ${
-      active
-        ? "bg-[var(--color-charcoal)] text-white"
-        : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60"
-    } disabled:cursor-not-allowed disabled:opacity-30`;
+  const tabButtonClass = segTabClass;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -7435,7 +7431,7 @@ function ImageBoxPanel({
               전부 글상자 추가 버튼으로 디자인 통일해주세요" — 상단 2개를 파일을
               바로 여는 버튼이 아니라 서로 배타적으로 고르는 탭으로 바꿨어요. */}
           <div className="flex flex-col gap-1.5">
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className={SEG_TAB_ROW}>
               <button
                 type="button"
                 onClick={() => onTopTabChange("add")}
@@ -16908,7 +16904,7 @@ function UploadPageContent() {
                     <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5">
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
                         {editorMode === "edit" && (
-                        <div data-edit-sidebar="true" className="-ml-2.5 flex gap-2 border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-2">
+                        <div data-edit-sidebar="true" className="-ml-2.5 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-2">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
                               (2026-09-23, 이전엔 전부 한 화면에 세로로 나열돼 있었어요).
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
@@ -16936,9 +16932,7 @@ function UploadPageContent() {
                               activeCoverEditTab==="..." 조건이라 내용은 안 보였지만, 빈
                               칸만 224px 차지하고 있던 걸 없앰). */}
                           {activeCoverEditTab && (
-                          <div
-                            className="flex min-h-0 flex-col overflow-y-auto lg:w-[clamp(160px,22cqw,224px)] lg:shrink-0 lg:pr-1"
-                          >
+                          <SidePanelShell>
                           {activeCoverEditTab === "theme" && (
                             // 2026-10-04, 혜민님 요청: "표지테마 상단에 문구삭제" — 위
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
@@ -17145,7 +17139,7 @@ function UploadPageContent() {
                                     됐다")으로 TextBoxToolbar의 "내용" 라벨 옆으로 옮겼어요(위치만
                                     이동, 중복 아님 — 자세한 내용은 TextBoxToolbar의 onCopyBox/
                                     onPasteBox/onDeleteBox prop 쪽 주석 참고). */}
-                                <div className="grid grid-cols-3 gap-1">
+                                <div className={SEG_TAB_ROW}>
                                   {(
                                     [
                                       { id: "write" as const, label: "글쓰기" },
@@ -17157,11 +17151,7 @@ function UploadPageContent() {
                                       key={t.id}
                                       type="button"
                                       onClick={() => setTextPanelSubTab(t.id)}
-                                      className={`py-1.5 text-xs font-medium transition ${
-                                        textPanelSubTab === t.id
-                                          ? "bg-[var(--color-charcoal)] text-white"
-                                          : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
-                                      }`}
+                                      className={segTabClass(textPanelSubTab === t.id)}
                                     >
                                       {t.label}
                                     </button>
@@ -17357,7 +17347,7 @@ function UploadPageContent() {
                               />
                             );
                           })()}
-                          </div>
+                          </SidePanelShell>
                           )}
                         </div>
                         )}
@@ -17806,7 +17796,7 @@ function UploadPageContent() {
                         <div className="flex h-full min-h-0 flex-col px-2 pb-2">
                           <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
                             {editorMode === "edit" && (
-                            <div data-edit-sidebar="true" className="-ml-2 flex gap-2 border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-2">
+                            <div data-edit-sidebar="true" className="-ml-2 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-2">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
                                   아이콘으로 골라요. 예전엔 배경만 항상 펼쳐져 있고 사진·스티커
                                   추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
@@ -17839,20 +17829,14 @@ function UploadPageContent() {
                                   조건이라 null이면 어차피 안 보이지만, 빈 칸만 224px를
                                   차지하고 있던 걸 없앰(closing 태그를 건드리지 않는 안전한
                                   방식으로, 폭만 조건부로 바꿈). */}
-                              <div
-                                className={
-                                  activeEditTab
-                                    ? "flex min-h-0 flex-col overflow-y-auto lg:w-[clamp(160px,22cqw,224px)] lg:shrink-0 lg:pr-1"
-                                    : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
-                                }
-                              >
+                              <SidePanelShell open={!!activeEditTab}>
                             {activeEditTab === "text" && (
                               <div className="mb-1.5 border-b border-[var(--color-hairline)] pb-2">
                                 {/* 2026-10(13번째 라운드) — 탭 3개 비율을 11번째 라운드 이전과 같은
                                     grid-cols-3 전체 폭으로. 복사/붙여넣기/삭제 아이콘은 2026-11
                                     (16번째 라운드)에 TextBoxToolbar의 "내용" 라벨 옆으로
                                     옮겼어요(위 표지 패널 쪽 주석과 같은 이유). */}
-                                <div className="grid grid-cols-3 gap-1">
+                                <div className={SEG_TAB_ROW}>
                                   {(
                                     [
                                       { id: "write" as const, label: "글쓰기" },
@@ -17864,11 +17848,7 @@ function UploadPageContent() {
                                       key={t.id}
                                       type="button"
                                       onClick={() => setTextPanelSubTab(t.id)}
-                                      className={`py-1.5 text-xs font-medium transition ${
-                                        textPanelSubTab === t.id
-                                          ? "bg-[var(--color-charcoal)] text-white"
-                                          : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:bg-[var(--color-hairline)]/40"
-                                      }`}
+                                      className={segTabClass(textPanelSubTab === t.id)}
                                     >
                                       {t.label}
                                     </button>
@@ -18105,7 +18085,7 @@ function UploadPageContent() {
                                 />
                               )}
                             </div>
-                              </div>
+                              </SidePanelShell>
                             </div>
                             )}
                             <div className="flex min-h-0 min-w-0 flex-1 flex-col">

@@ -20,6 +20,7 @@ import {
 } from "@/lib/photoAdjust";
 import { usePhotoFilterThumbs } from "./photoEditHooks";
 import { PrimaryActionButton } from "./primaryActionButton";
+import { SEG_TAB_ROW, segTabClass } from "./sidePanelShell";
 
 export type PhotoEditSection = "crop" | "filter" | "adjust";
 
@@ -365,7 +366,7 @@ export function PhotoEditPanel({
         <span className="whitespace-nowrap">사진 변경</span>
       </PrimaryActionButton>
 
-      <div role="tablist" aria-label="사진 편집 구역" className="grid grid-cols-3">
+      <div role="tablist" aria-label="사진 편집 구역" className={SEG_TAB_ROW}>
         {SECTION_TABS.map((t) => (
           <button
             key={t.id}
@@ -373,11 +374,7 @@ export function PhotoEditPanel({
             role="tab"
             aria-selected={section === t.id}
             onClick={() => onSectionChange(t.id)}
-            className={`min-h-[34px] px-1 text-[12px] font-medium whitespace-nowrap transition ${
-              section === t.id
-                ? "bg-[var(--color-charcoal)] text-white"
-                : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:text-[var(--color-charcoal)]"
-            }`}
+            className={segTabClass(section === t.id)}
           >
             {t.label}
           </button>
