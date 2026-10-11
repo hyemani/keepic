@@ -253,6 +253,8 @@ export type ImageBoxDef = {
   // 기존 방식과 회전을 함께 계산하려면 별도 검증이 필요해서, 이번 라운드는 화면
   // 편집만 먼저 지원해요). 값이 없으면 0도(회전 없음)예요.
   rotation?: number;
+  // 디자인(감성 필기체 등)이 기울여 준 각도예요. 사용자가 직접 돌린 값(rotation이 이 값과 다름)은 디자인을 바꿔도 지키고, 이 값과 같으면 디자인 기울기라 풀어요.
+  designRotation?: number;
   // 박스 투명도(0~1, 1이 불투명) — 값이 없으면 1(완전 불투명)이에요. 화면·인쇄 파일
   // 둘 다 반영돼요.
   opacity?: number;
@@ -597,6 +599,8 @@ export type SpreadDef = {
   intro?: boolean;
   // 앨범 테마가 입혀 준 소개 페이지 디자인 id(lib/designIntro.ts). 없으면 예전 자동 소개 페이지(왼쪽 아래 제목·발행 정보·로고)를 그대로 보여줘요.
   introDesign?: string;
+  // 소개 페이지 "마무리 문구" 선택(family·travel·couple·birthday) — 디자인과 따로 저장돼요. 글귀 글상자 글만 정하고, 직접 고친 글은 이걸로 덮지 않아요.
+  introPhrase?: string;
   // 처음 한 번만 앞표지 사진을 소개 페이지 사진 칸에 복사했다는 표시(사진을 지운 뒤 테마를 다시 눌러도 또 채우지 않아요).
   introSeeded?: boolean;
 };

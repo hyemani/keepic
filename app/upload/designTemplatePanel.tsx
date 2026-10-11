@@ -454,28 +454,10 @@ export function DesignPanel({
     <p className="px-0.5 py-3 text-center text-[11px] text-[var(--color-charcoal)]/50">이 조건에 맞는 {what}가 아직 없어요.</p>
   );
   if (intro) {
-    // 소개 페이지 전용: 행사 탭 5칸 + 스타일 select + 카드 목록만
-    const list = intro.items.filter((it) => designMatches(it, theme, style));
+    // 소개 페이지 전용: 모양이 실제로 다른 디자인 카드만(행사 탭·스타일 select 없음 — 행사는 "마무리 문구"로 따로 골라요)
+    const list = intro.items;
     return (
       <div className={PANEL_STACK} data-design-panel data-design-mode="intro" data-design-kind-active="intro">
-        <SegTabs ariaLabel="디자인 행사" dataAttr="data-design-theme" items={THEME_TAB_ITEMS} value={theme} onChange={onThemeFilterChange} />
-        <select
-          data-design-style-select
-          aria-label="디자인 스타일"
-          value={style}
-          onChange={(e) => onStyleFilterChange(e.target.value)}
-          className="box-border h-8 w-full min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
-        >
-          <option value="all">스타일: 전체</option>
-          {styles.map((x) => (
-            <option key={x.id} value={x.id}>
-              스타일: {x.name}
-            </option>
-          ))}
-        </select>
-        <div className="flex items-baseline justify-end px-0.5 text-[11px] text-[var(--color-charcoal)]/60">
-          <span data-design-count>{list.length}종</span>
-        </div>
         <section data-intro-design-section role="tabpanel" aria-label="소개 페이지 디자인" className={PANEL_STACK}>
           {list.length > 0 ? (
             <div data-intro-design-list className={gridCls}>

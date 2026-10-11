@@ -1,11 +1,13 @@
-// 마지막 "소개 페이지" 디자인 — 앨범 테마(스타일 5종 × 행사 4종)마다 어울리는 마무리 페이지예요.
+// 마지막 "소개 페이지" 디자인 — 모양이 실제로 다른 5가지(포근한 아치 · 미니멀 라인 · 필기체 폴라로이드 · 키즈 구름 · MZ 필름)예요.
+// 행사(가족·여행·커플·생일)는 "디자인"이 아니라 "마무리 문구"(글귀)만 바꿔요 → 디자인과 문구는 따로 고르고, 서로 영향이 없어요(INTRO_PHRASES).
 // 소개 페이지는 인쇄되는 "왼쪽 낱장" 한 장(접히는 쪽 = 오른쪽 가장자리)이라, 이 파일의 디자인은 left(g)만 의미가 있고 right는 빈 면이에요.
 // 표지를 복제하지 않고 "차분한 끝 페이지"로 구성해요: 작은~중간 사진 칸 1개 · 앨범 제목 · 짧은 글귀 · 발행일 · 만든이(입력했을 때만) · 키픽 로고.
 // 글상자 순서가 약속이에요(0 제목 · 1 글귀 · 2 발행일 · 3 만든이 · 4~ 장식). page.tsx가 이 순서(INTRO_ROLE)로 내용을 채워요.
 // 모든 자리는 안전영역(재단선 안쪽 15mm = 작업 파일 가장자리에서 20mm)과 접힘선 20mm 안쪽에 들어와요(lib/designKit.ts 규칙 그대로).
 import type { BackgroundSpec } from "./backgroundSpec";
 import type { ImageBoxDef } from "./albumTemplates";
-import { DESIGN_BACK_Z, solid, toolkit as kitToolkit, type DesignGeo, type DesignPageLayout, type DesignThemeId, type InnerDesign } from "./designKit";
+import type { SpreadDef } from "./albumTemplates";
+import { DESIGN_BACK_Z, DESIGN_ID_PREFIX, solid, toolkit as kitToolkit, type DesignGeo, type DesignPageLayout, type DesignThemeId, type InnerDesign } from "./designKit";
 
 export const INTRO_ID_PREFIX = "intro-";
 export const INTRO_ROLE = { title: 0, quote: 1, date: 2, maker: 3 } as const;
@@ -15,6 +17,7 @@ export const INTRO_DEFAULT_MAKER_PREFIX = "Made by ";
 const LOGO = "/logo.svg";
 const LOGO_ASPECT = 1155 / 367;
 
+// 마무리 문구(글귀) 4종 — 소개 페이지의 글귀 글상자(INTRO_ROLE.quote)에 들어가는 글이에요. 제목은 앨범 제목이라 문구와 상관없어요.
 const QUOTE: Record<DesignThemeId, string> = {
   family: "함께한 모든 날이\n오래도록 따뜻하게 남기를.",
   travel: "길 위의 모든 순간이\n이 책에 고스란히 남았어요.",
@@ -22,10 +25,25 @@ const QUOTE: Record<DesignThemeId, string> = {
   birthday: "오늘의 축하가\n오래도록 기억되기를.",
 };
 
+export type IntroPhraseId = DesignThemeId;
+export const INTRO_PHRASES: { id: IntroPhraseId; name: string }[] = [
+  { id: "family", name: "가족" },
+  { id: "travel", name: "여행" },
+  { id: "couple", name: "커플" },
+  { id: "birthday", name: "생일" },
+];
+export const INTRO_DEFAULT_PHRASE: IntroPhraseId = "family";
+export function isIntroPhraseId(v: unknown): v is IntroPhraseId {
+  return typeof v === "string" && INTRO_PHRASES.some((p) => p.id === v);
+}
+export function introPhraseText(id: string | undefined): string {
+  return QUOTE[isIntroPhraseId(id) ? id : INTRO_DEFAULT_PHRASE];
+}
+
 const LINE = 0.0014;
 const emptyRight = (): DesignPageLayout => ({ slots: [], texts: [], stickers: [] });
 
-type Maker = (g: DesignGeo, occ: DesignThemeId) => DesignPageLayout;
+type Maker = (g: DesignGeo, occ: IntroPhraseId) => DesignPageLayout;
 
 // ---------- 포근한 기억: 아치 사진 + 가운데 정렬 ----------
 const WM = { serif: "'Gowun Batang', serif", hand: "'Gaegu', cursive", sans: "'Gowun Dodum', sans-serif" } as const;
@@ -141,28 +159,77 @@ const mz: Maker = (g, occ) => {
 
 const MAKERS: Record<string, Maker> = { "warm-memory": wm, minimal: mn, handwriting: hw, kids: kd, mz };
 
-export function introDesignId(style: string, occasion: string): string {
-  return `${INTRO_ID_PREFIX}${style}-${occasion}`;
+const CARD_NAME: Record<string, string> = {
+  "warm-memory": "포근한 아치",
+  minimal: "미니멀 라인",
+  handwriting: "필기체 폴라로이드",
+  kids: "키즈 구름",
+  mz: "MZ 필름",
+};
+const OCCASIONS: DesignThemeId[] = ["family", "travel", "couple", "birthday"];
+
+export function introDesignId(style: string): string {
+  return `${INTRO_ID_PREFIX}${style}`;
 }
 export function isIntroDesignId(id: string): boolean {
   return id.startsWith(INTRO_ID_PREFIX);
 }
 
-const OCCASIONS: DesignThemeId[] = ["family", "travel", "couple", "birthday"];
 // 소개 페이지 디자인 전체 목록(패널 목록·내지 디자인 목록에는 안 들어가요 — 앨범 테마를 적용할 때 자동으로 짝지어 써요).
-export const INTRO_DESIGNS: InnerDesign[] = Object.entries(MAKERS).flatMap(([style, make]) =>
-  OCCASIONS.map(
-    (occ): InnerDesign => ({
-      id: introDesignId(style, occ),
-      style,
-      themes: [occ],
-      name: "소개 페이지",
-      note: "사진 1장 + 제목·글귀·발행 정보",
-      left: (g) => make(g, occ),
-      right: () => emptyRight(),
-    })
-  )
+// 기본 글귀는 가족 문구예요(실제 글귀는 적용할 때 고른 "마무리 문구"로 바뀌어요 — introDesignLayout).
+export const INTRO_DESIGNS: InnerDesign[] = Object.entries(MAKERS).map(
+  ([style, make]): InnerDesign => ({
+    id: introDesignId(style),
+    style,
+    themes: OCCASIONS,
+    name: CARD_NAME[style] ?? style,
+    note: "사진 1장 + 제목·글귀·발행 정보",
+    left: (g) => make(g, INTRO_DEFAULT_PHRASE),
+    right: () => emptyRight(),
+  })
 );
+
+// 예전 저장본의 옛 id(`intro-<스타일>-<행사>`, 20종) → 합친 디자인 id + 그 행사의 마무리 문구. (스타일 id에 '-'가 있어서 끝의 행사만 떼어 읽어요)
+export function migrateIntroDesignId(id: string): { id: string; phrase?: IntroPhraseId } {
+  if (!isIntroDesignId(id)) return { id };
+  const body = id.slice(INTRO_ID_PREFIX.length);
+  const k = body.lastIndexOf("-");
+  if (k > 0) {
+    const style = body.slice(0, k);
+    const occ = body.slice(k + 1);
+    if (MAKERS[style] && isIntroPhraseId(occ)) return { id: introDesignId(style), phrase: occ };
+  }
+  return { id };
+}
+
 export function findIntroDesign(id: string): InnerDesign | undefined {
-  return INTRO_DESIGNS.find((d) => d.id === id);
+  const m = migrateIntroDesignId(id).id;
+  return INTRO_DESIGNS.find((d) => d.id === m);
+}
+
+// 디자인 + 마무리 문구로 그린 왼쪽 낱장 데이터(패널 썸네일·적용이 같이 써요)
+export function introDesignLayout(designId: string, g: DesignGeo, phrase: string | undefined): DesignPageLayout | undefined {
+  const style = migrateIntroDesignId(designId).id.slice(INTRO_ID_PREFIX.length);
+  const make = MAKERS[style];
+  return make ? make(g, isIntroPhraseId(phrase) ? phrase : INTRO_DEFAULT_PHRASE) : undefined;
+}
+
+// 옛 저장본 보정: 소개 페이지 펼침면의 옛 디자인 id를 합친 id로 바꾸고(디자인이 만든 글상자·스티커 id 머리글도 같이), 옛 id에 들어 있던 행사를
+// introPhrase로 옮겨요. 이미 새 id면 그대로 돌려줘요(같은 객체) → 사용자가 고친 글·사진·좌표는 하나도 안 건드려요.
+export function normalizeIntroSpread(sp: SpreadDef): SpreadDef {
+  if (!sp.intro || !sp.introDesign) return sp;
+  const m = migrateIntroDesignId(sp.introDesign);
+  if (m.id === sp.introDesign) return sp;
+  const oldPre = `${DESIGN_ID_PREFIX}${sp.introDesign}~`;
+  const newPre = `${DESIGN_ID_PREFIX}${m.id}~`;
+  const re = (id: string) => (id.startsWith(oldPre) ? newPre + id.slice(oldPre.length) : id);
+  return {
+    ...sp,
+    introDesign: m.id,
+    ...(sp.introPhrase === undefined && m.phrase ? { introPhrase: m.phrase } : {}),
+    ...(sp.imageBoxes ? { imageBoxes: sp.imageBoxes.map((b) => ({ ...b, id: re(b.id) })) } : {}),
+    ...(sp.imageBoxOrder ? { imageBoxOrder: sp.imageBoxOrder.map(re) } : {}),
+    ...(sp.textBoxesLeft ? { textBoxesLeft: sp.textBoxesLeft.map((b) => ({ ...b, id: re(b.id) })) } : {}),
+    ...(sp.textBoxesRight ? { textBoxesRight: sp.textBoxesRight.map((b) => ({ ...b, id: re(b.id) })) } : {}),
+  };
 }

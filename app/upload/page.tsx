@@ -155,7 +155,7 @@ import {
   scopeRangeToPrinted,
   unprintedSidesOf,
 } from "@/lib/printedSides";
-import { INTRO_DESIGNS } from "@/lib/designIntro";
+import { INTRO_DESIGNS, INTRO_DEFAULT_PHRASE, INTRO_PHRASES, introDesignLayout, introPhraseText, isIntroPhraseId, normalizeIntroSpread } from "@/lib/designIntro";
 import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type CoverCardProps, type DesignKind, type DesignListItem, type IntroDesignProps, type SingleSpreadProps } from "./designTemplatePanel";
 import {
   VISIBLE_COVER_DESIGNS,
@@ -166,7 +166,6 @@ import {
   isIntroDesignId,
   DESIGN_PHOTO_Z0,
   DESIGN_STYLES,
-  DESIGN_THEMES,
   VISIBLE_INNER_DESIGNS,
   coverDesignGeo,
   coverDesignScene,
@@ -806,7 +805,8 @@ type AlbumApplyBatch = {
 
 // 포토북 내지 맨 끝에 "소개 페이지" 펼침면(intro)을 항상 하나 두어요(없으면 빈 것을 붙여요) — 책 페이지 수·번호에는 안 들어가요.
 function withIntroSpread(spreads: SpreadDef[]): SpreadDef[] {
-  return spreads.some((s) => s.intro) ? spreads : [...spreads, { left: "freeform", right: "freeform", intro: true }];
+  // 옛 저장본의 소개 페이지 디자인 id(intro-<스타일>-<행사>)는 합친 디자인 id + 마무리 문구로 옮겨 읽어요(normalizeIntroSpread).
+  return spreads.some((s) => s.intro) ? spreads.map(normalizeIntroSpread) : [...spreads, { left: "freeform", right: "freeform", intro: true }];
 }
 
 function computeSpreadPhotoGroups(customSpreads: SpreadDef[]): SpreadPhotoGroup[] {
@@ -14604,8 +14604,11 @@ function UploadPageContent() {
           yPct,
           heightPct,
           layoutTemplateId: template.id,
-          // 디자인(감성 필기체 등)이 기울여 둔 사진이면 다른 레이아웃·디자인으로 바꿀 때 기울기를 풀어요(새 디자인이 기울이면 patch가 다시 정해요)
-          ...(existing.layoutTemplateId?.startsWith("design:") ? { rotation: undefined } : {}),
+          // 디자인(감성 필기체 등)이 기울여 둔 사진이면 다른 레이아웃·디자인으로 바꿀 때 그 "디자인 기울기"만 풀어요(새 디자인이 기울이면 patch가 다시 정해요).
+          // 사용자가 직접 돌린 각도(designRotation과 다른 값)는 지켜요 — 디자인을 바꿔도 사진 회전이 멋대로 돌아가지 않게요.
+          ...(existing.layoutTemplateId?.startsWith("design:") && (existing.rotation ?? 0) === (existing.designRotation ?? 0)
+            ? { rotation: undefined, designRotation: undefined }
+            : {}),
         };
       }
       // 채울 사진이 없는 칸 — 빈 프레임을 새로 만들어요. 나중에 캔버스에서 "+사진
@@ -14647,7 +14650,15 @@ function UploadPageContent() {
     // 전혀 안 바뀌어요 — 앞 N장은 새 칸에 순서대로, 그 뒤 초과분만 사진 목록으로.
     const extraPhotos: Photo[] = extraBoxes.filter((b) => b.url).map(boxToLibraryPhoto);
     const placed = opts?.slotPatches
-      ? placedRaw.map((b, i) => (opts.slotPatches?.[i] ? { ...b, ...opts.slotPatches[i] } : b))
+      ? placedRaw.map((b, i) => {
+          const patch = opts.slotPatches?.[i];
+          if (!patch) return b;
+          const merged = { ...b, ...patch };
+          // 디자인 기울기(patch.rotation)는 사용자가 직접 돌린 사진(rotation이 남아 있음)에는 덮어쓰지 않고, 디자인이 준 각도만 designRotation에 기억해요
+          const userRotated = b.rotation !== undefined && b.rotation !== 0;
+          if (userRotated && patch.rotation !== undefined) return { ...merged, rotation: b.rotation, designRotation: undefined };
+          return patch.rotation !== undefined ? { ...merged, designRotation: patch.rotation } : merged;
+        })
       : placedRaw;
     opts?.onResult?.({ extraPhotos: extraPhotos.length, slots: template.slots.length });
 
@@ -15061,8 +15072,8 @@ function UploadPageContent() {
   // 소개 페이지 디자인의 글상자 내용을 채워요(글상자 순서 약속은 lib/designIntro.ts의 INTRO_ROLE):
   //  제목 = 사용자가 소개 페이지에서 직접 고친 글이 있으면 그대로, 없으면 지금 앞표지 제목을 "한 번만 복사"(그 뒤로는 서로 영향 없어요), 그것도 없으면 디자인 기본 글
   //  글귀 = 직접 고친 글이 있으면 그대로, 없으면 디자인 기본 글 / 발행일 = 발행일 입력칸 / 만든이 = 입력했을 때만(비어 있으면 null → 글상자를 아예 만들지 않아요)
-  function personalizeIntroTexts(d: InnerDesign, existing: TextBoxDef[] | undefined, g: DesignGeo): (DesignText | null)[] {
-    const out: (DesignText | null)[] = [...d.left(g).texts];
+  function personalizeIntroTexts(d: InnerDesign, existing: TextBoxDef[] | undefined, g: DesignGeo, phrase: string, prevPhrase: string): (DesignText | null)[] {
+    const out: (DesignText | null)[] = [...(introDesignLayout(d.id, g, phrase)?.texts ?? d.left(g).texts)];
     const roleBox = (n: number) => (existing ?? []).find((b) => isDesignItemId(b.id) && b.id.endsWith(`~left~t${n}`));
     const prevDefault = (n: number): string | undefined => {
       const box = roleBox(n);
@@ -15073,7 +15084,9 @@ function UploadPageContent() {
     const edited = (n: number): string | undefined => {
       const box = roleBox(n);
       if (!box || !box.text.trim()) return undefined;
-      return box.text !== prevDefault(n) ? box.text : undefined;
+      // 글귀는 "이전에 고른 마무리 문구"와 다를 때만 직접 고친 글이에요(디자인을 바꿔도 고른 문구가 그대로 따라가고, 직접 고친 글은 지켜요)
+      const base = n === INTRO_ROLE.quote ? introPhraseText(prevPhrase) : prevDefault(n);
+      return box.text !== base ? box.text : undefined;
     };
     const setText = (n: number, text: string) => {
       const cur = out[n];
@@ -15091,7 +15104,7 @@ function UploadPageContent() {
     return out;
   }
 
-  function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string, batch?: AlbumApplyBatch) {
+  function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string, batch?: AlbumApplyBatch, introPhraseReq?: string) {
     const d = findInnerDesign(designId);
     const spread = customSpreads[spreadIndex];
     if (!d || !spread) return;
@@ -15105,7 +15118,10 @@ function UploadPageContent() {
     const eff: LayoutApplyRange = sides.length === 2 ? "spread" : sides[0];
     const g = innerDesignGeo(computeInnerPageWorkMm());
     const layouts = { left: sides.includes("left") ? d.left(g) : null, right: sides.includes("right") ? d.right(g) : null };
-    const introTexts = isIntroApply ? personalizeIntroTexts(d, spread.textBoxesLeft, g) : null;
+    // 소개 페이지: 마무리 문구 = 요청(앨범 테마의 행사) → 지금 고른 문구 → 기본(가족). 디자인과 따로 저장돼요(introPhrase).
+    const prevPhrase = isIntroPhraseId(spread.introPhrase) ? spread.introPhrase : INTRO_DEFAULT_PHRASE;
+    const nextPhrase = isIntroPhraseId(introPhraseReq) ? introPhraseReq : prevPhrase;
+    const introTexts = isIntroApply ? personalizeIntroTexts(d, spread.textBoxesLeft, g, nextPhrase, prevPhrase) : null;
     const slots: LayoutSlot[] = [];
     const patches: (Partial<ImageBoxDef> | undefined)[] = [];
     for (const side of sides) {
@@ -15180,6 +15196,7 @@ function UploadPageContent() {
         if (removed.size > 0) s.imageBoxOrder = (s.imageBoxOrder ?? []).filter((id) => !removed.has(id));
         if (isIntroApply) {
           s.introDesign = d.id;
+          s.introPhrase = nextPhrase;
           // 처음 한 번만 앞표지 사진을 소개 페이지 사진 칸에 "복사"해요(이 뒤로 두 사진은 서로 영향 없어요). 이미 사진이 있으면 그대로 두고 복사 표시만 남겨요.
           if (!s.introSeeded) {
             const photoBoxes = (s.imageBoxes ?? []).filter((b) => !isStickerImageBox(b));
@@ -15443,28 +15460,71 @@ function UploadPageContent() {
       setActiveEditTab("theme");
     }
   }
+  // 소개 페이지 "마무리 문구" 고르기 — 글귀 글상자의 글만 바꿔요(사진·배치·제목·발행일·만든이는 그대로). 한 번의 상태 변경이라 실행취소도 한 번이에요.
+  // 디자인이 아직 없는 소개 페이지(옛 화면)에서는 고른 문구만 기억해 두고, 디자인을 고를 때 그 문구로 채워요.
+  function setIntroPhrase(phrase: string) {
+    if (introIdx < 0 || !isIntroPhraseId(phrase)) return;
+    setCustomSpreads((prev) =>
+      prev.map((sp) => {
+        if (!sp.intro) return sp;
+        const qid = sp.introDesign ? designItemId(sp.introDesign, "left", "t", INTRO_ROLE.quote) : null;
+        const text = introPhraseText(phrase);
+        const boxes = sp.textBoxesLeft ?? [];
+        const nextBoxes = qid ? boxes.map((b) => (b.id === qid && b.text !== text ? { ...b, text } : b)) : boxes;
+        const same = sp.introPhrase === phrase && nextBoxes.every((b, i) => b === boxes[i]);
+        if (same) return sp;
+        return { ...sp, introPhrase: phrase, ...(qid ? { textBoxesLeft: nextBoxes } : {}) };
+      })
+    );
+  }
+  // 위 입력 줄·옛 소개 화면에서 쓰는 "마무리 문구" 고르기 칸 — 직접 고친 글이 있으면 "직접 쓴 글"로 보여줘요(고르면 그 문구로 바뀌어요).
+  function introPhraseSelect(cls: string) {
+    const phrase = isIntroPhraseId(introSpread?.introPhrase) ? introSpread!.introPhrase! : INTRO_DEFAULT_PHRASE;
+    const qid = introSpread?.introDesign ? designItemId(introSpread.introDesign, "left", "t", INTRO_ROLE.quote) : null;
+    const qbox = qid ? (introSpread?.textBoxesLeft ?? []).find((b) => b.id === qid) : undefined;
+    const custom = !!qbox && qbox.text !== introPhraseText(phrase);
+    return (
+      <select
+        data-intro-phrase-select
+        aria-label="마무리 문구"
+        value={custom ? "custom" : phrase}
+        onChange={(e) => setIntroPhrase(e.target.value)}
+        className={cls}
+      >
+        {INTRO_PHRASES.map((ph) => (
+          <option key={ph.id} value={ph.id}>
+            {ph.name}
+          </option>
+        ))}
+        {custom ? (
+          <option value="custom" disabled>
+            직접 쓴 글
+          </option>
+        ) : null}
+      </select>
+    );
+  }
   function buildIntroDesignPanel() {
     const pageMm = computeInnerPageWorkMm();
     const g = innerDesignGeo(pageMm);
+    const phrase = isIntroPhraseId(introSpread?.introPhrase) ? introSpread!.introPhrase! : INTRO_DEFAULT_PHRASE;
     const items: DesignListItem[] = INTRO_DESIGNS.map((dd) => {
-      const styleName = DESIGN_STYLES.find((x) => x.id === dd.style)?.name ?? dd.style;
-      const themeName = DESIGN_THEMES.find((t) => t.id === dd.themes[0])?.name ?? "";
       return {
         id: dd.id,
-        name: `${styleName} · ${themeName}`,
+        name: dd.name,
         note: dd.note,
         style: dd.style,
         themes: dd.themes,
         photoCount: 1,
         // 인쇄되는 왼쪽 낱장 한 장만 그려요(적용 결과와 같은 데이터·같은 그리기 함수)
-        scene: { wMm: pageMm, hMm: pageMm, parts: [{ xMm: 0, yMm: 0, wMm: pageMm, hMm: pageMm, layout: dd.left(g) }] },
+        scene: { wMm: pageMm, hMm: pageMm, parts: [{ xMm: 0, yMm: 0, wMm: pageMm, hMm: pageMm, layout: introDesignLayout(dd.id, g, phrase) ?? dd.left(g) }] },
       };
     });
     const intro: IntroDesignProps = {
       items,
       isSelected: (id) => introSpread?.introDesign === id,
       onApply: applyIntroDesign,
-      sceneKeyOf: (id) => `${id}|${pageMm}|intro`,
+      sceneKeyOf: (id) => `${id}|${pageMm}|intro|${phrase}`,
     };
     return (
       <DesignPanel
@@ -15493,7 +15553,7 @@ function UploadPageContent() {
     plan.forEach((designId, i) => applyInnerDesignTemplate(i, "spread", designId, batch));
     // 마지막 소개 페이지도 같은 테마의 소개 페이지 디자인으로(사진·직접 쓴 글은 그대로, 디자인이 만든 글상자·스티커만 바꿔 끼워요)
     if (introIdx >= 0) {
-      applyInnerDesignTemplate(introIdx, "left", introDesignId(set.style, set.occasion), batch);
+      applyInnerDesignTemplate(introIdx, "left", introDesignId(set.style), batch, set.occasion);
       if (selectedPageKey === "intro") setSelectedPageKey(introIdx); // 옛 소개 페이지 화면을 보고 있었다면 새 소개 페이지 화면으로
     }
     setCustomSpreads((prev) => prev.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp));
@@ -18889,6 +18949,10 @@ function UploadPageContent() {
                               className="mt-1 w-full border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
                             />
                           </label>
+                          <label className="text-xs text-[var(--color-charcoal)]/70">
+                            마무리 문구
+                            {introPhraseSelect("mt-1 box-border block w-full border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-sm text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-charcoal)]")}
+                          </label>
                         </div>
                         {/* 디자인이 아직 없는 소개 페이지에서도 소개 페이지 디자인을 바로 고를 수 있어요(누르면 디자인이 입혀진 소개 페이지 화면으로 바뀌어요) */}
                         <div data-intro-legacy-design className="mt-3 flex min-h-0 flex-col gap-1.5">
@@ -19343,6 +19407,10 @@ function UploadPageContent() {
                                     placeholder="비워 두면 표시 안 해요"
                                     className="box-border h-8 w-44 min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)] placeholder:text-[var(--color-charcoal)]/35"
                                   />
+                                </label>
+                                <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/70">
+                                  <span className="shrink-0">마무리 문구</span>
+                                  {introPhraseSelect("box-border h-8 w-24 min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-charcoal)]")}
                                 </label>
                               </div>
                             )}
