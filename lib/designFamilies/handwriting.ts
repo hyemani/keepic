@@ -203,29 +203,50 @@ export const HANDWRITING_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마지막 한 장: 오른쪽에 큰 폴라로이드풍 사진 1장 + 왼쪽은 손글씨 한 줄 — 작별 인사('끝'·고마워)는 맨 마지막 소개 페이지가 말해요.
+    // 6) 스크랩북: 폴라로이드 4장(왼쪽 2·오른쪽 2)을 서로 다른 기울기로 마스킹테이프에 붙이고, 손글씨 한 줄·날짜·스티커를 곁들인 모양.
+    //    작별 인사('끝'·고마워)는 맨 마지막 소개 페이지가 말해요. 폴라로이드 틀은 사진 칸 위에 얹히는 스티커라 서로 크게 겹치지 않게 놓았어요.
     id: "hw-closing",
-    name: "큰 사진 한 장",
-    note: "큰 사진 1장 + 손글씨 한 줄·날짜",
+    name: "폴라로이드 마무리",
+    note: "폴라로이드 사진 4장 + 손글씨·날짜",
     left: (g) => {
       const t = toolkit(g);
+      const a = t.framed("polaroid", 0.27, 0.34, 0.48, -4);
+      const b = t.framed("polaroid", 0.74, 0.7, 0.42, 5);
       return {
         bg: KRAFT_PAPER,
-        slots: [],
+        slots: [a.slot, b.slot],
         texts: [
-          t.text({ t: "오늘의\n한 장", f: [0, 0.3, 1, 0.34], font: FONT.pen, pt: 92, color: C.brown, align: "center", lh: 1.0 }),
-          t.text({ t: "손으로 꾹 눌러 담았어", f: [0.05, 0.7, 0.9, 0.07], font: FONT.hand, pt: 22, color: C.red, align: "center" }),
+          t.text({ t: "오늘의 기록", f: [0, 0.74, 0.48, 0.12], font: FONT.pen, pt: 44, color: C.brown, lh: 1.0 }),
+          t.text({ t: "손으로 꾹 눌러 담았어", f: [0, 0.87, 0.5, 0.06], font: FONT.hand, pt: 17, color: C.red }),
         ],
-        stickers: [t.sticker(STK.tapeStar, 0.5, 0.04, 42, -2), t.sticker(STK.tulip, 0.16, 0.9, 38, -8), t.sticker(STK.rose, 0.84, 0.9, 34, 8)],
+        stickers: [
+          a.sticker,
+          b.sticker,
+          t.sticker(STK.tapePink, 0.27, 0.055, 28, -8),
+          t.sticker(STK.tapeBlue, 0.74, 0.455, 26, 6),
+          t.sticker(STK.tulip, 0.8, 0.17, 36, 8),
+          t.sticker(STK.heart, 0.62, 0.3, 20, -10),
+        ],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const c = t.framed("polaroid", 0.72, 0.33, 0.46, 4);
+      const d = t.framed("polaroid", 0.28, 0.7, 0.42, -5);
       return {
         bg: CREAM_PAPER,
-        slots: [t.slot([0.04, 0.05, 0.92, 0.8], tilt(-2))],
-        texts: [t.text({ t: "2026.10.04", f: [0.04, 0.91, 0.92, 0.07], font: FONT.hand, pt: 23, color: C.pencil, align: "center" })],
-        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.05, 38, 2), t.sticker(STK.heart, 0.9, 0.9, 22, 10)],
+        slots: [c.slot, d.slot],
+        texts: [
+          t.text({ t: "2026.10.04", f: [0.54, 0.7, 0.46, 0.08], font: FONT.dokdo, pt: 32, color: C.red }),
+          t.text({ t: "웃음이 많았던 하루", f: [0.54, 0.79, 0.46, 0.06], font: FONT.hand, pt: 19, color: C.pencil }),
+        ],
+        stickers: [
+          c.sticker,
+          d.sticker,
+          t.sticker(STK.tapeStar, 0.72, 0.055, 30, 6),
+          t.sticker(STK.tapeLilac, 0.28, 0.455, 28, -8),
+          t.sticker(STK.rose, 0.88, 0.92, 32, 8),
+        ],
       };
     },
   },
