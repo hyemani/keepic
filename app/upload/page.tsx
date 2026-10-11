@@ -155,7 +155,7 @@ import {
   scopeRangeToPrinted,
   unprintedSidesOf,
 } from "@/lib/printedSides";
-import { INTRO_DESIGNS, INTRO_DEFAULT_PHRASE, INTRO_PHRASES, introDesignLayout, introPhraseText, isIntroPhraseId, normalizeIntroSpread } from "@/lib/designIntro";
+import { INTRO_DESIGNS, INTRO_DEFAULT_PHRASE, INTRO_LEGACY_TITLE, INTRO_PHRASES, introDesignLayout, introPhraseText, isIntroPhraseId, normalizeIntroSpread } from "@/lib/designIntro";
 import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type CoverCardProps, type DesignKind, type DesignListItem, type IntroDesignProps, type SingleSpreadProps } from "./designTemplatePanel";
 import {
   VISIBLE_COVER_DESIGNS,
@@ -15070,10 +15070,12 @@ function UploadPageContent() {
   };
 
   // 소개 페이지 디자인의 글상자 내용을 채워요(글상자 순서 약속은 lib/designIntro.ts의 INTRO_ROLE):
-  //  제목 = 사용자가 소개 페이지에서 직접 고친 글이 있으면 그대로, 없으면 지금 앞표지 제목을 "한 번만 복사"(그 뒤로는 서로 영향 없어요), 그것도 없으면 디자인 기본 글
+  //  제목 = 사용자가 소개 페이지에서 직접 고친 글이 있으면 그대로, 없으면 지금 앞표지에 보이는 제목을 "한 번만 복사"(그 뒤로는 서로 영향 없어요), 표지 제목이 비어 있으면 제목 글상자를 아예 만들지 않아요
+  //   (예전 기본 글 "우리의 이야기"는 직접 쓴 글로 치지 않아요 — 책 끝에서 큰 제목이 한 번 더 나오지 않게)
   //  글귀 = 직접 고친 글이 있으면 그대로, 없으면 디자인 기본 글 / 발행일 = 발행일 입력칸 / 만든이 = 입력했을 때만(비어 있으면 null → 글상자를 아예 만들지 않아요)
-  function personalizeIntroTexts(d: InnerDesign, existing: TextBoxDef[] | undefined, g: DesignGeo, phrase: string, prevPhrase: string): (DesignText | null)[] {
-    const out: (DesignText | null)[] = [...(introDesignLayout(d.id, g, phrase)?.texts ?? d.left(g).texts)];
+  function personalizeIntroTexts(d: InnerDesign, existing: TextBoxDef[] | undefined, g: DesignGeo, phrase: string, prevPhrase: string, coverTitleNow: string): (DesignText | null)[] {
+    const albumTitle = coverTitleNow.replace(/\s*\n\s*/g, " ").trim();
+    const out: (DesignText | null)[] = [...(introDesignLayout(d.id, g, phrase, albumTitle)?.texts ?? d.left(g).texts)];
     const roleBox = (n: number) => (existing ?? []).find((b) => isDesignItemId(b.id) && b.id.endsWith(`~left~t${n}`));
     const prevDefault = (n: number): string | undefined => {
       const box = roleBox(n);
@@ -15085,6 +15087,7 @@ function UploadPageContent() {
       const box = roleBox(n);
       if (!box || !box.text.trim()) return undefined;
       // 글귀는 "이전에 고른 마무리 문구"와 다를 때만 직접 고친 글이에요(디자인을 바꿔도 고른 문구가 그대로 따라가고, 직접 고친 글은 지켜요)
+      if (n === INTRO_ROLE.title && box.text.trim() === INTRO_LEGACY_TITLE) return undefined; // 옛 기본 큰 제목은 새 제목 규칙으로 바꿔요
       const base = n === INTRO_ROLE.quote ? introPhraseText(prevPhrase) : prevDefault(n);
       return box.text !== base ? box.text : undefined;
     };
@@ -15092,9 +15095,9 @@ function UploadPageContent() {
       const cur = out[n];
       if (cur) out[n] = { ...cur, text };
     };
-    const typed = coverTitle.replace(/\n/g, " ").trim();
-    const coverUsable = typed.length > 0 && !COVER_PLACEHOLDER_TITLES.includes(coverTitle.trim());
-    setText(INTRO_ROLE.title, edited(INTRO_ROLE.title) ?? (coverUsable ? typed : (out[INTRO_ROLE.title]?.text ?? "")));
+    const editedTitle = edited(INTRO_ROLE.title);
+    if (editedTitle !== undefined) setText(INTRO_ROLE.title, editedTitle);
+    else if (!albumTitle) out[INTRO_ROLE.title] = null;
     const q = edited(INTRO_ROLE.quote);
     if (q !== undefined) setText(INTRO_ROLE.quote, q);
     if (introPublishDate.trim()) setText(INTRO_ROLE.date, introPublishDate.trim());
@@ -15104,7 +15107,7 @@ function UploadPageContent() {
     return out;
   }
 
-  function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string, batch?: AlbumApplyBatch, introPhraseReq?: string) {
+  function applyInnerDesignTemplate(spreadIndex: number, range: LayoutApplyRange, designId: string, batch?: AlbumApplyBatch, introPhraseReq?: string, introCoverTitleReq?: string) {
     const d = findInnerDesign(designId);
     const spread = customSpreads[spreadIndex];
     if (!d || !spread) return;
@@ -15121,7 +15124,7 @@ function UploadPageContent() {
     // 소개 페이지: 마무리 문구 = 요청(앨범 테마의 행사) → 지금 고른 문구 → 기본(가족). 디자인과 따로 저장돼요(introPhrase).
     const prevPhrase = isIntroPhraseId(spread.introPhrase) ? spread.introPhrase : INTRO_DEFAULT_PHRASE;
     const nextPhrase = isIntroPhraseId(introPhraseReq) ? introPhraseReq : prevPhrase;
-    const introTexts = isIntroApply ? personalizeIntroTexts(d, spread.textBoxesLeft, g, nextPhrase, prevPhrase) : null;
+    const introTexts = isIntroApply ? personalizeIntroTexts(d, spread.textBoxesLeft, g, nextPhrase, prevPhrase, introCoverTitleReq ?? coverTitle) : null;
     const slots: LayoutSlot[] = [];
     const patches: (Partial<ImageBoxDef> | undefined)[] = [];
     for (const side of sides) {
@@ -15517,7 +15520,7 @@ function UploadPageContent() {
         themes: dd.themes,
         photoCount: 1,
         // 인쇄되는 왼쪽 낱장 한 장만 그려요(적용 결과와 같은 데이터·같은 그리기 함수)
-        scene: { wMm: pageMm, hMm: pageMm, parts: [{ xMm: 0, yMm: 0, wMm: pageMm, hMm: pageMm, layout: introDesignLayout(dd.id, g, phrase) ?? dd.left(g) }] },
+        scene: { wMm: pageMm, hMm: pageMm, parts: [{ xMm: 0, yMm: 0, wMm: pageMm, hMm: pageMm, layout: introDesignLayout(dd.id, g, phrase, coverTitle) ?? dd.left(g) }] },
       };
     });
     const intro: IntroDesignProps = {
@@ -15553,7 +15556,12 @@ function UploadPageContent() {
     plan.forEach((designId, i) => applyInnerDesignTemplate(i, "spread", designId, batch));
     // 마지막 소개 페이지도 같은 테마의 소개 페이지 디자인으로(사진·직접 쓴 글은 그대로, 디자인이 만든 글상자·스티커만 바꿔 끼워요)
     if (introIdx >= 0) {
-      applyInnerDesignTemplate(introIdx, "left", introDesignId(set.style), batch, set.occasion);
+      // 표지는 이 아래에서 바뀌니까, 소개 페이지에 쓸 제목은 "이 테마를 적용한 뒤 표지에 보일 제목"으로 미리 계산해요(직접 쓴 제목이면 그대로)
+      const cd = findCoverDesign(set.coverId);
+      const dims = computeCoverDesignDims();
+      const typedTitle = coverTitle.trim();
+      const coverTitleAfter = typedTitle.length > 0 && !COVER_PLACEHOLDER_TITLES.includes(typedTitle) ? coverTitle : (cd?.title(coverDesignGeo("front", dims.panelMm, dims.bleedMm)).text ?? coverTitle);
+      applyInnerDesignTemplate(introIdx, "left", introDesignId(set.style), batch, set.occasion, coverTitleAfter);
       if (selectedPageKey === "intro") setSelectedPageKey(introIdx); // 옛 소개 페이지 화면을 보고 있었다면 새 소개 페이지 화면으로
     }
     setCustomSpreads((prev) => prev.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp));
