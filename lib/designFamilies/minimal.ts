@@ -191,29 +191,37 @@ export const MINIMAL_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마지막 한 장: 오른쪽에 큰 사진 1장(거의 한 면 가득) + 왼쪽은 작은 라벨·짧은 글귀만 — 작별 인사('END'·Thank you)는 맨 마지막 소개 페이지가 말해요.
+    // 6) 갤러리 월: 큰 사진 1장 + 정사각 사진 3장을 같은 눈높이(아래 선)에 맞춰 건 격자 배치, 헤어라인·작은 번호 캡션·넉넉한 여백.
+    //    작별 인사('END'·Thank you)는 맨 마지막 소개 페이지가 말해요. 큰 사진이 맨 앞 칸이라 사진이 1장만 남아도 큰 칸에 먼저 들어가요.
     id: "mn-closing",
-    name: "큰 사진 한 장",
-    note: "큰 사진 1장 + 짧은 글귀·날짜",
+    name: "갤러리 마무리",
+    note: "큰 사진 1장 + 정사각 사진 3장 격자",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.paper),
-        slots: [],
+        slots: [t.slot([0, 0.07, 0.84, 0.55])],
         texts: [
           t.text({ t: "A QUIET MOMENT", f: [0, 0, 0.7, 0.04], font: FONT.latin, pt: 9, color: C.gray, ls: 0.34 }),
-          t.text({ t: "조용히 오래\n남을 장면", f: [0, 0.4, 0.9, 0.2], font: FONT.serif, pt: 30, color: C.ink, lh: 1.4 }),
-          t.rule([0, 0.66, 0.1, LINE * 1.6], C.ink),
+          t.rule([0, 0.665, 1, LINE], C.rule),
+          t.text({ t: "01", f: [0, 0.7, 0.3, 0.04], font: FONT.latin, pt: 9, color: C.ink, ls: 0.3 }),
+          t.text({ t: "조용히 오래 남을 장면", f: [0, 0.755, 0.9, 0.07], font: FONT.serif, pt: 13.5, color: C.ink, lh: 1.5 }),
+          t.text({ t: "2026.10.04", f: [0, 0.9, 0.6, 0.04], font: FONT.sans, pt: 9, color: C.gray, ls: 0.14 }),
         ],
         stickers: [],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const xs = [0, 0.35, 0.7];
       return {
         bg: solid(C.white),
-        slots: [t.slot([0, 0, 1, 0.9])],
-        texts: [t.text({ t: "2026.10.04", f: [0.5, 0.94, 0.5, 0.04], font: FONT.sans, pt: 9, color: C.gray, ls: 0.14, align: "right" })],
+        slots: xs.map((x) => t.slot([x, 0.32, 0.3, 0.3])),
+        texts: [
+          t.text({ t: "02 — 04", f: [0, 0, 0.7, 0.04], font: FONT.latin, pt: 9, color: C.gray, ls: 0.34 }),
+          t.rule([0, 0.665, 1, LINE], C.rule),
+          ...["02", "03", "04"].map((n, i) => t.text({ t: n, f: [xs[i], 0.7, 0.3, 0.04], font: FONT.latin, pt: 9, color: C.ink, ls: 0.3 })),
+        ],
         stickers: [],
       };
     },
