@@ -195,29 +195,38 @@ export const MZ_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마지막 한 장: 오른쪽에 큰 사진 1장 + 왼쪽은 라임 큰 글자(BEST SHOT) — 작별 인사(THE END)는 맨 마지막 소개 페이지가 말해요.
+    // 6) 컨택트 시트: 왼쪽은 필름 띠 2줄(필름 칸 4개)을 오프화이트 시트에 나란히, 오른쪽은 블랙 면에 고른 한 컷을 크게 — 작은 라벨·프레임 번호만 써요.
+    //    작별 인사('THE END'·FILM ROLL 36/36)는 맨 마지막 소개 페이지가 말해요. 필름 칸은 스티커 틀 + 사진 칸 한 쌍이에요(틀이 사진 위에 얹혀요).
     id: "mz-closing",
-    name: "큰 사진 + BEST SHOT",
-    note: "큰 사진 1장 + BEST SHOT·날짜",
+    name: "컨택트 시트 마무리",
+    note: "필름 칸 4장 + 고른 한 컷 크게",
     left: (g) => {
       const t = toolkit(g);
+      const rows = [0.288, 0.728];
+      const frames = rows.flatMap((cy) => [t.framed("film", 0.26, cy, 0.52, 0), t.framed("film", 0.74, cy, 0.52, 0)]);
       return {
-        bg: solid(C.black),
-        slots: [],
+        bg: solid(C.off),
+        slots: frames.map((f) => f.slot),
         texts: [
-          t.text({ t: "BEST\nSHOT", f: [0, 0.12, 1, 0.46], font: FONT.black, pt: 98, color: C.lime, lh: 0.95 }),
-          t.text({ t: "오늘의 베스트 컷", f: [0, 0.68, 1, 0.07], font: FONT.dh, pt: 26, color: C.white }),
+          t.text({ t: "CONTACT SHEET", f: [0, 0, 0.6, 0.05], font: FONT.dh, pt: 13, color: C.black, ls: 0.2 }),
+          t.text({ t: "ROLL 03", f: [0.76, 0, 0.24, 0.05], font: FONT.dh, pt: 12, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.1 }),
+          t.text({ t: "21  ·  22  ·  23  ·  24", f: [0, 0.953, 0.8, 0.045], font: FONT.sans, pt: 10, color: C.black, bold: true, ls: 0.3 }),
         ],
-        stickers: [t.sticker(STK.smile, 0.86, 0.82, 46, 10)],
+        stickers: frames.map((f) => f.sticker),
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
-        bg: solid(C.off),
-        slots: [t.slot([0.04, 0.04, 0.92, 0.8])],
-        texts: [t.text({ t: "2026.10.04", f: [0.04, 0.88, 0.4, 0.07], font: FONT.dh, pt: 17, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.08 })],
-        stickers: [t.sticker(STK.shades, 0.84, 0.9, 50, -12), t.sticker(STK.tapePink, 0.5, 0.05, 38, 4)],
+        bg: solid(C.black),
+        slots: [t.slot([0, 0.08, 1, 0.7])],
+        texts: [
+          t.text({ t: "SELECT", f: [0, 0, 0.3, 0.06], font: FONT.dh, pt: 14, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.12 }),
+          t.text({ t: "24A", f: [0.7, 0, 0.3, 0.06], font: FONT.dh, pt: 14, color: C.white, align: "right", va: "middle", ls: 0.12 }),
+          t.text({ t: "2026.10.04", f: [0, 0.83, 0.6, 0.06], font: FONT.dh, pt: 16, color: C.lime, ls: 0.12 }),
+          t.text({ t: "마음에 든 한 컷", f: [0, 0.91, 0.8, 0.06], font: FONT.sans, pt: 12, color: C.gray, bold: true }),
+        ],
+        stickers: [t.sticker(STK.bolt, 0.9, 0.93, 34, 12), t.sticker(STK.sparkle, 0.94, 0.1, 26, 0)],
       };
     },
   },
