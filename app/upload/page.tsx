@@ -155,7 +155,7 @@ import {
   scopeRangeToPrinted,
   unprintedSidesOf,
 } from "@/lib/printedSides";
-import { INTRO_DESIGNS, INTRO_DEFAULT_PHRASE, INTRO_LEGACY_TITLE, INTRO_PHRASES, introDesignLayout, introPhraseText, isIntroPhraseId, normalizeIntroSpread } from "@/lib/designIntro";
+import { INTRO_DESIGNS, INTRO_DEFAULT_PHRASE, INTRO_LEGACY_TITLE, INTRO_PHRASES, introDesignLayout, introPhraseText, isIntroPhraseDefaultText, isIntroPhraseId, normalizeIntroSpread } from "@/lib/designIntro";
 import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type CoverCardProps, type DesignKind, type DesignListItem, type IntroDesignProps, type SingleSpreadProps } from "./designTemplatePanel";
 import {
   VISIBLE_COVER_DESIGNS,
@@ -15088,8 +15088,8 @@ function UploadPageContent() {
       if (!box || !box.text.trim()) return undefined;
       // 글귀는 "이전에 고른 마무리 문구"와 다를 때만 직접 고친 글이에요(디자인을 바꿔도 고른 문구가 그대로 따라가고, 직접 고친 글은 지켜요)
       if (n === INTRO_ROLE.title && box.text.trim() === INTRO_LEGACY_TITLE) return undefined; // 옛 기본 큰 제목은 새 제목 규칙으로 바꿔요
-      const base = n === INTRO_ROLE.quote ? introPhraseText(prevPhrase) : prevDefault(n);
-      return box.text !== base ? box.text : undefined;
+      if (n === INTRO_ROLE.quote) return isIntroPhraseDefaultText(box.text, prevPhrase) ? undefined : box.text; // 옛(26차까지) 기본 글귀도 "직접 고친 글"이 아니에요
+      return box.text !== prevDefault(n) ? box.text : undefined;
     };
     const setText = (n: number, text: string) => {
       const cur = out[n];
@@ -15485,7 +15485,7 @@ function UploadPageContent() {
     const phrase = isIntroPhraseId(introSpread?.introPhrase) ? introSpread!.introPhrase! : INTRO_DEFAULT_PHRASE;
     const qid = introSpread?.introDesign ? designItemId(introSpread.introDesign, "left", "t", INTRO_ROLE.quote) : null;
     const qbox = qid ? (introSpread?.textBoxesLeft ?? []).find((b) => b.id === qid) : undefined;
-    const custom = !!qbox && qbox.text !== introPhraseText(phrase);
+    const custom = !!qbox && !isIntroPhraseDefaultText(qbox.text, phrase);
     return (
       <select
         data-intro-phrase-select

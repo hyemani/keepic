@@ -1,9 +1,10 @@
 // 마지막 "소개 페이지" 디자인 — 모양이 실제로 다른 5가지(포근한 아치 · 미니멀 라인 · 필기체 폴라로이드 · 키즈 구름 · MZ 필름)예요.
 // 행사(가족·여행·커플·생일)는 "디자인"이 아니라 "마무리 문구"(글귀)만 바꿔요 → 디자인과 문구는 따로 고르고, 서로 영향이 없어요(INTRO_PHRASES).
 // 소개 페이지는 인쇄되는 "왼쪽 낱장" 한 장(접히는 쪽 = 오른쪽 가장자리)이라, 이 파일의 디자인은 left(g)만 의미가 있고 right는 빈 면이에요.
-// 책의 "끝"은 내지 마지막 펼침면(마무리 디자인)이 한 번만 말해요. 이 소개 페이지는 그 뒤에 붙는 "판권 면"(책 정보 면)이라서 두 번째 표지·두 번째 "끝"이 되지 않게
-// 구성해요: 작은 기념 사진 1개 → 앨범 제목(작은 한 줄 · 표지에 보이는 진짜 제목, 없으면 이 줄을 아예 만들지 않아요) → 마무리 글귀(여기가 중심) → 발행일 · 만든이(입력했을 때만) · 키픽 로고.
-// 글상자 순서가 약속이에요(0 제목 · 1 글귀 · 2 발행일 · 3 만든이 · 4~ 장식). page.tsx가 이 순서(INTRO_ROLE)로 내용을 채워요.
+// 책의 "끝"은 이 소개 페이지(맨 마지막 장)가 한 번만 말해요: 마무리 글귀(여기가 가장 크고 중심) 아래에 작은 끝 표시(포근한 기억·필기체 '끝' · 미니멀 'END' · MZ 'THE END' · 키즈 '또 만나요!')를 하나만 둬요.
+// 내지 마지막 펼침면(마지막 한 장 디자인)은 큰 사진 중심이고 작별 인사·끝 표시가 없어요 — 그래서 책 전체에 끝 표시는 이 페이지 하나뿐이에요.
+// 구성: 작은 기념 사진 1개 → 앨범 제목(작은 한 줄 · 표지에 보이는 진짜 제목, 없으면 이 줄을 아예 만들지 않아요) → 마무리 글귀(가장 크게) → 끝 표시(작게) → 발행일 · 만든이(입력했을 때만) · 키픽 로고.
+// 글상자 순서가 약속이에요(0 제목 · 1 글귀 · 2 발행일 · 3 만든이 · 4~ 장식·끝 표시). page.tsx가 이 순서(INTRO_ROLE)로 내용을 채워요.
 // 모든 자리는 안전영역(재단선 안쪽 15mm = 작업 파일 가장자리에서 20mm)과 접힘선 20mm 안쪽에 들어와요(lib/designKit.ts 규칙 그대로).
 import type { BackgroundSpec } from "./backgroundSpec";
 import type { ImageBoxDef } from "./albumTemplates";
@@ -23,11 +24,18 @@ const LOGO_ASPECT = 1155 / 367;
 
 // 마무리 문구(글귀) 4종 — 소개 페이지의 글귀 글상자(INTRO_ROLE.quote)에 들어가는 글이에요. 제목은 앨범 제목이라 문구와 상관없어요.
 const QUOTE: Record<DesignThemeId, string> = {
-  family: "함께한 모든 날이\n오래도록 따뜻하게 남기를.",
-  travel: "길 위의 모든 순간이\n이 책에 고스란히 남았어요.",
-  couple: "우리의 이야기는\n지금도 이어지고 있어요.",
-  birthday: "오늘의 축하가\n오래도록 기억되기를.",
+  family: "함께해 주어서 고마워요.\n오래도록 따뜻하게 남기를.",
+  travel: "함께 걸어서 고마웠어요.\n길 위의 날들이 오래 남기를.",
+  couple: "곁에 있어 줘서 고마워요.\n우리의 이야기는 계속돼요.",
+  birthday: "함께 축하해 줘서 고마워요.\n오늘이 오래 기억되기를.",
 };
+// 26차까지의 기본 글귀 — 옛 저장본에 "직접 고치지 않은 기본 글"로 남아 있을 수 있어서, 이 글과 같으면 직접 쓴 글이 아니라 기본 글로 쳐요(다시 적용하면 새 글귀로 바뀌고, 직접 고친 글은 그대로예요).
+const LEGACY_QUOTES: string[] = [
+  "함께한 모든 날이\n오래도록 따뜻하게 남기를.",
+  "길 위의 모든 순간이\n이 책에 고스란히 남았어요.",
+  "우리의 이야기는\n지금도 이어지고 있어요.",
+  "오늘의 축하가\n오래도록 기억되기를.",
+];
 
 export type IntroPhraseId = DesignThemeId;
 export const INTRO_PHRASES: { id: IntroPhraseId; name: string }[] = [
@@ -43,6 +51,12 @@ export function isIntroPhraseId(v: unknown): v is IntroPhraseId {
 export function introPhraseText(id: string | undefined): string {
   return QUOTE[isIntroPhraseId(id) ? id : INTRO_DEFAULT_PHRASE];
 }
+// 글귀 글상자의 글이 "고른 문구의 기본 글"(지금 것이든 26차까지의 옛 기본 글이든)이면 true — 직접 고친 글이 아니에요.
+export function isIntroPhraseDefaultText(text: string, id: string | undefined): boolean {
+  const norm = (x: string) => x.replace(/\s+/g, "");
+  const t = norm(text);
+  return t === norm(introPhraseText(id)) || LEGACY_QUOTES.some((q) => norm(q) === t);
+}
 
 const LINE = 0.0014;
 const emptyRight = (): DesignPageLayout => ({ slots: [], texts: [], stickers: [] });
@@ -55,19 +69,21 @@ const wm: Maker = (g, occ, title) => {
   const t = kitToolkit(g, "#4A4036");
   const ink = "#4A4036";
   const mute = "#8B7F70";
+  const sage = "#6B8466";
   return {
     bg: solid("#FBF7EE"),
-    slots: [t.slot([0.3, 0, 0.4, 0.46], { frameShape: "arch" } as Partial<ImageBoxDef>)],
+    slots: [t.slot([0.33, 0, 0.34, 0.38], { frameShape: "arch" } as Partial<ImageBoxDef>)],
     texts: [
-      t.text({ t: title, f: [0.05, 0.515, 0.9, 0.05], font: WM.serif, pt: 12, align: "center", color: mute, ls: 0.14, lh: 1.3 }),
-      t.text({ t: QUOTE[occ], f: [0.08, 0.625, 0.84, 0.16], font: WM.hand, pt: 18, align: "center", color: ink, lh: 1.65 }),
-      t.text({ t: INTRO_DEFAULT_DATE, f: [0.1, 0.84, 0.8, 0.045], font: WM.sans, pt: 10, align: "center", color: mute, ls: 0.1 }),
-      t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.1, 0.885, 0.8, 0.045], font: WM.sans, pt: 10, align: "center", color: mute, ls: 0.06 }),
-      t.rule([0.46, 0.583, 0.08, LINE * 1.6], "#6B8466"),
+      t.text({ t: title, f: [0.05, 0.43, 0.9, 0.045], font: WM.serif, pt: 11, align: "center", color: mute, ls: 0.14, lh: 1.3 }),
+      t.text({ t: QUOTE[occ], f: [0.06, 0.54, 0.88, 0.17], font: WM.hand, pt: 18, align: "center", color: ink, lh: 1.65 }),
+      t.text({ t: INTRO_DEFAULT_DATE, f: [0.1, 0.82, 0.8, 0.04], font: WM.sans, pt: 10, align: "center", color: mute, ls: 0.1 }),
+      t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.1, 0.87, 0.8, 0.04], font: WM.sans, pt: 10, align: "center", color: mute, ls: 0.06 }),
+      t.rule([0.46, 0.5, 0.08, LINE * 1.6], sage),
+      t.text({ t: "끝", f: [0.1, 0.71, 0.8, 0.06], font: WM.hand, pt: 20, align: "center", color: sage }),
     ],
     stickers: [
-      t.sticker("/stickers/plant/flower-sticker-06.png", 0.74, 0.4, 22, 12),
-      t.sticker("/stickers/plant/flower-sticker-05.png", 0.25, 0.43, 20, -10),
+      t.sticker("/stickers/plant/flower-sticker-06.png", 0.73, 0.34, 20, 12),
+      t.sticker("/stickers/plant/flower-sticker-05.png", 0.26, 0.36, 18, -10),
       t.sticker(LOGO, 0.5, 0.965, 22, 0, LOGO_ASPECT),
     ],
   };
@@ -79,15 +95,16 @@ const mn: Maker = (g, occ, title) => {
   const t = kitToolkit(g, "#1D1D1F");
   return {
     bg: solid("#FAF9F6"),
-    slots: [t.slot([0, 0, 0.5, 0.42])],
+    slots: [t.slot([0, 0, 0.5, 0.38])],
     texts: [
-      t.text({ t: title, f: [0, 0.57, 0.9, 0.04], font: MN.sans, pt: 9.5, color: "#76766F", ls: 0.1 }),
-      t.text({ t: QUOTE[occ], f: [0, 0.64, 0.92, 0.16], font: MN.serif, pt: 16, color: "#1D1D1F", lh: 1.75 }),
+      t.text({ t: title, f: [0, 0.52, 0.9, 0.04], font: MN.sans, pt: 9.5, color: "#76766F", ls: 0.1 }),
+      t.text({ t: QUOTE[occ], f: [0, 0.585, 0.95, 0.17], font: MN.serif, pt: 16, color: "#1D1D1F", lh: 1.75 }),
       t.text({ t: INTRO_DEFAULT_DATE, f: [0, 0.885, 0.55, 0.04], font: MN.sans, pt: 9, color: "#76766F", ls: 0.14 }),
       t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0, 0.93, 0.55, 0.04], font: MN.sans, pt: 9, color: "#76766F", ls: 0.1 }),
       t.text({ t: "COLOPHON", f: [0.58, 0, 0.42, 0.04], font: MN.latin, pt: 9, color: "#76766F", ls: 0.34, align: "right" }),
-      t.rule([0, 0.545, 1, LINE], "#CFCDC5"),
+      t.rule([0, 0.485, 1, LINE], "#CFCDC5"),
       t.rule([0, 0.86, 1, LINE], "#CFCDC5"),
+      t.text({ t: "END", f: [0, 0.785, 0.5, 0.04], font: MN.latin, pt: 9, color: "#1D1D1F", ls: 0.4 }),
     ],
     stickers: [t.sticker(LOGO, 0.9, 0.945, 24, 0, LOGO_ASPECT)],
   };
@@ -97,15 +114,16 @@ const mn: Maker = (g, occ, title) => {
 const HW = { pen: "'Nanum Pen Script', cursive", hand: "'Gaegu', cursive", dokdo: "'East Sea Dokdo', cursive" } as const;
 const hw: Maker = (g, occ, title) => {
   const t = kitToolkit(g, "#5B4632");
-  const fr = t.framed("polaroid", 0.5, 0.29, 0.46, -3);
+  const fr = t.framed("polaroid", 0.5, 0.26, 0.42, -3);
   return {
     bg: { kind: "texture", presetId: "t-paper-cream" } as BackgroundSpec,
     slots: [fr.slot],
     texts: [
-      t.text({ t: title, f: [0.05, 0.635, 0.9, 0.06], font: HW.pen, pt: 20, align: "center", color: "#85735F", lh: 1.1 }),
-      t.text({ t: QUOTE[occ], f: [0.08, 0.71, 0.84, 0.13], font: HW.hand, pt: 21, align: "center", color: "#5B4632", lh: 1.55 }),
-      t.text({ t: INTRO_DEFAULT_DATE, f: [0.1, 0.855, 0.8, 0.055], font: HW.dokdo, pt: 18, align: "center", color: "#C65A45" }),
-      t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.1, 0.905, 0.8, 0.045], font: HW.hand, pt: 14, align: "center", color: "#85735F" }),
+      t.text({ t: title, f: [0.05, 0.585, 0.9, 0.055], font: HW.pen, pt: 17, align: "center", color: "#85735F", lh: 1.1 }),
+      t.text({ t: QUOTE[occ], f: [0.06, 0.65, 0.88, 0.14], font: HW.hand, pt: 20, align: "center", color: "#5B4632", lh: 1.55 }),
+      t.text({ t: INTRO_DEFAULT_DATE, f: [0.1, 0.865, 0.8, 0.05], font: HW.dokdo, pt: 17, align: "center", color: "#C65A45" }),
+      t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.1, 0.91, 0.8, 0.04], font: HW.hand, pt: 13, align: "center", color: "#85735F" }),
+      t.text({ t: "끝", f: [0.1, 0.79, 0.8, 0.07], font: HW.dokdo, pt: 30, align: "center", color: "#85735F" }),
     ],
     stickers: [
       fr.sticker,
@@ -123,16 +141,17 @@ const kd: Maker = (g, occ, title) => {
   const t = kitToolkit(g, "#4A5568");
   return {
     bg: { kind: "graphic", presetId: "g4-clouds-sky" } as BackgroundSpec,
-    slots: [t.slot([0.2, 0.02, 0.6, 0.4], { frameShape: "cloud" } as Partial<ImageBoxDef>)],
+    slots: [t.slot([0.22, 0.02, 0.56, 0.36], { frameShape: "cloud" } as Partial<ImageBoxDef>)],
     texts: [
-      t.text({ t: title, f: [0.05, 0.46, 0.9, 0.06], font: KD.jua, pt: 14, align: "center", color: "#3E86C0", lh: 1.2 }),
-      t.text({ t: QUOTE[occ], f: [0.1, 0.56, 0.8, 0.15], font: KD.hand, pt: 22, align: "center", color: "#4A5568", lh: 1.5 }),
-      t.text({ t: INTRO_DEFAULT_DATE, f: [0.28, 0.8, 0.44, 0.06], font: KD.jua, pt: 12, align: "center", va: "middle", color: "#4A5568", bg: "#FFFFFF", radius: 50 }),
+      t.text({ t: title, f: [0.05, 0.42, 0.9, 0.055], font: KD.jua, pt: 13, align: "center", color: "#3E86C0", lh: 1.2 }),
+      t.text({ t: QUOTE[occ], f: [0.08, 0.49, 0.84, 0.16], font: KD.hand, pt: 21, align: "center", color: "#4A5568", lh: 1.5 }),
+      t.text({ t: INTRO_DEFAULT_DATE, f: [0.28, 0.79, 0.44, 0.06], font: KD.jua, pt: 12, align: "center", va: "middle", color: "#4A5568", bg: "#FFFFFF", radius: 50 }),
       t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.1, 0.875, 0.8, 0.05], font: KD.hand, pt: 16, align: "center", color: "#4A5568" }),
+      t.text({ t: "또 만나요!", f: [0.1, 0.68, 0.8, 0.065], font: KD.jua, pt: 17, align: "center", color: "#E8728C" }),
     ],
     stickers: [
-      t.sticker("/stickers/animal/animal-sticker-02.png", 0.1, 0.4, 34, -8),
-      t.sticker("/stickers/animal/animal-sticker-13.png", 0.9, 0.38, 32, 8),
+      t.sticker("/stickers/animal/animal-sticker-02.png", 0.1, 0.38, 32, -8),
+      t.sticker("/stickers/animal/animal-sticker-13.png", 0.9, 0.36, 30, 8),
       t.sticker(LOGO, 0.5, 0.965, 20, 0, LOGO_ASPECT),
     ],
   };
@@ -142,20 +161,21 @@ const kd: Maker = (g, occ, title) => {
 const MZ = { black: "'Black Han Sans', sans-serif", dh: "'Do Hyeon', sans-serif", sans: "Pretendard, sans-serif" } as const;
 const mz: Maker = (g, occ, title) => {
   const t = kitToolkit(g, "#F2F0EA");
-  const fr = t.framed("film", 0.5, 0.24, 0.56, -2);
+  const fr = t.framed("film", 0.5, 0.22, 0.52, -2);
   return {
     bg: solid("#111111"),
     slots: [fr.slot],
     texts: [
-      t.text({ t: title, f: [0, 0.545, 1, 0.055], font: MZ.black, pt: 13, color: "#CCFF00", ls: 0.08, lh: 1.1 }),
-      t.text({ t: QUOTE[occ], f: [0, 0.625, 0.95, 0.16], font: MZ.dh, pt: 18, color: "#F2F0EA", lh: 1.5 }),
+      t.text({ t: title, f: [0, 0.505, 1, 0.05], font: MZ.black, pt: 12, color: "#CCFF00", ls: 0.08, lh: 1.1 }),
+      t.text({ t: QUOTE[occ], f: [0, 0.58, 0.95, 0.16], font: MZ.dh, pt: 17, color: "#F2F0EA", lh: 1.5 }),
       t.text({ t: INTRO_DEFAULT_DATE, f: [0, 0.84, 0.36, 0.06], font: MZ.dh, pt: 12, color: "#111111", align: "center", va: "middle", bg: "#CCFF00", ls: 0.06 }),
       t.text({ t: `${INTRO_DEFAULT_MAKER_PREFIX}만든이`, f: [0.4, 0.84, 0.6, 0.06], font: MZ.sans, pt: 10, color: "#8D8D86", bold: true, va: "middle", ls: 0.12 }),
       t.rule([0.6, 0.925, 0.4, 0.065], "#F2F0EA", 50, DESIGN_BACK_Z),
+      t.text({ t: "THE END", f: [0, 0.76, 0.6, 0.045], font: MZ.dh, pt: 11, color: "#CCFF00", ls: 0.34 }),
     ],
     stickers: [
       fr.sticker,
-      t.sticker("/stickers/season/party-sticker-01.svg", 0.92, 0.44, 30, 10),
+      t.sticker("/stickers/season/party-sticker-01.svg", 0.92, 0.42, 28, 10),
       t.sticker(LOGO, 0.8, 0.958, 24, 0, LOGO_ASPECT),
     ],
   };
