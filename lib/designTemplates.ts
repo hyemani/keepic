@@ -264,39 +264,29 @@ const WM_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마무리: Thank you + 사진 1장
+    // 6) 마지막 한 장: 오른쪽에 큰 사진 1장(거의 한 면 가득) + 왼쪽은 짧은 글귀만 — 작별 인사('끝'·Thank you)는 맨 마지막 소개 페이지가 말해요.
     id: "wm-closing",
-    name: "마무리 · Thank you",
-    note: "사진 1장 + 감사 인사·끝",
+    name: "큰 사진 한 장",
+    note: "큰 사진 1장 + 짧은 글귀·날짜",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.ivory),
         slots: [],
         texts: [
-          t.text({ t: "Thank you", f: [0, 0.22, 1, 0.2], font: FONT.pen, pt: 74.5, align: "center", color: C.sageDeep, lh: 1.1 }),
-          t.text({ t: "고마운 순간들", f: [0, 0.45, 1, 0.1], font: FONT.serif, pt: 24, align: "center" }),
-          t.text({
-            t: "여기까지 함께해 주어서\n고마워요.",
-            f: [0.1, 0.58, 0.8, 0.14],
-            font: FONT.sans,
-            pt: 12.5,
-            align: "center",
-            lh: 1.85,
-            color: C.mute,
-          }),
-          t.text({ t: "끝", f: [0, 0.84, 1, 0.1], font: FONT.hand, pt: 21.5, align: "center", color: C.sageDeep }),
+          t.text({ t: "가장 오래 남을\n한 장", f: [0.04, 0.4, 0.92, 0.22], font: FONT.hand, pt: 34, align: "center", color: C.sageDeep, lh: 1.3 }),
+          t.rule([0.46, 0.66, 0.08, 0.0022], C.sageDeep),
         ],
-        stickers: [t.sticker(STK.sunflower, 0.5, 0.06, 30, -6)],
+        stickers: [t.sticker(STK.sunflower, 0.5, 0.22, 26, -6)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
         bg: { kind: "solid", color: C.butterLight },
-        slots: [t.slot([0.06, 0.07, 0.88, 0.76], SOFT)],
-        texts: [t.text({ t: "2026.10.04", f: [0.06, 0.9, 0.88, 0.06], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12, align: "center" })],
-        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.07, 36, 2)],
+        slots: [t.slot([0, 0, 1, 0.9], SOFT)],
+        texts: [t.text({ t: "2026.10.04", f: [0, 0.94, 1, 0.05], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12, align: "center" })],
+        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.01, 36, 2)],
       };
     },
   },

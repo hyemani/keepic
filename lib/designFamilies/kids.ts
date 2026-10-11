@@ -231,19 +231,16 @@ export const KIDS_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마무리: 고마워 + 꽃잎 사진 1장
+    // 6) 마지막 한 장: 오른쪽에 큰 꽃잎 사진 1장 + 왼쪽은 귀여운 한 줄 — 작별 인사(고마워·또 만나요)는 맨 마지막 소개 페이지가 말해요.
     id: "kd-closing",
-    name: "마무리 · 고마워",
-    note: "사진 1장 + 감사 인사·쑥쑥 스티커",
+    name: "큰 사진 한 장",
+    note: "큰 사진 1장 + 쑥쑥 스티커·날짜",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.butter),
         slots: [],
-        texts: [
-          t.text({ t: "고마워,\n우리 아기", f: [0, 0.14, 1, 0.3], font: FONT.jua, pt: 56, color: C.skyDeep, align: "center", lh: 1.12 }),
-          t.text({ t: "다음 이야기도 기대해!", f: [0, 0.86, 1, 0.07], font: FONT.hand, pt: 30, color: C.pink, align: "center" }),
-        ],
+        texts: [t.text({ t: "오늘의\n한 컷!", f: [0, 0.12, 1, 0.34], font: FONT.jua, pt: 52, color: C.skyDeep, align: "center", lh: 1.15 })],
         stickers: [t.sticker(STK.growWell, 0.5, 0.65, 92, -3), t.sticker(STK.heartPink, 0.14, 0.14, 24, -10), t.sticker(STK.heartBlue, 0.88, 0.5, 22, 10)],
       };
     },
@@ -251,8 +248,8 @@ export const KIDS_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.sky),
-        slots: [t.slot([0.08, 0.06, 0.84, 0.78], PETAL)],
-        texts: [t.text({ t: "2026.10.04", f: [0.3, 0.89, 0.4, 0.065], font: FONT.jua, pt: 15, color: C.ink, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 })],
+        slots: [t.slot([0.04, 0.03, 0.92, 0.82], PETAL)],
+        texts: [t.text({ t: "2026.10.04", f: [0.3, 0.9, 0.4, 0.065], font: FONT.jua, pt: 15, color: C.ink, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 })],
         stickers: [t.sticker(STK.bunny, 0.1, 0.9, 38, -8), t.sticker(STK.chick, 0.9, 0.9, 36, 8)],
       };
     },

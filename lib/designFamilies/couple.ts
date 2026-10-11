@@ -239,7 +239,6 @@ export const COUPLE_INNER: InnerDesignDef[] = [
         texts: [
           t.text({ t: "앞으로도 쭉, 우리", f: [0, 0.54, 1, 0.12], font: HW.pen, pt: 46, color: C.brown, align: "center", lh: 1.0 }),
           t.text({ t: "오늘의 우리를 오래 기억할게", f: [0, 0.68, 1, 0.07], font: HW.hand, pt: 21, color: C.pencil, align: "center" }),
-          t.text({ t: "끝", f: [0, 0.88, 1, 0.07], font: HW.hand, pt: 22, color: C.red, align: "center" }),
         ],
         stickers: [t.sticker(STK.foreverUs, 0.5, 0.3, 150, 0, FOREVER_ASPECT), t.sticker(STK.heartRed, 0.14, 0.12, 22, -12), t.sticker(STK.heart, 0.86, 0.48, 20, 12)],
       };

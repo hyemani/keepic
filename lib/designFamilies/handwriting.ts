@@ -203,20 +203,18 @@ export const HANDWRITING_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마무리: 큰 고마워 + 사진 1장
+    // 6) 마지막 한 장: 오른쪽에 큰 폴라로이드풍 사진 1장 + 왼쪽은 손글씨 한 줄 — 작별 인사('끝'·고마워)는 맨 마지막 소개 페이지가 말해요.
     id: "hw-closing",
-    name: "마무리 · 고마워",
-    note: "사진 1장 + 손글씨 감사 인사·끝",
+    name: "큰 사진 한 장",
+    note: "큰 사진 1장 + 손글씨 한 줄·날짜",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: KRAFT_PAPER,
         slots: [],
         texts: [
-          t.text({ t: "고마워", f: [0, 0.2, 1, 0.3], font: FONT.pen, pt: 132, color: C.brown, align: "center", lh: 1.0 }),
-          t.text({ t: "오늘도 안녕", f: [0, 0.52, 1, 0.07], font: FONT.hand, pt: 30, color: C.red, align: "center" }),
-          t.text({ t: "책장을 덮어도\n우리의 날들은 계속돼", f: [0.1, 0.63, 0.8, 0.14], font: FONT.hand, pt: 21, color: C.brown, align: "center", lh: 1.85 }),
-          t.text({ t: "끝", f: [0, 0.86, 1, 0.07], font: FONT.dokdo, pt: 34, color: C.pencil, align: "center", va: "bottom" }),
+          t.text({ t: "오늘의\n한 장", f: [0, 0.3, 1, 0.34], font: FONT.pen, pt: 92, color: C.brown, align: "center", lh: 1.0 }),
+          t.text({ t: "손으로 꾹 눌러 담았어", f: [0.05, 0.7, 0.9, 0.07], font: FONT.hand, pt: 22, color: C.red, align: "center" }),
         ],
         stickers: [t.sticker(STK.tapeStar, 0.5, 0.04, 42, -2), t.sticker(STK.tulip, 0.16, 0.9, 38, -8), t.sticker(STK.rose, 0.84, 0.9, 34, 8)],
       };
@@ -225,9 +223,9 @@ export const HANDWRITING_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: CREAM_PAPER,
-        slots: [t.slot([0.07, 0.07, 0.86, 0.72], tilt(2))],
-        texts: [t.text({ t: "2026.10.04", f: [0.04, 0.87, 0.92, 0.07], font: FONT.hand, pt: 23, color: C.pencil, align: "center" })],
-        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.07, 38, 2), t.sticker(STK.heart, 0.9, 0.9, 22, 10)],
+        slots: [t.slot([0.04, 0.05, 0.92, 0.8], tilt(-2))],
+        texts: [t.text({ t: "2026.10.04", f: [0.04, 0.91, 0.92, 0.07], font: FONT.hand, pt: 23, color: C.pencil, align: "center" })],
+        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.05, 38, 2), t.sticker(STK.heart, 0.9, 0.9, 22, 10)],
       };
     },
   },

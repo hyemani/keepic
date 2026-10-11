@@ -191,20 +191,19 @@ export const MINIMAL_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마무리: 감사 인사 + 작은 사진 1장
+    // 6) 마지막 한 장: 오른쪽에 큰 사진 1장(거의 한 면 가득) + 왼쪽은 작은 라벨·짧은 글귀만 — 작별 인사('END'·Thank you)는 맨 마지막 소개 페이지가 말해요.
     id: "mn-closing",
-    name: "마무리 · Thank you",
-    note: "사진 1장 + 감사 인사·끝",
+    name: "큰 사진 한 장",
+    note: "큰 사진 1장 + 짧은 글귀·날짜",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.paper),
         slots: [],
         texts: [
-          t.text({ t: "THANK YOU", f: [0, 0.34, 1, 0.12], font: FONT.latin, pt: 40, color: C.ink, ls: 0.14, align: "center", lh: 1.2 }),
-          t.rule([0.46, 0.5, 0.08, LINE * 1.6], C.ink),
-          t.text({ t: "여기까지 함께해 주셔서\n감사합니다", f: [0.05, 0.54, 0.9, 0.14], font: FONT.serif, pt: 14, color: C.gray, align: "center", lh: 1.85 }),
-          t.text({ t: "END", f: [0, 0.94, 1, 0.04], font: FONT.latin, pt: 9, color: C.light, ls: 0.4, align: "center", va: "bottom" }),
+          t.text({ t: "A QUIET MOMENT", f: [0, 0, 0.7, 0.04], font: FONT.latin, pt: 9, color: C.gray, ls: 0.34 }),
+          t.text({ t: "조용히 오래\n남을 장면", f: [0, 0.4, 0.9, 0.2], font: FONT.serif, pt: 30, color: C.ink, lh: 1.4 }),
+          t.rule([0, 0.66, 0.1, LINE * 1.6], C.ink),
         ],
         stickers: [],
       };
@@ -213,10 +212,8 @@ export const MINIMAL_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.white),
-        slots: [t.slot([0.2, 0.12, 0.6, 0.64])],
-        texts: [
-          t.text({ t: "2026.10.04", f: [0.2, 0.82, 0.6, 0.04], font: FONT.sans, pt: 9, color: C.gray, ls: 0.14, align: "center" }),
-        ],
+        slots: [t.slot([0, 0, 1, 0.9])],
+        texts: [t.text({ t: "2026.10.04", f: [0.5, 0.94, 0.5, 0.04], font: FONT.sans, pt: 9, color: C.gray, ls: 0.14, align: "right" })],
         stickers: [],
       };
     },

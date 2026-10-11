@@ -195,19 +195,18 @@ export const MZ_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마무리: THE END + 사진 1장
+    // 6) 마지막 한 장: 오른쪽에 큰 사진 1장 + 왼쪽은 라임 큰 글자(BEST SHOT) — 작별 인사(THE END)는 맨 마지막 소개 페이지가 말해요.
     id: "mz-closing",
-    name: "마무리 · THE END",
-    note: "사진 1장 + THE END·다음 롤 예고",
+    name: "큰 사진 + BEST SHOT",
+    note: "큰 사진 1장 + BEST SHOT·날짜",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.black),
         slots: [],
         texts: [
-          t.text({ t: "THE\nEND", f: [0, 0.1, 1, 0.52], font: FONT.black, pt: 126, color: C.lime, lh: 0.92 }),
-          t.text({ t: "다음 롤에서 만나요", f: [0, 0.68, 1, 0.07], font: FONT.dh, pt: 26, color: C.white }),
-          t.text({ t: "FILM ROLL 01  —  36 / 36", f: [0, 0.94, 0.8, 0.045], font: FONT.sans, pt: 10, color: C.gray, bold: true, ls: 0.2 }),
+          t.text({ t: "BEST\nSHOT", f: [0, 0.12, 1, 0.46], font: FONT.black, pt: 98, color: C.lime, lh: 0.95 }),
+          t.text({ t: "오늘의 베스트 컷", f: [0, 0.68, 1, 0.07], font: FONT.dh, pt: 26, color: C.white }),
         ],
         stickers: [t.sticker(STK.smile, 0.86, 0.82, 46, 10)],
       };
@@ -216,9 +215,9 @@ export const MZ_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.off),
-        slots: [t.slot([0.06, 0.07, 0.88, 0.72])],
-        texts: [t.text({ t: "2026.10.04", f: [0.06, 0.84, 0.4, 0.07], font: FONT.dh, pt: 17, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.08 })],
-        stickers: [t.sticker(STK.shades, 0.84, 0.88, 50, -12), t.sticker(STK.tapePink, 0.5, 0.06, 38, 4)],
+        slots: [t.slot([0.04, 0.04, 0.92, 0.8])],
+        texts: [t.text({ t: "2026.10.04", f: [0.04, 0.88, 0.4, 0.07], font: FONT.dh, pt: 17, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.08 })],
+        stickers: [t.sticker(STK.shades, 0.84, 0.9, 50, -12), t.sticker(STK.tapePink, 0.5, 0.05, 38, 4)],
       };
     },
   },
