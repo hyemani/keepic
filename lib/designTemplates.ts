@@ -264,29 +264,36 @@ const WM_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마지막 한 장: 오른쪽에 큰 사진 1장(거의 한 면 가득) + 왼쪽은 짧은 글귀만 — 작별 인사('끝'·Thank you)는 맨 마지막 소개 페이지가 말해요.
+    // 6) 소프트 콜라주: 왼쪽 큰 사진 1장 + 짧은 글귀·날짜, 오른쪽 작은 사진 3장(살짝 기울인 인화·동그란 사진)을 마스킹테이프로 붙인 모양.
+    //    작별 인사('끝'·Thank you)는 맨 마지막 소개 페이지가 말해요. 사진 칸 순서: 큰 사진이 맨 앞이라 사진이 1장만 남아도 큰 칸에 먼저 들어가요.
     id: "wm-closing",
-    name: "큰 사진 한 장",
-    note: "큰 사진 1장 + 짧은 글귀·날짜",
+    name: "콜라주 마무리",
+    note: "큰 사진 1장 + 작은 사진 3장·글귀",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.ivory),
-        slots: [],
+        slots: [t.slot([0, 0.02, 1, 0.66], SOFT)],
         texts: [
-          t.text({ t: "가장 오래 남을\n한 장", f: [0.04, 0.4, 0.92, 0.22], font: FONT.hand, pt: 34, align: "center", color: C.sageDeep, lh: 1.3 }),
-          t.rule([0.46, 0.66, 0.08, 0.0022], C.sageDeep),
+          t.rule([0, 0.745, 0.08, 0.0022], C.sageDeep),
+          t.text({ t: "가장 오래 남을 한 장", f: [0, 0.77, 0.74, 0.09], font: FONT.hand, pt: 25, color: C.sageDeep, lh: 1.2 }),
+          t.text({ t: "2026.10.04", f: [0, 0.885, 0.5, 0.05], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12 }),
         ],
-        stickers: [t.sticker(STK.sunflower, 0.5, 0.22, 26, -6)],
+        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.02, 34, 2), t.sticker(STK.sunflower, 0.9, 0.88, 28, -6)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const PRINT = { ...SOFT, borderWidthPx: 7, borderColor: "#FFFFFF" } as const;
       return {
-        bg: { kind: "solid", color: C.butterLight },
-        slots: [t.slot([0, 0, 1, 0.9], SOFT)],
-        texts: [t.text({ t: "2026.10.04", f: [0, 0.94, 1, 0.05], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12, align: "center" })],
-        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.01, 36, 2)],
+        bg: solid(C.butterLight),
+        slots: [
+          t.slot([0.04, 0.04, 0.52, 0.4], { ...PRINT, rotation: -4 }),
+          t.slot([0.52, 0.2, 0.44, 0.44], withRing(C.ivory)),
+          t.slot([0.06, 0.55, 0.4, 0.34], { ...PRINT, rotation: 3 }),
+        ],
+        texts: [t.text({ t: "웃음 가득한\n오후의 기록", f: [0.52, 0.72, 0.48, 0.14], font: FONT.hand, pt: 19, color: C.mute, lh: 1.45 })],
+        stickers: [t.sticker(STK.tapeStar, 0.3, 0.05, 28, -6), t.sticker(STK.tapeKraft, 0.26, 0.56, 26, 5), t.sticker(STK.sunflower, 0.88, 0.91, 26, 8)],
       };
     },
   },
