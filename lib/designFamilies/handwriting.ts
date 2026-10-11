@@ -215,7 +215,7 @@ export const HANDWRITING_INNER: InnerDesignDef[] = [
         texts: [
           t.text({ t: "고마워", f: [0, 0.2, 1, 0.3], font: FONT.pen, pt: 132, color: C.brown, align: "center", lh: 1.0 }),
           t.text({ t: "오늘도 안녕", f: [0, 0.52, 1, 0.07], font: FONT.hand, pt: 30, color: C.red, align: "center" }),
-          t.text({ t: "함께한 모든 날이\n오래도록 따뜻하게 남기를", f: [0.1, 0.63, 0.8, 0.14], font: FONT.hand, pt: 21, color: C.brown, align: "center", lh: 1.85 }),
+          t.text({ t: "책장을 덮어도\n우리의 날들은 계속돼", f: [0.1, 0.63, 0.8, 0.14], font: FONT.hand, pt: 21, color: C.brown, align: "center", lh: 1.85 }),
           t.text({ t: "끝", f: [0, 0.86, 1, 0.07], font: FONT.dokdo, pt: 34, color: C.pencil, align: "center", va: "bottom" }),
         ],
         stickers: [t.sticker(STK.tapeStar, 0.5, 0.04, 42, -2), t.sticker(STK.tulip, 0.16, 0.9, 38, -8), t.sticker(STK.rose, 0.84, 0.9, 34, 8)],
@@ -226,7 +226,7 @@ export const HANDWRITING_INNER: InnerDesignDef[] = [
       return {
         bg: CREAM_PAPER,
         slots: [t.slot([0.07, 0.07, 0.86, 0.72], tilt(2))],
-        texts: [t.text({ t: "2026.10.04  —  마지막 장", f: [0.04, 0.87, 0.92, 0.07], font: FONT.hand, pt: 23, color: C.pencil, align: "center" })],
+        texts: [t.text({ t: "2026.10.04", f: [0.04, 0.87, 0.92, 0.07], font: FONT.hand, pt: 23, color: C.pencil, align: "center" })],
         stickers: [t.sticker(STK.tapeKraft, 0.5, 0.07, 38, 2), t.sticker(STK.heart, 0.9, 0.9, 22, 10)],
       };
     },

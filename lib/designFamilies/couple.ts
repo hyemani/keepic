@@ -249,7 +249,7 @@ export const COUPLE_INNER: InnerDesignDef[] = [
       return {
         bg: KRAFT_PAPER,
         slots: [t.slot([0.06, 0.07, 0.88, 0.72], tilt(2))],
-        texts: [t.text({ t: "2026.04.10  —  우리의 마지막 장", f: [0.04, 0.87, 0.92, 0.07], font: HW.hand, pt: 21, color: C.pencil, align: "center" })],
+        texts: [t.text({ t: "2026.04.10", f: [0.04, 0.87, 0.92, 0.07], font: HW.hand, pt: 21, color: C.pencil, align: "center" })],
         stickers: [t.sticker(STK.tapeKraft, 0.5, 0.07, 36, 2), t.sticker(STK.heartRed, 0.9, 0.92, 20, 10)],
       };
     },

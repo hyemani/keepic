@@ -203,7 +203,7 @@ export const MINIMAL_INNER: InnerDesignDef[] = [
         texts: [
           t.text({ t: "THANK YOU", f: [0, 0.34, 1, 0.12], font: FONT.latin, pt: 40, color: C.ink, ls: 0.14, align: "center", lh: 1.2 }),
           t.rule([0.46, 0.5, 0.08, LINE * 1.6], C.ink),
-          t.text({ t: "함께한 모든 날이 오래도록\n조용히 빛나기를", f: [0.05, 0.54, 0.9, 0.14], font: FONT.serif, pt: 14, color: C.gray, align: "center", lh: 1.85 }),
+          t.text({ t: "여기까지 함께해 주셔서\n감사합니다", f: [0.05, 0.54, 0.9, 0.14], font: FONT.serif, pt: 14, color: C.gray, align: "center", lh: 1.85 }),
           t.text({ t: "END", f: [0, 0.94, 1, 0.04], font: FONT.latin, pt: 9, color: C.light, ls: 0.4, align: "center", va: "bottom" }),
         ],
         stickers: [],

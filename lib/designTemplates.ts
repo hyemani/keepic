@@ -277,7 +277,7 @@ const WM_INNER: InnerDesignDef[] = [
           t.text({ t: "Thank you", f: [0, 0.22, 1, 0.2], font: FONT.pen, pt: 74.5, align: "center", color: C.sageDeep, lh: 1.1 }),
           t.text({ t: "고마운 순간들", f: [0, 0.45, 1, 0.1], font: FONT.serif, pt: 24, align: "center" }),
           t.text({
-            t: "함께한 모든 날이\n오래도록 따뜻하게 남기를.",
+            t: "여기까지 함께해 주어서\n고마워요.",
             f: [0.1, 0.58, 0.8, 0.14],
             font: FONT.sans,
             pt: 12.5,
