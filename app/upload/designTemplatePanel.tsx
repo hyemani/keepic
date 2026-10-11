@@ -59,6 +59,13 @@ export type SingleSpreadProps = {
   onApply: (id: string) => void;
   sceneKeyOf: (id: string) => string;
 };
+// 소개 페이지 화면의 "디자인" 메뉴 — 소개 페이지 디자인 카드만 보여줘요(앨범 테마·표지·이 펼침면만 바꾸기는 없어요).
+export type IntroDesignProps = {
+  items: DesignListItem[];
+  isSelected: (id: string) => boolean;
+  onApply: (id: string) => void;
+  sceneKeyOf: (id: string) => string;
+};
 export type DesignKind = "theme" | "cover";
 
 export type DesignListItem = {
@@ -373,6 +380,7 @@ export function DesignPanel({
   album,
   cover,
   single,
+  intro,
   notice,
   styles,
   styleFilter,
@@ -380,12 +388,13 @@ export function DesignPanel({
   themeFilter,
   onThemeFilterChange,
 }: {
-  mode: "inner" | "cover";
+  mode: "inner" | "cover" | "intro";
   kind: DesignKind;
   onKindChange: (k: DesignKind) => void;
   album: AlbumThemeProps;
   cover: CoverCardProps;
   single?: SingleSpreadProps;
+  intro?: IntroDesignProps;
   notice?: string | null;
   styles: DesignStyleInfo[];
   styleFilter: string;
@@ -444,6 +453,61 @@ export function DesignPanel({
   const emptyMsg = (what: string) => (
     <p className="px-0.5 py-3 text-center text-[11px] text-[var(--color-charcoal)]/50">이 조건에 맞는 {what}가 아직 없어요.</p>
   );
+  if (intro) {
+    // 소개 페이지 전용: 행사 탭 5칸 + 스타일 select + 카드 목록만
+    const list = intro.items.filter((it) => designMatches(it, theme, style));
+    return (
+      <div className={PANEL_STACK} data-design-panel data-design-mode="intro" data-design-kind-active="intro">
+        <SegTabs ariaLabel="디자인 행사" dataAttr="data-design-theme" items={THEME_TAB_ITEMS} value={theme} onChange={onThemeFilterChange} />
+        <select
+          data-design-style-select
+          aria-label="디자인 스타일"
+          value={style}
+          onChange={(e) => onStyleFilterChange(e.target.value)}
+          className="box-border h-8 w-full min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
+        >
+          <option value="all">스타일: 전체</option>
+          {styles.map((x) => (
+            <option key={x.id} value={x.id}>
+              스타일: {x.name}
+            </option>
+          ))}
+        </select>
+        <div className="flex items-baseline justify-end px-0.5 text-[11px] text-[var(--color-charcoal)]/60">
+          <span data-design-count>{list.length}종</span>
+        </div>
+        <section data-intro-design-section role="tabpanel" aria-label="소개 페이지 디자인" className={PANEL_STACK}>
+          {list.length > 0 ? (
+            <div data-intro-design-list className={gridCls}>
+              {list.map((it) => {
+                const sel = intro.isSelected(it.id);
+                return (
+                  <DesignCard
+                    key={it.id}
+                    name={it.name}
+                    scene={it.scene}
+                    sceneKey={intro.sceneKeyOf(it.id)}
+                    selected={sel}
+                    onClick={() => {
+                      if (!sel) intro.onApply(it.id);
+                    }}
+                    attrs={{ "data-intro-design-id": it.id, "data-design-style": it.style, "data-design-themes": it.themes.join(",") }}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            emptyMsg("디자인")
+          )}
+        </section>
+        {notice ? (
+          <p data-design-notice role="status" aria-live="polite" className="pointer-events-none sticky bottom-1 z-10 bg-[var(--color-charcoal)] px-2 py-1.5 text-[11px] text-white shadow-lg">
+            {notice}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
   const count = kind === "theme" ? albumItems.length : coverItems.length;
   return (
     <div className={PANEL_STACK} data-design-panel data-design-mode={mode} data-design-kind-active={kind}>

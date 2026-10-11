@@ -30,7 +30,7 @@ export function matchesLayoutCountFilter(photoCount: number, f: LayoutCountFilte
 }
 
 export type LayoutThumbFrame =
-  | { kind: "spread"; range: "left" | "right" | "spread"; leftBlank?: boolean }
+  | { kind: "spread"; range: "left" | "right" | "spread"; leftBlank?: boolean; rightBlank?: boolean }
   | { kind: "cover"; target: "front" | "back"; backPct: number; spinePct: number; frontPct: number; aspect: number };
 
 export type LayoutTargetOption = { id: string; label: string; disabled?: boolean; title?: string };
@@ -81,6 +81,7 @@ function LayoutThumb({
         {range === "left" && <div className="absolute inset-y-0 right-0 w-1/2 bg-[var(--color-charcoal)]/[0.06]" />}
         {range === "right" && <div className="absolute inset-y-0 left-0 w-1/2 bg-[var(--color-charcoal)]/[0.06]" />}
         {frame.leftBlank && range !== "right" && <div className="absolute inset-y-0 left-0 w-1/2 bg-[var(--color-charcoal)]/[0.06]" />}
+        {frame.rightBlank && range !== "left" && <div className="absolute inset-y-0 right-0 w-1/2 bg-[var(--color-charcoal)]/[0.06]" />}
         <div className="absolute inset-y-0 left-1/2 w-px bg-[var(--color-charcoal)]/25" />
         {slots.map((s, i) => (
           <SlotRect key={i} slot={s} selected={selected} />

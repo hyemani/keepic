@@ -146,7 +146,17 @@ import {
   spreadBrowseTemplates,
 } from "@/lib/photoLayoutTemplates";
 import { LayoutPanel, type LayoutCountFilter } from "./layoutPanel";
-import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type CoverCardProps, type DesignKind, type DesignListItem, type SingleSpreadProps } from "./designTemplatePanel";
+import {
+  isBoxOnUnprintedSide,
+  isPagePrinted,
+  printedSidesOf,
+  pullBoxIntoPrinted,
+  resolvePanelRange,
+  scopeRangeToPrinted,
+  unprintedSidesOf,
+} from "@/lib/printedSides";
+import { INTRO_DESIGNS } from "@/lib/designIntro";
+import { DesignPanel, type AlbumThemeItem, type AlbumThemeProps, type CoverCardProps, type DesignKind, type DesignListItem, type IntroDesignProps, type SingleSpreadProps } from "./designTemplatePanel";
 import {
   VISIBLE_COVER_DESIGNS,
   COVER_PLACEHOLDER_TITLES,
@@ -156,6 +166,7 @@ import {
   isIntroDesignId,
   DESIGN_PHOTO_Z0,
   DESIGN_STYLES,
+  DESIGN_THEMES,
   VISIBLE_INNER_DESIGNS,
   coverDesignGeo,
   coverDesignScene,
@@ -13258,7 +13269,14 @@ function UploadPageContent() {
   }
 
   // 내지 페이지(스프레드 하나의 왼쪽/오른쪽 낱장)에 텍스트박스를 추가·수정·삭제해요.
-  function handleAddTextBox(spreadIndex: number, side: "left" | "right", overrides?: Partial<TextBoxDef>) {
+  // 인쇄 안 되는 면(소개 페이지 오른쪽·첫 펼침면 왼쪽)을 가리키면 그 펼침면의 인쇄되는 면으로 바꿔요(printedSides.ts가 유일한 기준).
+  function printedSideOrFirst(spreadIndex: number, side: "left" | "right"): "left" | "right" {
+    const sp = customSpreads[spreadIndex];
+    return isPagePrinted(spreadIndex, sp, side) ? side : printedSidesOf(spreadIndex, sp)[0];
+  }
+
+  function handleAddTextBox(spreadIndex: number, sideReq: "left" | "right", overrides?: Partial<TextBoxDef>) {
+    const side = printedSideOrFirst(spreadIndex, sideReq); // 인쇄 안 되는 면이면 인쇄되는 면으로
     const box = makeTextBox(overrides);
     const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
     setCustomSpreads((prev) =>
@@ -13422,7 +13440,8 @@ function UploadPageContent() {
     };
   }
 
-  function handleAddEmojiTextBox(spreadIndex: number, side: "left" | "right", emoji: string) {
+  function handleAddEmojiTextBox(spreadIndex: number, sideReq: "left" | "right", emoji: string) {
+    const side = printedSideOrFirst(spreadIndex, sideReq);
     const box = makeEmojiTextBox(emoji);
     const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
     setCustomSpreads((prev) =>
@@ -13763,12 +13782,12 @@ function UploadPageContent() {
     const spreadIndex = activeImageBox.spreadIndex;
     const box = customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === activeImageBox.boxId);
     if (!box) return;
-    const newBox: ImageBoxDef = {
+    const newBox: ImageBoxDef = pullBoxIntoPrinted(spreadIndex, customSpreads[spreadIndex], {
       ...box,
       id: crypto.randomUUID(),
       xPct: Math.min(96 - box.widthPct, box.xPct + 4),
       yPct: axisOnly ? box.yPct : Math.min(96 - box.heightPct, box.yPct + 4),
-    };
+    });
     setCustomSpreads((prev) =>
       prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), newBox] } : s))
     );
@@ -14165,11 +14184,26 @@ function UploadPageContent() {
 
   function handleImageBoxChange(spreadIndex: number, boxId: string, changes: Partial<ImageBoxDef>) {
     setCustomSpreads((prev) =>
-      prev.map((s, i) =>
-        i === spreadIndex
-          ? { ...s, imageBoxes: (s.imageBoxes ?? []).map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b)) }
-          : s
-      )
+      prev.map((s, i) => {
+        if (i !== spreadIndex) return s;
+        return {
+          ...s,
+          imageBoxes: (s.imageBoxes ?? []).map((b) => {
+            if (b.id !== boxId) return b;
+            const merged = { ...b, ...clearLayoutIdOnMove(changes) };
+            // 끌어서 옮기다가 박스 중심이 인쇄 안 되는 면으로 넘어가면 인쇄되는 면 안쪽에서 멈춰요(크기 조절이면 그 변경만 무시해요).
+            if (
+              (changes.xPct !== undefined || changes.widthPct !== undefined) &&
+              !isBoxOnUnprintedSide(spreadIndex, s, b) &&
+              isBoxOnUnprintedSide(spreadIndex, s, merged)
+            ) {
+              if (changes.widthPct !== undefined) return { ...b, ...clearLayoutIdOnMove({ ...changes, xPct: b.xPct, widthPct: b.widthPct }) };
+              return pullBoxIntoPrinted(spreadIndex, s, merged);
+            }
+            return merged;
+          }),
+        };
+      })
     );
   }
 
@@ -14177,7 +14211,7 @@ function UploadPageContent() {
   // 그대로 새 id를 붙여 같은 자리에 하나 더 추가해요 — 드래그 중인 원래 id는 그대로
   // 계속 움직이니, 결과적으로 이 사본이 제자리에 남아요.
   function handleAltDuplicateImageBox(spreadIndex: number, box: ImageBoxDef) {
-    const newBox: ImageBoxDef = { ...box, id: crypto.randomUUID() };
+    const newBox: ImageBoxDef = pullBoxIntoPrinted(spreadIndex, customSpreads[spreadIndex], { ...box, id: crypto.randomUUID() });
     setCustomSpreads((prev) =>
       prev.map((s, i) => (i === spreadIndex ? { ...s, imageBoxes: [...(s.imageBoxes ?? []), newBox] } : s))
     );
@@ -14469,7 +14503,7 @@ function UploadPageContent() {
 
   function applyLayoutTemplate(
     spreadIndex: number,
-    range: LayoutApplyRange,
+    rangeReq: LayoutApplyRange,
     template: PhotoLayoutTemplate,
     selectedIds?: string[],
     // 디자인 템플릿(applyInnerDesignTemplate)이 같은 적용 흐름을 그대로 쓰면서 칸 모양·글·스티커·배경을 한 번에(같은
@@ -14485,6 +14519,12 @@ function UploadPageContent() {
   ) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
+    // 인쇄 안 되는 면(소개 페이지 오른쪽·첫 펼침면 왼쪽)에는 절대 놓지 않아요: "현재 펼침"은 인쇄되는 면 하나로 좁히고,
+    // 인쇄 안 되는 면을 직접 가리키면 아무것도 안 해요. 좁혀졌는데 템플릿이 펼침면 전체용이면 모양이 안 맞으니 적용하지 않아요.
+    const scopedRange = scopeRangeToPrinted(spreadIndex, spread, rangeReq);
+    if (scopedRange === null) return;
+    if (scopedRange !== rangeReq && template.scope === "spread") return;
+    const range: LayoutApplyRange = scopedRange;
     // 2026-09-27 재확인: "레이아웃을 바꿀때마다 겹치는 오류 확인됩니다. 레이아웃을
     // 바꾸면 선택한 레이아웃 자체가 바뀌어야합니다. 추가되는게 아니고요." — 이 면이
     // 아직 옛날 방식 그리드(spread.left/right, 사진이 여러 장인 템플릿)로 사진을
@@ -15056,8 +15096,11 @@ function UploadPageContent() {
     const spread = customSpreads[spreadIndex];
     if (!d || !spread) return;
     const isIntroApply = !!spread.intro && isIntroDesignId(d.id);
-    let sides: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
-    if (spreadIndex === 0) sides = sides.filter((s) => s !== "left"); // 첫 펼침면의 왼쪽은 인쇄 안 되는 면
+    const printedNow = printedSidesOf(spreadIndex, spread);
+    const strayDesignSides = unprintedSidesOf(spreadIndex, spread); // 인쇄 안 되는 면(옛 버그로 남은 디자인 항목 정리용)
+    // 인쇄 안 되는 면(소개 페이지 오른쪽·첫 펼침면 왼쪽)은 절대 대상이 아니에요
+    const wantedSides: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
+    const sides = wantedSides.filter((s) => printedNow.includes(s));
     if (sides.length === 0) return;
     const eff: LayoutApplyRange = sides.length === 2 ? "spread" : sides[0];
     const g = innerDesignGeo(computeInnerPageWorkMm());
@@ -15087,7 +15130,7 @@ function UploadPageContent() {
       keptUser += mergeDesignTexts(side === "left" ? spread.textBoxesLeft : spread.textBoxesRight, d.id, side, []).keptUser;
     }
     if (batch) batch.keptUserTexts += keptUser;
-    else setDesignThemeId(undefined); // 한 페이지만 바꾸면 "앨범 테마 전체 적용" 상태는 풀려요
+    else if (!isIntroApply) setDesignThemeId(undefined); // 한 페이지만 바꾸면 "앨범 테마 전체 적용" 상태는 풀려요(소개 페이지만 바꿀 땐 풀리지 않아요)
     applyLayoutTemplate(spreadIndex, eff, synth, undefined, {
       batch,
       slotPatches: patches,
@@ -15108,8 +15151,21 @@ function UploadPageContent() {
             removed.add(b.id);
             return false;
           }
+          // 옛 버그로 인쇄 안 되는 면에 남은 "디자인이 만든 스티커"와 빈 사진 칸만 같이 치워요(사용자 사진·글은 그대로).
+          if (sd && (strayDesignSides as string[]).includes(sd)) {
+            removed.add(b.id);
+            return false;
+          }
+          if (!b.url && !isStickerImageBox(b) && isBoxOnUnprintedSide(spreadIndex, spread, b)) {
+            removed.add(b.id);
+            return false;
+          }
           return true;
         });
+        for (const side of strayDesignSides) {
+          const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
+          if ((s[key] ?? []).some((b) => isDesignItemId(b.id))) s[key] = (s[key] ?? []).filter((b) => !isDesignItemId(b.id));
+        }
         const added: ImageBoxDef[] = [];
         for (const side of sides) {
           const layout = layouts[side]!;
@@ -15345,6 +15401,89 @@ function UploadPageContent() {
     }
     return n;
   }
+  // 인쇄 안 되는 면에 옛 버그로 남은 "자동으로 들어간 항목"(디자인이 만든 글·스티커, 빈 사진 칸)을 세고 지워요.
+  // 사용자가 올린 사진·직접 쓴 글은 세지도 지우지도 않아요.
+  function unprintedStrayOf(spreadIndex: number, sp: SpreadDef | undefined): { count: number; boxIds: string[]; textIds: Record<"left" | "right", string[]> } {
+    const out = { count: 0, boxIds: [] as string[], textIds: { left: [] as string[], right: [] as string[] } };
+    if (!sp) return out;
+    for (const side of unprintedSidesOf(spreadIndex, sp)) {
+      out.textIds[side] = (side === "left" ? sp.textBoxesLeft : sp.textBoxesRight)?.filter((b) => isDesignItemId(b.id)).map((b) => b.id) ?? [];
+    }
+    out.boxIds = (sp.imageBoxes ?? []).filter((b) => isBoxOnUnprintedSide(spreadIndex, sp, b) && (isDesignItemId(b.id) || !b.url)).map((b) => b.id);
+    out.count = out.boxIds.length + out.textIds.left.length + out.textIds.right.length;
+    return out;
+  }
+  function clearUnprintedStray(spreadIndex: number) {
+    setCustomSpreads((prev) =>
+      prev.map((sp, i) => {
+        if (i !== spreadIndex) return sp;
+        const st = unprintedStrayOf(i, sp);
+        if (st.count === 0) return sp;
+        const ids = new Set(st.boxIds);
+        return {
+          ...sp,
+          imageBoxes: (sp.imageBoxes ?? []).filter((b) => !ids.has(b.id)),
+          imageBoxOrder: (sp.imageBoxOrder ?? []).filter((id) => !ids.has(id)),
+          textBoxesLeft: (sp.textBoxesLeft ?? []).filter((b) => !st.textIds.left.includes(b.id)),
+          textBoxesRight: (sp.textBoxesRight ?? []).filter((b) => !st.textIds.right.includes(b.id)),
+        };
+      })
+    );
+  }
+
+  // 소개 페이지 전용 "디자인" 메뉴 — 소개 페이지 디자인 20종(스타일 5 × 행사 4)만 카드로 보여주고, 누르면 인쇄되는 왼쪽 낱장에만 바로 적용돼요.
+  // 사진·직접 쓴 글·내 스티커는 그대로, 디자인이 만든 항목(dt-)만 바꿔 끼워요(앨범 테마가 소개 페이지를 입힐 때와 같은 동작).
+  function applyIntroDesign(designId: string) {
+    if (introIdx < 0) return;
+    applyInnerDesignTemplate(introIdx, "left", designId);
+    if (selectedPageKey === "intro") {
+      // 옛 소개 화면에서 눌렀다면 디자인이 입혀진 소개 페이지 화면으로 — 편집 중이었으니 편집 화면·디자인 메뉴 그대로 이어가요
+      setSelectedPageKey(introIdx);
+      setEditorModeState({ forPageKey: introIdx, mode: "edit" });
+      setActiveEditTab("theme");
+    }
+  }
+  function buildIntroDesignPanel() {
+    const pageMm = computeInnerPageWorkMm();
+    const g = innerDesignGeo(pageMm);
+    const items: DesignListItem[] = INTRO_DESIGNS.map((dd) => {
+      const styleName = DESIGN_STYLES.find((x) => x.id === dd.style)?.name ?? dd.style;
+      const themeName = DESIGN_THEMES.find((t) => t.id === dd.themes[0])?.name ?? "";
+      return {
+        id: dd.id,
+        name: `${styleName} · ${themeName}`,
+        note: dd.note,
+        style: dd.style,
+        themes: dd.themes,
+        photoCount: 1,
+        // 인쇄되는 왼쪽 낱장 한 장만 그려요(적용 결과와 같은 데이터·같은 그리기 함수)
+        scene: { wMm: pageMm, hMm: pageMm, parts: [{ xMm: 0, yMm: 0, wMm: pageMm, hMm: pageMm, layout: dd.left(g) }] },
+      };
+    });
+    const intro: IntroDesignProps = {
+      items,
+      isSelected: (id) => introSpread?.introDesign === id,
+      onApply: applyIntroDesign,
+      sceneKeyOf: (id) => `${id}|${pageMm}|intro`,
+    };
+    return (
+      <DesignPanel
+        mode="intro"
+        kind="theme"
+        onKindChange={setDesignKind}
+        album={buildAlbumThemeProps()}
+        cover={buildCoverCardProps()}
+        intro={intro}
+        styles={DESIGN_STYLES}
+        styleFilter={designStyleFilter}
+        onStyleFilterChange={setDesignStyleFilter}
+        themeFilter={designThemeFilter}
+        onThemeFilterChange={setDesignThemeFilter}
+        notice={designNotice}
+      />
+    );
+  }
+
   function applyAlbumDesignTheme(setId: string) {
     const set = findAlbumThemeSet(setId);
     if (!set || bookSpreads.length === 0) return;
@@ -15994,10 +16133,13 @@ function UploadPageContent() {
     } else if (ref.scope === "backCover") {
       setBackCoverTextBoxes((prev) => [...prev, box]);
     } else {
-      const key = ref.side === "left" ? "textBoxesLeft" : "textBoxesRight";
+      const side = printedSideOrFirst(ref.spreadIndex, ref.side);
+      const key = side === "left" ? "textBoxesLeft" : "textBoxesRight";
       setCustomSpreads((prev) =>
         prev.map((s, i) => (i === ref.spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
       );
+      selectTextBox({ ...ref, side }, box.id);
+      return;
     }
     selectTextBox(ref, box.id);
   }
@@ -16140,12 +16282,15 @@ function UploadPageContent() {
     }
     if (clip.kind === "image" && target.kind === "image") {
       // 기존 Ctrl+Alt+D(handleDuplicateActiveImageBox)와 같은 규칙(+4% 어긋나게, 새 id)이에요.
-      const box: ImageBoxDef = {
+      const pasted: ImageBoxDef = {
         ...clip.box,
         id: crypto.randomUUID(),
         xPct: Math.max(0, Math.min(96 - clip.box.widthPct, clip.box.xPct + 4)),
         yPct: Math.max(0, Math.min(96 - clip.box.heightPct, clip.box.yPct + 4)),
       };
+      // 붙여넣기도 인쇄 안 되는 면에는 놓지 않아요(다른 펼침면에서 복사해 온 박스가 그 면에 걸리는 경우).
+      const box: ImageBoxDef =
+        target.where.scope === "spread" ? pullBoxIntoPrinted(target.where.spreadIndex, customSpreads[target.where.spreadIndex], pasted) : pasted;
       if (target.where.scope === "spread") {
         const spreadIndex = target.where.spreadIndex;
         setCustomSpreads((prev) =>
@@ -17811,7 +17956,7 @@ function UploadPageContent() {
                           {(spread.imageBoxes ?? [])
                             // 빈 프레임(사진 없음)은 이 작은 썸네일에서도 실제 인쇄·미리보기와
                             // 똑같이 안 보여야 해서 제외해요(2026-09-23).
-                            .filter((box) => box.url)
+                            .filter((box) => box.url && !isBoxOnUnprintedSide(i, spread, box)) // 인쇄 안 되는 면에 걸린 박스는 썸네일에도 안 그려요
                             .map((box) => (
                               <EditedPhotoThumb
                                 key={box.id}
@@ -17849,7 +17994,7 @@ function UploadPageContent() {
                             <div className="overflow-hidden bg-[var(--color-ivory)]" />
                           </div>
                           {(introSpread.imageBoxes ?? [])
-                            .filter((box) => box.url)
+                            .filter((box) => box.url && !isBoxOnUnprintedSide(introIdx, introSpread, box))
                             .map((box) => (
                               <EditedPhotoThumb
                                 key={box.id}
@@ -18725,7 +18870,7 @@ function UploadPageContent() {
                       </div>
                       <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row">
                         {editorMode === "edit" && (
-                        <div className="lg:w-56 lg:shrink-0">
+                        <div className="min-h-0 overflow-y-auto lg:w-[232px] lg:shrink-0">
                         <div className="mt-4 grid grid-cols-1 gap-1.5">
                           <label className="text-xs text-[var(--color-charcoal)]/70">
                             발행일
@@ -18744,6 +18889,11 @@ function UploadPageContent() {
                               className="mt-1 w-full border border-[var(--color-hairline)] px-2 py-1.5 text-sm"
                             />
                           </label>
+                        </div>
+                        {/* 디자인이 아직 없는 소개 페이지에서도 소개 페이지 디자인을 바로 고를 수 있어요(누르면 디자인이 입혀진 소개 페이지 화면으로 바뀌어요) */}
+                        <div data-intro-legacy-design className="mt-3 flex min-h-0 flex-col gap-1.5">
+                          <p className="text-xs font-medium text-[var(--color-charcoal)]/70">디자인</p>
+                          {introIdx >= 0 ? buildIntroDesignPanel() : null}
                         </div>
                         </div>
                         )}
@@ -18833,7 +18983,7 @@ function UploadPageContent() {
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
-                                {EDIT_TABS.filter((tab) => (tab.id !== "layout" || isAiAuto) && !(isIntroView && (tab.id === "layout" || tab.id === "theme"))).map((tab) => (
+                                {EDIT_TABS.filter((tab) => tab.id !== "layout" || isAiAuto).map((tab) => (
                                   <button
                                     key={tab.id}
                                     type="button"
@@ -19006,13 +19156,17 @@ function UploadPageContent() {
                               {activeEditTab === "layout" && (() => {
                                 // 적용 대상(왼쪽/오른쪽/현재 펼침) — 기본은 지금 보고 있는 펼침면 전체예요. 스프레드 1의 왼쪽 면은
                                 // 표지 뒷면(인쇄 안 되는 빈 면)이라 고를 수 없고, 기본도 "오른쪽"이에요.
-                                const allowLeft = i !== 0;
-                                const defaultRange: LayoutApplyRange = allowLeft ? "spread" : "right";
+                                // 인쇄 안 되는 면(소개 페이지 오른쪽·첫 펼침면 왼쪽)은 대상 탭이 꺼지고, "현재 펼침"도 꺼져요(인쇄되는 면 하나만 대상).
+                                const printedHere = printedSidesOf(i, spread);
+                                const allowLeft = printedHere.includes("left");
+                                const allowRight = printedHere.includes("right");
+                                const allowSpread = printedHere.length === 2;
+                                const unprintedTip = isIntroView ? "소개 페이지는 인쇄되는 왼쪽 면만 꾸밀 수 있어요" : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요";
                                 const picked =
                                   innerLayoutTargetState && innerLayoutTargetState.forPageKey === selectedPageKey
                                     ? innerLayoutTargetState.target
-                                    : defaultRange;
-                                const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
+                                    : undefined;
+                                const range: LayoutApplyRange = resolvePanelRange(i, spread, picked);
                                 // 대상 안의 사진 칸 총 개수로 필터해요: 한쪽 면은 한 판짜리(half) 템플릿, 펼침면은 펼침면 템플릿.
                                 const templates = range === "spread" ? spreadBrowseTemplates() : LISTED_HALF_LAYOUT_TEMPLATES;
                                 const rangeBoxes = imageBoxesInRange(
@@ -19022,9 +19176,9 @@ function UploadPageContent() {
                                 return (
                                   <LayoutPanel
                                     targets={[
-                                      { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
-                                      { id: "right", label: "오른쪽" },
-                                      { id: "spread", label: "현재 펼침" },
+                                      { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : unprintedTip },
+                                      { id: "right", label: "오른쪽", disabled: !allowRight, title: allowRight ? undefined : unprintedTip },
+                                      { id: "spread", label: "현재 펼침", disabled: !allowSpread, title: allowSpread ? undefined : unprintedTip },
                                     ]}
                                     target={range}
                                     onTargetChange={(id) =>
@@ -19034,7 +19188,7 @@ function UploadPageContent() {
                                       })
                                     }
                                     templates={templates}
-                                    frame={{ kind: "spread", range, leftBlank: !allowLeft }}
+                                    frame={{ kind: "spread", range, leftBlank: !allowLeft, rightBlank: !allowRight }}
                                     slotsFor={(t) => placeInnerTemplateSlots(t, range)}
                                     isSelected={(t) => rangeBoxes.length > 0 && rangeBoxes.every((b) => b.layoutTemplateId === t.id)}
                                     onApply={(t) => applyLayoutTemplate(i, range, t)}
@@ -19083,15 +19237,18 @@ function UploadPageContent() {
                                   />
                                 );
                               })()}
-                              {activeEditTab === "theme" && (() => {
+                              {activeEditTab === "theme" && isIntroView && buildIntroDesignPanel()}
+                              {activeEditTab === "theme" && !isIntroView && (() => {
                                 // 디자인 템플릿(사진 칸 + 글 + 스티커 + 배경) — 적용 대상은 레이아웃 탭과 같은 값을 같이 써요.
-                                const allowLeft = i !== 0;
-                                const defaultRange: LayoutApplyRange = allowLeft ? "spread" : "right";
+                                const printedHere = printedSidesOf(i, spread);
+                                const allowLeft = printedHere.includes("left");
+                                const allowRight = printedHere.includes("right");
+                                const allowSpread = printedHere.length === 2;
                                 const picked =
                                   innerLayoutTargetState && innerLayoutTargetState.forPageKey === selectedPageKey
                                     ? innerLayoutTargetState.target
-                                    : defaultRange;
-                                const range: LayoutApplyRange = !allowLeft && picked === "left" ? "right" : picked;
+                                    : undefined;
+                                const range: LayoutApplyRange = resolvePanelRange(i, spread, picked);
                                 const designPageMm = computeInnerPageWorkMm();
                                 const sidesOf: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
                                 const items: DesignListItem[] = VISIBLE_INNER_DESIGNS.map((dd) => ({
@@ -19106,8 +19263,8 @@ function UploadPageContent() {
                                 const single: SingleSpreadProps = {
                                   targets: [
                                     { id: "left", label: "왼쪽", disabled: !allowLeft, title: allowLeft ? undefined : "첫 펼침면의 왼쪽은 인쇄되지 않는 면이에요" },
-                                    { id: "right", label: "오른쪽" },
-                                    { id: "spread", label: "현재 펼침" },
+                                    { id: "right", label: "오른쪽", disabled: !allowRight },
+                                    { id: "spread", label: "현재 펼침", disabled: !allowSpread, title: allowSpread ? undefined : "첫 펼침면은 오른쪽 면만 인쇄돼요" },
                                   ],
                                   target: range,
                                   onTargetChange: (id) =>
@@ -19189,6 +19346,23 @@ function UploadPageContent() {
                                 </label>
                               </div>
                             )}
+                            {editorMode === "edit" && (() => {
+                              const stray = unprintedStrayOf(i, spread);
+                              if (stray.count === 0) return null;
+                              return (
+                                <div data-unprinted-stray className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1.5 pt-2 text-xs text-[var(--color-charcoal)]/70">
+                                  <span>인쇄되지 않는 면에 자동으로 들어간 항목 {stray.count}개가 남아 있어요(인쇄에는 나오지 않아요).</span>
+                                  <button
+                                    type="button"
+                                    data-unprinted-stray-clear
+                                    onClick={() => clearUnprintedStray(i)}
+                                    className="h-7 border border-[var(--color-hairline)] bg-white px-2 text-xs font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)]"
+                                  >
+                                    정리하기
+                                  </button>
+                                </div>
+                              );
+                            })()}
                             <CanvasStage
                               aspect={guideSpreadWorkMm / guidePageWorkMm}
                               manualPct={manualZoomPct}
@@ -19265,6 +19439,7 @@ function UploadPageContent() {
                                   </>
                                 )}
                             <div
+                              data-spread-frame={i}
                               className={`group relative mt-3 flex w-full items-start bg-white ${
  isPrintPreview ? "" : ""
                               }`}
@@ -19428,7 +19603,8 @@ function UploadPageContent() {
                               {/* 자유 배치 이미지박스 — 왼쪽·오른쪽 낱장이 아니라 스프레드 전체
                                   위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
                               <ImageBoxLayer
-                                boxes={spread.imageBoxes ?? []}
+                                // 인쇄 미리보기에서는 인쇄 안 되는 면(소개 페이지 오른쪽·첫 펼침면 왼쪽)에 걸린 박스를 그리지 않아요(실제 PDF와 같게).
+                                boxes={isPrintPreview ? (spread.imageBoxes ?? []).filter((b) => !isBoxOnUnprintedSide(i, spread, b)) : (spread.imageBoxes ?? [])}
                                 onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
                                 onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
                                 onAltDuplicate={(box) => handleAltDuplicateImageBox(i, box)}
