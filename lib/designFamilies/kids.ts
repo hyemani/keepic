@@ -240,9 +240,9 @@ export const KIDS_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: GING_BUTTER,
-        slots: [t.slot([0, 0.02, 0.8, 0.5], CLOUD), t.slot([0.56, 0.42, 0.42, 0.42], CIRCLE)],
-        texts: [t.text({ t: "오늘의 한 컷!", f: [0.02, 0.64, 0.48, 0.1], font: FONT.jua, pt: 18, color: "#FFFFFF", align: "center", va: "middle", bg: C.pink, radius: 50 })],
-        stickers: [t.sticker(STK.bunny, 0.12, 0.9, 38, -8), t.sticker(STK.heartYellow, 0.34, 0.88, 22, -8), t.sticker(STK.star, 0.9, 0.1, 24, 10), t.sticker(STK.penguin, 0.88, 0.93, 34, 8)],
+        slots: [t.slot([0.2, 0.44, 0.8, 0.52], CLOUD), t.slot([0, 0.06, 0.42, 0.42], CIRCLE)],
+        texts: [t.text({ t: "오늘의 한 컷!", f: [0.48, 0.1, 0.5, 0.1], font: FONT.jua, pt: 18, color: "#FFFFFF", align: "center", va: "middle", bg: C.pink, radius: 50 })],
+        stickers: [t.sticker(STK.bunny, 0.1, 0.84, 38, -8), t.sticker(STK.heartYellow, 0.56, 0.32, 22, -8), t.sticker(STK.star, 0.9, 0.3, 24, 10), t.sticker(STK.penguin, 0.9, 0.93, 34, 8)],
       };
     },
     right: (g) => {
@@ -250,12 +250,12 @@ export const KIDS_INNER: InnerDesignDef[] = [
       return {
         bg: CLOUDS_BLUSH,
         slots: [
-          t.slot([0.04, 0.04, 0.5, 0.5], { ...HEART, rotation: -6 }),
-          t.slot([0.5, 0.28, 0.46, 0.46], { ...PETAL, rotation: 8 }),
-          t.slot([0.08, 0.58, 0.38, 0.38], SCALLOP),
+          t.slot([0.04, 0.3, 0.52, 0.52], { ...HEART, rotation: -6 }),
+          t.slot([0.5, 0.04, 0.46, 0.4], { ...PETAL, rotation: 8 }),
+          t.slot([0.58, 0.52, 0.38, 0.38], SCALLOP),
         ],
-        texts: [t.text({ t: "2026.10.04", f: [0.52, 0.8, 0.42, 0.075], font: FONT.jua, pt: 14, color: C.ink, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 })],
-        stickers: [t.sticker(STK.chick, 0.8, 0.12, 36, 8), t.sticker(STK.sparkle, 0.62, 0.1, 22, 0), t.sticker(STK.heartPink, 0.9, 0.93, 22, 10)],
+        texts: [t.text({ t: "2026.10.04", f: [0.04, 0.89, 0.4, 0.075], font: FONT.jua, pt: 14, color: C.ink, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 })],
+        stickers: [t.sticker(STK.chick, 0.2, 0.13, 36, -6), t.sticker(STK.sparkle, 0.44, 0.22, 22, 0), t.sticker(STK.heartPink, 0.9, 0.95, 22, 10)],
       };
     },
   },
