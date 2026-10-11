@@ -2335,6 +2335,9 @@ export async function buildInnerPrintPdf({
 
     for (const side of sides) {
       const sidePhotos = side.indexes.map((idx) => photos[idx]).filter(Boolean);
+      // 첫 펼침면의 왼쪽(인쇄 안 되는 표지 안쪽 빈 면)에는 사진·스티커·표를 절대 그리지 않아요 — 예전 버그로 이 면 쪽 좌표에 남은
+      // 이미지박스가 있어도 1쪽 앞의 빈 장에 찍히지 않게 해요(lib/printedSides.ts의 "인쇄 안 되는 면" 규칙과 같아요).
+      const blankSide = i === 0 && side.pageOffsetPx === 0;
       // 페이지를 순서대로(1p, 2p, ...) 그려야 해서 일부러 순차적으로 기다려요.
       await drawPage(
         ctx,
@@ -2345,10 +2348,10 @@ export async function buildInnerPrintPdf({
         spread.backgroundColor ?? "#ffffff",
         spread.backgroundPattern,
         side.textBoxes,
-        spreadImageBoxes,
+        blankSide ? undefined : spreadImageBoxes,
         side.pageOffsetPx,
         spreadWidthPx,
-        spread.tableBoxes,
+        blankSide ? undefined : spread.tableBoxes,
         side.bgSpec
       );
       const cleanDataUrl = canvasToJpegDataUrl(canvas);
