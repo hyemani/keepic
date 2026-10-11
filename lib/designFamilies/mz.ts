@@ -202,6 +202,20 @@ export const MZ_INNER: InnerDesignDef[] = [
     note: "필름 칸 4장 + 고른 한 컷 크게",
     left: (g) => {
       const t = toolkit(g);
+      return {
+        bg: solid(C.black),
+        slots: [t.slot([0, 0.08, 1, 0.7])],
+        texts: [
+          t.text({ t: "SELECT", f: [0, 0, 0.3, 0.06], font: FONT.dh, pt: 14, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.12 }),
+          t.text({ t: "24A", f: [0.7, 0, 0.3, 0.06], font: FONT.dh, pt: 14, color: C.white, align: "right", va: "middle", ls: 0.12 }),
+          t.text({ t: "2026.10.04", f: [0, 0.83, 0.6, 0.06], font: FONT.dh, pt: 16, color: C.lime, ls: 0.12 }),
+          t.text({ t: "마음에 든 한 컷", f: [0, 0.91, 0.8, 0.06], font: FONT.sans, pt: 12, color: C.gray, bold: true }),
+        ],
+        stickers: [t.sticker(STK.bolt, 0.9, 0.93, 34, 12), t.sticker(STK.sparkle, 0.94, 0.1, 26, 0)],
+      };
+    },
+    right: (g) => {
+      const t = toolkit(g);
       const rows = [0.288, 0.728];
       const frames = rows.flatMap((cy) => [t.framed("film", 0.26, cy, 0.52, 0), t.framed("film", 0.74, cy, 0.52, 0)]);
       return {
@@ -213,20 +227,6 @@ export const MZ_INNER: InnerDesignDef[] = [
           t.text({ t: "21  ·  22  ·  23  ·  24", f: [0, 0.953, 0.8, 0.045], font: FONT.sans, pt: 10, color: C.black, bold: true, ls: 0.3 }),
         ],
         stickers: frames.map((f) => f.sticker),
-      };
-    },
-    right: (g) => {
-      const t = toolkit(g);
-      return {
-        bg: solid(C.black),
-        slots: [t.slot([0, 0.08, 1, 0.7])],
-        texts: [
-          t.text({ t: "SELECT", f: [0, 0, 0.3, 0.06], font: FONT.dh, pt: 14, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.12 }),
-          t.text({ t: "24A", f: [0.7, 0, 0.3, 0.06], font: FONT.dh, pt: 14, color: C.white, align: "right", va: "middle", ls: 0.12 }),
-          t.text({ t: "2026.10.04", f: [0, 0.83, 0.6, 0.06], font: FONT.dh, pt: 16, color: C.lime, ls: 0.12 }),
-          t.text({ t: "마음에 든 한 컷", f: [0, 0.91, 0.8, 0.06], font: FONT.sans, pt: 12, color: C.gray, bold: true }),
-        ],
-        stickers: [t.sticker(STK.bolt, 0.9, 0.93, 34, 12), t.sticker(STK.sparkle, 0.94, 0.1, 26, 0)],
       };
     },
   },
