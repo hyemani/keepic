@@ -231,26 +231,31 @@ export const KIDS_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 6) 마지막 한 장: 오른쪽에 큰 꽃잎 사진 1장 + 왼쪽은 귀여운 한 줄 — 작별 인사(고마워·또 만나요)는 맨 마지막 소개 페이지가 말해요.
+    // 6) 모양 사진 모음: 구름·동그라미·하트·꽃잎·물결 원 모양 사진 5장을 통통 튀게 어긋나게 놓고 동물·하트 스티커를 곁들인 모양.
+    //    작별 인사(고마워·또 만나요)는 맨 마지막 소개 페이지가 말해요. 구름 사진이 맨 앞 칸이라 사진이 1장만 남아도 큰 칸에 먼저 들어가요.
     id: "kd-closing",
-    name: "큰 사진 한 장",
-    note: "큰 사진 1장 + 쑥쑥 스티커·날짜",
+    name: "모양 사진 마무리",
+    note: "모양 사진 5장(구름·하트·꽃잎…) + 한마디·날짜",
     left: (g) => {
       const t = toolkit(g);
       return {
-        bg: solid(C.butter),
-        slots: [],
-        texts: [t.text({ t: "오늘의\n한 컷!", f: [0, 0.12, 1, 0.34], font: FONT.jua, pt: 52, color: C.skyDeep, align: "center", lh: 1.15 })],
-        stickers: [t.sticker(STK.growWell, 0.5, 0.65, 92, -3), t.sticker(STK.heartPink, 0.14, 0.14, 24, -10), t.sticker(STK.heartBlue, 0.88, 0.5, 22, 10)],
+        bg: GING_BUTTER,
+        slots: [t.slot([0, 0.02, 0.8, 0.5], CLOUD), t.slot([0.56, 0.42, 0.42, 0.42], CIRCLE)],
+        texts: [t.text({ t: "오늘의 한 컷!", f: [0.02, 0.64, 0.48, 0.1], font: FONT.jua, pt: 18, color: "#FFFFFF", align: "center", va: "middle", bg: C.pink, radius: 50 })],
+        stickers: [t.sticker(STK.bunny, 0.12, 0.9, 38, -8), t.sticker(STK.heartYellow, 0.34, 0.88, 22, -8), t.sticker(STK.star, 0.9, 0.1, 24, 10), t.sticker(STK.penguin, 0.88, 0.93, 34, 8)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
-        bg: solid(C.sky),
-        slots: [t.slot([0.04, 0.03, 0.92, 0.82], PETAL)],
-        texts: [t.text({ t: "2026.10.04", f: [0.3, 0.9, 0.4, 0.065], font: FONT.jua, pt: 15, color: C.ink, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 })],
-        stickers: [t.sticker(STK.bunny, 0.1, 0.9, 38, -8), t.sticker(STK.chick, 0.9, 0.9, 36, 8)],
+        bg: CLOUDS_BLUSH,
+        slots: [
+          t.slot([0.04, 0.04, 0.5, 0.5], { ...HEART, rotation: -6 }),
+          t.slot([0.5, 0.28, 0.46, 0.46], { ...PETAL, rotation: 8 }),
+          t.slot([0.08, 0.58, 0.38, 0.38], SCALLOP),
+        ],
+        texts: [t.text({ t: "2026.10.04", f: [0.52, 0.8, 0.42, 0.075], font: FONT.jua, pt: 14, color: C.ink, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 })],
+        stickers: [t.sticker(STK.chick, 0.8, 0.12, 36, 8), t.sticker(STK.sparkle, 0.62, 0.1, 22, 0), t.sticker(STK.heartPink, 0.9, 0.93, 22, 10)],
       };
     },
   },
