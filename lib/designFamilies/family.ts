@@ -211,32 +211,37 @@ export const FAMILY_INNER: InnerDesignDef[] = [
     ...KMETA,
     id: "kd-family-members",
     name: "우리 가족을 소개해요",
-    note: "동그란 사진 4장(엄마·아빠·나·동생) + 단체 사진",
+    note: "이름표 붙은 가족 카드 4장(엄마·아빠·나·동생) + 단체 사진 1장",
     left: (g) => {
       const t = toolkit(g);
-      const s = 0.33;
-      const cell = (cx: number, y: number, label: string) => ({
-        slot: t.slot([cx, y, s, s], CIRCLE),
-        label: t.text({ t: label, f: [cx - 0.04, y + s + 0.005, s + 0.08, 0.055], font: KD.jua, pt: 19, color: C.pink, align: "center" }),
-      });
-      const cells = [cell(0.08, 0.14, "엄마"), cell(0.59, 0.14, "아빠"), cell(0.08, 0.57, "나"), cell(0.59, 0.57, "동생")];
+      const pill = (x: number, y: number, label: string, bg: string) =>
+        t.text({ t: label, f: [x, y, 0.22, 0.075], font: KD.jua, pt: 17, color: "#FFFFFF", align: "center", va: "middle", bg, radius: 50 });
       return {
         bg: GING_BUTTER,
-        slots: cells.map((c) => c.slot),
-        texts: [t.text({ t: "우리 가족 소개", f: [0, 0.02, 1, 0.1], font: KD.jua, pt: 34, color: C.skyDeep, align: "center" }), ...cells.map((c) => c.label)],
-        stickers: [t.sticker(STK.chick, 0.5, 0.52, 30, 6)],
+        // 사진 칸 순서: 단체 사진이 맨 앞이라 사진이 1장만 있어도 단체 사진부터 채워져요.
+        slots: [t.slot([0, 0.6, 1, 0.34], { ...CARD, borderRadiusPct: 5 }), t.slot([0.05, 0.14, 0.38, 0.3], CARD), t.slot([0.57, 0.14, 0.38, 0.3], CARD)],
+        texts: [
+          t.text({ t: "우리 가족 소개", f: [0, 0.01, 1, 0.1], font: KD.jua, pt: 32, color: C.skyDeep, align: "center" }),
+          pill(0.13, 0.41, "엄마", C.pink),
+          pill(0.65, 0.41, "아빠", C.skyDeep),
+        ],
+        stickers: [t.sticker(STK.chick, 0.5, 0.3, 30, 6), t.sticker(STK.tapeStar, 0.5, 0.6, 30, 0)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const pill = (x: number, y: number, label: string, bg: string) =>
+        t.text({ t: label, f: [x, y, 0.3, 0.075], font: KD.jua, pt: 19, color: "#FFFFFF", align: "center", va: "middle", bg, radius: 50 });
       return {
         bg: solid(C.sky),
-        slots: [t.slot([0.02, 0.04, 0.96, 0.66], { ...CARD, borderRadiusPct: 6 })],
+        slots: [t.slot([0.02, 0.5, 0.45, 0.4], CARD), t.slot([0.53, 0.5, 0.45, 0.4], CARD)],
         texts: [
-          t.text({ t: "다 같이 찰칵!", f: [0, 0.76, 1, 0.1], font: KD.jua, pt: 38, color: C.skyDeep, align: "center" }),
-          t.text({ t: "우리는 네 식구예요", f: [0, 0.88, 1, 0.07], font: KD.hand, pt: 24, color: C.kInk, align: "center" }),
+          t.text({ t: "우리는\n네 식구예요", f: [0, 0.1, 1, 0.22], font: KD.jua, pt: 34, color: C.skyDeep, align: "center", lh: 1.25 }),
+          t.text({ t: "오늘도 북적북적 즐거워요", f: [0, 0.35, 1, 0.07], font: KD.hand, pt: 21, color: C.kInk, align: "center" }),
+          pill(0.09, 0.87, "나", C.mintDeep),
+          pill(0.6, 0.87, "동생", C.pink),
         ],
-        stickers: [t.sticker(STK.bear, 0.12, 0.9, 38, -8), t.sticker(STK.bunny, 0.88, 0.9, 38, 8)],
+        stickers: [t.sticker(STK.bear, 0.1, 0.06, 32, -10), t.sticker(STK.bunny, 0.9, 0.06, 32, 10)],
       };
     },
   },
