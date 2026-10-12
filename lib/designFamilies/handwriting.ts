@@ -149,14 +149,18 @@ export const HANDWRITING_INNER: InnerDesignDef[] = [
     // 4) 사진 3장 + 큰 날짜
     id: "hw-strip-date",
     name: "세 장 스크랩 + 날짜",
-    note: "겹쳐 붙인 사진 3장 + 큰 날짜",
+    note: "세로로 붙인 사진 3장 + 계절 메모 + 큰 날짜",
     left: (g) => {
       const t = toolkit(g);
+      const note = (y: number, season: string, memo: string, color: string) => [
+        t.text({ t: season, f: [0.52, y, 0.48, 0.1], font: FONT.pen, pt: 46, color, lh: 1.0 }),
+        t.text({ t: memo, f: [0.52, y + 0.1, 0.48, 0.07], font: FONT.hand, pt: 18, color: C.pencil }),
+      ];
       return {
         bg: CREAM_PAPER,
-        slots: [t.slot([0.04, 0.05, 0.5, 0.38], tilt(-3)), t.slot([0.47, 0.2, 0.49, 0.36], tilt(3)), t.slot([0.08, 0.57, 0.5, 0.36], tilt(-2))],
-        texts: [t.text({ t: "봄에서\n가을까지", f: [0.62, 0.68, 0.36, 0.22], font: FONT.pen, pt: 44, color: C.brown, lh: 1.05 })],
-        stickers: [t.sticker(STK.tapeStar, 0.27, 0.06, 28, -10), t.sticker(STK.tapeBlue, 0.72, 0.21, 28, 8), t.sticker(STK.tapePink, 0.33, 0.58, 28, -6)],
+        slots: [t.slot([0, 0.02, 0.44, 0.29], tilt(-3)), t.slot([0, 0.35, 0.44, 0.29], tilt(2)), t.slot([0, 0.68, 0.44, 0.29], tilt(-2))],
+        texts: [...note(0.08, "봄", "벚꽃 길을 걸었던 날", C.red), ...note(0.41, "여름", "바다 앞에서 한 컷", C.blue), ...note(0.74, "가을", "오늘, 같은 자리에서", C.brown)],
+        stickers: [t.sticker(STK.tapePink, 0.1, 0.03, 26, -10), t.sticker(STK.tapeBlue, 0.34, 0.36, 26, 8), t.sticker(STK.tapeStar, 0.1, 0.69, 26, -8)],
       };
     },
     right: (g) => {
