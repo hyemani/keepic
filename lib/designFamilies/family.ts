@@ -107,12 +107,12 @@ export const FAMILY_INNER: InnerDesignDef[] = [
     ...META,
     id: "wm-family-portrait",
     name: "가족사진",
-    note: "아치 사진 1장 + 이름표 붙은 동그란 사진 2장",
+    note: "가운데 큰 사진 1장 + 이름표 붙은 동그란 사진 2장",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.butterLight),
-        slots: [t.slot([0.17, 0.03, 0.66, 0.72], ARCH)],
+        slots: [t.slot([0.16, 0.04, 0.68, 0.7], { ...SOFT, borderWidthPx: 9, borderColor: "#FFFFFF", rotation: -2 })],
         texts: [
           t.text({ t: "가족사진", f: [0, 0.81, 1, 0.1], font: WM.hand, pt: 30, color: C.sageDeep, align: "center" }),
           t.text({ t: "FAMILY PORTRAIT", f: [0, 0.92, 1, 0.05], font: WM.sans, pt: 10.5, color: C.mute, ls: 0.3, align: "center" }),
@@ -182,9 +182,9 @@ export const FAMILY_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.ivory),
-        slots: [t.slot([0, 0.02, 1, 0.5], SOFT), t.slot([0, 0.56, 0.48, 0.4], SOFT)],
-        texts: [t.text({ t: "우리 집\n식탁 풍경", f: [0.54, 0.6, 0.46, 0.2], font: WM.hand, pt: 22, color: C.sageDeep, lh: 1.35 })],
-        stickers: [t.sticker(STK.tapeStar, 0.3, 0.02, 30, -4), t.sticker(STK.sunflower, 0.88, 0.9, 26, 8)],
+        slots: [t.slot([0, 0.46, 1, 0.5], SOFT), t.slot([0.56, 0.02, 0.44, 0.36], SOFT)],
+        texts: [t.text({ t: "우리 집\n식탁 풍경", f: [0, 0.06, 0.5, 0.2], font: WM.hand, pt: 22, color: C.sageDeep, lh: 1.35 })],
+        stickers: [t.sticker(STK.tapeStar, 0.3, 0.46, 30, -4), t.sticker(STK.sunflower, 0.88, 0.94, 26, 8)],
       };
     },
     right: (g) => {
