@@ -62,7 +62,7 @@ export const COUPLE_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.blush),
-        slots: [t.slot([0.04, 0.03, 0.92, 0.72], ARCH)],
+        slots: [t.slot([0.14, 0.03, 0.72, 0.72], ARCH)],
         texts: [
           t.text({ t: "우리가 함께한 지", f: [0, 0.8, 1, 0.08], font: WM.hand, pt: 22, color: C.rose, align: "center" }),
           t.text({ t: "2023.07.14 — 2026.04.10", f: [0, 0.9, 1, 0.05], font: WM.sans, pt: 11, color: C.mute, ls: 0.14, align: "center" }),
