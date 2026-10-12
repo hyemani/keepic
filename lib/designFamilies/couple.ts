@@ -77,7 +77,7 @@ export const COUPLE_INNER: InnerDesignDef[] = [
         slots: [t.slot([0.3, 0.6, 0.4, 0.4], withRing(C.blushDeep))],
         texts: [
           t.text({ t: "OUR LOVE STORY", f: [0, 0.02, 1, 0.04], font: WM.sans, pt: 10, color: C.rose, ls: 0.34, align: "center" }),
-          t.text({ t: "D+1000", f: [0, 0.08, 1, 0.19], font: WM.serif, pt: 80, color: C.roseDeep, align: "center", lh: 1.05 }),
+          t.text({ t: "D+1000", f: [0, 0.07, 1, 0.22], font: WM.serif, pt: 80, color: C.roseDeep, align: "center", lh: 1.3, va: "middle" }),
           t.rule([0.4, 0.3, 0.2, 0.0012], C.rose),
           t.text({ t: "처음 만난 그날부터 오늘까지\n매일이 선물이었어요", f: [0, 0.36, 1, 0.14], font: WM.serif, pt: 15, align: "center", lh: 1.8 }),
         ],
