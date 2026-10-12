@@ -134,7 +134,7 @@ const WM_INNER: InnerDesignDef[] = [
         slots: [t.slot([0.34, 0, 0.66, 1], SOFT)],
         texts: [
           t.text({ t: "OCT", f: [0, 0.72, 0.28, 0.04], font: FONT.sans, pt: 10, color: C.mute, ls: 0.3 }),
-          t.text({ t: "04", f: [0, 0.77, 0.3, 0.14], font: FONT.serif, pt: 56, lh: 1.0 }),
+          t.text({ t: "04", f: [0, 0.76, 0.3, 0.16], font: FONT.serif, pt: 56, lh: 1.3, va: "middle" }),
           t.rule([0, 0.93, 0.08, 0.0022], C.sageDeep),
         ],
         stickers: [t.sticker(STK.tapeStar, 0.62, 0.02, 32, -4)],
@@ -147,7 +147,7 @@ const WM_INNER: InnerDesignDef[] = [
         slots: [],
         texts: [
           t.text({ t: "오늘의 한 장", f: [0.04, 0.04, 0.8, 0.09], font: FONT.hand, pt: 24, color: C.sageDeep }),
-          t.text({ t: "햇살이 머문 오후", f: [0.04, 0.13, 0.92, 0.12], font: FONT.serif, pt: 31, lh: 1.2 }),
+          t.text({ t: "햇살이 머문 오후", f: [0.04, 0.12, 0.92, 0.14], font: FONT.serif, pt: 31, lh: 1.3, va: "middle" }),
           t.text({
             t: "아무 말 없이 걸어도 좋았던 길.\n바람이 지나가고 우리 웃음이 남았다.\n이 사진을 볼 때마다\n그날의 온기가 다시 돌아온다.",
             f: [0.04, 0.3, 0.84, 0.3],
