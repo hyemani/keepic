@@ -107,30 +107,34 @@ export const FAMILY_INNER: InnerDesignDef[] = [
     ...META,
     id: "wm-family-portrait",
     name: "가족사진",
-    note: "큰 사진 1장 + 사진 2장 + 한 줄 글귀",
+    note: "아치 사진 1장 + 이름표 붙은 동그란 사진 2장",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.butterLight),
-        slots: [t.slot([0, 0.02, 1, 0.76], SOFT)],
+        slots: [t.slot([0.17, 0.03, 0.66, 0.72], ARCH)],
         texts: [
-          t.text({ t: "가족사진", f: [0, 0.82, 1, 0.1], font: WM.hand, pt: 30, color: C.sageDeep, align: "center" }),
-          t.text({ t: "2026 가을 · 우리 넷", f: [0, 0.92, 1, 0.05], font: WM.sans, pt: 10.5, color: C.mute, ls: 0.14, align: "center" }),
+          t.text({ t: "가족사진", f: [0, 0.81, 1, 0.1], font: WM.hand, pt: 30, color: C.sageDeep, align: "center" }),
+          t.text({ t: "FAMILY PORTRAIT", f: [0, 0.92, 1, 0.05], font: WM.sans, pt: 10.5, color: C.mute, ls: 0.3, align: "center" }),
         ],
-        stickers: [t.sticker(STK.tapeStar, 0.5, 0.02, 36, 2)],
+        stickers: [t.sticker(STK.tapeStar, 0.5, 0.03, 36, 2), t.sticker(STK.daisy, 0.84, 0.76, 28, 10)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const tag = (x: number, y: number, label: string) =>
+        t.text({ t: label, f: [x, y, 0.3, 0.055], font: WM.sans, pt: 10, color: C.ivory, ls: 0.22, align: "center", va: "middle", bg: C.sageDeep, radius: 50 });
       return {
         bg: solid(C.ivory),
-        slots: [t.slot([0, 0.04, 0.48, 0.42], SOFT), t.slot([0.52, 0.04, 0.48, 0.42], SOFT)],
+        slots: [t.slot([0, 0.04, 0.4, 0.4], withRing(C.sageLight)), t.slot([0.6, 0.5, 0.4, 0.4], withRing(C.sageLight))],
         texts: [
-          t.text({ t: "함께 서 있는 것만으로\n충분한 날", f: [0, 0.54, 1, 0.16], font: WM.serif, pt: 18, align: "center", lh: 1.7 }),
-          t.rule([0.4, 0.74, 0.2, 0.0012], C.sageDeep),
-          t.text({ t: "— 우리 가족 —", f: [0, 0.78, 1, 0.06], font: WM.hand, pt: 17, color: C.sageDeep, align: "center" }),
+          tag(0.05, 0.47, "SPRING"),
+          tag(0.65, 0.93, "AUTUMN"),
+          t.text({ t: "함께 서 있는 것만으로\n충분한 날", f: [0.46, 0.08, 0.54, 0.2], font: WM.serif, pt: 15, lh: 1.7 }),
+          t.rule([0.46, 0.31, 0.16, 0.0012], C.sageDeep),
+          t.text({ t: "한 해의\n얼굴들", f: [0, 0.62, 0.5, 0.2], font: WM.hand, pt: 26, color: C.sageDeep, lh: 1.3 }),
         ],
-        stickers: [t.sticker(STK.daisy, 0.88, 0.9, 28, 10)],
+        stickers: [t.sticker(STK.sunflower, 0.46, 0.5, 26, -8)],
       };
     },
   },
