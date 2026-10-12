@@ -224,32 +224,36 @@ export const TRAVEL_INNER: InnerDesignDef[] = [
     ...HM,
     id: "hw-travel-map",
     name: "우리의 여행 지도",
-    note: "기울인 사진 4장 + 지도 핀 + 손글씨 코스",
+    note: "코스 따라 놓인 사진 3장 + 지도 핀 + 승차권 같은 와이드 사진",
     left: (g) => {
       const t = toolkit(g);
+      const w = 0.4;
+      const h = 0.26;
       return {
         bg: KRAFT_PAPER,
-        slots: [t.slot([0.02, 0.17, 0.4, 0.28], tilt(-4)), t.slot([0.54, 0.34, 0.4, 0.28], tilt(3)), t.slot([0.06, 0.62, 0.4, 0.28], tilt(-2))],
+        slots: [t.slot([0, 0.15, w, h], tilt(-4)), t.slot([0.3, 0.45, w, h], tilt(3)), t.slot([0.56, 0.73, w, h], tilt(-2))],
         texts: [
           t.text({ t: "우리의 여행 지도", f: [0, 0, 1, 0.12], font: HW.pen, pt: 44, color: C.brown, lh: 1.0 }),
-          t.text({ t: "1. 서울 출발", f: [0.46, 0.16, 0.5, 0.06], font: HW.hand, pt: 19, color: C.red }),
-          t.text({ t: "2. 강릉 바다", f: [0.1, 0.48, 0.4, 0.06], font: HW.hand, pt: 19, color: C.red }),
-          t.text({ t: "3. 부산 야경", f: [0.52, 0.72, 0.46, 0.06], font: HW.hand, pt: 19, color: C.red }),
-          t.text({ t: "· · · · ·", f: [0.3, 0.255, 0.4, 0.05], font: HW.hand, pt: 20, color: C.pencil, align: "center" }),
+          t.text({ t: "1. 서울 출발", f: [0.44, 0.2, 0.56, 0.06], font: HW.hand, pt: 19, color: C.red }),
+          t.text({ t: "2. 강릉 바다", f: [0, 0.52, 0.29, 0.06], font: HW.hand, pt: 19, color: C.red, align: "right" }),
+          t.text({ t: "3. 부산 야경", f: [0, 0.8, 0.54, 0.06], font: HW.hand, pt: 19, color: C.red, align: "right" }),
+          t.text({ t: "· · · ·", f: [0.12, 0.425, 0.4, 0.04], font: HW.hand, pt: 20, color: C.pencil }),
+          t.text({ t: "· · · ·", f: [0.42, 0.715, 0.4, 0.04], font: HW.hand, pt: 20, color: C.pencil }),
         ],
-        stickers: [t.sticker(STK.pin, 0.46, 0.19, 20, -8), t.sticker(STK.pin, 0.5, 0.36, 20, 8), t.sticker(STK.pin, 0.48, 0.66, 20, -6)],
+        stickers: [t.sticker(STK.pin, 0.03, 0.15, 20, -8), t.sticker(STK.pin, 0.33, 0.45, 20, 8), t.sticker(STK.pin, 0.59, 0.73, 20, -6)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
         bg: CREAM_PAPER,
-        slots: [t.slot([0.04, 0.06, 0.92, 0.6], tilt(2))],
+        slots: [t.slot([0.02, 0.38, 0.96, 0.56], tilt(-1.5))],
         texts: [
-          t.text({ t: "다음 여행도, 같이 가요", f: [0, 0.74, 1, 0.1], font: HW.pen, pt: 38, color: C.brown, align: "center", lh: 1.0 }),
-          t.text({ t: "2026.10.04 — 10.06  ·  3일 2박", f: [0, 0.86, 1, 0.06], font: HW.hand, pt: 18, color: C.pencil, align: "center" }),
+          t.text({ t: "서울 → 강릉 → 부산", f: [0, 0.05, 1, 0.1], font: HW.pen, pt: 36, color: C.brown, align: "center", lh: 1.0 }),
+          t.text({ t: "2026.10.04 — 10.06  ·  3일 2박", f: [0, 0.17, 1, 0.06], font: HW.hand, pt: 18, color: C.pencil, align: "center" }),
+          t.text({ t: "- - - - - - - - - - - - - - -", f: [0, 0.26, 1, 0.05], font: HW.hand, pt: 18, color: C.pencil, align: "center" }),
         ],
-        stickers: [t.sticker(STK.tapeStar, 0.5, 0.05, 38, 2), t.sticker(STK.letsTravel, 0.86, 0.9, 52, 6)],
+        stickers: [t.sticker(STK.tapeStar, 0.5, 0.38, 38, 2), t.sticker(STK.suitcase, 0.9, 0.2, 40, 8, SUITCASE_ASPECT)],
       };
     },
   },
@@ -291,32 +295,33 @@ export const TRAVEL_INNER: InnerDesignDef[] = [
     ...ZM,
     id: "mz-travel-stamp",
     name: "PASSPORT · 스탬프",
-    note: "스탬프 라벨 + 사진 4장 + 비자 승인",
+    note: "탑승권 와이드 사진 + 스탬프 사진 3장 + 비자 라벨",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.lime),
-        slots: [t.slot([0, 0.2, 0.6, 0.46])],
+        slots: [t.slot([0, 0.15, 1, 0.3], { borderWidthPx: 6, borderColor: C.black }), t.slot([0, 0.62, 0.3, 0.3], { borderWidthPx: 6, borderColor: "#FFFFFF", rotation: -4 }), t.slot([0.36, 0.62, 0.3, 0.3], { borderWidthPx: 6, borderColor: "#FFFFFF", rotation: 3 })],
         texts: [
-          t.text({ t: "PASSPORT", f: [0, 0.01, 1, 0.14], font: MZF.black, pt: 56, color: C.black, lh: 1.0 }),
-          t.text({ t: "SEOUL  ICN", f: [0.04, 0.7, 0.44, 0.065], font: MZF.dh, pt: 15, color: C.lime, align: "center", va: "middle", bg: C.black, ls: 0.12 }),
-          t.text({ t: "JEJU  CJU", f: [0.34, 0.79, 0.4, 0.065], font: MZF.dh, pt: 15, color: C.black, align: "center", va: "middle", bg: "#FFFFFF", ls: 0.12 }),
-          t.text({ t: "OSAKA  KIX", f: [0.1, 0.88, 0.46, 0.065], font: MZF.dh, pt: 15, color: C.lime, align: "center", va: "middle", bg: C.black, ls: 0.12 }),
-          t.text({ t: "STAMPS  03 / 12", f: [0.64, 0.2, 0.36, 0.05], font: MZF.sans, pt: 9.5, color: C.black, bold: true, ls: 0.2, align: "right" }),
+          t.text({ t: "PASSPORT", f: [0, 0, 1, 0.13], font: MZF.black, pt: 56, color: C.black, lh: 1.0 }),
+          t.text({ t: "ICN  →  CJU", f: [0, 0.48, 0.64, 0.08], font: MZF.black, pt: 28, color: C.black, lh: 1.0 }),
+          t.text({ t: "GATE 12", f: [0.72, 0.5, 0.28, 0.055], font: MZF.dh, pt: 12, color: C.lime, align: "center", va: "middle", bg: C.black, ls: 0.1 }),
+          t.text({ t: "SEAT 14A", f: [0.72, 0.57, 0.28, 0.055], font: MZF.dh, pt: 12, color: C.black, align: "center", va: "middle", bg: "#FFFFFF", ls: 0.1 }),
+          t.text({ t: "STAMPS  03 / 06", f: [0.7, 0.74, 0.3, 0.05], font: MZF.sans, pt: 9.5, color: C.black, bold: true, ls: 0.2, align: "right" }),
         ],
-        stickers: [t.sticker(STK.ticket, 0.82, 0.5, 54, -10), t.sticker(STK.star, 0.9, 0.84, 28, 10)],
+        stickers: [t.sticker(STK.ticket, 0.84, 0.86, 54, -10), t.sticker(STK.star, 0.7, 0.66, 24, 10)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.black),
-        slots: [t.slot([0, 0.03, 0.48, 0.38]), t.slot([0.52, 0.17, 0.48, 0.38]), t.slot([0.16, 0.6, 0.5, 0.32])],
+        slots: [t.slot([0.12, 0.3, 0.76, 0.5], { borderWidthPx: 6, borderColor: C.lime })],
         texts: [
-          t.text({ t: "VISA APPROVED", f: [0.68, 0.7, 0.32, 0.06], font: MZF.dh, pt: 12, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.1 }),
-          t.text({ t: "다음 도시로 이동 중", f: [0.68, 0.79, 0.32, 0.1], font: MZF.sans, pt: 10.5, color: C.mzGray, bold: true, lh: 1.5 }),
+          t.text({ t: "VISA\nAPPROVED", f: [0.12, 0.02, 0.88, 0.24], font: MZF.black, pt: 40, color: C.lime, lh: 1.0 }),
+          t.text({ t: "JEJU  ·  2026.10.04", f: [0.12, 0.84, 0.6, 0.05], font: MZF.sans, pt: 10.5, color: C.mzGray, bold: true, ls: 0.16 }),
+          ...Array.from({ length: 6 }, (_, i) => t.rule([0.12 + i * 0.1373, 0.935, 0.108, 0.03], i < 3 ? C.lime : "#2B2B2B", 30)),
         ],
-        stickers: [t.sticker(STK.bolt, 0.9, 0.92, 38, 12), t.sticker(STK.sparkle, 0.08, 0.5, 22, 0)],
+        stickers: [t.sticker(STK.bolt, 0.9, 0.84, 38, 12), t.sticker(STK.sparkle, 0.06, 0.46, 22, 0)],
       };
     },
   },
