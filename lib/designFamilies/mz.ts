@@ -157,7 +157,7 @@ export const MZ_INNER: InnerDesignDef[] = [
           t.text({ t: "2026", f: [0, 0.1, 1, 0.07], font: FONT.dh, pt: 28, color: C.white, ls: 0.3 }),
           t.text({ t: "10.04", f: [0, 0.18, 1, 0.3], font: FONT.black, pt: 138, color: C.lime, lh: 1.0 }),
           t.text({ t: "FILM ROLL 01", f: [0, 0.55, 1, 0.06], font: FONT.dh, pt: 22, color: C.white, ls: 0.3 }),
-          t.text({ t: "아침  ·  낮  ·  밤\n하루가 네 컷으로 끝났다", f: [0, 0.66, 0.9, 0.14], font: FONT.sans, pt: 12, color: C.gray, bold: true, lh: 1.8 }),
+          t.text({ t: "아침  ·  낮  ·  밤\n하루를 네 컷에 담았다", f: [0, 0.66, 0.9, 0.14], font: FONT.sans, pt: 12, color: C.gray, bold: true, lh: 1.8 }),
         ],
         stickers: [t.sticker(STK.ticket, 0.8, 0.9, 52, -8), t.sticker(STK.sparkle, 0.9, 0.16, 24, 0)],
       };

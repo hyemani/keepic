@@ -115,7 +115,7 @@ const WM_INNER: InnerDesignDef[] = [
           t.text({ t: "함\n께\n걸\n어\n온", f: [0.66, 0.07, 0.12, 0.42], font: FONT.serif, pt: 26.5, align: "center", lh: 1.42 }),
           t.text({ t: "모\n든\n날\n들", f: [0.47, 0.07, 0.12, 0.42], font: FONT.serif, pt: 26.5, align: "center", lh: 1.42 }),
           t.text({ t: "OUR STORY", f: [0, 0.68, 0.7, 0.05], font: FONT.sans, pt: 11, color: C.sageDeep, ls: 0.3 }),
-          t.text({ t: "우리의 이야기", f: [0, 0.74, 0.9, 0.14], font: FONT.serif, pt: 37, lh: 1.2 }),
+          t.text({ t: "소중한 하루하루", f: [0, 0.74, 0.9, 0.14], font: FONT.serif, pt: 37, lh: 1.2 }),
           t.text({ t: "첫 장을 열며", f: [0, 0.89, 0.6, 0.08], font: FONT.hand, pt: 19, color: C.mute }),
         ],
         stickers: [t.sticker(STK.sunflower, 0.88, 0.9, 30, 8)],
