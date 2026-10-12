@@ -139,15 +139,38 @@ export const TRAVEL_INNER: InnerDesignDef[] = [
     ...MM,
     id: "mn-travel-ticket",
     name: "BOARDING PASS",
-    note: "탑승권 카드 + 사진 2장",
+    note: "탑승권 2장 + 큰 탑승권 사진",
     left: (g) => {
       const t = toolkit(g);
+      // 탑승권 한 장: 흰 카드(사진 뒤) + 사진 + 출발·도착 코드 + 편명·게이트·좌석. x0 = 글 시작 위치(탑승권 안쪽), y = 카드 윗선.
+      const ticket = (y: number, x0: number, from: string, to: string, a: string, b: string, flight: string, gate: string, seat: string) => {
+        const w = 0.55;
+        const field = (dx: number, k: string, v: string) => [
+          t.text({ t: k, f: [x0 + dx, y + 0.235, 0.17, 0.03], font: MN.latin, pt: 7, color: C.gray, ls: 0.3 }),
+          t.text({ t: v, f: [x0 + dx, y + 0.265, 0.17, 0.035], font: MN.sans, pt: 10, bold: true }),
+        ];
+        return [
+          t.rule([0, y, 1, 0.3], C.white, 1.5, DESIGN_BACK_Z),
+          t.text({ t: "BOARDING PASS", f: [x0, y + 0.03, 0.35, 0.035], font: MN.latin, pt: 8, color: C.gray, ls: 0.3 }),
+          t.text({ t: from, f: [x0, y + 0.075, 0.22, 0.09], font: MN.latin, pt: 34, lh: 1.0 }),
+          t.text({ t: to, f: [x0 + w - 0.22, y + 0.075, 0.22, 0.09], font: MN.latin, pt: 34, lh: 1.0, align: "right" }),
+          t.rule([x0 + w / 2 - 0.06, y + 0.12, 0.12, LINE], C.ink),
+          t.text({ t: a, f: [x0, y + 0.172, 0.22, 0.03], font: MN.sans, pt: 8.5, color: C.gray, ls: 0.2 }),
+          t.text({ t: b, f: [x0 + w - 0.22, y + 0.172, 0.22, 0.03], font: MN.sans, pt: 8.5, color: C.gray, ls: 0.2, align: "right" }),
+          t.rule([x0, y + 0.222, w, LINE], C.rule),
+          ...field(0, "FLIGHT", flight),
+          ...field(0.2, "GATE", gate),
+          ...field(0.38, "SEAT", seat),
+        ];
+      };
       return {
         bg: solid(C.sheet),
-        slots: [t.slot([0, 0.02, 1, 0.68])],
+        slots: [t.slot([0.025, 0.045, 0.32, 0.25]), t.slot([0.655, 0.385, 0.32, 0.25])],
         texts: [
-          t.text({ t: "DEPARTURE", f: [0, 0.76, 0.6, 0.04], font: MN.latin, pt: 9, color: C.gray, ls: 0.34 }),
-          t.text({ t: "설레는 마음으로\n출발", f: [0, 0.82, 0.9, 0.14], font: MN.serif, pt: 18, lh: 1.5 }),
+          ...ticket(0.02, 0.4, "GMP", "CJU", "SEOUL", "JEJU", "KE1203", "12", "14A"),
+          ...ticket(0.36, 0.05, "CJU", "GMP", "JEJU", "SEOUL", "KE1204", "08", "14B"),
+          t.text({ t: "DEPARTURE", f: [0, 0.74, 0.6, 0.04], font: MN.latin, pt: 9, color: C.gray, ls: 0.34 }),
+          t.text({ t: "설레는 마음으로\n출발", f: [0, 0.8, 0.9, 0.14], font: MN.serif, pt: 18, lh: 1.5 }),
         ],
         stickers: [],
       };
@@ -155,27 +178,31 @@ export const TRAVEL_INNER: InnerDesignDef[] = [
     right: (g) => {
       const t = toolkit(g);
       const field = (x: number, k: string, v: string) => [
-        t.text({ t: k, f: [x, 0.39, 0.2, 0.03], font: MN.latin, pt: 7.5, color: C.gray, ls: 0.3 }),
-        t.text({ t: v, f: [x, 0.425, 0.22, 0.045], font: MN.sans, pt: 11, bold: true }),
+        t.text({ t: k, f: [x, 0.5, 0.14, 0.03], font: MN.latin, pt: 7.5, color: C.gray, ls: 0.3 }),
+        t.text({ t: v, f: [x, 0.535, 0.14, 0.045], font: MN.sans, pt: 11, bold: true }),
       ];
+      // 뜯는 선(점선) + 바코드: 가는 글상자를 줄지어 세워서 만들어요.
+      const dashes = Array.from({ length: 16 }, (_, i) => t.rule([0.05 + i * 0.0594, 0.655, 0.03, LINE * 1.4], C.rule));
+      const widths = [0.006, 0.014, 0.006, 0.01, 0.018, 0.006, 0.012, 0.006, 0.016, 0.01, 0.006, 0.014, 0.008, 0.018, 0.006, 0.01, 0.014, 0.006, 0.012, 0.008];
+      let bx = 0.05;
+      const bars = widths.map((w) => {
+        const r = t.rule([bx, 0.74, w, 0.17], C.ink);
+        bx += w + 0.014;
+        return r;
+      });
       return {
         bg: solid(C.sheet),
-        slots: [t.slot([0, 0.68, 0.48, 0.3]), t.slot([0.52, 0.68, 0.48, 0.3])],
+        slots: [t.slot([0.03, 0.05, 0.94, 0.4])],
         texts: [
-          t.rule([0, 0.04, 1, 0.56], C.white, 1.5, DESIGN_BACK_Z),
-          t.text({ t: "BOARDING PASS", f: [0.05, 0.07, 0.6, 0.04], font: MN.latin, pt: 9, color: C.gray, ls: 0.34 }),
-          t.text({ t: "ECONOMY", f: [0.6, 0.07, 0.35, 0.04], font: MN.latin, pt: 9, color: C.gray, ls: 0.3, align: "right" }),
-          t.text({ t: "GMP", f: [0.05, 0.13, 0.35, 0.14], font: MN.latin, pt: 50, lh: 1.0 }),
-          t.text({ t: "CJU", f: [0.6, 0.13, 0.35, 0.14], font: MN.latin, pt: 50, lh: 1.0, align: "right" }),
-          t.rule([0.4, 0.2, 0.2, LINE], C.ink),
-          t.text({ t: "SEOUL", f: [0.05, 0.285, 0.35, 0.04], font: MN.sans, pt: 9, color: C.gray, ls: 0.2 }),
-          t.text({ t: "JEJU", f: [0.6, 0.285, 0.35, 0.04], font: MN.sans, pt: 9, color: C.gray, ls: 0.2, align: "right" }),
-          t.rule([0.05, 0.365, 0.9, LINE], C.rule),
-          ...field(0.05, "FLIGHT", "KE1203"),
-          ...field(0.3, "GATE", "12"),
-          ...field(0.5, "SEAT", "14A"),
-          ...field(0.7, "DATE", "10.04"),
-          t.text({ t: "NO. 0004-1004", f: [0.05, 0.52, 0.6, 0.035], font: MN.latin, pt: 8, color: C.gray, ls: 0.3 }),
+          t.rule([0, 0.02, 1, 0.96], C.white, 1.5, DESIGN_BACK_Z),
+          t.text({ t: "DESTINATION", f: [0.05, 0.49, 0.3, 0.03], font: MN.latin, pt: 7.5, color: C.gray, ls: 0.3 }),
+          t.text({ t: "JEJU", f: [0.05, 0.525, 0.45, 0.1], font: MN.latin, pt: 44, lh: 1.0 }),
+          ...field(0.55, "SEAT", "14A"),
+          ...field(0.72, "DATE", "10.04"),
+          ...dashes,
+          ...bars,
+          t.text({ t: "NO. 0004-1004", f: [0.55, 0.76, 0.4, 0.035], font: MN.latin, pt: 8, color: C.gray, ls: 0.3, align: "right" }),
+          t.text({ t: "ECONOMY", f: [0.55, 0.82, 0.4, 0.035], font: MN.latin, pt: 8, color: C.gray, ls: 0.3, align: "right" }),
         ],
         stickers: [],
       };
