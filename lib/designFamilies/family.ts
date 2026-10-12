@@ -182,9 +182,9 @@ export const FAMILY_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.ivory),
-        slots: [t.slot([0, 0.46, 1, 0.5], SOFT), t.slot([0.56, 0.02, 0.44, 0.36], SOFT)],
+        slots: [t.slot([0, 0.52, 0.72, 0.44], SOFT), t.slot([0.52, 0.04, 0.48, 0.38], SOFT)],
         texts: [t.text({ t: "우리 집\n식탁 풍경", f: [0, 0.06, 0.5, 0.2], font: WM.hand, pt: 22, color: C.sageDeep, lh: 1.35 })],
-        stickers: [t.sticker(STK.tapeStar, 0.3, 0.46, 30, -4), t.sticker(STK.sunflower, 0.88, 0.94, 26, 8)],
+        stickers: [t.sticker(STK.tapeStar, 0.3, 0.52, 30, -4), t.sticker(STK.sunflower, 0.86, 0.9, 26, 8)],
       };
     },
     right: (g) => {
