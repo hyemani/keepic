@@ -225,7 +225,7 @@ const WM_INNER: InnerDesignDef[] = [
         slots: [],
         texts: [
           t.text({ t: "2026", f: [0, 0.2, 1, 0.1], font: FONT.hand, pt: 29, color: C.sageDeep, align: "center" }),
-          t.text({ t: "10.04", f: [0, 0.3, 1, 0.22], font: FONT.serif, pt: 65, align: "center", lh: 1.1 }),
+          t.text({ t: "10.04", f: [0, 0.29, 1, 0.26], font: FONT.serif, pt: 65, align: "center", lh: 1.3, va: "middle" }),
           t.text({
             t: "세 번의 계절을 지나\n우리는 같은 자리에 다시 섰다.",
             f: [0.08, 0.58, 0.84, 0.16],
