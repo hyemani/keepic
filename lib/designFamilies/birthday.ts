@@ -27,10 +27,8 @@ const C = {
 const CLOUDS_SKY: BackgroundSpec = { kind: "graphic", presetId: "g4-clouds-sky" };
 const CLOUDS_BLUSH: BackgroundSpec = { kind: "graphic", presetId: "g4-clouds-blush" };
 const GING_BUTTER: BackgroundSpec = { kind: "pattern", presetId: "p5-ging-butter" };
-const GING_SKY: BackgroundSpec = { kind: "pattern", presetId: "p5-ging-sky" };
 const GING_PINK: BackgroundSpec = { kind: "pattern", presetId: "p5-ging-pink" };
 const CLOUD: Partial<ImageBoxDef> = { frameShape: "cloud" };
-const HEART: Partial<ImageBoxDef> = { frameShape: "heart" };
 const SCALLOP: Partial<ImageBoxDef> = { frameShape: "scallopedCircle" };
 const CIRCLE: Partial<ImageBoxDef> = { borderRadiusPct: 50, borderWidthPx: 7, borderColor: "#FFFFFF" };
 const CARD: Partial<ImageBoxDef> = { borderRadiusPct: 10, borderWidthPx: 7, borderColor: "#FFFFFF" };
@@ -132,30 +130,36 @@ export const BIRTHDAY_INNER: InnerDesignDef[] = [
   {
     ...KM,
     id: "kd-birthday-party",
-    name: "신나는 파티",
-    note: "사진 4장 + PARTY TIME + 풍선·선물",
+    name: "케이크 파티",
+    note: "3단 케이크 모양 사진 3장 + 와이드 사진 1장 + 촛불",
     left: (g) => {
       const t = toolkit(g);
+      const tier = { ...CARD, borderRadiusPct: 8 };
       return {
-        bg: GING_SKY,
-        slots: [t.slot([0, 0.09, 0.58, 0.42], CARD), t.slot([0.62, 0.09, 0.38, 0.2], CARD), t.slot([0.62, 0.31, 0.38, 0.2], CARD)],
+        bg: CLOUDS_BLUSH,
+        slots: [t.slot([0, 0.62, 1, 0.3], tier), t.slot([0.14, 0.34, 0.72, 0.24], tier), t.slot([0.3, 0.1, 0.4, 0.2], tier)],
         texts: [
-          t.text({ t: "PARTY TIME!", f: [0, 0.57, 1, 0.12], font: KD.jua, pt: 46, color: C.skyDeep, align: "center" }),
-          t.text({ t: "친구들과 함께한 우리 집 생일 파티", f: [0, 0.72, 1, 0.06], font: KD.soft, pt: 12.5, align: "center" }),
+          t.rule([0.42, 0.04, 0.016, 0.07], C.skyDeep, 40, 600),
+          t.rule([0.492, 0.04, 0.016, 0.07], C.pink, 40, 600),
+          t.rule([0.564, 0.04, 0.016, 0.07], C.butterDeep, 40, 600),
+          t.rule([0.3, 0.292, 0.4, 0.016], C.pink, 50, 600),
+          t.rule([0.14, 0.552, 0.72, 0.016], C.pink, 50, 600),
+          t.rule([0, 0.912, 1, 0.016], C.pink, 50, 600),
         ],
-        stickers: [t.sticker(STK.bunting, 0.5, 0.0, 100, 0), t.sticker(STK.gift, 0.12, 0.9, 40, -8), t.sticker(STK.balloons, 0.88, 0.88, 50, 6)],
+        stickers: [t.sticker(STK.sparkle, 0.428, 0.02, 14, 0), t.sticker(STK.sparkle, 0.5, 0.0, 14, 0), t.sticker(STK.sparkle, 0.572, 0.02, 14, 0), t.sticker(STK.hat, 0.12, 0.2, 34, -12), t.sticker(STK.gift, 0.9, 0.2, 36, 8)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.butter),
-        slots: [t.slot([0.08, 0.06, 0.84, 0.62], HEART)],
+        slots: [t.slot([0, 0.4, 1, 0.46], { frameShape: "scalloped" as const })],
         texts: [
-          t.text({ t: "생일 축하해!", f: [0, 0.74, 1, 0.1], font: KD.jua, pt: 38, color: C.pink, align: "center" }),
-          t.text({ t: "2026.10.04", f: [0.3, 0.87, 0.4, 0.065], font: KD.jua, pt: 15, color: C.kInk, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 }),
+          t.text({ t: "PARTY TIME!", f: [0, 0.06, 1, 0.12], font: KD.jua, pt: 46, color: C.pink, align: "center" }),
+          t.text({ t: "초를 끄고 박수 짝짝!", f: [0, 0.2, 1, 0.07], font: KD.hand, pt: 26, color: C.kInk, align: "center" }),
+          t.text({ t: "2026.10.04", f: [0.3, 0.9, 0.4, 0.065], font: KD.jua, pt: 15, color: C.kInk, align: "center", va: "middle", bg: "#FFFFFF", radius: 50 }),
         ],
-        stickers: [t.sticker(STK.popper, 0.12, 0.84, 38, -10), t.sticker(STK.chick, 0.88, 0.88, 36, 8)],
+        stickers: [t.sticker(STK.balloons, 0.1, 0.32, 50, -6), t.sticker(STK.popper, 0.9, 0.3, 38, 10), t.sticker(STK.chick, 0.9, 0.9, 36, 8)],
       };
     },
   },
@@ -263,27 +267,33 @@ export const BIRTHDAY_INNER: InnerDesignDef[] = [
     ...ZM,
     id: "mz-birthday-party",
     name: "PARTY MODE",
-    note: "폴라로이드 1장 + 어긋난 사진 3장 + 스티커 폭탄",
+    note: "아래로 놓인 폴라로이드 1장 + 깃발 모양 사진 3장 + 스티커 폭탄",
     left: (g) => {
       const t = toolkit(g);
-      const fr = t.framed("polaroid", 0.5, 0.47, 0.7, -3);
+      const fr = t.framed("polaroid", 0.5, 0.63, 0.64, -4);
       return {
         bg: solid(C.off),
         slots: [fr.slot],
-        texts: [t.text({ t: "PARTY MODE : ON", f: [0, 0.94, 0.7, 0.05], font: MZF.dh, pt: 15, ls: 0.14 })],
-        stickers: [fr.sticker, t.sticker(STK.tapePink, 0.2, 0.04, 34, -28), t.sticker(STK.disco, 0.88, 0.88, 46, 6), t.sticker(STK.hat, 0.1, 0.88, 34, -12)],
+        texts: [
+          t.text({ t: "PARTY\nMODE : ON", f: [0, 0, 1, 0.24], font: MZF.black, pt: 44, color: C.black, lh: 1.0 }),
+        ],
+        stickers: [fr.sticker, t.sticker(STK.tapePink, 0.5, 0.3, 34, -10), t.sticker(STK.disco, 0.88, 0.26, 46, 6), t.sticker(STK.hat, 0.1, 0.92, 34, -12)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const w = 0.3;
+      const gap = 0.03;
+      const flag = (i: number, rot: number) => t.slot([0.02 + i * (w + gap), 0.1, w, 0.42], { borderWidthPx: 6, borderColor: "#FFFFFF", rotation: rot });
       return {
         bg: solid(C.black),
-        slots: [t.slot([0, 0.03, 0.48, 0.36]), t.slot([0.52, 0.15, 0.48, 0.36]), t.slot([0.16, 0.56, 0.5, 0.32])],
+        slots: [flag(0, -3), flag(1, 2), flag(2, -2)],
         texts: [
-          t.text({ t: "2026.10.04", f: [0.68, 0.62, 0.32, 0.065], font: MZF.dh, pt: 14, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.08 }),
-          t.text({ t: "OPEN BAR", f: [0.68, 0.72, 0.32, 0.06], font: MZF.black, pt: 17, color: C.white }),
+          t.rule([0, 0.07, 1, 0.006], C.lime, 50, 600),
+          t.text({ t: "HBD", f: [0, 0.58, 1, 0.22], font: MZF.black, pt: 96, color: C.lime, lh: 1.0, align: "center" }),
+          t.text({ t: "2026.10.04", f: [0.32, 0.84, 0.36, 0.065], font: MZF.dh, pt: 14, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.08 }),
         ],
-        stickers: [t.sticker(STK.popper, 0.9, 0.9, 40, 12), t.sticker(STK.star, 0.08, 0.46, 24, -10)],
+        stickers: [t.sticker(STK.popper, 0.9, 0.92, 40, 12), t.sticker(STK.star, 0.08, 0.9, 24, -10), t.sticker(STK.sparkle, 0.9, 0.62, 22, 0)],
       };
     },
   },
