@@ -209,13 +209,13 @@ const WM_INNER: InnerDesignDef[] = [
         slots: [
           t.slot([0, 0.03, 0.46, 0.34], { ...PRINT, rotation: -3 }),
           t.slot([0.27, 0.33, 0.46, 0.34], { ...PRINT, rotation: 2 }),
-          t.slot([0.54, 0.63, 0.46, 0.34], { ...PRINT, rotation: -2 }),
+          t.slot([0.52, 0.63, 0.44, 0.34], { ...PRINT, rotation: -2 }),
         ],
         texts: [
           t.text({ t: "봄에서\n가을까지", f: [0.54, 0.06, 0.46, 0.2], font: FONT.hand, pt: 24, color: C.sageDeep, lh: 1.4, align: "right" }),
           t.text({ t: "2026", f: [0, 0.76, 0.3, 0.06], font: FONT.sans, pt: 11, color: C.mute, ls: 0.2 }),
         ],
-        stickers: [t.sticker(STK.tapeKraft, 0.23, 0.04, 28, -6), t.sticker(STK.tapeStar, 0.5, 0.34, 26, 8), t.sticker(STK.tapeKraft, 0.77, 0.64, 26, -4)],
+        stickers: [t.sticker(STK.tapeKraft, 0.23, 0.04, 28, -6), t.sticker(STK.tapeStar, 0.5, 0.34, 26, 8), t.sticker(STK.tapeKraft, 0.74, 0.64, 26, -4)],
       };
     },
     right: (g) => {
