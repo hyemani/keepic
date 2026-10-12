@@ -160,19 +160,25 @@ export const MINIMAL_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 5) 콜라주(사진 5장) + 라벨
+    // 5) 에디토리얼 그리드: 왼쪽은 세로로 긴 사진 1장 + 아랫선을 맞춘 정사각 사진 1장, 오른쪽은 정사각 사진 3장을 계단식으로 어긋나게 —
+    //    헤어라인·작은 번호·큰 여백만 써요. 사진 칸 순서: 세로 사진이 맨 앞이라 사진이 1장만 남아도 큰 칸에 먼저 들어가요.
     id: "mn-collage",
-    name: "콜라주 + 라벨",
-    note: "사진 5장 + 영문 라벨",
+    name: "에디토리얼 그리드",
+    note: "세로 사진 + 어긋난 정사각 사진 4장",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.paper),
-        slots: [t.slot([0, 0, 0.64, 0.58]), t.slot([0.68, 0, 0.32, 0.275]), t.slot([0.68, 0.305, 0.32, 0.275])],
+        slots: [t.slot([0, 0.07, 0.5, 0.8]), t.slot([0.62, 0.49, 0.38, 0.38])],
         texts: [
-          t.text({ t: "COLLECTION", f: [0, 0.64, 0.9, 0.08], font: FONT.latin, pt: 24, color: C.ink, ls: 0.12, lh: 1.2 }),
-          t.rule([0, 0.75, 1, LINE], C.rule),
-          t.text({ t: "2026.10.04", f: [0, 0.78, 0.5, 0.04], font: FONT.sans, pt: 9, color: C.gray, ls: 0.14 }),
+          t.text({ t: "ISSUE 05 — INDEX", f: [0, 0, 0.7, 0.04], font: FONT.latin, pt: 9, color: C.gray, ls: 0.34 }),
+          t.rule([0, 0.047, 1, LINE], C.rule),
+          t.text({ t: "05", f: [0.58, 0.07, 0.42, 0.18], font: FONT.latin, pt: 54, color: C.ink, lh: 1.1 }),
+          t.text({ t: "FRAMES", f: [0.6, 0.25, 0.4, 0.04], font: FONT.latin, pt: 9, color: C.gray, ls: 0.34 }),
+          t.text({ t: "빛이 머무는\n자리를 따라", f: [0.6, 0.32, 0.4, 0.12], font: FONT.serif, pt: 12, color: C.ink, lh: 1.7 }),
+          t.text({ t: "01", f: [0, 0.9, 0.2, 0.04], font: FONT.latin, pt: 9, color: C.ink, ls: 0.3 }),
+          t.text({ t: "2026.10.04", f: [0.12, 0.9, 0.38, 0.04], font: FONT.sans, pt: 9, color: C.gray, ls: 0.14, align: "right" }),
+          t.text({ t: "02", f: [0.62, 0.9, 0.2, 0.04], font: FONT.latin, pt: 9, color: C.ink, ls: 0.3 }),
         ],
         stickers: [],
       };
@@ -180,11 +186,15 @@ export const MINIMAL_INNER: InnerDesignDef[] = [
     right: (g) => {
       const t = toolkit(g);
       return {
-        bg: solid(C.paper),
-        slots: [t.slot([0.36, 0, 0.64, 0.5]), t.slot([0.36, 0.54, 0.3, 0.3])],
+        bg: solid(C.white),
+        slots: [t.slot([0, 0.09, 0.34, 0.34]), t.slot([0.5, 0.3, 0.34, 0.34]), t.slot([0.12, 0.66, 0.26, 0.26])],
         texts: [
-          t.text({ t: "사진마다\n이야기가 있어요", f: [0, 0.02, 0.32, 0.14], font: FONT.serif, pt: 13, color: C.ink, lh: 1.7 }),
-          t.text({ t: "ARCHIVE — 02", f: [0.7, 0.58, 0.3, 0.04], font: FONT.latin, pt: 9, color: C.gray, ls: 0.28, align: "right" }),
+          t.text({ t: "FRAMES 03 — 05", f: [0, 0, 0.7, 0.04], font: FONT.latin, pt: 9, color: C.gray, ls: 0.34 }),
+          t.rule([0, 0.047, 1, LINE], C.rule),
+          t.text({ t: "03", f: [0, 0.455, 0.2, 0.04], font: FONT.latin, pt: 9, color: C.ink, ls: 0.3 }),
+          t.text({ t: "04", f: [0.5, 0.665, 0.2, 0.04], font: FONT.latin, pt: 9, color: C.ink, ls: 0.3 }),
+          t.text({ t: "05", f: [0.12, 0.935, 0.2, 0.04], font: FONT.latin, pt: 9, color: C.ink, ls: 0.3 }),
+          t.text({ t: "조용히 쌓인\n장면들", f: [0.5, 0.78, 0.5, 0.11], font: FONT.serif, pt: 12, color: C.gray, lh: 1.7 }),
         ],
         stickers: [],
       };
