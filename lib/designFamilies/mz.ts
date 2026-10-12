@@ -164,33 +164,40 @@ export const MZ_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 5) 콜라주(사진 5장) + 피드 라벨
+    // 5) 오프셋 그리드: 왼쪽은 라임 면에 사진 2장을 검정 단단한 그림자(어긋난 색 면)와 함께, 오른쪽은 블랙 면에 가로로 긴 사진 1장 + 정사각 2장을 라임 그림자와 함께 놓은 모양.
+    //    그림자는 사진 뒤에 깔리는 색 띠(DESIGN_BACK_Z)예요. 사진 칸 순서: 큰 사진이 맨 앞이라 사진이 1장만 남아도 큰 칸에 먼저 들어가요.
     id: "mz-collage",
-    name: "콜라주 + 피드",
-    note: "사진 5장 + MY FEED 라벨",
+    name: "오프셋 그리드",
+    note: "그림자 어긋난 사진 5장 + 해시태그",
     left: (g) => {
       const t = toolkit(g);
+      const EDGE = { borderWidthPx: 5, borderColor: C.black } as const;
       return {
-        bg: solid(C.off),
-        slots: [t.slot([0, 0, 0.6, 0.5]), t.slot([0.64, 0, 0.36, 0.24]), t.slot([0.64, 0.26, 0.36, 0.24])],
+        bg: solid(C.lime),
+        slots: [t.slot([0, 0.04, 0.7, 0.5], EDGE), t.slot([0, 0.66, 0.36, 0.3], EDGE)],
         texts: [
-          t.text({ t: "MY FEED", f: [0, 0.54, 1, 0.14], font: FONT.black, pt: 58, color: C.black, lh: 1.05 }),
-          t.text({ t: "DAILY UPDATE", f: [0, 0.72, 0.48, 0.07], font: FONT.dh, pt: 16, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.1 }),
-          t.text({ t: "2026.10.04", f: [0, 0.82, 0.5, 0.05], font: FONT.sans, pt: 10, color: C.black, bold: true, ls: 0.2 }),
+          t.rule([0.03, 0.07, 0.7, 0.5], C.black, undefined, DESIGN_BACK_Z),
+          t.rule([0.03, 0.69, 0.36, 0.3], C.black, undefined, DESIGN_BACK_Z),
+          t.text({ t: "FEED", f: [0.42, 0.6, 0.58, 0.22], font: FONT.black, pt: 84, color: C.black, lh: 1.0 }),
+          t.text({ t: "#오늘의기록", f: [0.42, 0.83, 0.5, 0.075], font: FONT.dh, pt: 17, color: C.lime, align: "center", va: "middle", bg: C.black, ls: 0.06 }),
+          t.text({ t: "2026.10.04", f: [0.42, 0.92, 0.5, 0.05], font: FONT.sans, pt: 10, color: C.black, bold: true, ls: 0.2 }),
         ],
-        stickers: [t.sticker(STK.shades, 0.84, 0.74, 52, -10), t.sticker(STK.star, 0.64, 0.5, 26, 12)],
+        stickers: [t.sticker(STK.shades, 0.86, 0.2, 46, -10), t.sticker(STK.star, 0.9, 0.46, 26, 12)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
         bg: solid(C.black),
-        slots: [t.slot([0, 0, 0.5, 0.62]), t.slot([0.54, 0.22, 0.46, 0.4])],
+        slots: [t.slot([0, 0.09, 0.96, 0.38]), t.slot([0, 0.58, 0.45, 0.38]), t.slot([0.51, 0.58, 0.45, 0.38])],
         texts: [
-          t.text({ t: "오늘도\n업데이트 완료", f: [0, 0.68, 1, 0.22], font: FONT.black, pt: 34, color: C.white, lh: 1.15 }),
-          t.text({ t: "NO.05", f: [0.54, 0.04, 0.3, 0.05], font: FONT.dh, pt: 13, color: C.lime, ls: 0.12 }),
+          t.rule([0.03, 0.12, 0.96, 0.38], C.lime, undefined, DESIGN_BACK_Z),
+          t.rule([0.03, 0.61, 0.45, 0.38], C.lime, undefined, DESIGN_BACK_Z),
+          t.rule([0.54, 0.61, 0.45, 0.38], C.lime, undefined, DESIGN_BACK_Z),
+          t.text({ t: "FEED  03 — 05", f: [0, 0, 0.6, 0.05], font: FONT.dh, pt: 13, color: C.white, ls: 0.2 }),
+          t.text({ t: "NEW", f: [0.8, 0, 0.16, 0.05], font: FONT.dh, pt: 12, color: C.black, align: "center", va: "middle", bg: C.lime, ls: 0.1 }),
         ],
-        stickers: [t.sticker(STK.pizza, 0.88, 0.86, 44, 12), t.sticker(STK.bolt, 0.74, 0.74, 36, -10)],
+        stickers: [t.sticker(STK.bolt, 0.4, 0.545, 30, -10), t.sticker(STK.sparkle, 0.58, 0.54, 22, 0)],
       };
     },
   },
