@@ -204,29 +204,34 @@ export const KIDS_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 5) 콜라주(사진 5장) + 오늘의 행복
+    // 5) 통통 모양 모음: 키 큰 아치·곰 얼굴·점선 동그라미(왼쪽 3장), 물방울 모양·고양이 얼굴(오른쪽 2장)을 체크 무늬 위에 통통 어긋나게 놓은 모양.
+    //    마무리 장(구름·하트·꽃잎)과 모양이 겹치지 않게 아치·동물 얼굴을 써요. 사진 칸 순서: 키 큰 아치가 맨 앞이라 사진이 1장만 남아도 먼저 들어가요.
     id: "kd-collage",
-    name: "콜라주 + 행복",
-    note: "사진 5장(카드·원·곰·꽃잎) + 행복 라벨",
+    name: "통통 모양 모음",
+    note: "아치·곰·고양이 모양 사진 5장 + 스티커",
     left: (g) => {
       const t = toolkit(g);
       return {
-        bg: CLOUDS_SKY,
-        slots: [t.slot([0.02, 0.03, 0.58, 0.46], CARD), t.slot([0.64, 0.05, 0.34, 0.34], CIRCLE), t.slot([0.04, 0.55, 0.36, 0.36], CARD)],
-        texts: [
-          t.text({ t: "오늘의\n행복", f: [0.46, 0.55, 0.52, 0.22], font: FONT.jua, pt: 42, color: C.skyDeep, lh: 1.1 }),
-          t.text({ t: "2026.10.04", f: [0.46, 0.8, 0.5, 0.05], font: FONT.hand, pt: 20, color: C.ink }),
+        bg: GING_SKY,
+        slots: [
+          t.slot([0, 0.1, 0.46, 0.78], { frameShape: "arch", borderWidthPx: 7, borderColor: "#FFFFFF" }),
+          t.slot([0.54, 0.02, 0.46, 0.46], BEAR),
+          t.slot([0.56, 0.54, 0.4, 0.4], { borderRadiusPct: 50, borderWidthPx: 10, borderColor: C.pink, frameBorderPattern: "dot" }),
         ],
-        stickers: [t.sticker(STK.chick, 0.9, 0.88, 40, 8), t.sticker(STK.heartPink, 0.58, 0.46, 22, 10)],
+        texts: [t.text({ t: "오늘의 나들이", f: [0, 0.91, 0.46, 0.075], font: FONT.jua, pt: 17, color: "#FFFFFF", align: "center", va: "middle", bg: C.skyDeep, radius: 50 })],
+        stickers: [t.sticker(STK.sparkle, 0.07, 0.07, 26, -8), t.sticker(STK.heartPink, 0.51, 0.5, 22, 10), t.sticker(STK.chick, 0.5, 0.92, 34, 8)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
       return {
-        bg: CLOUDS_BLUSH,
-        slots: [t.slot([0.03, 0.04, 0.46, 0.46], BEAR), t.slot([0.54, 0.18, 0.43, 0.43], PETAL)],
-        texts: [t.text({ t: "웃음이 한가득\n오늘도 행복 가득!", f: [0.04, 0.72, 0.92, 0.16], font: FONT.jua, pt: 23, color: C.pink, align: "center", lh: 1.4 })],
-        stickers: [t.sticker(STK.bunny, 0.12, 0.62, 38, -8), t.sticker(STK.star, 0.86, 0.08, 24, 8)],
+        bg: GING_PINK,
+        slots: [
+          t.slot([0.06, 0.02, 0.58, 0.58], { frameShape: "organicScallop", rotation: -5 }),
+          t.slot([0.5, 0.5, 0.46, 0.46], { frameShape: "cat", rotation: 6 }),
+        ],
+        texts: [t.text({ t: "방긋방긋\n웃는 날", f: [0.02, 0.64, 0.44, 0.26], font: FONT.jua, pt: 32, color: C.pink, lh: 1.3 })],
+        stickers: [t.sticker(STK.star, 0.84, 0.1, 26, 10), t.sticker(STK.heartYellow, 0.78, 0.34, 24, -8), t.sticker(STK.bunny, 0.4, 0.92, 32, 8)],
       };
     },
   },
