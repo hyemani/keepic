@@ -225,41 +225,36 @@ const WM_INNER: InnerDesignDef[] = [
     },
   },
   {
-    // 5) 콜라주(사진 5장) + 손글씨 라벨
+    // 5) 소프트 콜라주: 흰 테두리 인화 사진을 서로 살짝 겹치고 기울여서 마스킹테이프로 붙인 모양(왼쪽 2장 · 오른쪽 3장) + 손글씨 한 줄.
+    //    사진 칸 순서: 큰 사진이 맨 앞이라 사진이 1장만 남아도 큰 칸에 먼저 들어가요.
     id: "wm-collage",
-    name: "콜라주 + 손글씨",
-    note: "사진 5장 + 손글씨 라벨",
+    name: "소프트 콜라주",
+    note: "겹쳐 붙인 인화 사진 5장 + 손글씨",
     left: (g) => {
       const t = toolkit(g);
+      const PRINT = { ...SOFT, borderWidthPx: 8, borderColor: "#FFFFFF" } as const;
       return {
         bg: solid(C.ivory),
-        slots: [
-          t.slot([0, 0, 0.63, 0.56], SOFT),
-          t.slot([0.67, 0, 0.33, 0.265], SOFT),
-          t.slot([0.67, 0.295, 0.33, 0.265], SOFT),
-        ],
+        slots: [t.slot([0.02, 0.04, 0.62, 0.52], { ...PRINT, rotation: -3 }), t.slot([0.4, 0.44, 0.54, 0.44], { ...PRINT, rotation: 4 })],
         texts: [
-          t.text({ t: "오늘의 기록", f: [0, 0.62, 0.9, 0.13], font: FONT.hand, pt: 36, color: C.sageDeep, lh: 1.2 }),
-          t.text({ t: "2026.10.04", f: [0, 0.78, 0.5, 0.06], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12 }),
+          t.text({ t: "햇살이 머문\n오후의 기록", f: [0, 0.62, 0.36, 0.22], font: FONT.hand, pt: 25, color: C.sageDeep, lh: 1.45 }),
+          t.text({ t: "2026.10.04", f: [0, 0.89, 0.34, 0.05], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12 }),
         ],
-        stickers: [t.sticker(STK.tapeKraft, 0.31, 0.015, 30, -4)],
+        stickers: [t.sticker(STK.tapeKraft, 0.33, 0.05, 30, -4), t.sticker(STK.tapeStar, 0.84, 0.45, 26, 12), t.sticker(STK.sunflower, 0.93, 0.95, 24, 8)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const PRINT = { ...SOFT, borderWidthPx: 8, borderColor: "#FFFFFF" } as const;
       return {
-        bg: solid(C.ivory),
-        slots: [t.slot([0, 0.04, 0.48, 0.6], SOFT), t.slot([0.52, 0.14, 0.48, 0.5], SOFT)],
-        texts: [
-          t.text({
-            t: "웃음이 많았던 하루,\n사진마다 이야기가 있어요.",
-            f: [0, 0.72, 0.9, 0.16],
-            font: FONT.serif,
-            pt: 15.5,
-            lh: 1.7,
-          }),
+        bg: solid(C.sageLight),
+        slots: [
+          t.slot([0.3, 0.03, 0.64, 0.4], { ...PRINT, rotation: 3 }),
+          t.slot([0.05, 0.3, 0.44, 0.38], { ...PRINT, rotation: -4 }),
+          t.slot([0.46, 0.54, 0.46, 0.34], { ...PRINT, rotation: 2 }),
         ],
-        stickers: [t.sticker(STK.sunflower, 0.9, 0.88, 28, 10)],
+        texts: [t.text({ t: "웃음이 번진 자리마다\n작은 이야기가 남아요", f: [0.02, 0.75, 0.42, 0.2], font: FONT.serif, pt: 15, lh: 1.7 })],
+        stickers: [t.sticker(STK.tapeKraft, 0.62, 0.04, 28, -6), t.sticker(STK.tapeStar, 0.22, 0.31, 26, -10), t.sticker(STK.tapeKraft, 0.69, 0.55, 24, 5)],
       };
     },
   },
