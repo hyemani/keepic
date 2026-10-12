@@ -129,7 +129,16 @@ const WM_INNER: InnerDesignDef[] = [
     note: "사진 1장 + 제목·설명글",
     left: (g) => {
       const t = toolkit(g);
-      return { bg: solid(C.ivory), slots: [t.slot([0, 0, 1, 1], SOFT)], texts: [], stickers: [t.sticker(STK.tapeStar, 0.12, 0.02, 32, -8)] };
+      return {
+        bg: solid(C.ivory),
+        slots: [t.slot([0.34, 0, 0.66, 1], SOFT)],
+        texts: [
+          t.text({ t: "OCT", f: [0, 0.72, 0.28, 0.04], font: FONT.sans, pt: 10, color: C.mute, ls: 0.3 }),
+          t.text({ t: "04", f: [0, 0.77, 0.3, 0.14], font: FONT.serif, pt: 56, lh: 1.0 }),
+          t.rule([0, 0.93, 0.08, 0.0022], C.sageDeep),
+        ],
+        stickers: [t.sticker(STK.tapeStar, 0.62, 0.02, 32, -4)],
+      };
     },
     right: (g) => {
       const t = toolkit(g);
@@ -162,8 +171,8 @@ const WM_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.ivory),
-        slots: [t.slot([0, 0.02, 1, 0.76], SOFT)],
-        texts: [t.text({ t: "2026.10.04", f: [0, 0.86, 0.5, 0.06], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12 })],
+        slots: [t.slot([0, 0.22, 0.78, 0.58], SOFT)],
+        texts: [t.text({ t: "2026.10.04", f: [0, 0.07, 0.5, 0.06], font: FONT.sans, pt: 11, color: C.mute, ls: 0.12 })],
         stickers: [],
       };
     },
@@ -171,36 +180,42 @@ const WM_INNER: InnerDesignDef[] = [
       const t = toolkit(g);
       return {
         bg: solid(C.ivory),
-        slots: [t.slot([0, 0.02, 1, 0.76], SOFT)],
+        slots: [t.slot([0.22, 0.04, 0.78, 0.58], SOFT)],
         texts: [
           t.text({
             t: "서로를 바라보던 시간이\n가장 오래 남는 장면이 된다",
-            f: [0, 0.84, 1, 0.14],
+            f: [0.22, 0.7, 0.78, 0.14],
             font: FONT.serif,
             pt: 15.5,
-            align: "center",
+            align: "left",
             lh: 1.75,
             color: C.ink,
           }),
         ],
-        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.02, 34, 3)],
+        stickers: [t.sticker(STK.tapeKraft, 0.61, 0.04, 34, 3)],
       };
     },
   },
   {
-    // 4) 사진 3장 스트립 + 날짜 + 캡션
+    // 4) 사진 3장 계단 + 날짜 + 캡션: 흰 테두리 인화 사진 3장을 왼쪽 위에서 오른쪽 아래로 계단처럼 내려가게 붙여요(콜라주·오프닝과 다른 뼈대).
     id: "wm-strip-date",
-    name: "세 장 스트립 + 날짜",
-    note: "사진 3장 + 큰 날짜·캡션",
+    name: "세 장 계단 + 날짜",
+    note: "계단처럼 붙인 사진 3장 + 큰 날짜·캡션",
     left: (g) => {
       const t = toolkit(g);
-      const w = 0.31;
-      const gap = (1 - w * 3) / 2;
+      const PRINT = { ...SOFT, borderWidthPx: 8, borderColor: "#FFFFFF" } as const;
       return {
         bg: solid(C.ivory),
-        slots: [0, 1, 2].map((i) => t.slot([i * (w + gap), 0, w, 0.78], SOFT)),
-        texts: [t.text({ t: "봄에서 가을까지", f: [0, 0.86, 0.8, 0.1], font: FONT.hand, pt: 21.5, color: C.sageDeep })],
-        stickers: [],
+        slots: [
+          t.slot([0, 0.03, 0.46, 0.34], { ...PRINT, rotation: -3 }),
+          t.slot([0.27, 0.33, 0.46, 0.34], { ...PRINT, rotation: 2 }),
+          t.slot([0.54, 0.63, 0.46, 0.34], { ...PRINT, rotation: -2 }),
+        ],
+        texts: [
+          t.text({ t: "봄에서\n가을까지", f: [0.54, 0.06, 0.46, 0.2], font: FONT.hand, pt: 24, color: C.sageDeep, lh: 1.4, align: "right" }),
+          t.text({ t: "2026", f: [0, 0.76, 0.3, 0.06], font: FONT.sans, pt: 11, color: C.mute, ls: 0.2 }),
+        ],
+        stickers: [t.sticker(STK.tapeKraft, 0.23, 0.04, 28, -6), t.sticker(STK.tapeStar, 0.5, 0.34, 26, 8), t.sticker(STK.tapeKraft, 0.77, 0.64, 26, -4)],
       };
     },
     right: (g) => {
