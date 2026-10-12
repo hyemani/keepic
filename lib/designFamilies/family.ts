@@ -64,6 +64,8 @@ const CLOUD: Partial<ImageBoxDef> = { frameShape: "cloud" };
 const CLOUDS_SKY: BackgroundSpec = { kind: "graphic", presetId: "g4-clouds-sky" };
 const GING_BUTTER: BackgroundSpec = { kind: "pattern", presetId: "p5-ging-butter" };
 const GING_SKY: BackgroundSpec = { kind: "pattern", presetId: "p5-ging-sky" };
+const CHECK_SAGE: BackgroundSpec = { kind: "pattern", presetId: "p2-check-sage" };
+const TRAY: Partial<ImageBoxDef> = { borderRadiusPct: 1.2, borderWidthPx: 9, borderColor: "#FFFFFF" };
 
 const META = { style: "warm-memory", themes: ["family" as const] };
 const KMETA = { style: "kids", themes: ["family" as const] };
@@ -135,27 +137,35 @@ export const FAMILY_INNER: InnerDesignDef[] = [
   {
     ...META,
     id: "wm-family-picnic",
-    name: "소풍",
-    note: "사진 4장 + 소풍 손글씨",
+    name: "소풍 돗자리",
+    note: "와이드 사진 1장 + 도시락 칸 사진 3장 + 도시락 메뉴",
     left: (g) => {
       const t = toolkit(g);
       return {
-        bg: solid(C.sageLight),
-        slots: [t.slot([0, 0.03, 1, 0.6], SOFT)],
+        bg: CHECK_SAGE,
+        slots: [t.slot([0, 0.3, 1, 0.55], TRAY)],
         texts: [
-          t.text({ t: "오늘은 소풍 가는 날", f: [0, 0.69, 1, 0.1], font: WM.hand, pt: 31, color: C.sageDeep }),
-          t.text({ t: "돗자리, 도시락, 그리고 웃음소리", f: [0, 0.82, 1, 0.07], font: WM.sans, pt: 12.5, color: C.ink }),
+          t.text({ t: "오늘은 소풍 가는 날", f: [0.05, 0.04, 0.9, 0.14], font: WM.hand, pt: 31, color: C.sageDeep, align: "center", va: "middle", bg: C.ivory, radius: 14 }),
+          t.text({ t: "돗자리, 도시락, 그리고 웃음소리", f: [0.05, 0.9, 0.9, 0.07], font: WM.sans, pt: 12.5, color: C.ink, align: "center", va: "middle", bg: C.ivory, radius: 50 }),
         ],
-        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.03, 34, 3), t.sticker(STK.daisy, 0.9, 0.9, 30, 8)],
+        stickers: [t.sticker(STK.tapeKraft, 0.5, 0.3, 34, 3), t.sticker(STK.daisy, 0.92, 0.84, 30, 8)],
       };
     },
     right: (g) => {
       const t = toolkit(g);
+      const w = 0.46;
+      const h = 0.28;
       return {
         bg: solid(C.ivory),
-        slots: [t.slot([0, 0.02, 0.48, 0.4], SOFT), t.slot([0.52, 0.08, 0.48, 0.4], SOFT), t.slot([0.16, 0.54, 0.68, 0.34], SOFT)],
-        texts: [t.text({ t: "PICNIC DAY  ·  2026.10.04", f: [0, 0.93, 1, 0.05], font: WM.sans, pt: 10, color: C.mute, ls: 0.2, align: "center" })],
-        stickers: [t.sticker(STK.sunflower, 0.1, 0.5, 26, -8)],
+        slots: [t.slot([0, 0.04, w, h], SOFT), t.slot([0, 0.36, w, h], SOFT), t.slot([0, 0.68, w, h], SOFT)],
+        texts: [
+          t.text({ t: "오늘의 도시락", f: [0.54, 0.04, 0.46, 0.09], font: WM.hand, pt: 24, color: C.sageDeep }),
+          t.rule([0.54, 0.14, 0.46, 0.0012], C.sageDeep),
+          t.text({ t: "· 김밥\n· 샌드위치\n· 과일 한 통\n· 레모네이드", f: [0.54, 0.18, 0.46, 0.3], font: WM.sans, pt: 13, color: C.ink, lh: 1.95 }),
+          t.text({ t: "바람이 좋은 날", f: [0.54, 0.7, 0.46, 0.08], font: WM.hand, pt: 20, color: C.sageDeep }),
+          t.text({ t: "PICNIC DAY\n2026.10.04", f: [0.54, 0.88, 0.46, 0.09], font: WM.sans, pt: 10, color: C.mute, ls: 0.2, lh: 1.7 }),
+        ],
+        stickers: [t.sticker(STK.sunflower, 0.8, 0.56, 30, -8), t.sticker(STK.tapeStar, 0.23, 0.04, 28, -6)],
       };
     },
   },
@@ -181,7 +191,7 @@ export const FAMILY_INNER: InnerDesignDef[] = [
         texts: [
           t.text({ t: "To. 우리 가족에게", f: [0, 0.06, 1, 0.1], font: WM.hand, pt: 28, color: C.sageDeep }),
           t.text({
-            t: "바쁜 날에도 저녁이면 모여 앉아\n오늘 있었던 일을 나눠 줘서 고마워요.\n\n서툰 말투도, 시끌벅적한 웃음도\n전부 제가 제일 좋아하는 소리예요.\n\n앞으로도 오래오래 같이 살아요.",
+            t: "바쁜 날에도 저녁이면 모여 앉아\n오늘 있었던 일을 나눠 주는 시간이 좋아요.\n\n서툰 말투도, 시끌벅적한 웃음도\n전부 제가 제일 좋아하는 소리예요.\n\n앞으로도 오래오래 같이 살아요.",
             f: [0, 0.2, 0.96, 0.52],
             font: WM.sans,
             pt: 12.5,
@@ -230,17 +240,17 @@ export const FAMILY_INNER: InnerDesignDef[] = [
     ...KMETA,
     id: "kd-family-picnic",
     name: "신나는 소풍",
-    note: "사진 4장 + 소풍 제목·동물 친구들",
+    note: "와이드 사진 1장 + 풍선 동그라미 사진 3장 + 소풍 제목",
     left: (g) => {
       const t = toolkit(g);
       return {
         bg: GING_SKY,
-        slots: [t.slot([0, 0.08, 1, 0.52], CARD)],
+        slots: [t.slot([0, 0.52, 1, 0.44], CARD)],
         texts: [
-          t.text({ t: "신나는 소풍 날", f: [0, 0.66, 1, 0.11], font: KD.jua, pt: 40, color: C.skyDeep, align: "center" }),
-          t.text({ t: "김밥 · 과일 · 술래잡기", f: [0, 0.8, 1, 0.07], font: KD.hand, pt: 24, color: C.kInk, align: "center" }),
+          t.text({ t: "신나는 소풍 날", f: [0, 0.27, 1, 0.11], font: KD.jua, pt: 40, color: C.skyDeep, align: "center" }),
+          t.text({ t: "김밥 · 과일 · 술래잡기", f: [0, 0.4, 1, 0.07], font: KD.hand, pt: 24, color: C.kInk, align: "center" }),
         ],
-        stickers: [t.sticker(STK.bunting, 0.5, 0.0, 110, 0), t.sticker(STK.pig, 0.12, 0.92, 34, -8), t.sticker(STK.lamb, 0.88, 0.92, 34, 8)],
+        stickers: [t.sticker(STK.bunting, 0.5, 0.0, 100, 0), t.sticker(STK.pig, 0.1, 0.52, 34, -8), t.sticker(STK.lamb, 0.9, 0.52, 34, 8)],
       };
     },
     right: (g) => {
@@ -248,12 +258,12 @@ export const FAMILY_INNER: InnerDesignDef[] = [
       const d = 0.3;
       return {
         bg: solid("#FFFCF3"),
-        slots: [t.slot([0, 0.04, d, d], CIRCLE), t.slot([0.35, 0.04, d, d], CIRCLE), t.slot([0.7, 0.04, d, d], CIRCLE)],
+        slots: [t.slot([0.68, 0.03, d, d], CIRCLE), t.slot([0.68, 0.36, d, d], CIRCLE), t.slot([0.68, 0.69, d, d], CIRCLE)],
         texts: [
-          t.text({ t: "오늘의 하이라이트", f: [0, 0.4, 1, 0.09], font: KD.jua, pt: 28, color: C.pink, align: "center" }),
-          t.text({ t: "가장 크게 웃은 순간을\n여기에 붙여요", f: [0, 0.5, 1, 0.11], font: KD.soft, pt: 14, color: C.kInk, align: "center", lh: 1.6 }),
+          t.text({ t: "오늘의\n하이라이트", f: [0, 0.06, 0.64, 0.2], font: KD.jua, pt: 28, color: C.pink, lh: 1.25 }),
+          t.text({ t: "가장 크게 웃은 순간을\n여기에 붙여요", f: [0, 0.3, 0.64, 0.12], font: KD.soft, pt: 13, color: C.kInk, lh: 1.6 }),
         ],
-        stickers: [t.sticker(STK.balloons, 0.2, 0.8, 54, -4), t.sticker(STK.chick, 0.8, 0.82, 44, 8), t.sticker(STK.sparkle, 0.5, 0.72, 24, 0)],
+        stickers: [t.sticker(STK.balloons, 0.3, 0.62, 54, -4), t.sticker(STK.chick, 0.3, 0.9, 44, 8), t.sticker(STK.sparkle, 0.62, 0.22, 22, 0)],
       };
     },
   },
