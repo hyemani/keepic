@@ -190,6 +190,7 @@ import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/l
 import { findEmptyPhotoSlots, type EmptySlotGroup } from "@/lib/emptyPhotoSlots";
 import { cleanEmptySlotsOnCover, cleanEmptySlotsOnSpread } from "@/lib/emptySlotCleanup";
 import { EmptySlotDialog } from "./emptySlotDialog";
+import { refillEmptySlots } from "@/lib/photoRefill";
 import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
@@ -806,7 +807,17 @@ type AlbumApplyBatch = {
   addPhotos: Photo[];
   extraPhotoCount: number;
   keptUserTexts: number;
+  // 칸이 모자라 밀려난 사진 박스(자르기·회전 값 그대로) — 있으면 addPhotos 대신 여기에 모아 두고, 호출한 쪽이 다른 펼침면의 빈 칸에 먼저 채운 뒤(lib/photoRefill.ts) 남는 것만 사진 목록으로 돌려보내요.
+  extraBoxes?: ImageBoxDef[];
 };
+
+// 디자인을 입힌 뒤 안내 문구: 다른 펼침면 빈 칸에 채운 사진 수(moved)와 사진 목록으로 돌려보낸 수(returned).
+function designPhotoNotice(moved: number, returned: number): string | null {
+  if (moved > 0 && returned > 0) return `사진 ${moved}장은 다른 쪽의 빈 칸에 채우고, ${returned}장은 사진 목록으로 돌려보냈어요`;
+  if (moved > 0) return `사진 ${moved}장을 다른 쪽의 빈 칸에 채웠어요`;
+  if (returned > 0) return `사진 ${returned}장을 사진 목록으로 돌려보냈어요`;
+  return null;
+}
 
 // 칸에서 밀려난 사진을 사진 목록(보관함)으로 돌려보낼 때: 같은 사진(url)이 이미 목록에 있으면 또 넣지 않아요
 // (AI 맞춤 레이아웃은 올린 사진이 계속 목록에 남아 있어서, 그대로 이어 붙이면 같은 사진이 목록에 두 번 들어가
@@ -14527,7 +14538,9 @@ function UploadPageContent() {
     opts?: {
       slotPatches?: (Partial<ImageBoxDef> | undefined)[];
       finalizeSpread?: (s: SpreadDef) => SpreadDef;
-      onResult?: (r: { extraPhotos: number; slots: number }) => void;
+      onResult?: (r: { extraPhotos: number; slots: number; moved?: number }) => void;
+      // 한 페이지만 디자인을 입힐 때: 칸이 모자라 밀려난 사진을 사진 목록으로 보내기 전에 다른 펼침면의 빈 칸(책 순서)에 먼저 채워요.
+      refillOthers?: boolean;
       // 앨범 테마(전체 펼침면 한 번에 적용)용: 상태를 바로 안 바꾸고 이 묶음에 "펼침면 바꾸기 함수·사진 목록 변경"만 모아 둬요.
       // 호출한 쪽이 한 번에 반영해서 사진 목록 번호(index)가 어긋나지 않고 실행취소도 한 번이에요.
       batch?: AlbumApplyBatch;
@@ -14676,10 +14689,12 @@ function UploadPageContent() {
           return patch.rotation !== undefined ? { ...merged, designRotation: patch.rotation } : merged;
         })
       : placedRaw;
-    opts?.onResult?.({ extraPhotos: extraPhotos.length, slots: template.slots.length });
+    // refillOthers: 밀려난 사진을 다른 펼침면 빈 칸에 채운 뒤(아래) 알려요.
+    const deferResult = !!opts?.refillOthers && !opts?.batch;
+    if (!deferResult) opts?.onResult?.({ extraPhotos: extraPhotos.length, slots: template.slots.length });
 
     // 사진이 든 초과 박스만 "전체 사진 목록으로 돌려보냈다"고 알려요(빈 프레임은 사진이 아니라 조용히 정리돼요).
-    if (!opts?.batch) setLayoutApplyMessage(
+    if (!opts?.batch && !deferResult) setLayoutApplyMessage(
       extraPhotos.length > 0
         ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${extraPhotos.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
         : null
@@ -14724,7 +14739,24 @@ function UploadPageContent() {
     if (opts?.batch) {
       opts.batch.spreadFns.set(spreadIndex, transformSpread);
       legacyRemovedPhotoIndexes.forEach((idx) => opts.batch!.removePhotoIdx.add(idx));
-      opts.batch.addPhotos.push(...extraPhotos);
+      if (opts.batch.extraBoxes) opts.batch.extraBoxes.push(...extraBoxes.filter((b) => !!b.url));
+      else opts.batch.addPhotos.push(...extraPhotos);
+      return;
+    }
+    if (opts?.refillOthers) {
+      // 지금 상태에서 이 펼침면만 바꾼 결과를 먼저 만들고, 밀려난 사진을 다른 펼침면의 빈 칸에 책 순서로 채워요(남는 것만 사진 목록으로).
+      const after = customSpreads.map((s, i) => (i === spreadIndex ? transformSpread(s) : s));
+      const rf = refillEmptySlots(after, extraBoxes, bookSpreads.length);
+      setCustomSpreads(rf.spreads);
+      if (legacyRemovedPhotoIndexes.size > 0) setPhotos((prev) => prev.filter((_, i) => !legacyRemovedPhotoIndexes.has(i)));
+      const back = rf.leftover.map(boxToLibraryPhoto);
+      if (back.length > 0) setPhotos((prev) => appendLibraryPhotos(prev, back));
+      opts.onResult?.({ extraPhotos: back.length, slots: template.slots.length, moved: rf.placed });
+      setLayoutApplyMessage(
+        back.length > 0
+          ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${back.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
+          : null
+      );
       return;
     }
     setCustomSpreads((prev) => prev.map((s, i) => (i === spreadIndex ? transformSpread(s) : s)));
@@ -15186,12 +15218,13 @@ function UploadPageContent() {
     applyLayoutTemplate(spreadIndex, eff, synth, undefined, {
       batch,
       slotPatches: patches,
+      refillOthers: !batch && !isIntroApply,
       onResult: (r) => {
         if (batch) {
           batch.extraPhotoCount += r.extraPhotos;
           return;
         }
-        flashDesignNotice(r.extraPhotos > 0 ? `사진 ${r.extraPhotos}장을 사진 목록으로 돌려보냈어요` : null);
+        flashDesignNotice(designPhotoNotice(r.moved ?? 0, r.extraPhotos));
       },
       finalizeSpread: (s0) => {
         let s: SpreadDef = { ...s0 };
@@ -15585,7 +15618,7 @@ function UploadPageContent() {
     if (!set || bookSpreads.length === 0) return;
     if (designThemeId === set.id && designCoverId === set.coverId) return; // 이미 적용된 테마를 다시 눌러도 아무것도 안 바뀌고 실행취소 기록도 안 늘어요(표지만 따로 바꿨다면 다시 눌러 테마 표지로 되돌릴 수 있어요)
     const plan = planAlbumInner(set, albumPlanInputs());
-    const batch: AlbumApplyBatch = { spreadFns: new Map(), removePhotoIdx: new Set(), addPhotos: [], extraPhotoCount: 0, keptUserTexts: 0 };
+    const batch: AlbumApplyBatch = { spreadFns: new Map(), removePhotoIdx: new Set(), addPhotos: [], extraPhotoCount: 0, keptUserTexts: 0, extraBoxes: [] };
     plan.forEach((designId, i) => applyInnerDesignTemplate(i, "spread", designId, batch));
     // 마지막 소개 페이지도 같은 테마의 소개 페이지 디자인으로(사진·직접 쓴 글은 그대로, 디자인이 만든 글상자·스티커만 바꿔 끼워요)
     if (introIdx >= 0) {
@@ -15597,14 +15630,17 @@ function UploadPageContent() {
       applyInnerDesignTemplate(introIdx, "left", introDesignId(set.style), batch, set.occasion, coverTitleAfter);
       if (selectedPageKey === "intro") setSelectedPageKey(introIdx); // 옛 소개 페이지 화면을 보고 있었다면 새 소개 페이지 화면으로
     }
-    setCustomSpreads((prev) => prev.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp));
-    if (batch.removePhotoIdx.size > 0 || batch.addPhotos.length > 0) {
-      setPhotos((prev) => appendLibraryPhotos(prev.filter((_, i) => !batch.removePhotoIdx.has(i)), batch.addPhotos));
+    // 모든 펼침면을 새 디자인으로 바꾼 결과를 한 번 만들고, 칸이 모자라 밀려난 사진은 먼저 "빈 칸이 된 자리"(책 순서)에 채워요 — 남는 것만 사진 목록으로 돌려보내요.
+    const transformed = customSpreads.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp);
+    const rf = refillEmptySlots(transformed, batch.extraBoxes ?? [], bookSpreads.length);
+    setCustomSpreads(rf.spreads);
+    const returnedPhotos = [...batch.addPhotos, ...rf.leftover.map(boxToLibraryPhoto)];
+    if (batch.removePhotoIdx.size > 0 || returnedPhotos.length > 0) {
+      setPhotos((prev) => appendLibraryPhotos(prev.filter((_, i) => !batch.removePhotoIdx.has(i)), returnedPhotos));
     }
     const cover = applyCoverDesignTemplate(set.coverId, true);
     setDesignThemeId(set.id);
-    const extra = batch.extraPhotoCount + (cover?.extraPhotos ?? 0);
-    flashDesignNotice(extra > 0 ? `사진 ${extra}장을 사진 목록으로 돌려보냈어요` : null);
+    flashDesignNotice(designPhotoNotice(rf.placed, returnedPhotos.length + (cover?.extraPhotos ?? 0)));
   }
 
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
