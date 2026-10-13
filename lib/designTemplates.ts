@@ -623,6 +623,7 @@ export function makeDesignStickerBox(
     kind: "sticker",
     zOrder: 500 + n,
     ...(st.rotation ? { rotation: st.rotation } : {}),
+    ...(st.forSlots && st.forSlots.length ? { forSlots: st.forSlots } : {}),
   };
 }
 

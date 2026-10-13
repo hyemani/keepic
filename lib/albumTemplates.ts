@@ -196,6 +196,8 @@ export type TextBoxDef = {
   // 값이 없으면 당연히 기존과 동일, 하위 호환 영향 없음).
   textTransformUppercase?: boolean;
   fontVariantSmallCaps?: boolean;
+  // 디자인이 만든 띠·그림자 상자가 붙어 있는 사진 칸들("left~0" 처럼 면~순번, ImageBoxDef.forSlots와 같은 뜻). 없으면 늘 그려요.
+  forSlots?: string[];
 };
 
 // 자유 배치 이미지박스 하나예요(내지 스프레드·표지 앞면 공통으로 써요). 텍스트박스와
@@ -338,6 +340,11 @@ export type ImageBoxDef = {
   // 가장자리 페이드(lib/edgeFade.ts) — 사진 가운데는 또렷하게, 가장자리는 서서히 투명하게(배경에 스며듦). 없으면(기존 저장본 전부)
   // 꺼짐이라 예전과 똑같아요. width 는 박스 짧은 변 대비 "비율"(px 아님), 알파 마스크로 사진에만 적용돼요(테두리·장식은 그 위에 그대로).
   edgeFade?: EdgeFade;
+  // 디자인(lib/designSlotLink.ts)이 붙이는 "사진 칸 연결" 표시예요(2026-10 33차). 값이 없으면(예전 저장본·직접 만든 박스) 예전과 똑같이 동작해요.
+  //  - designSlot: 이 사진 칸이 디자인의 몇 번째 칸인지("left~0" 처럼 면~순번). 디자인을 입힐 때만 정해져요.
+  //  - forSlots: (디자인이 만든 스티커에서) 이 장식이 붙어 있는 사진 칸들. 그 칸에 사진이 하나도 없으면 인쇄 PDF·인쇄 미리보기에서 이 장식도 같이 빠져요(편집 화면은 그대로 다 보여요).
+  designSlot?: string;
+  forSlots?: string[];
 };
 
 // `kind`가 스티커/손글씨스티커 탭에서 새로 추가되는 박스에만 붙기 시작해서(2026-09-24),

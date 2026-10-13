@@ -42,6 +42,7 @@ export type DesignSticker = {
   heightPct: number;
   rotation?: number;
   aspect?: number; // 원본 가로÷세로(생략 = 정사각형). 필름·폴라로이드 틀처럼 가로세로가 다른 SVG에 써요.
+  forSlots?: string[]; // 이 장식이 딸린 사진 칸 키들("left~0" 등) — lib/designSlotLink.ts의 linkLayoutDecoration이 붙여요. 그 칸에 사진이 없으면 인쇄에서 빠져요.
 };
 // 판 하나(낱장 한 장 / 앞표지 / 뒤표지)의 디자인이에요. 좌표는 전부 "그 판 자신"을 0~100%로 본 값이에요.
 export type DesignPageLayout = {
