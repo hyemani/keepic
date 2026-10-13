@@ -60,7 +60,7 @@ export const MZ_INNER: InnerDesignDef[] = [
         slots: [],
         texts: [
           t.text({ t: "FILM ROLL 01", f: [0, 0, 0.7, 0.045], font: FONT.sans, pt: 10, color: C.black, bold: true, ls: 0.3 }),
-          t.text({ t: "01", f: [0, 0.07, 1, 0.42], font: FONT.black, pt: 236, color: C.black, lh: 0.95 }),
+          t.text({ t: "01", f: [0, 0.07, 1, 0.42], font: FONT.black, pt: 236, color: C.black, lh: 1.25, va: "middle" }),
           t.rule([0, 0.62, 1, 0.005], C.black),
           t.text({ t: "오늘도 기록 중", f: [0, 0.65, 1, 0.1], font: FONT.black, pt: 30, color: C.black }),
           t.text({ t: "아무렇지 않은 하루도\n찍어두면 오늘의 레전드", f: [0, 0.78, 0.9, 0.14], font: FONT.sans, pt: 12, color: C.black, bold: true, lh: 1.7 }),
