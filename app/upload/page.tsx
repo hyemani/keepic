@@ -187,6 +187,9 @@ import {
 } from "@/lib/designTemplates";
 import { linkLayoutDecoration, slotKey } from "@/lib/designSlotLink";
 import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
+import { findEmptyPhotoSlots, type EmptySlotGroup } from "@/lib/emptyPhotoSlots";
+import { cleanEmptySlotsOnCover, cleanEmptySlotsOnSpread } from "@/lib/emptySlotCleanup";
+import { EmptySlotDialog } from "./emptySlotDialog";
 import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
@@ -12778,6 +12781,8 @@ function UploadPageContent() {
   const [selectedPageKey, setSelectedPageKey] = useState<"cover" | "intro" | number>(
     isPhotobook ? "cover" : 0
   );
+  // "다음"을 눌렀을 때 인쇄되는 곳에 빈 사진 칸이 남아 있으면 띄우는 막는 안내창의 내용(없으면 닫힘, lib/emptyPhotoSlots.ts).
+  const [emptySlotGate, setEmptySlotGate] = useState<{ groups: EmptySlotGroup[]; cleaned: number | null } | null>(null);
   // 하단 페이지 목록의 이전·다음 이동, 페이지 번호 표시용 — 표지 → 스프레드들 → 소개
   // 페이지 순서예요(포토북이 아니면 표지·소개 페이지가 없어서 스프레드만 있어요).
   const pageOrder = useMemo<("cover" | "intro" | number)[]>(() => {
@@ -16962,6 +16967,64 @@ function UploadPageContent() {
     }
   }
 
+  // 포토북은 인쇄되는 곳(내지 인쇄면·디자인 소개 페이지·표지 앞뒤)에 빈 사진 칸이 하나라도 있으면 "다음"으로 못 넘어가요 — 누를 때마다 지금 상태로 다시 세요.
+  function handleNextClick(nextUrl: string, photosToUpload: Photo[]) {
+    if (isPhotobook) {
+      const groups = findEmptyPhotoSlots({ spreads: customSpreads, coverFront: coverImageBoxes, coverBack: backCoverImageBoxes });
+      if (groups.length > 0) {
+        setEmptySlotGate({ groups, cleaned: null });
+        return;
+      }
+    }
+    void handleProceed(nextUrl, photosToUpload);
+  }
+  // 안내창의 "이동": 그 펼침면(또는 표지)을 편집 화면으로 열고 첫 빈 칸을 골라 둬요.
+  function jumpToEmptySlot(g: EmptySlotGroup) {
+    setEmptySlotGate(null);
+    setIsPrintPreview(false);
+    if (g.target.kind === "cover") {
+      setSelectedPageKey("cover");
+      setEditorModeState({ forPageKey: "cover", mode: "edit" });
+      selectCoverImageBox(g.target.side, g.firstBoxId);
+    } else {
+      const idx = g.target.index;
+      setSelectedPageKey(idx);
+      setEditorModeState({ forPageKey: idx, mode: "edit" });
+      selectImageBox(idx, g.firstBoxId);
+    }
+  }
+  // 안내창의 "빈 칸 모두 지우기": 빈 칸 + 그 칸에만 딸린 장식을 한 번에 지워요(사진이 든 칸은 그대로, 상태 변경 한 묶음 = 실행취소 한 번).
+  function cleanAllEmptySlots() {
+    const innerDims = { pageWorkMm: computeInnerPageWorkMm(), bleedMm: printFileSpec.innerTrimBleedMm };
+    const { panelMm, bleedMm } = computeCoverDesignDims();
+    let removed = 0;
+    const nextSpreads = customSpreads.map((sp, i) => {
+      const r = cleanEmptySlotsOnSpread(sp, i, innerDims);
+      removed += r.removed;
+      return r.spread;
+    });
+    const front = cleanEmptySlotsOnCover(coverImageBoxes, coverTextBoxes, { panelMm, bleedMm });
+    const back = cleanEmptySlotsOnCover(backCoverImageBoxes, backCoverTextBoxes, { panelMm, bleedMm });
+    removed += front.removed + back.removed;
+    if (removed === 0) {
+      setEmptySlotGate(null);
+      return;
+    }
+    setCustomSpreads(nextSpreads);
+    if (front.removed > 0) {
+      setCoverImageBoxes(front.boxes);
+      setCoverTextBoxes(front.texts);
+    }
+    if (back.removed > 0) {
+      setBackCoverImageBoxes(back.boxes);
+      setBackCoverTextBoxes(back.texts);
+    }
+    setActiveImageBox(null);
+    setMultiImageSelection(null);
+    setActiveCoverImageBox(null);
+    setEmptySlotGate((g) => (g ? { ...g, cleaned: removed } : g));
+  }
+
   async function handleProceed(nextUrl: string, photosToUpload: Photo[], note?: string) {
     setIsSaving(true);
     try {
@@ -17478,6 +17541,15 @@ function UploadPageContent() {
 
     return (
       <main className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
+        {emptySlotGate && (
+          <EmptySlotDialog
+            groups={emptySlotGate.groups}
+            cleanedCount={emptySlotGate.cleaned}
+            onJump={jumpToEmptySlot}
+            onClean={cleanAllEmptySlots}
+            onClose={() => setEmptySlotGate(null)}
+          />
+        )}
         {/* 사진이 템플릿 칸보다 많을 때 "어떤 사진을 쓸지" 고르는 팝업이에요(2026-09-23
             추가) — 취소를 누르면(바깥 클릭 포함) 아무것도 안 바뀌고 그대로 닫혀요. */}
         {pendingLayoutApply && (
@@ -17792,8 +17864,9 @@ function UploadPageContent() {
                 {isPhotoCountValid ? (
                   <button
                     type="button"
-                    onClick={() => handleProceed(nextUrl, photos)}
+                    onClick={() => handleNextClick(nextUrl, photos)}
                     disabled={isSaving}
+                    data-testid="next-step-button"
                     className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition ${
                       isSaving
                         ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
