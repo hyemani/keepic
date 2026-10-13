@@ -185,6 +185,8 @@ import {
   mergeDesignTexts,
   sideOfDesignItem,
 } from "@/lib/designTemplates";
+import { linkLayoutDecoration, slotKey } from "@/lib/designSlotLink";
+import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
 import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
@@ -15057,6 +15059,18 @@ function UploadPageContent() {
     const m = (info?.productionFileSizeMm ?? "").match(/(\d+(\.\d+)?)/);
     return m ? parseFloat(m[1]) : 310;
   }
+  // 인쇄 미리보기 전용: 사진이 없는 칸의 자리표시·장식을 인쇄 PDF와 똑같이 빼요(lib/orphanDecoration.ts). 편집 화면(isPrintPreview=false)은 받은 그대로예요.
+  function previewSpread(sp: SpreadDef): SpreadDef {
+    return isPrintPreview ? stripOrphanDecorationSpread(sp, { pageWorkMm: computeInnerPageWorkMm(), bleedMm: printFileSpec.innerTrimBleedMm }) : sp;
+  }
+  function previewCoverSide(target: "front" | "back"): { boxes: ImageBoxDef[]; texts: TextBoxDef[] } {
+    const boxes0 = target === "front" ? coverImageBoxes : backCoverImageBoxes;
+    const texts0 = target === "front" ? coverTextBoxes : backCoverTextBoxes;
+    if (!isPrintPreview) return { boxes: boxes0, texts: texts0 };
+    const { panelMm, bleedMm } = computeCoverDesignDims();
+    const r = stripOrphanDecorationCoverSide(boxes0, texts0, { panelMm, bleedMm });
+    return { boxes: (r.boxes ?? []).filter((b) => !!b.url || isStickerImageBox(b)), texts: r.texts ?? [] };
+  }
   function computeCoverDesignDims() {
     const isHard = photobookCover === "hard";
     const info = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
@@ -15072,6 +15086,7 @@ function UploadPageContent() {
   }
   // 사진 칸 모양(아치·둥근 모서리·링 테두리)은 디자인이 정한 대로 맞추고, 이전 디자인이 남긴 모양은 지워요.
   const DESIGN_SLOT_RESET: Partial<ImageBoxDef> = {
+    designSlot: undefined, // 칸 연결 표시는 디자인을 입힐 때 칸마다 다시 정해요(lib/designSlotLink.ts)
     frameShape: undefined,
     borderRadiusPct: undefined,
     borderWidthPx: undefined,
@@ -15129,7 +15144,11 @@ function UploadPageContent() {
     if (sides.length === 0) return;
     const eff: LayoutApplyRange = sides.length === 2 ? "spread" : sides[0];
     const g = innerDesignGeo(computeInnerPageWorkMm());
-    const layouts = { left: sides.includes("left") ? d.left(g) : null, right: sides.includes("right") ? d.right(g) : null };
+    // 칸에 딸린 장식(틀·테이프·그림자 상자)에 "어느 칸 것인지"(forSlots)를 붙여요 — 사진 없는 칸의 장식은 인쇄에서 빠져요(lib/designSlotLink.ts).
+    const layouts = {
+      left: sides.includes("left") ? linkLayoutDecoration(d.left(g), "left") : null,
+      right: sides.includes("right") ? linkLayoutDecoration(d.right(g), "right") : null,
+    };
     // 소개 페이지: 마무리 문구 = 요청(앨범 테마의 행사) → 지금 고른 문구 → 기본(가족). 디자인과 따로 저장돼요(introPhrase).
     const prevPhrase = isIntroPhraseId(spread.introPhrase) ? spread.introPhrase : INTRO_DEFAULT_PHRASE;
     const nextPhrase = isIntroPhraseId(introPhraseReq) ? introPhraseReq : prevPhrase;
@@ -15137,11 +15156,11 @@ function UploadPageContent() {
     const slots: LayoutSlot[] = [];
     const patches: (Partial<ImageBoxDef> | undefined)[] = [];
     for (const side of sides) {
-      for (const s of layouts[side]!.slots) {
+      for (const [si, s] of layouts[side]!.slots.entries()) {
         const x = eff === "spread" ? (side === "left" ? s.xPct * 0.5 : 50 + s.xPct * 0.5) : s.xPct;
         const w = eff === "spread" ? s.widthPct * 0.5 : s.widthPct;
         slots.push({ xPct: x, yPct: s.yPct, widthPct: w, heightPct: s.heightPct });
-        patches.push({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + patches.length, ...s.patch });
+        patches.push({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + patches.length, ...s.patch, designSlot: slotKey(side, si) });
       }
     }
     const synth: PhotoLayoutTemplate = {
@@ -15237,8 +15256,8 @@ function UploadPageContent() {
     const { panelMm, bleedMm } = computeCoverDesignDims();
     const gf = coverDesignGeo("front", panelMm, bleedMm);
     const gb = coverDesignGeo("back", panelMm, bleedMm);
-    const front = d.front(gf);
-    const back = d.back(gb);
+    const front = linkLayoutDecoration(d.front(gf), "front");
+    const back = linkLayoutDecoration(d.back(gb), "back");
     // 1) 제목 — 직접 입력해 둔 제목은 그대로 쓰고(글자만 유지), 서식·자리·색만 디자인대로 바꿔요.
     const ti = d.title(gf);
     const typed = coverTitle.trim();
@@ -15312,7 +15331,7 @@ function UploadPageContent() {
         slots: layout.slots.map((s) => ({ xPct: s.xPct, yPct: s.yPct, widthPct: s.widthPct, heightPct: s.heightPct })),
       };
       applyCoverLayoutTemplate(target, synth, undefined, {
-        slotPatches: layout.slots.map((s, i) => ({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + i, ...s.patch })),
+        slotPatches: layout.slots.map((s, i) => ({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + i, ...s.patch, designSlot: slotKey(target, i) })),
         syncLegacyPhoto: true,
         mergeTexts: (prev) => mergeDesignTexts(prev, d.id, target, layout.texts).boxes,
         finalizeBoxes: (boxes) => [
@@ -18635,7 +18654,7 @@ function UploadPageContent() {
                               // ImageBoxLayer를 그대로 재사용해서, 빈 프레임 채우기·사진만
                               // 빼기/프레임 삭제·확대·반전이 똑같이 동작해요(2026-09-24).
                               <ImageBoxLayer
-                                boxes={backCoverImageBoxes}
+                                boxes={previewCoverSide("back").boxes}
                                 onChange={handleBackCoverImageBoxChange}
                                 onDelete={handleDeleteBackCoverImageBox}
                                 onAltDuplicate={handleAltDuplicateBackCoverImageBox}
@@ -18695,7 +18714,7 @@ function UploadPageContent() {
                             )}
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
-                              boxes={backCoverTextBoxes}
+                              boxes={previewCoverSide("back").texts}
                               onAdd={() => handleAddBackCoverTextBox()}
                               onChange={handleBackCoverTextBoxChange}
                               onDelete={(boxId) => deleteTextBoxByRef({ scope: "backCover" }, boxId)}
@@ -18805,7 +18824,7 @@ function UploadPageContent() {
                           >
                             {coverImageBoxes.length > 0 ? (
                               <ImageBoxLayer
-                                boxes={coverImageBoxes}
+                                boxes={previewCoverSide("front").boxes}
                                 onChange={handleCoverImageBoxChange}
                                 onDelete={handleDeleteCoverImageBox}
                                 onAltDuplicate={handleAltDuplicateCoverImageBox}
@@ -18871,7 +18890,7 @@ function UploadPageContent() {
                             />
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
-                              boxes={coverTextBoxes}
+                              boxes={previewCoverSide("front").texts}
                               onAdd={() => handleAddCoverTextBox()}
                               onChange={handleCoverTextBoxChange}
                               onDelete={(boxId) => deleteTextBoxByRef({ scope: "cover" }, boxId)}
@@ -19575,7 +19594,7 @@ function UploadPageContent() {
                                     )}
                                     <TextBoxLayer
                                       onSelectionRangeChange={setActiveTextSelectionRange}
-                                      boxes={spread.textBoxesLeft ?? []}
+                                      boxes={previewSpread(spread).textBoxesLeft ?? []}
                                       onAdd={() => handleAddTextBox(i, "left")}
                                       showAddButton={false}
                                       onChange={(boxId, c) => handleTextBoxChange(i, "left", boxId, c)}
@@ -19645,7 +19664,7 @@ function UploadPageContent() {
                                 )}
                                 <TextBoxLayer
                                   onSelectionRangeChange={setActiveTextSelectionRange}
-                                  boxes={spread.textBoxesRight ?? []}
+                                  boxes={previewSpread(spread).textBoxesRight ?? []}
                                   onAdd={() => handleAddTextBox(i, "right")}
                                   showAddButton={false}
                                   onChange={(boxId, c) => handleTextBoxChange(i, "right", boxId, c)}
@@ -19689,7 +19708,12 @@ function UploadPageContent() {
                                   위에 얹어서, 박스를 끌어 페이지 경계를 자유롭게 넘나들 수 있어요. */}
                               <ImageBoxLayer
                                 // 인쇄 미리보기에서는 인쇄 안 되는 면(소개 페이지 오른쪽·첫 펼침면 왼쪽)에 걸린 박스를 그리지 않아요(실제 PDF와 같게).
-                                boxes={isPrintPreview ? (spread.imageBoxes ?? []).filter((b) => !isBoxOnUnprintedSide(i, spread, b)) : (spread.imageBoxes ?? [])}
+                                // 사진이 없는 칸(PHOTO 자리표시)과 그 칸에만 딸린 장식(틀·테이프·그림자)도 인쇄 PDF처럼 빼요 — 편집 화면은 그대로예요.
+                                boxes={
+                                  isPrintPreview
+                                    ? (previewSpread(spread).imageBoxes ?? []).filter((b) => !isBoxOnUnprintedSide(i, spread, b) && (!!b.url || isStickerImageBox(b)))
+                                    : (spread.imageBoxes ?? [])
+                                }
                                 onChange={(boxId, c) => handleImageBoxChange(i, boxId, c)}
                                 onDelete={(boxId) => handleDeleteImageBox(i, boxId)}
                                 onAltDuplicate={(box) => handleAltDuplicateImageBox(i, box)}
