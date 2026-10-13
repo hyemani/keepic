@@ -191,6 +191,7 @@ import { findEmptyPhotoSlots, type EmptySlotGroup } from "@/lib/emptyPhotoSlots"
 import { cleanEmptySlotsOnCover, cleanEmptySlotsOnSpread } from "@/lib/emptySlotCleanup";
 import { EmptySlotDialog } from "./emptySlotDialog";
 import { refillEmptySlots } from "@/lib/photoRefill";
+import { fitBoxesToSlots } from "@/lib/photoSlotFit";
 import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
@@ -14541,6 +14542,8 @@ function UploadPageContent() {
       onResult?: (r: { extraPhotos: number; slots: number; moved?: number }) => void;
       // 한 페이지만 디자인을 입힐 때: 칸이 모자라 밀려난 사진을 사진 목록으로 보내기 전에 다른 펼침면의 빈 칸(책 순서)에 먼저 채워요.
       refillOthers?: boolean;
+      // 디자인 적용용: 사진의 가로·세로를 보고 앞 N칸 안에서 잘 맞는 칸에 넣어요(lib/photoSlotFit.ts). 안 넘기면 읽는 순서 = 칸 순서(예전과 같아요).
+      fitOrientation?: boolean;
       // 앨범 테마(전체 펼침면 한 번에 적용)용: 상태를 바로 안 바꾸고 이 묶음에 "펼침면 바꾸기 함수·사진 목록 변경"만 모아 둬요.
       // 호출한 쪽이 한 번에 반영해서 사진 목록 번호(index)가 어긋나지 않고 실행취소도 한 번이에요.
       batch?: AlbumApplyBatch;
@@ -14617,10 +14620,12 @@ function UploadPageContent() {
       ? orderedExisting.filter((b) => !selectedIds.includes(b.id))
       : orderedExisting.slice(template.slots.length);
     const clampedSlots = placeInnerTemplateSlots(template, range);
+    // 사진 가로·세로에 맞는 칸으로(디자인 적용만): 앞 N칸을 채우는 사진은 그대로, 칸 배정만 바꿔요. 사진 값(자르기·돌리기·뒤집기)은 사진과 함께 가고, 칸에 딸린 장식은 칸 번호를 따라가요.
+    const slotBoxes = opts?.fitOrientation && !selectedIds ? fitBoxesToSlots(usable, clampedSlots) : usable;
     const placedRaw = template.slots.map((slot, idx) => {
       const clamped = clampedSlots[idx];
       const { xPct, yPct, widthPct, heightPct } = clamped;
-      const existing = usable[idx];
+      const existing = slotBoxes[idx];
       if (existing) {
         // 2026-13, 혜민님 요청("레이아웃을 바꿔도 사진의 원본·자르기·회전은 그대로"): 기존 사진을 새 칸에 배정할 때
         // 확대/이동값(innerOffsetXPct/innerOffsetYPct/innerScale)·회전·뒤집기 등 박스 속성을 그대로 들고 가요.
@@ -14796,6 +14801,7 @@ function UploadPageContent() {
       slotPatches?: (Partial<ImageBoxDef> | undefined)[];
       finalizeBoxes?: (boxes: ImageBoxDef[]) => ImageBoxDef[];
       mergeTexts?: (prev: TextBoxDef[]) => TextBoxDef[];
+      fitOrientation?: boolean; // 디자인 적용용: 사진 가로·세로에 맞는 칸으로(lib/photoSlotFit.ts). 안 넘기면 예전과 같아요.
       syncLegacyPhoto?: boolean; // 예전 방식 표지 사진 1장을 이미지 크기 읽기를 기다리지 않고 바로 첫 칸으로 이어받아요
       onResult?: (r: { extraPhotos: number; slots: number }) => void;
     }
@@ -14820,10 +14826,15 @@ function UploadPageContent() {
       const extraBoxes = selectedIds
         ? baseBoxes.filter((b) => !selectedIds.includes(b.id))
         : baseBoxes.slice(template.slots.length);
+      // 표지 한 판(블리드 포함)의 가로/세로 비로 칸의 실제 모양을 재요.
+      const coverDims = opts?.fitOrientation && !selectedIds ? computeCoverDesignDims() : null;
+      const slotBoxes = coverDims
+        ? fitBoxesToSlots(usable, placedSlots, (coverDims.panelMm + coverDims.bleedMm) / (coverDims.panelMm + coverDims.bleedMm * 2))
+        : usable;
       const placedRaw = template.slots.map((slot, idx) => {
         // 안전영역 보정은 placeCoverTemplateSlots가 이미 해둔 값이에요(썸네일과 같은 값).
         const clamped = placedSlots[idx];
-        const existing = usable[idx];
+        const existing = slotBoxes[idx];
         if (existing) {
           // 내지 applyLayoutTemplate과 같은 이유로, 표지도 새 칸에 재배정할 때 이전
           // 확대/이동값을 리셋해서 중앙 기준점에 맞춰요(2026-09-24).
@@ -15218,6 +15229,7 @@ function UploadPageContent() {
     applyLayoutTemplate(spreadIndex, eff, synth, undefined, {
       batch,
       slotPatches: patches,
+      fitOrientation: true,
       refillOthers: !batch && !isIntroApply,
       onResult: (r) => {
         if (batch) {
@@ -15371,6 +15383,7 @@ function UploadPageContent() {
       applyCoverLayoutTemplate(target, synth, undefined, {
         slotPatches: layout.slots.map((s, i) => ({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + i, ...s.patch, designSlot: slotKey(target, i) })),
         syncLegacyPhoto: true,
+        fitOrientation: true,
         mergeTexts: (prev) => mergeDesignTexts(prev, d.id, target, layout.texts).boxes,
         finalizeBoxes: (boxes) => [
           ...boxes.filter((b) => !isDesignItemId(b.id)),

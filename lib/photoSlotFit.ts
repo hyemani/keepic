@@ -118,3 +118,19 @@ export function pickFillers(
   }
   return out;
 }
+
+// 사진 박스들(읽는 순서)을 칸(slots 순서)에 맞춰 다시 늘어놓아요: 반환 배열의 i번째 = i번째 칸에 들어갈 박스.
+// 박스는 그대로(자르기·돌리기·뒤집기·필터 값 포함) 돌려주고 순서만 바꿔요. 박스가 칸보다 적으면 앞 칸부터 채워요.
+export function fitBoxesToSlots<T extends Pick<ImageBoxDef, "naturalWidth" | "naturalHeight" | "photoRotation">>(
+  boxes: readonly T[],
+  slots: readonly { widthPct: number; heightPct: number }[],
+  frameAspect: number = SPREAD_ASPECT
+): T[] {
+  const n = Math.min(boxes.length, slots.length);
+  if (n <= 1) return boxes.slice(0, n);
+  const perm = assignPhotosToSlots(
+    boxes.slice(0, n).map(photoAspectOfBox),
+    slots.slice(0, n).map((s) => slotAspectOf(s, frameAspect))
+  );
+  return perm.map((p) => boxes[p]);
+}
