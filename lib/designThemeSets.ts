@@ -206,7 +206,43 @@ function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, d
 // 첫 인쇄 펼침면 = 오프닝, 마지막 = 마무리(펼침면이 1개면 오프닝만). 가운데 펼침면은 이 세트의 "가운데용 후보" 전체(사진+캡션·두 장·스트립·콜라주와
 // 같은 스타일의 행사 전용 디자인)에서 하나씩 골라요: 사진 수에 맞는 것을 우선하되, 앞에서 쓰지 않은 디자인을 먼저 다 쓰고 나서야 다시 써요.
 // 바로 앞 펼침면과 같은 디자인(또는 같은 사진 배치)은 연달아 쓰지 않고, 오프닝·마무리와 같은 배치도 가운데에는 쓰지 않아요.
-export function planAlbumInner(set: AlbumThemeSet, spreads: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS): string[] {
+// ---------- 사진이 한 펼침면에 몰려 있을 때 나눠서 계획하기(2026-10 34차) ----------
+// 기본 AI 배치는 앞 펼침면에 1~2장씩 놓고 나머지를 마지막 펼침면에 몰아 쌓아요(예: 36장 → 마지막에 18장).
+// 마무리 디자인은 칸이 4~5개뿐이라 14~15장이 사진 목록으로 쫓겨나고, 가운데 펼침면은 칸이 남아 비어 있었어요.
+// 그래서 "이 역할의 디자인이 가질 수 있는 가장 많은 칸"(역할별 최대 칸 수)을 넘는 사진은 계획을 세울 때만 다른 펼침면 몫으로 옮겨 세요:
+// 책 순서(첫 펼침면부터)로 한 장씩 돌려 가며 칸이 더 들어갈 자리에 나눠 줘요. 안 넘치면 입력이 그대로라 결과가 예전과 똑같아요.
+// (실제 사진 옮기기는 app/upload/page.tsx가 이 계획대로 칸을 만든 뒤 lib/photoRefill.ts로 해요 — 원래 펼침면의 사진이 항상 먼저예요.)
+export function balanceSpreadPhotos(set: AlbumThemeSet, spreads: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS): SpreadPlanInput[] {
+  const n = spreads.length;
+  if (n === 0) return spreads;
+  const slotsOf = (id: string, input: SpreadPlanInput) => {
+    const s = sideSlots(id, designs);
+    return (input.printedLeft ? s.left : 0) + s.right;
+  };
+  const maxOf = (ids: string[], input: SpreadPlanInput) => ids.reduce((m, id) => Math.max(m, slotsOf(id, input)), 0);
+  const GENERIC_BOOKEND = /^(wm|mn|hw|kd|mz)-(opening|closing)$/;
+  const middleIds = (["opening", ...MIDDLE_ROLES] as InnerRole[]).flatMap((r) => set.roles[r]).filter((id) => !GENERIC_BOOKEND.test(id));
+  const closeIds = set.roles.closing.length ? set.roles.closing : set.roles.opening;
+  const cap = spreads.map((input, i) => (i === 0 ? maxOf(set.roles.opening, input) : i === n - 1 ? maxOf(closeIds, input) : maxOf(middleIds, input)));
+  const count = spreads.map((s, i) => Math.min(s.photos, cap[i]));
+  let pool = spreads.reduce((a, s, i) => a + Math.max(0, s.photos - cap[i]), 0);
+  if (pool === 0) return spreads;
+  while (pool > 0) {
+    let gave = false;
+    for (let i = 0; i < n && pool > 0; i++) {
+      if (count[i] < cap[i]) {
+        count[i]++;
+        pool--;
+        gave = true;
+      }
+    }
+    if (!gave) break;
+  }
+  return spreads.map((s, i) => ({ ...s, photos: count[i] }));
+}
+
+export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS): string[] {
+  const spreads = balanceSpreadPhotos(set, spreadsIn, designs);
   const n = spreads.length;
   const plan: string[] = [];
   const pickBest = (cands: string[], input: SpreadPlanInput, used: Map<string, number>) => {
