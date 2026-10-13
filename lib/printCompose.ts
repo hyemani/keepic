@@ -13,6 +13,7 @@
 import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes, isStickerImageBox } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
+import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
 import {
   drawBackgroundSpecOnCanvas,
   resolveCoverPanelSpec,
@@ -2279,6 +2280,10 @@ export async function buildInnerPrintPdf({
     }))
   );
   const { w: workW, h: workH } = parseWorkSizeMm(productionFileSizeMm);
+  // 사진이 없는 칸에 딸린 장식(속 빈 폴라로이드·필름 틀, 허공의 테이프, 사진 뒤 그림자·색 띠)은 칸과 함께 인쇄에서 빼요(미리보기와 같은 규칙 — lib/orphanDecoration.ts).
+  // 사진이 든 칸의 장식과 칸에 딸리지 않은 장식(배경·제목·날짜·페이지 장식)은 그대로예요.
+  const innerDims = { pageWorkMm: workW, bleedMm: printFileSpec.innerTrimBleedMm };
+  const printSpreads = customSpreads.map((sp) => stripOrphanDecorationSpread(sp, innerDims));
   const pxW = mmToPx(workW);
   const pxH = mmToPx(workH);
   const bleedPx = mmToPx(printFileSpec.innerTrimBleedMm);
@@ -2298,7 +2303,7 @@ export async function buildInnerPrintPdf({
   const orientation = workW >= workH ? "l" : "p";
 
   for (let i = 0; i < customSpreads.length; i++) {
-    const spread = customSpreads[i];
+    const spread = printSpreads[i];
     const { leftIndexes, rightIndexes } = spreadPhotoGroups[i];
     // 스프레드 1(i === 0)의 왼쪽 면은 표지 뒷면이라 인쇄되지 않는 빈 면으로 항상 고정돼요
     // (텍스트박스도 함께 생략해요 — 인쇄 안 되는 면이라 화면에서도 편집할 수 없어요).
@@ -2374,7 +2379,7 @@ export async function buildInnerPrintPdf({
     // "마지막 소개 페이지"는 실제로 인쇄되는 내지의 마지막 장이라서, 다른 내지 페이지들과
     // 똑같이 순서대로 이어서 한 장 더 그려요(짝이 되는 스프레드 없이 이 장 혼자예요).
     if (introPage.spread) {
-      const sp = introPage.spread;
+      const sp = stripOrphanDecorationSpread(introPage.spread, innerDims);
       await drawPage(
         ctx,
         sp.left,
@@ -2925,6 +2930,16 @@ export async function buildCoverPrintPdf({
   const panelMm =
     cover === "hard" ? sizeInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : sizeInnerTrimMm;
   const bleedMm = cover === "hard" ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
+  // 사진이 없는 칸에 딸린 장식은 표지(앞·뒤)에서도 칸과 함께 빼요(내지와 같은 규칙).
+  {
+    const dims = { panelMm, bleedMm };
+    const f = stripOrphanDecorationCoverSide(coverImageBoxes, coverTextBoxes, dims);
+    const b = stripOrphanDecorationCoverSide(backCoverImageBoxes, backCoverTextBoxes, dims);
+    coverImageBoxes = f.boxes;
+    coverTextBoxes = f.texts;
+    backCoverImageBoxes = b.boxes;
+    backCoverTextBoxes = b.texts;
+  }
   // 레드프린팅에 실측 확인받은 페이지 수(20p)라면 그 정확한 값을 그대로 쓰고,
   // 아직 실측값이 없는 페이지 수라면 참고용 예상치의 여유치(0.5~1mm) 포함 최대값을 써서
   // 너무 좁게 잡히는 것보다는 안전하게 맞춰요.
