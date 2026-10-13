@@ -803,6 +803,15 @@ type AlbumApplyBatch = {
   keptUserTexts: number;
 };
 
+// 칸에서 밀려난 사진을 사진 목록(보관함)으로 돌려보낼 때: 같은 사진(url)이 이미 목록에 있으면 또 넣지 않아요
+// (AI 맞춤 레이아웃은 올린 사진이 계속 목록에 남아 있어서, 그대로 이어 붙이면 같은 사진이 목록에 두 번 들어가
+//  주문 때 두 번 올라가요 — 2026-10 32차 전체 앨범 점검에서 찾았어요).
+function appendLibraryPhotos(prev: Photo[], extras: Photo[]): Photo[] {
+  const have = new Set(prev.map((p) => p.url));
+  const add = extras.filter((p) => (have.has(p.url) ? false : (have.add(p.url), true)));
+  return add.length > 0 ? [...prev, ...add] : prev;
+}
+
 // 포토북 내지 맨 끝에 "소개 페이지" 펼침면(intro)을 항상 하나 두어요(없으면 빈 것을 붙여요) — 책 페이지 수·번호에는 안 들어가요.
 function withIntroSpread(spreads: SpreadDef[]): SpreadDef[] {
   // 옛 저장본의 소개 페이지 디자인 id(intro-<스타일>-<행사>)는 합친 디자인 id + 마무리 문구로 옮겨 읽어요(normalizeIntroSpread).
@@ -14716,7 +14725,7 @@ function UploadPageContent() {
       setPhotos((prev) => prev.filter((_, i) => !legacyRemovedPhotoIndexes.has(i)));
     }
     if (extraPhotos.length > 0) {
-      setPhotos((prev) => [...prev, ...extraPhotos]);
+      setPhotos((prev) => appendLibraryPhotos(prev, extraPhotos));
     }
   }
 
@@ -14817,7 +14826,7 @@ function UploadPageContent() {
           ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${extraLibraryPhotos.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
           : null
       );
-      if (extraLibraryPhotos.length > 0) setPhotos((prev) => [...prev, ...extraLibraryPhotos]);
+      if (extraLibraryPhotos.length > 0) setPhotos((prev) => appendLibraryPhotos(prev, extraLibraryPhotos));
       const withOpts = (list: ImageBoxDef[]) => (opts?.finalizeBoxes ? opts.finalizeBoxes(list) : list);
       if (opts?.mergeTexts) {
         const merge = opts.mergeTexts;
@@ -15566,7 +15575,7 @@ function UploadPageContent() {
     }
     setCustomSpreads((prev) => prev.map((sp, i) => batch.spreadFns.get(i)?.(sp) ?? sp));
     if (batch.removePhotoIdx.size > 0 || batch.addPhotos.length > 0) {
-      setPhotos((prev) => [...prev.filter((_, i) => !batch.removePhotoIdx.has(i)), ...batch.addPhotos]);
+      setPhotos((prev) => appendLibraryPhotos(prev.filter((_, i) => !batch.removePhotoIdx.has(i)), batch.addPhotos));
     }
     const cover = applyCoverDesignTemplate(set.coverId, true);
     setDesignThemeId(set.id);
