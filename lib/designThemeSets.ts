@@ -14,7 +14,8 @@ import {
   type DesignThemeId,
   type InnerDesign,
 } from "./designTemplates";
-import { bestFitAverage } from "./photoSlotFit";
+import { assignQueueGlobally } from "./albumRefillPlan";
+import { assignPhotosToSlots, bestFitAverage, visibleFraction } from "./photoSlotFit";
 
 export type InnerRole = "opening" | "photo" | "two" | "strip" | "collage" | "closing";
 export const MIDDLE_ROLES: InnerRole[] = ["photo", "two", "strip", "collage"];
@@ -222,12 +223,11 @@ function fitDeficit(id: string, input: SpreadPlanInput, designs: InnerDesign[]):
   fitCache.set(key, out);
   return out;
 }
-// (37차) 책 전체로 사진 수와 칸 수를 맞춰요. 24장 책은 칸이 28~30개라 4~6칸이 비어 '다음'이 막혔고, 36장 책은 칸이 모자라 사진이 목록으로 돌아가기도 했어요.
-// 앞 펼침면들까지의 "칸 − 사진" 누적(slack)의 절댓값이 커지는 만큼 한 칸당 SPARE_EXTRA를 벌점으로 더하고, 작아지면 같은 만큼 덜어 줘요(누적이 0에 가까워지는 디자인을 우선).
-// 칸이 남을 때만이 아니라 모자랄 때도 같이 줄여서, 칸이 적은 디자인을 너무 많이 골라 사진이 쫓겨나는 일은 오히려 줄어요(8천 장 시뮬레이션 24장·36장 모두).
-// 사진 모양(aspects)을 받는 입력일 때만 켜져요: aspects가 없는 입력은 예전과 똑같은 계획이에요.
-export const SPARE_EXTRA = 2.5;
-function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId, fitWeight: number = FIT_WEIGHT, spareExtra: number = SPARE_EXTRA, slackBefore: number = 0): number {
+// (37차에 넣었다가 38차에 걷어냈어요) 앞 펼침면들까지의 "칸 − 사진" 누적에 벌점을 주면 24장 책의 빈 칸은 줄었지만(18→3칸), 칸이 적은 디자인을 억지로 골라
+// 사진이 55% 미만으로 잘리는 일이 10→16장(69장 중)으로 늘고 서로 다른 디자인 수도 줄었어요. 혜민님 결정: 사진이 자연스러운 게 먼저, 빈 칸 0은 목표가 아니에요.
+// 지금은 0(꺼짐)이에요. 사진 모양이 있는 입력은 아래 planAlbumInnerByFit(책 전체 시뮬레이션)이 빈 칸·밀려난 사진·잘림을 한꺼번에 따져서 골라요.
+export const SPARE_EXTRA = 0;
+function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId, fitWeight: number = FIT_WEIGHT, spareExtra: number = 0, slackBefore: number = 0): number {
   const s = sideSlots(id, designs);
   const slots = (input.printedLeft ? s.left : 0) + s.right;
   const lack = Math.max(0, input.photos - slots);
@@ -277,7 +277,7 @@ export function balanceSpreadPhotos(set: AlbumThemeSet, spreads: SpreadPlanInput
   return spreads.map((s, i) => ({ ...s, photos: count[i] }));
 }
 
-export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS, fitWeight: number = FIT_WEIGHT, spareExtra: number = SPARE_EXTRA): string[] {
+export function planAlbumInnerLegacy(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS, fitWeight: number = FIT_WEIGHT, spareExtra: number = SPARE_EXTRA): string[] {
   const spreads = balanceSpreadPhotos(set, spreadsIn, designs);
   const n = spreads.length;
   const plan: string[] = [];
@@ -335,4 +335,222 @@ export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[],
     used.set(chosen, (used.get(chosen) ?? 0) + 1);
   });
   return plan;
+}
+
+// ---------- (38차) 사진 모양을 먼저 보는 책 전체 계획 ----------
+// 혜민님 결정(37차 결과를 보고): ① 사진이 자연스러운 게 먼저(많이 잘리게 해서 칸을 채우지 않아요) ② 빈 칸 0은 목표가 아니에요(잘라서 채우느니 여백이 있는 디자인)
+// ③ 같은 배치를 연달아 쓰지 않고, 사진이 적어도 서로 다른 구성을 많이 써요 ④ 펼침면 하나가 아니라 책 전체를 보고 정해요.
+// 방법: 앱이 디자인을 입히는 과정을 그대로 흉내 내 "이 디자인들로 입히면 책이 어떻게 나올지"를 점수로 매겨요(작을수록 좋아요).
+//   · 펼침면의 원래 사진은 그 디자인의 앞 칸들에 lib/photoSlotFit.ts 배정대로 들어가요 → 잘린 만큼 FIT_WEIGHT × (1 − 보이는 비율), 55% 미만이면 lowExtra를 더 얹어요.
+//   · 칸이 모자라 넘친 사진은 줄을 서고, 책 전체의 빈 칸에 lib/albumRefillPlan.ts(실제 적용과 같은 함수)로 짝지어져요 → 들어간 사진도 같은 방식으로 점수를 매겨요.
+//   · 그래도 빈 칸 한 칸당 PLAN_TUNE.empty, 사진 목록으로 돌아가는 사진 한 장당 PLAN_TUNE.left, 같은 디자인 재사용(PLAN_TUNE.reuse, 4번째부터 reuse4 추가), 행사 어울림 벌점을 더해요.
+//   · 우선순위는 "잘림 > 다양함 > 빈 칸"이 되도록 가중치를 잡았어요(숫자 근거는 아래 상수 옆 주석).
+// 시작은 예전 계획(planAlbumInnerLegacy)이고, 펼침면 하나씩 다른 후보로 바꾸거나 두 펼침면의 디자인을 맞바꿔 보면서 책 전체 점수가 줄어들 때만 바꿔요(최대 4바퀴, 항상 같은 입력 → 같은 결과).
+// 연달아 같은 배치 금지·오프닝/마무리와 같은 배치를 가운데에 쓰지 않기는 후보를 고르는 조건이라 어떤 가중치에서도 지켜져요.
+export const PLAN_TUNE = { empty: 3, left: 9, reuse: 4.5, reuse4: 30, lowVisible: 0.55, lowExtra: 30 }; // 측정 스크립트가 값을 바꿔 보려고 객체로 뒀어요(앱은 안 바꿔요)
+const MAX_PASSES = 4;
+const MAX_EVALS = 1200; // 펼침면이 16개를 넘는 큰 책은 450번으로 줄여요(계산 시간 상한)
+
+type FitSpread = { printedLeft: boolean; photos: (number | null)[]; keys?: string[] };
+const aspKey = (a: number | null) => (a === null ? "-" : a.toFixed(3));
+const slotAspCache = new Map<string, { v: (number | null)[]; k: string[] }>();
+function slotAspectsK(id: string, printedLeft: boolean, designs: InnerDesign[]): { v: (number | null)[]; k: string[] } {
+  const key = `${id}|${printedLeft ? 1 : 0}`;
+  let e = slotAspCache.get(key);
+  if (!e) {
+    const g = slotGeo(id, designs);
+    const v = [...(printedLeft ? g.left : []), ...g.right].map((s) => (s.widthPct > 0 && s.heightPct > 0 ? s.widthPct / s.heightPct : null));
+    e = { v, k: v.map(aspKey) };
+    slotAspCache.set(key, e);
+  }
+  return e;
+}
+const slotAspects = (id: string, printedLeft: boolean, designs: InnerDesign[]) => slotAspectsK(id, printedLeft, designs).v;
+const photoCost = (f: number, fw: number) => fw * (1 - f) + PLAN_TUNE.lowExtra * Math.max(0, PLAN_TUNE.lowVisible - f);
+const shownCache = new Map<string, number>();
+// 사진 목록의 앞 n장(n = 칸 수와 사진 수 중 작은 쪽)을 디자인의 앞 n칸에 넣었을 때의 잘림 점수 합(사진 모양을 모르는 사진은 0)
+function shownCost(id: string, sp: FitSpread, designs: InnerDesign[], fw: number): number {
+  const sa = slotAspects(id, sp.printedLeft, designs);
+  const n = Math.min(sp.photos.length, sa.length);
+  if (n === 0) return 0;
+  const ph = sp.photos.slice(0, n);
+  if (ph.every((a) => a === null)) return 0;
+  const key = `${id}|${sp.printedLeft ? 1 : 0}|${fw}|${PLAN_TUNE.lowExtra}|${PLAN_TUNE.lowVisible}|${ph.map((a) => (a === null ? "-" : a.toFixed(3))).join(",")}`;
+  const hit = shownCache.get(key);
+  if (hit !== undefined) return hit;
+  const perm = assignPhotosToSlots(ph, sa.slice(0, n));
+  let c = 0;
+  for (let s = 0; s < n; s++) {
+    const a = ph[perm[s]];
+    if (a !== null && sa[s] !== null) c += photoCost(visibleFraction(a, sa[s]), fw);
+  }
+  if (shownCache.size > 40000) shownCache.clear();
+  shownCache.set(key, c);
+  return c;
+}
+const compCache = new Map<string, boolean>();
+function sameCompCached(a: string, b: string, designs: InnerDesign[]): boolean {
+  if (a === b) return true;
+  const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+  let v = compCache.get(key);
+  if (v === undefined) {
+    v = sameComposition(a, b, designs);
+    compCache.set(key, v);
+  }
+  return v;
+}
+
+const picksCache = new Map<string, { slot: number; queueIdx: number }[]>();
+function cachedGlobalPicks(queue: (number | null)[], empties: (number | null)[], qKeys: string[], eKeys: string[]): { slot: number; queueIdx: number }[] {
+  if (queue.length === 0 || empties.length === 0) return [];
+  const key = `${qKeys.join(",")}#${eKeys.join(",")}`;
+  let v = picksCache.get(key);
+  if (!v) {
+    v = assignQueueGlobally(queue, empties);
+    if (picksCache.size > 5000) picksCache.clear();
+    picksCache.set(key, v);
+  }
+  return v;
+}
+
+const rankPenaltyCache = new Map<string, number>();
+function rankPenaltyOf(set: AlbumThemeSet, id: string, designs: InnerDesign[]): number {
+  const key = `${set.occasion}|${id}`;
+  let v = rankPenaltyCache.get(key);
+  if (v === undefined) {
+    const d = designs.find((x) => x.id === id);
+    v = fitPenalty(d ? rankFor(set.occasion, d) : 2);
+    rankPenaltyCache.set(key, v);
+  }
+  return v;
+}
+
+export type FitPlanScore = { total: number; fit: number; empty: number; left: number; reuse: number };
+// 계획 하나의 책 전체 점수(작을수록 좋아요). 실제 적용(디자인 입히기 → 책 전체 빈 칸 채우기)을 순서 그대로 흉내 내요.
+export function scoreAlbumPlan(set: AlbumThemeSet, plan: string[], spreads: FitSpread[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS, fw: number = FIT_WEIGHT): FitPlanScore {
+  let fit = 0;
+  let rank = 0;
+  const queue: (number | null)[] = [];
+  const qKeys: string[] = [];
+  const empties: (number | null)[] = [];
+  const eKeys: string[] = [];
+  const use = new Map<string, number>();
+  plan.forEach((id, i) => {
+    const sp = spreads[i];
+    const se = slotAspectsK(id, sp.printedLeft, designs);
+    const sa = se.v;
+    fit += shownCost(id, sp, designs, fw);
+    const pk = sp.keys ?? sp.photos.map(aspKey);
+    for (let j = sa.length; j < sp.photos.length; j++) {
+      queue.push(sp.photos[j]);
+      qKeys.push(pk[j]);
+    }
+    for (let k = sp.photos.length; k < sa.length; k++) {
+      empties.push(sa[k]);
+      eKeys.push(se.k[k]);
+    }
+    use.set(id, (use.get(id) ?? 0) + 1);
+    rank += rankPenaltyOf(set, id, designs);
+  });
+  const picks = cachedGlobalPicks(queue, empties, qKeys, eKeys);
+  for (const pk of picks) if (queue[pk.queueIdx] !== null && empties[pk.slot] !== null) fit += photoCost(visibleFraction(queue[pk.queueIdx], empties[pk.slot]), fw);
+  let reuse = 0;
+  for (const c of use.values()) reuse += PLAN_TUNE.reuse * ((c * (c - 1)) / 2) + (c >= 4 ? PLAN_TUNE.reuse4 * (c - 3) : 0);
+  const empty = (empties.length - picks.length) * PLAN_TUNE.empty;
+  const left = (queue.length - picks.length) * PLAN_TUNE.left;
+  return { total: fit + rank + reuse + empty + left, fit, empty, left, reuse };
+}
+
+function planAlbumInnerByFit(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[], fw: number): string[] {
+  const start = planAlbumInnerLegacy(set, spreadsIn, designs, fw, 0);
+  const n = start.length;
+  if (n < 3) return start;
+  const spreads: FitSpread[] = spreadsIn.map((s) => ({
+    printedLeft: s.printedLeft,
+    photos: Array.from({ length: s.photos }, (_, i) => (s.aspects && typeof s.aspects[i] === "number" && s.aspects[i]! > 0 ? s.aspects[i]! : null)),
+  }));
+  for (const sp of spreads) sp.keys = sp.photos.map(aspKey);
+  const GENERIC_BOOKEND = /^(wm|mn|hw|kd|mz)-(opening|closing)$/;
+  const middle: string[] = [];
+  for (const role of ["opening", ...MIDDLE_ROLES] as InnerRole[]) {
+    for (const id of set.roles[role]) {
+      if (GENERIC_BOOKEND.test(id) || middle.includes(id)) continue;
+      if (middle.some((m) => sameCompCached(m, id, designs))) continue;
+      middle.push(id);
+    }
+  }
+  // 시작 계획이 쓴 디자인은 후보에 꼭 넣어요(오프닝·마무리와 겹치지 않는 것만)
+  for (const id of start.slice(1, n - 1)) if (!middle.includes(id)) middle.push(id);
+  const openCands = set.roles.opening.length ? set.roles.opening : [start[0]];
+  const closeCands = set.roles.closing.length ? set.roles.closing : openCands;
+  const okAt = (plan: string[], i: number): boolean => {
+    const id = plan[i];
+    if (i > 0 && sameCompCached(id, plan[i - 1], designs)) return false;
+    if (i < n - 1 && sameCompCached(id, plan[i + 1], designs)) return false;
+    if (i > 0 && i < n - 1 && (sameCompCached(id, plan[0], designs) || sameCompCached(id, plan[n - 1], designs))) return false;
+    if (i === 0 || i === n - 1) for (let k = 1; k < n - 1; k++) if (sameCompCached(plan[k], id, designs)) return false;
+    return true;
+  };
+  const maxEvals = n > 16 ? 450 : MAX_EVALS;
+  let evals = 0;
+  const J = (p: string[]) => (evals++, scoreAlbumPlan(set, p, spreads, designs, fw).total);
+  let cur = start.slice();
+  let curJ = J(cur);
+  for (let pass = 0; pass < MAX_PASSES && evals < maxEvals; pass++) {
+    let improved = false;
+    for (let i = 0; i < n; i++) {
+      const cands = i === 0 ? openCands : i === n - 1 ? closeCands : middle;
+      let bestId = cur[i];
+      let bestJ = curJ;
+      for (const id of cands) {
+        if (id === cur[i]) continue;
+        const trial = cur.slice();
+        trial[i] = id;
+        if (!okAt(trial, i)) continue;
+        const j = J(trial);
+        if (j < bestJ - 1e-9) {
+          bestJ = j;
+          bestId = id;
+        }
+      }
+      if (bestId !== cur[i]) {
+        cur[i] = bestId;
+        curJ = bestJ;
+        improved = true;
+      }
+    }
+    for (let a = 1; a < n - 1 && evals < maxEvals; a++)
+      for (let b = a + 1; b < n - 1; b++) {
+        if (cur[a] === cur[b]) continue;
+        const trial = cur.slice();
+        trial[a] = cur[b];
+        trial[b] = cur[a];
+        if (!okAt(trial, a) || !okAt(trial, b)) continue;
+        const j = J(trial);
+        if (j < curJ - 1e-9) {
+          cur = trial;
+          curJ = j;
+          improved = true;
+        }
+      }
+    if (!improved) break;
+  }
+  return cur;
+}
+
+const planMemo = new Map<string, string[]>();
+// 한 앨범의 펼침면마다 어떤 내지 디자인을 쓸지 정해요(항상 같은 입력 → 같은 결과, 카드 미리보기와 적용이 같은 함수를 불러요).
+// 사진 모양(aspects)이 하나라도 있으면 책 전체 시뮬레이션 계획(위), 없으면 예전 계획(planAlbumInnerLegacy, 38차 이전과 똑같은 결과)이에요.
+export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS, fitWeight: number = FIT_WEIGHT): string[] {
+  const hasShape = fitWeight > 0 && spreadsIn.some((s) => s.aspects?.some((a) => typeof a === "number" && a > 0));
+  if (!hasShape) return planAlbumInnerLegacy(set, spreadsIn, designs, fitWeight, 0);
+  const key = `${set.id}|${fitWeight}|${Object.values(PLAN_TUNE).join(",")}|${designs === VISIBLE_INNER_DESIGNS ? "v" : designs.length}|${spreadsIn
+    .map((s) => `${s.photos}${s.printedLeft ? "L" : "n"}[${(s.aspects ?? []).slice(0, s.photos).map((a) => (typeof a === "number" ? a.toFixed(3) : "-")).join(",")}]`)
+    .join(";")}`;
+  const hit = planMemo.get(key);
+  if (hit) return hit.slice();
+  const out = planAlbumInnerByFit(set, spreadsIn, designs, fitWeight);
+  if (planMemo.size > 200) planMemo.clear();
+  planMemo.set(key, out);
+  return out.slice();
 }
