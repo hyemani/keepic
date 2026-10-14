@@ -5,7 +5,8 @@
 // 채우고도 남는 사진만 leftover로 돌려줘요(호출한 쪽이 사진 목록으로 돌려보내요). 인쇄 안 되는 면의 칸에는 안 넣어요(lib/emptyPhotoSlots.ts와 같은 기준).
 import type { ImageBoxDef, SpreadDef } from "./albumTemplates";
 import { emptyPhotoBoxesOnSpread } from "./emptyPhotoSlots";
-import { photoAspectOfBox, pickFillers, slotAspectOf } from "./photoSlotFit";
+import { assignQueueGlobally } from "./albumRefillPlan";
+import { photoAspectOfBox, slotAspectOf } from "./photoSlotFit";
 
 // 빈 칸(empty)에 사진 박스(photo)의 사진·자르기 값을 넣은 새 박스
 export function fillSlotWithPhoto(empty: ImageBoxDef, photo: ImageBoxDef): ImageBoxDef {
@@ -30,36 +31,39 @@ export function fillSlotWithPhoto(empty: ImageBoxDef, photo: ImageBoxDef): Image
   };
 }
 
-// 한 펼침면의 빈 칸에 채울 사진을 줄 앞쪽 (칸 수 + 2)장 안에서 칸 모양에 가장 잘 맞게 골라요(2026-10 35차, lib/photoSlotFit.ts).
-// 멀리 있는 사진을 끌어오지 않아 읽는 순서가 크게 흐트러지지 않고, 안 뽑힌 사진은 순서 그대로 다음 펼침면 몫이에요.
-export const REFILL_WINDOW_EXTRA = 2;
+// (38차) 밀려난 사진을 "책 전체의 빈 칸"에 한꺼번에 짝지어요(lib/albumRefillPlan.ts): 보이는 비율이 55% 미만인 칸에는 넣지 않고(칸이 비거나 사진이 목록에 남아요),
+// 가능한 짝 중 많이 넣으면서 잘 맞는 쪽을 골라요. 예전처럼 펼침면 하나씩 앞에서부터 채우던 방식은 뒤쪽 펼침면에서 더 잘 맞는 사진을 놓쳤어요.
+// 사진이 있던 칸·사용자가 만든 값은 그대로예요(빈 칸에만 넣어요).
+export const REFILL_WINDOW_EXTRA = 2; // (옛 방식 호환용 상수, 지금은 안 써요)
 
 export function refillEmptySlots(
   spreads: readonly SpreadDef[],
   extras: readonly ImageBoxDef[],
   bookCount: number // 앞에서부터 이 개수만큼이 책 본문 펼침면이에요(소개 페이지는 안 채워요)
 ): { spreads: SpreadDef[]; placed: number; leftover: ImageBoxDef[] } {
-  let remaining = extras.filter((b) => !!b.url);
-  let placed = 0;
-  const out = spreads.map((sp, i) => {
-    if (remaining.length === 0 || i >= bookCount || sp.intro) return sp;
-    // 사진이 빈 칸보다 적으면 앞 칸(디자인의 첫 칸)부터만 채워요(예전과 같아요)
-    const empties = emptyPhotoBoxesOnSpread(sp, i).slice(0, remaining.length);
-    if (empties.length === 0) return sp;
-    const picks = pickFillers(
-      remaining.map(photoAspectOfBox),
-      empties.map((e) => slotAspectOf(e)),
-      empties.length + REFILL_WINDOW_EXTRA
-    );
-    const fill = new Map<string, ImageBoxDef>();
-    const taken = new Set<number>();
-    for (const pk of picks) {
-      fill.set(empties[pk.slot].id, fillSlotWithPhoto(empties[pk.slot], remaining[pk.queueIdx]));
-      taken.add(pk.queueIdx);
-    }
-    remaining = remaining.filter((_, qi) => !taken.has(qi));
-    placed += taken.size;
-    return { ...sp, imageBoxes: (sp.imageBoxes ?? []).map((b) => fill.get(b.id) ?? b) };
+  const queue = extras.filter((b) => !!b.url);
+  if (queue.length === 0) return { spreads: spreads.slice(), placed: 0, leftover: [] };
+  const slots: { spread: number; box: ImageBoxDef }[] = [];
+  spreads.forEach((sp, i) => {
+    if (i >= bookCount || sp.intro) return;
+    for (const e of emptyPhotoBoxesOnSpread(sp, i)) slots.push({ spread: i, box: e });
   });
-  return { spreads: out, placed, leftover: remaining };
+  const picks = assignQueueGlobally(
+    queue.map(photoAspectOfBox),
+    slots.map((s) => slotAspectOf(s.box))
+  );
+  const fillBySpread = new Map<number, Map<string, ImageBoxDef>>();
+  const taken = new Set<number>();
+  for (const pk of picks) {
+    const t = slots[pk.slot];
+    const m = fillBySpread.get(t.spread) ?? new Map<string, ImageBoxDef>();
+    m.set(t.box.id, fillSlotWithPhoto(t.box, queue[pk.queueIdx]));
+    fillBySpread.set(t.spread, m);
+    taken.add(pk.queueIdx);
+  }
+  const out = spreads.map((sp, i) => {
+    const fill = fillBySpread.get(i);
+    return fill ? { ...sp, imageBoxes: (sp.imageBoxes ?? []).map((b) => fill.get(b.id) ?? b) } : sp;
+  });
+  return { spreads: out, placed: taken.size, leftover: queue.filter((_, qi) => !taken.has(qi)) };
 }
