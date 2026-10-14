@@ -222,10 +222,10 @@ function fitDeficit(id: string, input: SpreadPlanInput, designs: InnerDesign[]):
   fitCache.set(key, out);
   return out;
 }
-// (37차) 책 전체로 사진보다 칸이 많으면(24장 책은 칸이 28~30개라 4~6칸이 비어 '다음'이 막혔어요) 칸이 적은 디자인을 더 쳐줘요.
-// 앞 펼침면들까지의 "칸 − 사진" 누적(slack)이 0을 넘어 늘어나는 만큼만 한 칸당 SPARE_EXTRA를 벌점으로 더해요(줄어들면 같은 만큼 덜어 줘요).
-// 누적이 0 이하면(앞에서 칸이 모자라 밀려난 사진이 뒤 펼침면의 빈 칸을 기다리는 중이면) 칸이 남아도 벌점이 없어요 → 사진이 목록으로 쫓겨나는 일을 늘리지 않아요.
-// 사진 모양(aspects)을 받는 입력일 때만 켜져요: aspects가 없는 입력은 예전과 똑같은 계획이고, 칸이 사진보다 안 많은 책에서는 벌점이 거의 안 붙어요.
+// (37차) 책 전체로 사진 수와 칸 수를 맞춰요. 24장 책은 칸이 28~30개라 4~6칸이 비어 '다음'이 막혔고, 36장 책은 칸이 모자라 사진이 목록으로 돌아가기도 했어요.
+// 앞 펼침면들까지의 "칸 − 사진" 누적(slack)의 절댓값이 커지는 만큼 한 칸당 SPARE_EXTRA를 벌점으로 더하고, 작아지면 같은 만큼 덜어 줘요(누적이 0에 가까워지는 디자인을 우선).
+// 칸이 남을 때만이 아니라 모자랄 때도 같이 줄여서, 칸이 적은 디자인을 너무 많이 골라 사진이 쫓겨나는 일은 오히려 줄어요(8천 장 시뮬레이션 24장·36장 모두).
+// 사진 모양(aspects)을 받는 입력일 때만 켜져요: aspects가 없는 입력은 예전과 똑같은 계획이에요.
 export const SPARE_EXTRA = 2.5;
 function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId, fitWeight: number = FIT_WEIGHT, spareExtra: number = SPARE_EXTRA, slackBefore: number = 0): number {
   const s = sideSlots(id, designs);
@@ -234,7 +234,7 @@ function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, d
   const spare = input.photos > 0 ? Math.max(0, slots - input.photos) : 0;
   const d = designs.find((x) => x.id === id);
   const slackAfter = slackBefore + slots - input.photos;
-  const budget = input.aspects && spareExtra > 0 ? spareExtra * (Math.max(0, slackAfter) - Math.max(0, slackBefore)) : 0;
+  const budget = input.aspects && spareExtra > 0 ? spareExtra * (Math.abs(slackAfter) - Math.abs(slackBefore)) : 0;
   return lack * LACK_COST + spare * SPARE_COST + budget + (used.get(id) ?? 0) * REUSE_COST + fitPenalty(d ? rankFor(occasion, d) : 2) + (fitWeight > 0 ? fitWeight * fitDeficit(id, input, designs) : 0);
 }
 
