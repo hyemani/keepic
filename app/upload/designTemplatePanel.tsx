@@ -11,25 +11,26 @@
 // 목록이 길어도(내지 30종) 가볍게: 썸네일은 화면에 보일 때(IntersectionObserver)만 처음 그리고, 한 번 그린 건 장면이 바뀔 때만 다시 그려요.
 // 이 파일은 그리기만 하고, 실제 적용·사진 보존은 page.tsx의 applyInnerDesignTemplate / applyCoverDesignTemplate이 해요.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { DESIGN_PHOTO_Z0, DESIGN_THEMES, designMatches, type DesignScene, type DesignScenePart, type DesignStyleInfo, type DesignThemeId } from "@/lib/designTemplates";
 import type { TextBoxDef } from "@/lib/albumTemplates";
 import { drawTextBoxOnCanvas } from "@/lib/printCompose";
 import { drawBackgroundSpecOnCanvas } from "@/lib/backgroundSpec";
 import { framePerimeterPoints } from "@/lib/frameShapes";
 import { PANEL_STACK, SegTabs, type SegTabItem } from "./sidePanelShell";
+import { ThemePreviewPopover, THEME_PREVIEW_ID, useThemePreview } from "./themePreviewPopover";
 
-// 앨범 테마 카드 한 장(대표 내지 펼침면 미리보기 + 이름 + 색 칩) — 데이터는 page.tsx가 lib/designThemeSets.ts의 계획(planAlbumInner)에서 만들어 넘겨줘요.
-// 펼침면 그림은 "실제로 적용될 디자인 id"의 데이터를 그대로 그려요(적용 결과와 같은 디자인·같은 좌표).
+// 앨범 테마 카드 한 장(앞표지 미리보기 + 이름 + 색 칩) — 데이터는 page.tsx가 lib/designThemeSets.ts의 세트(표지 디자인 id)와 계획(planAlbumInner)에서 만들어 넘겨줘요.
+// 카드 그림 = 이 테마를 적용하면 앞표지가 되는 디자인(applyCoverDesignTemplate가 쓰는 데이터 그대로). 눈 아이콘 미리보기 = 실제 계획의 내지 펼침면(왼쪽+오른쪽).
 export type AlbumThemePreviewScene = { scene: DesignScene; sceneKey: string; designId: string; index: number };
 export type AlbumThemeItem = {
   id: string;
   name: string;
   chips: string[]; // 표지 배경·책등·제목 색
-  scene: DesignScene; // 대표 내지 펼침면(왼쪽+오른쪽)
+  scene: DesignScene; // 앞표지(카드 칸 가운데)
   sceneKey: string;
-  designId: string; // 대표 펼침면의 디자인 id
-  previewFor: () => AlbumThemePreviewScene[]; // 눈 아이콘 미리보기용: 실제 계획의 펼침면 3~4장(눌렀을 때만 만들어요)
+  coverId: string; // 앞표지 디자인 id(적용하면 이 표지가 깔려요)
+  designId: string; // 계획의 첫 내용 펼침면 디자인 id
+  previewFor: () => AlbumThemePreviewScene[]; // 눈 아이콘 미리보기용: 실제 계획의 펼침면 3~4장(열었을 때만 만들어요)
   selected: boolean;
 };
 export type AlbumThemeProps = {
@@ -373,6 +374,21 @@ function DesignCard({
   );
 }
 
+// 눈 아이콘 미리보기 안쪽 — 열려 있는 동안에만 펼침면 장면을 만들어요(같은 테마는 다시 열어도 같은 결과: 계획이 결정적이에요).
+function PreviewPortal({ item, state, handlers }: { item: AlbumThemeItem; state: Parameters<typeof ThemePreviewPopover>[0]["state"]; handlers: { onPointerEnter: () => void; onPointerLeave: () => void } }) {
+  const spreads = item.previewFor();
+  const first = spreads[0]?.scene;
+  return (
+    <ThemePreviewPopover state={state} count={spreads.length} ratio={first ? first.wMm / first.hMm : 2} handlers={handlers} label={`${item.name} 내지 펼침면 미리보기`}>
+      {spreads.map((ps) => (
+        <div key={ps.index} data-album-theme-popover-spread={ps.designId} className="border border-[var(--color-hairline)]">
+          <DesignThumb scene={ps.scene} sceneKey={ps.sceneKey} />
+        </div>
+      ))}
+    </ThemePreviewPopover>
+  );
+}
+
 export function DesignPanel({
   mode,
   kind,
@@ -404,7 +420,8 @@ export function DesignPanel({
 }) {
   const theme = THEME_TAB_ITEMS.some((t) => t.id === themeFilter) ? themeFilter : "all";
   const style = styles.some((x) => x.id === styleFilter) ? styleFilter : "all";
-  const [preview, setPreview] = useState<{ id: string; left: number; top: number } | null>(null);
+  const tp = useThemePreview();
+  const preview = tp.open;
   const [singleOpen, setSingleOpen] = useState(false);
   const albumItems = kind === "theme" ? album.itemsFor(theme, style) : [];
   // 표지 목록: 고른 행사가 대표 행사인 디자인을 앞에(원래 순서는 그대로 유지)
@@ -421,26 +438,14 @@ export function DesignPanel({
         .map((x) => x.it)
     : [];
   const previewItem = preview ? albumItems.find((a) => a.id === preview.id) : undefined;
-  const openPreview = (id: string, btn: HTMLElement) => {
-    const panel = btn.closest("[data-side-panel]")?.getBoundingClientRect();
-    const r = btn.getBoundingClientRect();
-    // 패널 오른쪽(캔버스 위)에 띄워요. 포인터를 받지 않아서 클릭을 막지 않아요.
-    setPreview({ id, left: Math.round((panel?.right ?? r.right) + 10), top: Math.max(8, Math.min(Math.round(r.top - 24), window.innerHeight - 340)) });
-  };
   const eyeButton = (a: AlbumThemeItem) => (
     <button
       type="button"
       data-album-theme-preview-btn={a.id}
-      title="이 테마가 적용될 펼침면 미리보기"
-      aria-label={`${a.name} 테마의 펼침면 미리보기`}
-      aria-describedby={preview?.id === a.id ? "album-theme-preview" : undefined}
-      onMouseEnter={(e) => openPreview(a.id, e.currentTarget)}
-      onFocus={(e) => openPreview(a.id, e.currentTarget)}
-      onMouseLeave={() => setPreview(null)}
-      onBlur={() => setPreview(null)}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") setPreview(null);
-      }}
+      aria-label={`${a.name} 테마의 내지 펼침면 미리보기`}
+      aria-expanded={preview?.id === a.id}
+      aria-controls={preview?.id === a.id ? THEME_PREVIEW_ID : undefined}
+      {...tp.eyeHandlers(a.id)}
       className="absolute right-1.5 top-1.5 hidden h-6 w-6 items-center justify-center bg-white/90 text-[var(--color-charcoal)]/70 shadow-sm transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-charcoal)] lg:flex"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -527,7 +532,7 @@ export function DesignPanel({
                   onClick={() => {
                     if (!a.selected) album.onApply(a.id);
                   }}
-                  attrs={{ "data-album-theme-id": a.id, "data-album-theme-design": a.designId }}
+                  attrs={{ "data-album-theme-id": a.id, "data-album-theme-design": a.designId, "data-album-theme-cover": a.coverId }}
                   eye={eyeButton(a)}
                 />
               ))}
@@ -560,27 +565,9 @@ export function DesignPanel({
           )}
         </section>
       )}
-      {previewItem && preview && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              id="album-theme-preview"
-              role="tooltip"
-              data-album-theme-popover={previewItem.id}
-              className="pointer-events-none fixed z-[70] hidden w-[min(560px,calc(100vw-360px))] border border-[var(--color-hairline)] bg-white p-2 shadow-xl lg:block"
-              style={{ left: preview.left, top: preview.top }}
-            >
-              <span className="mb-1 block text-[11px] font-medium text-[var(--color-charcoal)]">{previewItem.name}</span>
-              <div className="grid grid-cols-2 gap-1.5">
-                {previewItem.previewFor().map((ps) => (
-                  <div key={ps.index} data-album-theme-popover-spread={ps.designId} className="border border-[var(--color-hairline)]">
-                    <DesignThumb scene={ps.scene} sceneKey={ps.sceneKey} />
-                  </div>
-                ))}
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
+      {previewItem && preview && typeof document !== "undefined" ? (
+        <PreviewPortal item={previewItem} state={preview} handlers={tp.popoverHandlers} />
+      ) : null}
       {single && kind === "theme" ? (
         <section data-single-spread-section className={`${PANEL_STACK} border-t border-[var(--color-hairline)] pt-1.5`}>
           <button

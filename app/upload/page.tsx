@@ -193,6 +193,7 @@ import { EmptySlotDialog } from "./emptySlotDialog";
 import { refillEmptySlots } from "@/lib/photoRefill";
 import { fitBoxesToSlots, photoAspectOfBox } from "@/lib/photoSlotFit";
 import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
+import { coverFrontCardScene, pickPreviewSpreads } from "@/lib/themePreviewScenes";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
   backgroundSpecToCss,
@@ -15451,22 +15452,16 @@ function UploadPageContent() {
           const plan = planOf(set);
           // 대표 펼침면 = 이 앨범에 실제로 적용될 첫 번째 내용 펼침면(펼침면이 1개면 그 한 장)
           const repIdx = plan.length > 1 ? 1 : 0;
-          const rep = sceneOf(plan[repIdx])!;
+          // 카드 그림 = 이 테마가 적용하는 앞표지(set.coverId → applyCoverDesignTemplate와 같은 데이터), 눈 아이콘 = 실제 계획의 내지 펼침면(pickPreviewSpreads: 마무리·첫 내용·콜라주 등 결정적으로 3~4장)
           return {
             id: set.id,
             name: occasion === "all" && !dupFlavor(set.flavor) ? set.flavor : set.name,
             chips,
-            scene: rep.scene,
-            sceneKey: rep.sceneKey,
+            scene: coverFrontCardScene(cd, dims.panelMm, dims.bleedMm),
+            sceneKey: `front|${cd.id}|${dims.panelMm}|${dims.bleedMm}`,
+            coverId: cd.id,
             designId: plan[repIdx],
-            previewFor: () => {
-              // 실제 계획의 가운데 펼침면 3장 + 마지막(마무리) 펼침면
-              const idxs: number[] = [];
-              for (let k = 1; k <= Math.min(3, plan.length - 2); k++) idxs.push(k);
-              if (plan.length >= 2) idxs.push(plan.length - 1);
-              if (idxs.length === 0) idxs.push(0);
-              return idxs.map((k) => ({ ...sceneOf(plan[k])!, designId: plan[k], index: k }));
-            },
+            previewFor: () => pickPreviewSpreads(plan).map((k) => ({ ...sceneOf(plan[k])!, designId: plan[k], index: k })),
             selected: !!selectedSet && (occasion === "all" ? selectedSet.lookKey === set.lookKey : selectedSet.id === set.id),
           };
         });
