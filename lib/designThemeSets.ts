@@ -199,7 +199,10 @@ const SPARE_COST = 0.7;
 const REUSE_COST = 3.5;
 // 사진 모양이 칸 모양과 안 맞는 정도(0 = 전부 안 잘림). 이 디자인의 앞 n칸(n = min(사진 수, 칸 수))에 사진 n장을 lib/photoSlotFit.ts의 배정대로 넣었을 때
 // 보이는 비율 평균을 1에서 뺀 값이에요. 사진 모양을 하나도 모르면 0(예전과 똑같은 계획). 같은 입력은 같은 값이라 캐시해요.
-export const FIT_WEIGHT = 0; // 칸 모양 맞춤 가중치(36차에서 측정해 정함)
+// 가중치 12 = 사진이 전부 안 잘리는 디자인과 절반이 잘리는 디자인의 차이(0.5)가 6점쯤(= 사진 한 장이 남는 벌점, 같은 디자인 한 번 더 쓰는 벌점 3.5보다 큼)이라는 뜻이에요.
+// 14개 세트 × 12/24/36장 × 가로·세로 섞임 8천 장 측정(36차): 0 → 12에서 55% 미만 22.7% → 17.3%, 70% 미만 53.3% → 46.8%, 평균 0.698 → 0.728,
+// 이웃 같은 배치 0 그대로, 한 책 안 서로 다른 디자인 7.93 → 7.76개, 같은 디자인 최대 3번 그대로. 20 이상은 칸이 적은 디자인을 골라 사진이 남는 일이 늘어서(사진 목록으로 돌아가는 수 48 → 60+) 12에서 멈췄어요.
+export const FIT_WEIGHT = 12;
 const fitCache = new Map<string, number>();
 function fitDeficit(id: string, input: SpreadPlanInput, designs: InnerDesign[]): number {
   const asp = input.aspects;
