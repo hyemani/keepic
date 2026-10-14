@@ -282,7 +282,23 @@ export function DesignThumb({ scene, sceneKey }: { scene: DesignScene; sceneKey:
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "#F2EFE8";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (scene.cardEdge) {
+        // 연한 표지가 베이지 바닥에 묻히지 않게: 표지 뒤에 부드러운 그림자(왼쪽·오른쪽 여백에 보여요)
+        ctx.save();
+        ctx.shadowColor = "rgba(50,40,30,0.5)";
+        ctx.shadowBlur = Math.round(7 * ppm);
+        ctx.fillStyle = "#FFFFFF";
+        for (const p of scene.parts) ctx.fillRect(Math.round(p.xMm * ppm), Math.round(p.yMm * ppm), Math.round(p.wMm * ppm), Math.round(p.hMm * ppm));
+        ctx.restore();
+      }
       for (const part of scene.parts) drawPart(ctx, part, ppm, stickers);
+      if (scene.cardEdge) {
+        // 표지 가장자리 안쪽에 1px 링(바탕과 구분되는 어두운 선)
+        const lw = Math.max(1.5, ppm * 0.45);
+        ctx.strokeStyle = "rgba(50,40,30,0.5)";
+        ctx.lineWidth = lw;
+        for (const p of scene.parts) ctx.strokeRect(Math.round(p.xMm * ppm) + lw / 2, Math.round(p.yMm * ppm) + lw / 2, Math.round(p.wMm * ppm) - lw, Math.round(p.hMm * ppm) - lw);
+      }
       if (scene.foldAtMm !== undefined) {
         ctx.fillStyle = "rgba(60,50,40,0.22)";
         ctx.fillRect(Math.round(scene.foldAtMm * ppm) - 1, 0, 2, canvas.height);

@@ -14,7 +14,7 @@ export function coverFrontCardScene(d: CoverDesign, panelMm: number, bleedMm: nu
   front.texts = [coverTitleAsText(d, gf), ...front.texts];
   const wMm = Math.max(gf.W, gf.H * THEME_CARD_STAGE_RATIO);
   const hMm = Math.max(gf.H, gf.W / THEME_CARD_STAGE_RATIO);
-  return { wMm, hMm, parts: [{ xMm: (wMm - gf.W) / 2, yMm: (hMm - gf.H) / 2, wMm: gf.W, hMm: gf.H, layout: front }] };
+  return { wMm, hMm, cardEdge: true, parts: [{ xMm: (wMm - gf.W) / 2, yMm: (hMm - gf.H) / 2, wMm: gf.W, hMm: gf.H, layout: front }] };
 }
 
 // 계획(펼침면별 내지 디자인 id)에서 보여줄 대표 펼침면 번호 최대 4개(오름차순). 항상 같은 입력 → 같은 결과.

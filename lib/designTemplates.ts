@@ -520,7 +520,7 @@ export type DesignScenePart = {
   band?: BackgroundSpec; // 책등처럼 글·사진 없이 배경만 있는 띠
   logo?: { xPct: number; yPct: number; scalePct: number }; // 뒤표지 키픽 로고
 };
-export type DesignScene = { wMm: number; hMm: number; parts: DesignScenePart[]; foldAtMm?: number };
+export type DesignScene = { wMm: number; hMm: number; parts: DesignScenePart[]; foldAtMm?: number; cardEdge?: boolean }; // cardEdge: 목록 카드의 앞표지 — 연한 표지가 베이지 바닥에 묻히지 않게 테두리·그림자를 그려요
 
 export type DesignRange = "left" | "right" | "spread";
 
