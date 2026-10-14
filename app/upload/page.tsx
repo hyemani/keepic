@@ -136,6 +136,8 @@ import {
 } from "./photoEditPanels";
 import { PrimaryFileButton } from "./primaryActionButton";
 import { LibraryDragController, libraryPhotoDragProps, type LibraryDropResult } from "./libraryDrag";
+import { EmptyPhotoFrame } from "./emptyPhotoFrame";
+import { splitUploadFiles } from "@/lib/frameUpload";
 import { chooseLibraryTarget, libraryHintOf, parseCanvasId, type LibraryClickTarget, type LibraryHint, type SlotScope } from "@/lib/librarySlotTarget";
 import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
 import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
@@ -3132,6 +3134,7 @@ type LayerIconName =
   | "opacity"
   | "border"
   | "edit"
+  | "upload"
   | "alignLeft"
   | "alignHCenter"
   | "alignRight"
@@ -3301,6 +3304,15 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
           <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
           <circle cx="8.5" cy="9.5" r="1.6" />
           <path d="M4.5 16.5l4.5-4.5 3 3 4-4.5 5.5 5.5" />
+        </svg>
+      );
+    case "upload":
+      // "사진 올리기" — 위쪽 화살표가 받침대(트레이) 위로 올라가는 모양
+      return (
+        <svg {...common}>
+          <path d="M12 15V5" />
+          <path d="M7.5 9.5L12 5l4.5 4.5" />
+          <path d="M5 15v3a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 18v-3" />
         </svg>
       );
     case "alignLeft":
@@ -3618,10 +3630,12 @@ function ToolbarLabeledButton({
   onClick,
   danger,
   active,
+  ariaLabel,
 }: {
   title: string;
   label: string;
   icon: LayerIconName;
+  ariaLabel?: string;
   onClick: () => void;
   danger?: boolean;
   active?: boolean;
@@ -3630,8 +3644,9 @@ function ToolbarLabeledButton({
     <button
       type="button"
       title={title}
+      aria-label={ariaLabel}
       onClick={onClick}
-      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none transition hover:bg-[var(--color-ivory)] ${
+      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
         danger ? "text-red-500" : active ? "bg-[var(--color-ivory)] text-[var(--color-charcoal)]" : "text-[var(--color-charcoal)]/80"
       }`}
     >
@@ -3664,6 +3679,7 @@ function StackOrderToolbar({
   mediaKind = "text",
   onDelete,
   onStackAction,
+  onUpload,
   onFit,
   onZoomIn,
   onZoomOut,
@@ -3692,6 +3708,8 @@ function StackOrderToolbar({
   mediaKind?: "text" | "photo" | "sticker";
   onDelete?: () => void;
   onStackAction?: (action: StackOrderAction) => void;
+  // 사진 없는 빈 칸에서만 넘어와요(42차) — 파일 선택창을 여는 유일한 곳이에요.
+  onUpload?: () => void;
   onFit?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
@@ -3744,6 +3762,9 @@ function StackOrderToolbar({
         visibility: suppressed ? "hidden" : undefined,
       }}
     >
+      {mediaKind === "photo" && onUpload && (
+        <ToolbarLabeledButton title="사진 올리기" label="올리기" icon="upload" ariaLabel="사진 올리기" onClick={onUpload} />
+      )}
       {onDelete && (
         <ToolbarLabeledButton title="삭제" label="삭제" icon="delete" onClick={onDelete} danger />
       )}
@@ -8121,6 +8142,8 @@ const ImageBoxOverlay = forwardRef<
     docMm?: { w: number; h: number };
     // "사진 변경" — 이 박스의 사진을 라이브러리/새 업로드로 바꾸는 선택창을 상위에서 열어요(사진 위치 조정 도구 막대의 첫 버튼).
     onRequestPhotoReplace?: () => void;
+    // 빈 칸 도구 막대의 "사진 올리기"로 고른 파일들(42차) — 첫 사진은 이 칸, 나머지는 사진 목록에만. 안 넘기면 첫 사진만 이 칸에 넣어요.
+    onUploadFiles?: (files: File[]) => void;
   }
 >(function ImageBoxOverlay(
   {
@@ -8138,6 +8161,7 @@ const ImageBoxOverlay = forwardRef<
     onPhotoEditModeChange,
     zIndex,
     onStackAction,
+    onUploadFiles,
     docMm,
     onRequestPhotoReplace,
   },
@@ -8396,11 +8420,9 @@ const ImageBoxOverlay = forwardRef<
     // 끝나요(이동은 일반 드래그로, 크기는 모서리 손잡이로).
     if (isSticker) return;
     // 빈 프레임(사진 없음)은 옮길 사진 자체가 없어서 "사진 위치 조정 모드"에 들어갈
-    // 이유가 없어요 — 대신 파일 선택창을 열어요.
-    if (!box.url) {
-      emptyFrameFileInputRef.current?.click();
-      return;
-    }
+    // 이유가 없어요 — 선택만 하고 끝나요(42차: 예전엔 여기서 파일 선택창이 열렸어요.
+    // 파일 선택은 도구 막대의 "사진 올리기"에서만).
+    if (!box.url) return;
     setPhotoEditMode((v) => !v);
   }
 
@@ -9032,37 +9054,26 @@ const ImageBoxOverlay = forwardRef<
         </svg>
       ) : null}
       {!box.url && (
-        // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면(또는
-        // 더블클릭하면) 파일을 골라 채울 수 있어요. 미리보기·PDF에는 안 그려져요.
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-            emptyFrameFileInputRef.current?.click();
-          }}
-          // 2026-09-23, 혜민님 요청: 빈 프레임이 "점선 + 사진 추가"보다 눈에 띄도록
-          // 브랜드색(--color-sky) 옅은 배경 + 가운데 큰 "PHOTO" 표시로 바꿨어요.
-          // url이 여전히 빈 문자열이라 인쇄(printCompose.ts drawPage)에는 그대로
-          // 안 그려져요 — 화면 스타일만 바뀐 거예요.
-          style={{ clipPath: cssClipPath, borderRadius: cssRadius }}
-          className="absolute inset-0 flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-[var(--color-sky)]/40 bg-[var(--color-sky)]/10 text-[var(--color-sky)] transition hover:border-[var(--color-sky)] hover:bg-[var(--color-sky)]/15"
-        >
-          {/* 2026-09-24, 혜민님 요청: "+ 사진 추가" 보조문구는 불필요해서 뺐어요 —
-              "PHOTO" 글자 하나만 남기고, 클릭하면 파일 선택창이 바로 열리는 동작은
-              그대로예요. */}
-          <span className="text-[13px] font-semibold tracking-[0.15em]">PHOTO</span>
-        </button>
+        // 빈 프레임(레이아웃은 적용됐지만 아직 사진이 없는 칸)이에요 — 누르면 "선택"만 돼요
+        // (42차: 예전엔 눌러도 파일 선택창이 열렸어요). 미리보기·PDF에는 안 그려져요(url이 빈 문자열).
+        <EmptyPhotoFrame onSelect={onSelect} style={{ clipPath: cssClipPath, borderRadius: cssRadius }} />
       )}
       <input
         ref={emptyFrameFileInputRef}
         type="file"
         accept="image/*"
+        multiple={!box.url}
+        tabIndex={-1}
+        aria-hidden="true"
+        data-frame-upload-input
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFillEmptyFrame(file);
+          const files = Array.from(e.target.files ?? []);
           e.target.value = "";
+          if (files.length === 0) return;
+          // 빈 칸: 첫 사진은 이 칸에, 나머지는 사진 목록에만(상위가 처리). 사진 있는 칸의 작은 교체 버튼은 예전처럼 한 장만 바꿔요.
+          if (!box.url && onUploadFiles) onUploadFiles(files);
+          else handleFillEmptyFrame(files[0]);
         }}
       />
       {isActive && !photoEditMode && (
@@ -9090,7 +9101,7 @@ const ImageBoxOverlay = forwardRef<
           {/* 더블클릭 안내는 사진 전용 기능(사진 위치 조정)이라 스티커에는 안 보여줘요
               (2026-09-24). "스프레드 전체 채우기" 버튼은 혜민님 요청으로 제거함
               (2026-09-24, "필요 없습니다. 삭제해주세요"). */}
-          {!isSticker && (
+          {!isSticker && !!box.url && (
             <div
               onMouseDown={(e) => e.stopPropagation()}
               className={`pointer-events-auto absolute -bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap ${
@@ -9182,14 +9193,15 @@ const ImageBoxOverlay = forwardRef<
               // "맞춤"(사진 위치 초기화)·"편집"(사진 위치 조정 모드 토글)은 크롭 개념이 없는
               // 스티커에는 안 보여요(mediaKind==="sticker"면 StackOrderToolbar가 알아서
               // 뺌) — 그래서 스티커일 땐 undefined를 넘겨도 안전해요.
-              onFit={isSticker ? undefined : handleResetPhotoPosition}
-              onZoomIn={() => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
-              onZoomOut={() => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
+              onUpload={!isSticker && !box.url ? () => emptyFrameFileInputRef.current?.click() : undefined}
+              onFit={isSticker || !box.url ? undefined : handleResetPhotoPosition}
+              onZoomIn={!isSticker && !box.url ? undefined : () => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
+              onZoomOut={!isSticker && !box.url ? undefined : () => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
               rotation={box.rotation ?? 0}
               onRotationChange={(deg) => onChange({ rotation: deg })}
               onFlip={() => onChange({ flipX: !box.flipX })}
               editActive={photoEditMode}
-              onToggleEdit={isSticker ? undefined : () => setPhotoEditMode((v) => !v)}
+              onToggleEdit={isSticker || !box.url ? undefined : () => setPhotoEditMode((v) => !v)}
               opacity={box.opacity ?? 1}
               onOpacityChange={(v) => onChange({ opacity: v })}
               borderWidthPx={box.borderWidthPx ?? 0}
@@ -9230,8 +9242,11 @@ function ImageBoxLayer({
   registerBoxRef,
   docMm,
   onRequestPhotoReplace,
+  onUploadToFrame,
 }: {
   boxes: ImageBoxDef[];
+  // 빈 칸 도구 막대 "사진 올리기"(42차) — 박스 id와 고른 파일들.
+  onUploadToFrame?: (boxId: string, files: File[]) => void;
   // 박스 %좌표의 기준 영역(스프레드 전체 / 표지 앞·뒤 패널)의 실제 종이 크기(mm) — ImageBoxOverlay.docMm 참고.
   docMm?: { w: number; h: number };
   onChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
@@ -9289,6 +9304,7 @@ function ImageBoxLayer({
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
           docMm={docMm}
           onRequestPhotoReplace={onRequestPhotoReplace ? () => onRequestPhotoReplace(box.id) : undefined}
+          onUploadFiles={onUploadToFrame ? (files) => onUploadToFrame(box.id, files) : undefined}
         />
       ))}
     </>
@@ -12157,6 +12173,8 @@ function CanvasStage({
     };
     const down = (e: KeyboardEvent) => {
       if (e.code !== "Space" || isTyping(e.target)) return;
+      // 빈 사진 칸(키보드로 포커스한 버튼)에서는 Space가 "선택"이에요 — 손바닥 이동으로 가로채지 않아요(42차).
+      if ((e.target as HTMLElement | null)?.closest?.("[data-empty-photo-frame]")) return;
       const vp = viewportRef.current;
       if (!vp || (vp.scrollWidth <= vp.clientWidth && vp.scrollHeight <= vp.clientHeight)) return;
       e.preventDefault();
@@ -15113,6 +15131,41 @@ function UploadPageContent() {
     if (!box) return;
     if (scope === "front" || scope === "back") selectCoverImageBox(scope, boxId);
     else selectImageBox(scope, boxId);
+  }
+
+  // (42차) 빈 칸 도구 막대 "사진 올리기" — 고른 파일 중 첫 사진은 그 칸에 넣고(한 번의 상태 묶음 = 실행취소 한 번),
+  // 나머지는 사진 목록(photos)에만 더해요(다른 칸은 안 건드려요). 이미지가 아닌 파일은 무시해요.
+  async function handleUploadToFrame(boxId: string, files: File[], aspects?: { front: number; back: number }) {
+    const { first, rest } = splitUploadFiles(files);
+    if (!first) return;
+    const found = findImageBoxById(boxId);
+    if (!found) return;
+    const firstPhoto = await uploadPhotoForReplace(first);
+    const extra: Photo[] = [];
+    for (const f of rest) {
+      const lp = await loadLibraryPhoto(f);
+      if (lp) extra.push(lp);
+    }
+    if (extra.length > 0) setPhotos((prev) => [...prev, ...extra]);
+    if (!firstPhoto) return;
+    applyLibraryPhotoToSlot(found.scope, boxId, firstPhoto, found.scope === "back" ? aspects?.back : found.scope === "front" ? aspects?.front : undefined);
+  }
+  async function loadLibraryPhoto(file: File): Promise<Photo | null> {
+    const url = URL.createObjectURL(file);
+    const dims = await new Promise<{ w: number; h: number } | null>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+    if (!dims) {
+      URL.revokeObjectURL(url);
+      return null;
+    }
+    return {
+      url, caption: "", x: 0, y: 0, scale: 1, width: dims.w, height: dims.h, fontFamily: fontOptions[0].id, size: "sm", bold: false,
+      color: "#2B2B2B", align: "left", position: "below", containerW: 0, containerH: 0, rotation: 0, flipX: false,
+    };
   }
 
   // 사진 목록에서 사진을 눌렀을 때 어느 칸에 넣을지(규칙은 lib/librarySlotTarget.ts 맨 위 설명). 지금 보는 펼침면/표지 안에서만 골라요.
@@ -18899,6 +18952,10 @@ function UploadPageContent() {
                                 }
                                 onSelect={(boxId) => selectCoverImageBox("back", boxId)}
                                 onRequestPhotoReplace={setPhotoReplaceBoxId}
+                                onUploadToFrame={(id, files) => handleUploadToFrame(id, files, {
+                                  front: ((coverFrontPct / 100) * coverTotalWmm) / coverTotalHmm,
+                                  back: ((coverBackPct / 100) * coverTotalWmm) / coverTotalHmm,
+                                })}
                                 onPhotoEditModeChange={setCoverImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
@@ -19070,6 +19127,10 @@ function UploadPageContent() {
                                 }
                                 onSelect={(boxId) => selectCoverImageBox("front", boxId)}
                                 onRequestPhotoReplace={setPhotoReplaceBoxId}
+                                onUploadToFrame={(id, files) => handleUploadToFrame(id, files, {
+                                  front: ((coverFrontPct / 100) * coverTotalWmm) / coverTotalHmm,
+                                  back: ((coverBackPct / 100) * coverTotalWmm) / coverTotalHmm,
+                                })}
                                 onPhotoEditModeChange={setCoverImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
@@ -19964,6 +20025,7 @@ function UploadPageContent() {
                                   multiImageSelection?.spreadIndex === i ? multiImageSelection.boxIds : undefined
                                 }
                                 onRequestPhotoReplace={setPhotoReplaceBoxId}
+                                onUploadToFrame={(id, files) => handleUploadToFrame(id, files)}
                                 onPhotoEditModeChange={setImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) imageBoxHandlesRef.current.set(boxId, handle);
