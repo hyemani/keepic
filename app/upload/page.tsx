@@ -187,10 +187,11 @@ import {
 } from "@/lib/designTemplates";
 import { linkLayoutDecoration, slotKey } from "@/lib/designSlotLink";
 import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
-import { findEmptyPhotoSlots, type EmptySlotGroup } from "@/lib/emptyPhotoSlots";
+import { countUnusedLibraryPhotos, findEmptyPhotoSlots, type EmptySlotGroup } from "@/lib/emptyPhotoSlots";
 import { cleanEmptySlotsOnCover, cleanEmptySlotsOnSpread } from "@/lib/emptySlotCleanup";
 import { EmptySlotDialog } from "./emptySlotDialog";
 import { refillEmptySlots } from "@/lib/photoRefill";
+import { designPhotoNotice } from "@/lib/photoRefillNotice";
 import { fitBoxesToSlots, photoAspectOfBox } from "@/lib/photoSlotFit";
 import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
 import { coverFrontCardScene, pickPreviewSpreads } from "@/lib/themePreviewScenes";
@@ -812,14 +813,6 @@ type AlbumApplyBatch = {
   // 칸이 모자라 밀려난 사진 박스(자르기·회전 값 그대로) — 있으면 addPhotos 대신 여기에 모아 두고, 호출한 쪽이 다른 펼침면의 빈 칸에 먼저 채운 뒤(lib/photoRefill.ts) 남는 것만 사진 목록으로 돌려보내요.
   extraBoxes?: ImageBoxDef[];
 };
-
-// 디자인을 입힌 뒤 안내 문구: 다른 펼침면 빈 칸에 채운 사진 수(moved)와 사진 목록으로 돌려보낸 수(returned).
-function designPhotoNotice(moved: number, returned: number): string | null {
-  if (moved > 0 && returned > 0) return `사진 ${moved}장은 다른 쪽의 빈 칸에 채우고, ${returned}장은 사진 목록으로 돌려보냈어요`;
-  if (moved > 0) return `사진 ${moved}장을 다른 쪽의 빈 칸에 채웠어요`;
-  if (returned > 0) return `사진 ${returned}장을 사진 목록으로 돌려보냈어요`;
-  return null;
-}
 
 // 칸에서 밀려난 사진을 사진 목록(보관함)으로 돌려보낼 때: 같은 사진(url)이 이미 목록에 있으면 또 넣지 않아요
 // (AI 맞춤 레이아웃은 올린 사진이 계속 목록에 남아 있어서, 그대로 이어 붙이면 같은 사진이 목록에 두 번 들어가
@@ -14540,7 +14533,7 @@ function UploadPageContent() {
     opts?: {
       slotPatches?: (Partial<ImageBoxDef> | undefined)[];
       finalizeSpread?: (s: SpreadDef) => SpreadDef;
-      onResult?: (r: { extraPhotos: number; slots: number; moved?: number }) => void;
+      onResult?: (r: { extraPhotos: number; slots: number; moved?: number; emptyLeft?: number }) => void;
       // 한 페이지만 디자인을 입힐 때: 칸이 모자라 밀려난 사진을 사진 목록으로 보내기 전에 다른 펼침면의 빈 칸(책 순서)에 먼저 채워요.
       refillOthers?: boolean;
       // 디자인 적용용: 사진의 가로·세로를 보고 앞 N칸 안에서 잘 맞는 칸에 넣어요(lib/photoSlotFit.ts). 안 넘기면 읽는 순서 = 칸 순서(예전과 같아요).
@@ -14757,7 +14750,7 @@ function UploadPageContent() {
       if (legacyRemovedPhotoIndexes.size > 0) setPhotos((prev) => prev.filter((_, i) => !legacyRemovedPhotoIndexes.has(i)));
       const back = rf.leftover.map(boxToLibraryPhoto);
       if (back.length > 0) setPhotos((prev) => appendLibraryPhotos(prev, back));
-      opts.onResult?.({ extraPhotos: back.length, slots: template.slots.length, moved: rf.placed });
+      opts.onResult?.({ extraPhotos: back.length, slots: template.slots.length, moved: rf.placed, emptyLeft: rf.emptyLeft });
       setLayoutApplyMessage(
         back.length > 0
           ? `이 템플릿은 사진 칸이 ${template.slots.length}개예요. 앞 ${template.slots.length}칸만 채우고, 남은 사진 ${back.length}장은 지우지 않고 전체 사진 목록으로 돌려보냈어요.`
@@ -15237,7 +15230,7 @@ function UploadPageContent() {
           batch.extraPhotoCount += r.extraPhotos;
           return;
         }
-        flashDesignNotice(designPhotoNotice(r.moved ?? 0, r.extraPhotos));
+        flashDesignNotice(designPhotoNotice(r.moved ?? 0, r.extraPhotos, r.emptyLeft ?? 0));
       },
       finalizeSpread: (s0) => {
         let s: SpreadDef = { ...s0 };
@@ -15660,7 +15653,7 @@ function UploadPageContent() {
     }
     const cover = applyCoverDesignTemplate(set.coverId, true);
     setDesignThemeId(set.id);
-    flashDesignNotice(designPhotoNotice(rf.placed, returnedPhotos.length + (cover?.extraPhotos ?? 0)));
+    flashDesignNotice(designPhotoNotice(rf.placed, returnedPhotos.length + (cover?.extraPhotos ?? 0), rf.emptyLeft));
   }
 
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
@@ -17601,6 +17594,7 @@ function UploadPageContent() {
           <EmptySlotDialog
             groups={emptySlotGate.groups}
             cleanedCount={emptySlotGate.cleaned}
+            unusedPhotoCount={countUnusedLibraryPhotos(photos.map((p) => p.url), customSpreads, coverImageBoxes, backCoverImageBoxes)}
             onJump={jumpToEmptySlot}
             onClean={cleanAllEmptySlots}
             onClose={() => setEmptySlotGate(null)}

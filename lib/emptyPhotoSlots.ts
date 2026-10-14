@@ -59,3 +59,18 @@ export function findEmptyPhotoSlots(input: {
 }
 
 export const countEmptyPhotoSlots = (groups: readonly EmptySlotGroup[]): number => groups.reduce((a, g) => a + g.count, 0);
+
+// (40차) 사진 목록에 있지만 책(내지·소개 페이지·표지)의 어느 칸에도 안 쓰인 사진 수 — '다음' 안내창에서
+// "남은 사진을 빈 칸에 직접 넣을 수 있어요" 한 줄을 보여줄지 정하는 데만 써요.
+export function countUnusedLibraryPhotos(
+  libraryUrls: readonly string[],
+  spreads: readonly Pick<SpreadDef, "imageBoxes">[],
+  coverFront: readonly Pick<ImageBoxDef, "url">[] | undefined,
+  coverBack: readonly Pick<ImageBoxDef, "url">[] | undefined
+): number {
+  const used = new Set<string>();
+  for (const sp of spreads) for (const b of sp.imageBoxes ?? []) if (b.url) used.add(b.url);
+  for (const b of coverFront ?? []) if (b.url) used.add(b.url);
+  for (const b of coverBack ?? []) if (b.url) used.add(b.url);
+  return new Set(libraryUrls.filter((u) => !!u && !used.has(u))).size;
+}

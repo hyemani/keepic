@@ -13,12 +13,14 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), [tabin
 export function EmptySlotDialog({
   groups,
   cleanedCount,
+  unusedPhotoCount = 0,
   onJump,
   onClean,
   onClose,
 }: {
   groups: EmptySlotGroup[];
   cleanedCount: number | null; // 빈 칸 모두 지우기를 막 했으면 지운 칸 수(결과 안내 상태), 아니면 null
+  unusedPhotoCount?: number; // 사진 목록에 아직 안 쓴 사진 수(있으면 "직접 넣을 수 있어요" 한 줄)
   onJump: (g: EmptySlotGroup) => void;
   onClean: () => void;
   onClose: () => void;
@@ -90,6 +92,7 @@ export function EmptySlotDialog({
             {done
               ? `빈 칸 ${cleanedCount}개를 장식과 함께 지웠어요. 되돌리려면 실행취소(Ctrl+Z)를 눌러주세요.`
               : `빈 칸은 인쇄하면 그대로 비어 나와요. 모두 채우거나 지우면 다음으로 갈 수 있어요. (총 ${total}칸)`}
+            {!done && unusedPhotoCount > 0 && <span data-empty-slot-hint className="mt-1 block">사진 목록에 남은 사진 {unusedPhotoCount}장을 빈 칸에 직접 넣을 수 있어요.</span>}
           </p>
         </div>
         {!done && (

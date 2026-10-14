@@ -40,9 +40,9 @@ export function refillEmptySlots(
   spreads: readonly SpreadDef[],
   extras: readonly ImageBoxDef[],
   bookCount: number // 앞에서부터 이 개수만큼이 책 본문 펼침면이에요(소개 페이지는 안 채워요)
-): { spreads: SpreadDef[]; placed: number; leftover: ImageBoxDef[] } {
+): { spreads: SpreadDef[]; placed: number; leftover: ImageBoxDef[]; emptyLeft: number } {
   const queue = extras.filter((b) => !!b.url);
-  if (queue.length === 0) return { spreads: spreads.slice(), placed: 0, leftover: [] };
+  if (queue.length === 0) return { spreads: spreads.slice(), placed: 0, leftover: [], emptyLeft: 0 };
   const slots: { spread: number; box: ImageBoxDef }[] = [];
   spreads.forEach((sp, i) => {
     if (i >= bookCount || sp.intro) return;
@@ -65,5 +65,5 @@ export function refillEmptySlots(
     const fill = fillBySpread.get(i);
     return fill ? { ...sp, imageBoxes: (sp.imageBoxes ?? []).map((b) => fill.get(b.id) ?? b) } : sp;
   });
-  return { spreads: out, placed: taken.size, leftover: queue.filter((_, qi) => !taken.has(qi)) };
+  return { spreads: out, placed: taken.size, leftover: queue.filter((_, qi) => !taken.has(qi)), emptyLeft: slots.length - taken.size }; // emptyLeft = 채우고도 남은 빈 칸 수
 }
