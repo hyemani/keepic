@@ -99,8 +99,11 @@ export function bestFitAverage(photoAspects: readonly (number | null)[], slotAsp
   return sum / n;
 }
 
-// 빈 칸 채우기용: 줄 선 사진(읽는 순서) 앞쪽 window장 안에서 칸마다 가장 잘 맞는 사진을 골라요.
-// 가장 잘 맞는 (칸, 사진) 짝부터 하나씩 확정(동점이면 칸 앞선 쪽 → 줄 앞선 사진). 반환: [{ slot: 빈칸번호, queueIdx }]
+// 빈 칸 채우기용: 줄 선 사진(읽는 순서) 앞쪽 window장 안에서 빈 칸마다 알맞은 사진을 골라요. 반환: [{ slot: 빈칸번호, queueIdx }] (칸 번호 순).
+// 점수 = 칸마다 "보이는 비율"의 합 − 줄 번호 × 0.002(줄 앞쪽 사진을 아주 조금 더 쳐줘요: 같은 점수면 앞선 사진, 멀리 있는 사진을 끌어오는 건 이득이 클 때만).
+// (37차) 합이 가장 큰 짝짓기를 골라요: 후보 사진이 BRUTE_FORCE_MAX(8)장 이하면 모든 짝짓기를 따져 최선을 찾고(예전엔 가장 잘 맞는 짝부터 하나씩 확정하는 욕심쟁이 방식이라
+// 앞 칸이 좋은 사진을 가져가 뒤 칸이 손해를 봤어요), 넘으면 예전 욕심쟁이 방식 그대로예요. 동점(오차 1e-9 안)이면 칸 순서가 앞선 칸에 줄 앞선 사진이 가요(항상 같은 입력 → 같은 결과).
+// 사진 크기를 하나도 모르면(모두 중립) 줄 앞쪽 사진이 앞 칸부터 차례로 들어가요(예전과 같아요).
 export function pickFillers(
   queueAspects: readonly (number | null)[],
   emptyAspects: readonly (number | null)[],
@@ -109,6 +112,28 @@ export function pickFillers(
   const k = Math.min(emptyAspects.length, queueAspects.length);
   if (k === 0) return [];
   const w = Math.min(queueAspects.length, Math.max(k, window));
+  const score = (s: number, p: number) => visibleFraction(queueAspects[p], emptyAspects[s]) - p * 0.002;
+  if (w <= BRUTE_FORCE_MAX) {
+    let best: number[] = Array.from({ length: k }, (_, i) => i);
+    let bestScore = -Infinity;
+    const cur: number[] = new Array(k);
+    const used = new Array<boolean>(w).fill(false);
+    const rec = (s: number, acc: number) => {
+      if (s === k) {
+        if (acc > bestScore + 1e-9) { bestScore = acc; best = cur.slice(); }
+        return;
+      }
+      for (let p = 0; p < w; p++) {
+        if (used[p]) continue;
+        used[p] = true;
+        cur[s] = p;
+        rec(s + 1, acc + score(s, p));
+        used[p] = false;
+      }
+    };
+    rec(0, 0);
+    return best.map((queueIdx, slot) => ({ slot, queueIdx }));
+  }
   const slotsLeft = new Set(emptyAspects.map((_, i) => i));
   const photosLeft = new Set(Array.from({ length: w }, (_, i) => i));
   const out: { slot: number; queueIdx: number }[] = [];
@@ -118,8 +143,7 @@ export function pickFillers(
     let bf = -Infinity;
     for (const s of slotsLeft) {
       for (const p of photosLeft) {
-        // 줄 앞쪽 사진을 아주 조금 더 쳐줘요(같은 점수면 앞선 사진, 멀리 있는 사진을 끌어오는 건 이득이 클 때만)
-        const f = visibleFraction(queueAspects[p], emptyAspects[s]) - p * 0.002;
+        const f = score(s, p);
         if (f > bf + 1e-9) { bf = f; bs = s; bp = p; }
       }
     }
