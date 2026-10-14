@@ -9194,14 +9194,14 @@ const ImageBoxOverlay = forwardRef<
               // 스티커에는 안 보여요(mediaKind==="sticker"면 StackOrderToolbar가 알아서
               // 뺌) — 그래서 스티커일 땐 undefined를 넘겨도 안전해요.
               onUpload={!isSticker && !box.url ? () => emptyFrameFileInputRef.current?.click() : undefined}
-              onFit={isSticker || !box.url ? undefined : handleResetPhotoPosition}
-              onZoomIn={!isSticker && !box.url ? undefined : () => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
-              onZoomOut={!isSticker && !box.url ? undefined : () => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
+              onFit={isSticker ? undefined : handleResetPhotoPosition}
+              onZoomIn={() => (isSticker ? handleStickerScale(1.1) : handleZoom(0.1))}
+              onZoomOut={() => (isSticker ? handleStickerScale(0.9) : handleZoom(-0.1))}
               rotation={box.rotation ?? 0}
               onRotationChange={(deg) => onChange({ rotation: deg })}
               onFlip={() => onChange({ flipX: !box.flipX })}
               editActive={photoEditMode}
-              onToggleEdit={isSticker || !box.url ? undefined : () => setPhotoEditMode((v) => !v)}
+              onToggleEdit={isSticker ? undefined : () => setPhotoEditMode((v) => !v)}
               opacity={box.opacity ?? 1}
               onOpacityChange={(v) => onChange({ opacity: v })}
               borderWidthPx={box.borderWidthPx ?? 0}
