@@ -222,13 +222,20 @@ function fitDeficit(id: string, input: SpreadPlanInput, designs: InnerDesign[]):
   fitCache.set(key, out);
   return out;
 }
-function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId, fitWeight: number = FIT_WEIGHT): number {
+// (37차) 책 전체로 사진보다 칸이 많으면(24장 책은 칸이 28~30개라 4~6칸이 비어 '다음'이 막혔어요) 칸이 적은 디자인을 더 쳐줘요.
+// 앞 펼침면들까지의 "칸 − 사진" 누적(slack)이 0을 넘어 늘어나는 만큼만 한 칸당 SPARE_EXTRA를 벌점으로 더해요(줄어들면 같은 만큼 덜어 줘요).
+// 누적이 0 이하면(앞에서 칸이 모자라 밀려난 사진이 뒤 펼침면의 빈 칸을 기다리는 중이면) 칸이 남아도 벌점이 없어요 → 사진이 목록으로 쫓겨나는 일을 늘리지 않아요.
+// 사진 모양(aspects)을 받는 입력일 때만 켜져요: aspects가 없는 입력은 예전과 똑같은 계획이고, 칸이 사진보다 안 많은 책에서는 벌점이 거의 안 붙어요.
+export const SPARE_EXTRA = 2.5;
+function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId, fitWeight: number = FIT_WEIGHT, spareExtra: number = SPARE_EXTRA, slackBefore: number = 0): number {
   const s = sideSlots(id, designs);
   const slots = (input.printedLeft ? s.left : 0) + s.right;
   const lack = Math.max(0, input.photos - slots);
   const spare = input.photos > 0 ? Math.max(0, slots - input.photos) : 0;
   const d = designs.find((x) => x.id === id);
-  return lack * LACK_COST + spare * SPARE_COST + (used.get(id) ?? 0) * REUSE_COST + fitPenalty(d ? rankFor(occasion, d) : 2) + (fitWeight > 0 ? fitWeight * fitDeficit(id, input, designs) : 0);
+  const slackAfter = slackBefore + slots - input.photos;
+  const budget = input.aspects && spareExtra > 0 ? spareExtra * (Math.max(0, slackAfter) - Math.max(0, slackBefore)) : 0;
+  return lack * LACK_COST + spare * SPARE_COST + budget + (used.get(id) ?? 0) * REUSE_COST + fitPenalty(d ? rankFor(occasion, d) : 2) + (fitWeight > 0 ? fitWeight * fitDeficit(id, input, designs) : 0);
 }
 
 // 한 앨범의 펼침면마다 어떤 내지 디자인을 쓸지 정해요(항상 같은 입력 → 같은 결과).
@@ -270,15 +277,15 @@ export function balanceSpreadPhotos(set: AlbumThemeSet, spreads: SpreadPlanInput
   return spreads.map((s, i) => ({ ...s, photos: count[i] }));
 }
 
-export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS, fitWeight: number = FIT_WEIGHT): string[] {
+export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS, fitWeight: number = FIT_WEIGHT, spareExtra: number = SPARE_EXTRA): string[] {
   const spreads = balanceSpreadPhotos(set, spreadsIn, designs);
   const n = spreads.length;
   const plan: string[] = [];
-  const pickBest = (cands: string[], input: SpreadPlanInput, used: Map<string, number>) => {
+  const pickBest = (cands: string[], input: SpreadPlanInput, used: Map<string, number>, slack: number = 0) => {
     let best = cands[0];
     let bc = Infinity;
     for (const id of cands) {
-      const c = costOf(id, input, used, designs, set.occasion, fitWeight);
+      const c = costOf(id, input, used, designs, set.occasion, fitWeight, spareExtra, slack);
       if (c < bc - 1e-9) {
         bc = c;
         best = id;
@@ -309,6 +316,7 @@ export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[],
   };
   middle.sort((a, b) => rankOf(a) - rankOf(b));
   const used = new Map<string, number>();
+  let slack = 0; // 앞 펼침면들의 (칸 − 사진) 누적
   spreads.forEach((input, i) => {
     let chosen: string;
     if (i === 0) chosen = openId!;
@@ -317,9 +325,13 @@ export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[],
       const prev = plan[i - 1];
       let cands = middle.filter((id) => !sameComposition(id, prev, designs));
       if (cands.length === 0) cands = middle.length ? middle : set.roles.photo;
-      chosen = pickBest(cands, input, used);
+      chosen = pickBest(cands, input, used, slack);
     }
     plan.push(chosen);
+    {
+      const sd = sideSlots(chosen, designs);
+      slack += (input.printedLeft ? sd.left : 0) + sd.right - input.photos;
+    }
     used.set(chosen, (used.get(chosen) ?? 0) + 1);
   });
   return plan;
