@@ -15411,7 +15411,7 @@ function UploadPageContent() {
     return bookSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0, aspects: printedPhotoAspectsOnSpread(i) }));
   }
   // (36차) 펼침면의 "인쇄되는 면" 사진들의 가로/세로 비를 읽는 순서대로(적용 때 칸에 들어가는 순서와 같아요, 모르는 사진은 null).
-  // 계획(planAlbumInner)이 이 모양을 보고 칸에 잘 맞는 디자인을 우선해요. 사진이 다른 펼침면으로 나눠 옮겨지는 경우는 계획 쪽 규칙(앞쪽 장수만 쓰고 나머지는 모름)을 따라요.
+  // 계획(planAlbumInner, 38차)이 이 모양을 보고 책 전체를 흉내 내서(칸에 넘친 사진은 책 전체 빈 칸에 짝지어지는 것까지) 사진이 덜 잘리는 디자인을 우선해요. 미리보기와 적용이 같은 입력·같은 함수를 써요.
   function printedPhotoAspectsOnSpread(spreadIndex: number): (number | null)[] {
     const sp = customSpreads[spreadIndex];
     if (!sp) return [];
