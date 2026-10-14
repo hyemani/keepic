@@ -191,7 +191,7 @@ import { findEmptyPhotoSlots, type EmptySlotGroup } from "@/lib/emptyPhotoSlots"
 import { cleanEmptySlotsOnCover, cleanEmptySlotsOnSpread } from "@/lib/emptySlotCleanup";
 import { EmptySlotDialog } from "./emptySlotDialog";
 import { refillEmptySlots } from "@/lib/photoRefill";
-import { fitBoxesToSlots } from "@/lib/photoSlotFit";
+import { fitBoxesToSlots, photoAspectOfBox } from "@/lib/photoSlotFit";
 import { albumThemeSetsFor, findAlbumThemeSet, planAlbumInner, type AlbumThemeSet } from "@/lib/designThemeSets";
 import { BackgroundPanel } from "./backgroundPanel";
 import {
@@ -15408,7 +15408,19 @@ function UploadPageContent() {
   // 디자인 패널 맨 위 "앨범 테마" 카드 데이터 — 표지 앞면 한 장을 같은 그리기 함수로 미리보기해요.
   // 펼침면마다 "인쇄되는 면"의 사진 수 — 적용(applyAlbumDesignTheme)과 카드 미리보기가 똑같이 이 값으로 디자인을 정해요.
   function albumPlanInputs() {
-    return bookSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0 }));
+    return bookSpreads.map((_, i) => ({ photos: countPrintedPhotosOnSpread(i), printedLeft: i !== 0, aspects: printedPhotoAspectsOnSpread(i) }));
+  }
+  // (36차) 펼침면의 "인쇄되는 면" 사진들의 가로/세로 비를 읽는 순서대로(적용 때 칸에 들어가는 순서와 같아요, 모르는 사진은 null).
+  // 계획(planAlbumInner)이 이 모양을 보고 칸에 잘 맞는 디자인을 우선해요. 사진이 다른 펼침면으로 나눠 옮겨지는 경우는 계획 쪽 규칙(앞쪽 장수만 쓰고 나머지는 모름)을 따라요.
+  function printedPhotoAspectsOnSpread(spreadIndex: number): (number | null)[] {
+    const sp = customSpreads[spreadIndex];
+    if (!sp) return [];
+    const sides: ("left" | "right")[] = spreadIndex === 0 ? ["right"] : ["left", "right"];
+    const boxes = (sp.imageBoxes ?? []).filter((b) => !isStickerImageBox(b) && b.url && sides.includes(imageBoxSide(b)));
+    const byId = new Map(boxes.map((b) => [b.id, b] as const));
+    const ordered = getSpreadImageBoxOrder(sp).map((id) => byId.get(id)).filter((b): b is ImageBoxDef => !!b);
+    const rest = boxes.filter((b) => !ordered.includes(b));
+    return [...ordered, ...rest].map((b) => photoAspectOfBox(b));
   }
   function buildAlbumThemeProps(): AlbumThemeProps {
     const dims = computeCoverDesignDims();
