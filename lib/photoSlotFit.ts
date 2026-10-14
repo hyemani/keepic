@@ -88,6 +88,17 @@ export function assignPhotosToSlots(photoAspects: readonly (number | null)[], sl
   return bestOut;
 }
 
+// 사진 n장(읽는 순서)을 칸 n개에 위 규칙(assignPhotosToSlots)대로 넣었을 때 "보이는 비율"의 평균(0~1). 앨범 테마 계획(lib/designThemeSets.ts)이
+// 디자인을 고를 때 쓰고, 실제 적용도 같은 함수로 배정하니까 계획과 적용이 같은 기준이에요. 사진 크기를 하나도 모르면 null(= 비교할 근거 없음).
+export function bestFitAverage(photoAspects: readonly (number | null)[], slotAspects: readonly (number | null)[]): number | null {
+  const n = Math.min(photoAspects.length, slotAspects.length);
+  if (n === 0 || photoAspects.slice(0, n).every((a) => a === null)) return null;
+  const perm = assignPhotosToSlots(photoAspects.slice(0, n), slotAspects.slice(0, n));
+  let sum = 0;
+  for (let s = 0; s < n; s++) sum += visibleFraction(photoAspects[perm[s]], slotAspects[s]);
+  return sum / n;
+}
+
 // 빈 칸 채우기용: 줄 선 사진(읽는 순서) 앞쪽 window장 안에서 칸마다 가장 잘 맞는 사진을 골라요.
 // 가장 잘 맞는 (칸, 사진) 짝부터 하나씩 확정(동점이면 칸 앞선 쪽 → 줄 앞선 사진). 반환: [{ slot: 빈칸번호, queueIdx }]
 export function pickFillers(

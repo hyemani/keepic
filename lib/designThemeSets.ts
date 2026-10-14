@@ -14,6 +14,7 @@ import {
   type DesignThemeId,
   type InnerDesign,
 } from "./designTemplates";
+import { bestFitAverage } from "./photoSlotFit";
 
 export type InnerRole = "opening" | "photo" | "two" | "strip" | "collage" | "closing";
 export const MIDDLE_ROLES: InnerRole[] = ["photo", "two", "strip", "collage"];
@@ -125,6 +126,9 @@ export function findAlbumThemeSet(id: string | undefined | null): AlbumThemeSet 
 export type SpreadPlanInput = {
   photos: number; // 지금 이 펼침면의 "인쇄되는 면"에 있는 사진 수(스티커·빈 칸 제외)
   printedLeft: boolean; // 첫 펼침면의 왼쪽은 인쇄 안 되는 면이라 false
+  // (선택, 2026-10 36차) 이 펼침면에 "원래 있던" 사진들의 가로/세로 비(읽는 순서, 모르면 null). 없으면 사진 모양은 안 따지고 예전과 똑같이 계획해요.
+  // 사진이 다른 펼침면으로 나눠 옮겨져 장수가 바뀌어도(balanceSpreadPhotos) 이 목록의 앞쪽 장수만 쓰고, 목록보다 많은 장수는 "모름(중립)"으로 봐요.
+  aspects?: (number | null)[];
 };
 type SlotBox = { xPct: number; yPct: number; widthPct: number; heightPct: number };
 const slotGeoCache = new Map<string, { left: SlotBox[]; right: SlotBox[] }>();
@@ -193,13 +197,35 @@ export function sameComposition(a: string, b: string, designs: InnerDesign[] = V
 const LACK_COST = 6;
 const SPARE_COST = 0.7;
 const REUSE_COST = 3.5;
-function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId): number {
+// 사진 모양이 칸 모양과 안 맞는 정도(0 = 전부 안 잘림). 이 디자인의 앞 n칸(n = min(사진 수, 칸 수))에 사진 n장을 lib/photoSlotFit.ts의 배정대로 넣었을 때
+// 보이는 비율 평균을 1에서 뺀 값이에요. 사진 모양을 하나도 모르면 0(예전과 똑같은 계획). 같은 입력은 같은 값이라 캐시해요.
+export const FIT_WEIGHT = 0; // 칸 모양 맞춤 가중치(36차에서 측정해 정함)
+const fitCache = new Map<string, number>();
+function fitDeficit(id: string, input: SpreadPlanInput, designs: InnerDesign[]): number {
+  const asp = input.aspects;
+  if (!asp || asp.length === 0) return 0;
+  const v = slotGeo(id, designs);
+  const slots = [...(input.printedLeft ? v.left : []), ...v.right];
+  const n = Math.min(input.photos, slots.length);
+  if (n === 0) return 0;
+  const photos = Array.from({ length: n }, (_, i) => (typeof asp[i] === "number" && asp[i]! > 0 ? asp[i]! : null));
+  const key = `${id}|${input.printedLeft ? 1 : 0}|${photos.map((a) => (a === null ? "-" : a.toFixed(3))).join(",")}`;
+  const hit = fitCache.get(key);
+  if (hit !== undefined) return hit;
+  // 칸 모양 = 쪽이 정사각형이라 칸의 가로%/세로%가 곧 가로/세로 비예요
+  const avg = bestFitAverage(photos, slots.slice(0, n).map((s) => (s.widthPct > 0 && s.heightPct > 0 ? s.widthPct / s.heightPct : null)));
+  const out = avg === null ? 0 : 1 - avg;
+  if (fitCache.size > 20000) fitCache.clear();
+  fitCache.set(key, out);
+  return out;
+}
+function costOf(id: string, input: SpreadPlanInput, used: Map<string, number>, designs: InnerDesign[], occasion: DesignThemeId, fitWeight: number = FIT_WEIGHT): number {
   const s = sideSlots(id, designs);
   const slots = (input.printedLeft ? s.left : 0) + s.right;
   const lack = Math.max(0, input.photos - slots);
   const spare = input.photos > 0 ? Math.max(0, slots - input.photos) : 0;
   const d = designs.find((x) => x.id === id);
-  return lack * LACK_COST + spare * SPARE_COST + (used.get(id) ?? 0) * REUSE_COST + fitPenalty(d ? rankFor(occasion, d) : 2);
+  return lack * LACK_COST + spare * SPARE_COST + (used.get(id) ?? 0) * REUSE_COST + fitPenalty(d ? rankFor(occasion, d) : 2) + (fitWeight > 0 ? fitWeight * fitDeficit(id, input, designs) : 0);
 }
 
 // 한 앨범의 펼침면마다 어떤 내지 디자인을 쓸지 정해요(항상 같은 입력 → 같은 결과).
@@ -241,7 +267,7 @@ export function balanceSpreadPhotos(set: AlbumThemeSet, spreads: SpreadPlanInput
   return spreads.map((s, i) => ({ ...s, photos: count[i] }));
 }
 
-export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS): string[] {
+export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[], designs: InnerDesign[] = VISIBLE_INNER_DESIGNS, fitWeight: number = FIT_WEIGHT): string[] {
   const spreads = balanceSpreadPhotos(set, spreadsIn, designs);
   const n = spreads.length;
   const plan: string[] = [];
@@ -249,7 +275,7 @@ export function planAlbumInner(set: AlbumThemeSet, spreadsIn: SpreadPlanInput[],
     let best = cands[0];
     let bc = Infinity;
     for (const id of cands) {
-      const c = costOf(id, input, used, designs, set.occasion);
+      const c = costOf(id, input, used, designs, set.occasion, fitWeight);
       if (c < bc - 1e-9) {
         bc = c;
         best = id;
