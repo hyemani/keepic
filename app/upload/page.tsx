@@ -135,6 +135,9 @@ import {
   type ReplaceLibraryPhoto,
 } from "./photoEditPanels";
 import { PrimaryFileButton } from "./primaryActionButton";
+import { LibraryDragController, libraryPhotoDragProps, type LibraryDropResult } from "./libraryDrag";
+import { chooseLibraryTarget, libraryHintOf, parseCanvasId, type LibraryClickTarget, type LibraryHint, type SlotScope } from "@/lib/librarySlotTarget";
+import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
 import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
 import {
   PhotoLayoutTemplate,
@@ -7522,6 +7525,8 @@ function ImageBoxPanel({
   fullPhotoManager,
   libraryPhotos,
   onAddLibraryPhoto,
+  libraryHint,
+  usedUrls,
   lowResMinPx,
 }: {
   // 사진박스를 선택하고 사진 위치 조정 모드(더블클릭)에도 들어가 있는지 — 이때만
@@ -7548,6 +7553,9 @@ function ImageBoxPanel({
   // "사진 추가" 탭의 사진 보관함(이미 올린 사진) 썸네일과, 누르면 새 사진 칸으로 추가하는 동작.
   libraryPhotos?: ReplaceLibraryPhoto[];
   onAddLibraryPhoto?: (photo: ReplaceLibraryPhoto) => void;
+  // (41차) 지금 사진을 누르면 어떻게 되는지(선택한 빈 칸에 넣기 / 선택한 사진 바꾸기 / 빈 칸에 차례로 / 새 칸 추가)와 책에서 이미 쓰는 사진 주소들.
+  libraryHint?: LibraryHint;
+  usedUrls?: ReadonlySet<string>;
   // 올린 사진 목록에서 "저해상도" 표시를 할 기준(짧은 변 px) — 없으면 표시하지 않아요.
   lowResMinPx?: number;
 }) {
@@ -7940,8 +7948,14 @@ function ImageBoxPanel({
                           <span className="font-normal text-[var(--color-charcoal)]/50">({lib.length}장)</span>
                         </p>
                         {lib.length > 0 && (
-                          <p className="mb-1.5 text-[10px] text-[var(--color-charcoal)]/50 break-keep">
-                            누르면 새 사진 칸으로 추가돼요
+                          <p data-library-hint={libraryHint ?? "add"} className={`mb-1.5 text-[10px] break-keep ${libraryHint === "insert" || libraryHint === "replace" ? "font-medium text-[var(--color-sky)]" : "text-[var(--color-charcoal)]/50"}`}>
+                            {libraryHint === "insert"
+                              ? "누르면 선택한 빈 칸에 들어가요 (끌어다 놓아도 돼요)"
+                              : libraryHint === "replace"
+                                ? "누르면 선택한 사진이 이 사진으로 바뀌어요 (끌어다 놓아도 돼요)"
+                                : libraryHint === "fill"
+                                  ? "누르면 이 쪽의 빈 칸에 차례로 들어가요 (끌어다 놓아도 돼요)"
+                                  : "누르면 새 사진 칸으로 추가돼요 (끌어다 놓아도 돼요)"}
                           </p>
                         )}
                         {lowCount > 0 && (
@@ -7961,13 +7975,35 @@ function ImageBoxPanel({
                                 <div
                                   key={lp.url}
                                   data-library-photo-cell
-                                  className="group relative aspect-square overflow-hidden rounded-sm border border-[var(--color-hairline)] bg-[var(--color-ivory)] transition focus-within:border-[var(--color-sky)] hover:border-[var(--color-sky)]"
+                                  data-library-used={usedUrls?.has(lp.url) ? "1" : undefined}
+                                  {...libraryPhotoDragProps(lp)}
+                                  className={`group relative aspect-square overflow-hidden rounded-sm border bg-[var(--color-ivory)] transition focus-within:border-[var(--color-sky)] hover:border-[var(--color-sky)] ${
+                                    libraryHint === "insert" || libraryHint === "replace"
+                                      ? "border-[var(--color-sky)] ring-1 ring-[var(--color-sky)]/60"
+                                      : "border-[var(--color-hairline)]"
+                                  }`}
                                 >
                                   <button
                                     type="button"
                                     data-library-photo
-                                    title={`올린 사진 ${li + 1}번 — 누르면 사진 칸으로 추가`}
-                                    aria-label={`올린 사진 ${li + 1}번 추가`}
+                                    title={
+                                      libraryHint === "insert"
+                                        ? `올린 사진 ${li + 1}번 — 누르면 선택한 빈 칸에 들어가요`
+                                        : libraryHint === "replace"
+                                          ? `올린 사진 ${li + 1}번 — 누르면 선택한 사진이 바뀌어요`
+                                          : libraryHint === "fill"
+                                            ? `올린 사진 ${li + 1}번 — 누르면 빈 칸에 들어가요`
+                                            : `올린 사진 ${li + 1}번 — 누르면 사진 칸으로 추가`
+                                    }
+                                    aria-label={
+                                      libraryHint === "insert"
+                                        ? `올린 사진 ${li + 1}번을 선택한 빈 칸에 넣기`
+                                        : libraryHint === "replace"
+                                          ? `올린 사진 ${li + 1}번으로 선택한 사진 바꾸기`
+                                          : libraryHint === "fill"
+                                            ? `올린 사진 ${li + 1}번을 빈 칸에 넣기`
+                                            : `올린 사진 ${li + 1}번 추가`
+                                    }
                                     onClick={() => onAddLibraryPhoto(lp)}
                                     className="absolute inset-0 block h-full w-full"
                                   >
@@ -7984,6 +8020,15 @@ function ImageBoxPanel({
                                       className="pointer-events-none absolute bottom-0.5 left-0.5 bg-red-500/90 px-1 py-px text-[9px] font-medium leading-tight text-white"
                                     >
                                       저해상도
+                                    </span>
+                                  )}
+                                  {usedUrls?.has(lp.url) && (
+                                    <span
+                                      data-used-badge
+                                      title="이 사진은 책에 이미 쓰였어요"
+                                      className="pointer-events-none absolute bottom-0.5 right-0.5 bg-[var(--color-sky)]/90 px-1 py-px text-[9px] font-medium leading-tight text-white"
+                                    >
+                                      사용 중
                                     </span>
                                   )}
                                   {orderIndex >= 0 && (
@@ -8758,6 +8803,7 @@ const ImageBoxOverlay = forwardRef<
   return (
     <div
       ref={boxRef}
+      data-image-box-id={box.id}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       // 2026-09-28, 혜민님 요청(스위트북 비교, "점선이 위로 보여야"): 예전엔 일반
@@ -14020,7 +14066,7 @@ function UploadPageContent() {
 
   // 사진 파일이든 스티커든 결국 "이미지박스 하나 추가"라 로직을 공유해요 — url과
   // 기본 크기(widthPct)만 다르게 넘겨요.
-  function handleAddImageBoxFromUrl(spreadIndex: number, url: string, widthPct: number, kind?: "photo" | "sticker") {
+  function handleAddImageBoxFromUrl(spreadIndex: number, url: string, widthPct: number, kind?: "photo" | "sticker", dropAt?: { xPct: number; yPct: number }) {
     const img = new window.Image();
     img.onload = () => {
       // 스프레드 전체 폭이 페이지(정사각형) 두 배라서, 가로 %와 세로 %의 실제 축척이
@@ -14036,18 +14082,24 @@ function UploadPageContent() {
       // 페이지(1페이지) 안쪽에만 들어오도록 기본 위치를 오른쪽 절반(50~100%)으로 옮겨요.
       // 다른 스프레드는 기존처럼 펼침면 정중앙에 걸치도록 둬요.
       // 소개 페이지는 인쇄되는 왼쪽 낱장(0~50%) 안에서, 접히는 쪽(오른쪽)에서 떨어뜨려 가운데에 놓아요.
-      const xPct = customSpreads[spreadIndex]?.intro
+      let xPct = customSpreads[spreadIndex]?.intro
         ? Math.max(6, Math.min(44 - widthPct, (44 - widthPct) / 2))
         : spreadIndex === 0
           ? Math.max(50, 100 - widthPct - 7)
           : 32;
-      const yPct = 25;
+      let yPct = 25;
+      // (41차) 사진 목록에서 끌어다 빈 캔버스에 놓았으면 놓은 점이 박스 가운데가 되게 해요(인쇄 안 되는 면이면 아래에서 인쇄되는 면 안으로 당겨요).
+      if (dropAt) {
+        const c = centerBoxAt(dropAt.xPct, dropAt.yPct, widthPct, heightPct);
+        xPct = c.xPct;
+        yPct = c.yPct;
+      }
       // 새로 만들 때는 박스(틀) 크기 자체가 이미 사진 비율과 정확히 일치하도록 계산했으니
       // (heightPct 계산식 참고), 확대/위치는 기본값(꽉 채움, 이동 없음)으로 시작해요 —
       // 이후 박스 크기를 자유롭게 조절해도 사진은 항상 박스를 빈틈없이 꽉 채워요
       // ("이미지를 불러올 때 꽉 채워지는 비율이 기본", 2026-09-22 확인).
       const spreadForZ = customSpreads[spreadIndex];
-      const box: ImageBoxDef = {
+      const rawBox: ImageBoxDef = {
         id: crypto.randomUUID(),
         url,
         naturalWidth,
@@ -14065,6 +14117,7 @@ function UploadPageContent() {
           [...(spreadForZ?.textBoxesLeft ?? []), ...(spreadForZ?.textBoxesRight ?? [])]
         ),
       };
+      const box: ImageBoxDef = dropAt ? pullBoxIntoPrinted(spreadIndex, spreadForZ, rawBox) : rawBox;
       setCustomSpreads((prev) =>
         prev.map((s, i) =>
           i === spreadIndex
@@ -14139,7 +14192,7 @@ function UploadPageContent() {
   // "표지에 스티커패널이 없어졌어요" 요청으로 새로 추가). 레이아웃 탭에서 이미 사진을
   // 여러 장 배치 중이 아니어도(=배열이 비어 기존 coverPhoto/backCoverPhoto 1장 방식이어도)
   // 스티커는 항상 이 배열에 더해요 — 스티커는 원래도 "여러 장 배치" 개념과 무관해요.
-  function handleAddCoverImageBoxFromUrl(target: "front" | "back", url: string, widthPct: number, kind?: "photo" | "sticker") {
+  function handleAddCoverImageBoxFromUrl(target: "front" | "back", url: string, widthPct: number, kind?: "photo" | "sticker", dropAt?: { xPct: number; yPct: number }) {
     const img = new window.Image();
     img.onload = () => {
       const naturalWidth = img.naturalWidth || 1;
@@ -14147,8 +14200,13 @@ function UploadPageContent() {
       // 표지 앞/뒤 패널은 스프레드와 달리 세로:가로가 거의 1:1이라(정사각형 판형), 내지처럼
       // 2배 축척 보정을 하지 않고 패널 기준 %를 그대로 써요.
       const heightPct = widthPct * (naturalHeight / naturalWidth);
-      const xPct = Math.max(0, (100 - widthPct) / 2);
-      const yPct = 25;
+      let xPct = Math.max(0, (100 - widthPct) / 2);
+      let yPct = 25;
+      if (dropAt) {
+        const c = centerBoxAt(dropAt.xPct, dropAt.yPct, widthPct, heightPct);
+        xPct = c.xPct;
+        yPct = c.yPct;
+      }
       const box: ImageBoxDef = {
         id: crypto.randomUUID(),
         url,
@@ -15020,25 +15078,13 @@ function UploadPageContent() {
     return { url, width: dims.w, height: dims.h };
   }
 
-  function applyPhotoReplace(boxId: string, photo: ReplaceLibraryPhoto) {
+  // 칸 좌표계 전체의 가로/세로 비 — 기본 자르기 위치(세로 사진의 위쪽 1/3 맞춤)를 계산하는 데 써요. 펼침면은 2, 표지 한 쪽은 렌더 쪽에서 정확한 값을 넘겨줘요(없으면 ≈1).
+  function commitPhotoToBox(boxId: string, photo: ReplaceLibraryPhoto, frameAspect?: number): ImageBoxDef | null {
     const found = findImageBoxById(boxId);
-    setPhotoReplaceBoxId(null);
-    if (!found) return;
+    if (!found) return null;
     const width = photo.width || 1;
     const height = photo.height || 1;
-    const patch: Partial<ImageBoxDef> = {
-      url: photo.url,
-      naturalWidth: width,
-      naturalHeight: height,
-      innerOffsetXPct: 0,
-      innerOffsetYPct: 0,
-      innerScale: 1,
-      flipX: undefined,
-      flipY: undefined,
-      photoRotation: undefined,
-      photoFilter: undefined,
-      photoAdjust: undefined,
-    };
+    const patch: Partial<ImageBoxDef> = slotPhotoPatch(photo, found.box, frameAspect ?? (found.scope === "front" || found.scope === "back" ? 1 : 2));
     if (found.scope === "front") {
       handleCoverImageBoxChange(boxId, patch);
       // 앞표지 첫 칸의 사진은 "마지막 소개 페이지" 미리보기·인쇄가 쓰는 coverPhoto 와 짝이라 같이 맞춰요.
@@ -15053,6 +15099,64 @@ function UploadPageContent() {
     } else {
       handleImageBoxChange(found.scope, boxId, patch);
     }
+    return found.box;
+  }
+
+  function applyPhotoReplace(boxId: string, photo: ReplaceLibraryPhoto) {
+    setPhotoReplaceBoxId(null);
+    commitPhotoToBox(boxId, photo);
+  }
+
+  // (41차) 사진 목록의 사진을 칸에 직접 넣기/바꾸기 — 한 번의 상태 묶음이라 실행취소 한 번이에요. 끝나면 그 칸을 선택해 둬서 바로 자르기·확대를 만질 수 있어요.
+  function applyLibraryPhotoToSlot(scope: SlotScope, boxId: string, photo: ReplaceLibraryPhoto, frameAspect?: number) {
+    const box = commitPhotoToBox(boxId, photo, frameAspect);
+    if (!box) return;
+    if (scope === "front" || scope === "back") selectCoverImageBox(scope, boxId);
+    else selectImageBox(scope, boxId);
+  }
+
+  // 사진 목록에서 사진을 눌렀을 때 어느 칸에 넣을지(규칙은 lib/librarySlotTarget.ts 맨 위 설명). 지금 보는 펼침면/표지 안에서만 골라요.
+  function libraryTargetForSpread(i: number): LibraryClickTarget {
+    return chooseLibraryTarget(
+      { type: "spread", index: i, spread: customSpreads[i] },
+      activeImageBox && activeImageBox.spreadIndex === i ? { scope: i, boxId: activeImageBox.boxId } : null,
+      { multiSelected: multiImageSelection?.spreadIndex === i && multiImageSelection.boxIds.length > 1 }
+    );
+  }
+  function libraryTargetForCover(): LibraryClickTarget {
+    return chooseLibraryTarget(
+      { type: "cover", front: coverImageBoxes, back: backCoverImageBoxes },
+      activeCoverImageBox ? { scope: activeCoverImageBox.target, boxId: activeCoverImageBox.boxId } : null
+    );
+  }
+  function handleLibraryPhotoClickSpread(i: number, lp: ReplaceLibraryPhoto) {
+    const t = libraryTargetForSpread(i);
+    if (t.kind === "add") handleAddImageBoxFromUrl(i, lp.url, 36, "photo");
+    else applyLibraryPhotoToSlot(t.scope, t.boxId, lp);
+  }
+  function handleLibraryPhotoClickCover(lp: ReplaceLibraryPhoto, aspects: { front: number; back: number }) {
+    const t = libraryTargetForCover();
+    if (t.kind === "add") handleAddCoverImageBoxFromUrl("front", lp.url, 36, "photo");
+    else applyLibraryPhotoToSlot(t.scope, t.boxId, lp, t.scope === "back" ? aspects.back : aspects.front);
+  }
+  // 책 안(표지·내지)의 사진 칸이 쓰는 사진 주소 모음 — 사진 목록의 "사용 중" 표시에 써요.
+  function usedPhotoUrls(): Set<string> {
+    return new Set(
+      [...coverImageBoxes, ...backCoverImageBoxes, ...customSpreads.flatMap((sp) => sp.imageBoxes ?? [])]
+        .filter(isRealPhotoBox)
+        .map((b) => b.url)
+    );
+  }
+  function handleLibraryDrop(photo: ReplaceLibraryPhoto, r: LibraryDropResult, aspects: { front: number; back: number }) {
+    if (r.kind === "add") {
+      const c = parseCanvasId(r.canvas);
+      if (!c) return;
+      const at = { xPct: r.xPct, yPct: r.yPct };
+      if (c.type === "spread") handleAddImageBoxFromUrl(c.index, photo.url, 36, "photo", at);
+      else handleAddCoverImageBoxFromUrl(c.side, photo.url, 36, "photo", at);
+      return;
+    }
+    applyLibraryPhotoToSlot(r.scope, r.boxId, photo, r.scope === "back" ? aspects.back : r.scope === "front" ? aspects.front : undefined);
   }
 
   function handleDeleteCoverImageBox(boxId: string) {
@@ -18437,7 +18541,14 @@ function UploadPageContent() {
                               }
                               onAddPhotoFile={(e) => handleAddCoverPhotoBoxFromFile("front", e)}
                               libraryPhotos={buildReplaceLibrary()}
-                              onAddLibraryPhoto={(lp) => handleAddCoverImageBoxFromUrl("front", lp.url, 36, "photo")}
+                              onAddLibraryPhoto={(lp) =>
+                                handleLibraryPhotoClickCover(lp, {
+                                  front: ((coverFrontPct / 100) * coverTotalWmm) / coverTotalHmm,
+                                  back: ((coverBackPct / 100) * coverTotalWmm) / coverTotalHmm,
+                                })
+                              }
+                              libraryHint={libraryHintOf(libraryTargetForCover())}
+                              usedUrls={usedPhotoUrls()}
                               lowResMinPx={requiredMinPx / 2}
                             />
                           )}
@@ -18763,6 +18874,7 @@ function UploadPageContent() {
                           style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size", ["--page-w" as string]: `${coverBackPct}cqw`, textRendering: "geometricPrecision", WebkitTextSizeAdjust: "none" }}
                         >
                           <div
+                            data-lib-canvas="cover:back"
                             className={`group relative flex h-full items-center justify-center ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                             style={{
                               width: `${coverBackPct}%`,
@@ -18939,6 +19051,7 @@ function UploadPageContent() {
                             )}
                           </div>
                           <div
+                            data-lib-canvas="cover:front"
                             className={`group relative h-full ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
                             style={{
                               width: `${coverFrontPct}%`,
@@ -19367,7 +19480,9 @@ function UploadPageContent() {
                                     e.target.value = "";
                                   }}
                                   libraryPhotos={buildReplaceLibrary()}
-                                  onAddLibraryPhoto={(lp) => handleAddImageBoxFromUrl(i, lp.url, 36, "photo")}
+                                  onAddLibraryPhoto={(lp) => handleLibraryPhotoClickSpread(i, lp)}
+                                  libraryHint={libraryHintOf(libraryTargetForSpread(i))}
+                                  usedUrls={usedPhotoUrls()}
                                   lowResMinPx={requiredMinPx / 2}
                                   fullPhotoManager={{
                                     photos,
@@ -19667,6 +19782,7 @@ function UploadPageContent() {
                                 )}
                             <div
                               data-spread-frame={i}
+                              data-lib-canvas={`spread:${i}`}
                               className={`group relative mt-3 flex w-full items-start bg-white ${
  isPrintPreview ? "" : ""
                               }`}
@@ -19964,6 +20080,19 @@ function UploadPageContent() {
             빈 껍데기가 차지한 만큼 높이를 못 받았던 거예요. 이제 경고 문구가 실제로
             보일 때만 이 섹션 자체를 렌더링해서, 평소엔 캔버스가 남은 세로 공간을 전부
             쓰게 했어요. */}
+        <LibraryDragController
+          enabled={editorMode === "edit" && !isPrintPreview}
+          resolveBox={(id) => {
+            const f = findImageBoxById(id);
+            return f ? { scope: f.scope, box: f.box } : null;
+          }}
+          onDropPhoto={(photo, r) =>
+            handleLibraryDrop(photo, r, {
+              front: ((coverFrontPct / 100) * coverTotalWmm) / coverTotalHmm,
+              back: ((coverBackPct / 100) * coverTotalWmm) / coverTotalHmm,
+            })
+          }
+        />
         {photoReplaceBoxId && findImageBoxById(photoReplaceBoxId) ? (
           <PhotoReplaceDialog
             library={buildReplaceLibrary()}
