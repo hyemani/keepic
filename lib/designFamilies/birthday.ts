@@ -358,13 +358,14 @@ export const BIRTHDAY_COVERS: CoverDesignDef[] = [
       };
     },
     back: (g) => {
+      // 책의 "끝"(END)은 맨 마지막 소개 페이지가 한 번만 말해요(designIntro.ts) — 뒤표지 띠에는 END를 다시 쓰지 않아요(예전 저장본은 저장된 글 그대로 열려요).
       const t = toolkit(g);
       return {
         bg: solid(C.lime),
         slots: [],
         texts: [
           t.text({ t: "SEE YOU\nNEXT PARTY", f: [0, 0.16, 1, 0.3], font: MZF.black, pt: 50, color: C.black, align: "center", lh: 1.05 }),
-          t.text({ t: "HBD ROLL 29  END", f: [0.2, 0.52, 0.6, 0.065], font: MZF.dh, pt: 14, color: C.lime, align: "center", va: "middle", bg: C.black, ls: 0.14 }),
+          t.text({ t: "HBD ROLL 29", f: [0.2, 0.52, 0.6, 0.065], font: MZF.dh, pt: 14, color: C.lime, align: "center", va: "middle", bg: C.black, ls: 0.14 }),
         ],
         stickers: [t.sticker(STK.shades, 0.16, 0.78, 44, -12), t.sticker(STK.bolt, 0.84, 0.74, 36, 12)],
       };
