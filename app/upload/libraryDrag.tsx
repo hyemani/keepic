@@ -76,13 +76,14 @@ export function resolveDropTarget(
 }
 
 const STYLE = `
-[data-lib-drop="insert"],[data-lib-drop="replace"]{outline-width:3px!important;outline-offset:-3px!important;z-index:60!important}
-[data-lib-drop="insert"]{outline-style:solid!important;outline-color:var(--color-sky,#3b82f6)!important}
-[data-lib-drop="replace"]{outline-style:dashed!important;outline-color:#d97706!important}
-[data-lib-drop="insert"]::after,[data-lib-drop="replace"]::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:61}
+[data-lib-drop]{transition:none!important}
+[data-lib-drop="insert"],[data-lib-drop="replace"]{z-index:99000!important}
+[data-lib-drop="insert"]::before,[data-lib-drop="replace"]::before,[data-lib-drop="insert"]::after,[data-lib-drop="replace"]::after{content:"";position:absolute;inset:0;pointer-events:none;box-sizing:border-box;z-index:99999}
+[data-lib-drop="insert"]::before{border:3px solid var(--color-sky,#3b82f6)}
+[data-lib-drop="replace"]::before{border:3px dashed #d97706}
 [data-lib-drop="insert"]::after{background:rgba(59,130,246,.16)}
 [data-lib-drop="replace"]::after{background:rgba(217,119,6,.2)}
-[data-lib-drop="add"]{outline:2px dashed var(--color-sky,#3b82f6)!important;outline-offset:-2px!important}
+[data-lib-drop="add"]::before{content:"";position:absolute;inset:0;pointer-events:none;box-sizing:border-box;border:2px dashed var(--color-sky,#3b82f6);z-index:100001}
 `;
 
 export function LibraryDragController({
