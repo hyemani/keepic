@@ -11848,30 +11848,98 @@ function EditCommandIcon({ name }: { name: EditCommandIconName }) {
   }
 }
 
+// 43차: 폭이 아주 좁으면(바 폭 520px 미만) 자주 안 쓰는 명령(복사·잘라내기·붙여넣기·중앙맞춤)을 "더보기"로 묶어요.
+// 평소 폭(태블릿·데스크톱)에서는 예전과 똑같이 전부 보여요. 터치 기기(좁은 화면·pointer: coarse)에서는 버튼을 44px 높이로 키워요.
+const EDIT_BAR_MORE_IDS = ["copy", "cut", "paste", "center"];
+const EDIT_BAR_BTN =
+  "flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent max-lg:h-11 max-lg:px-2.5 max-lg:text-xs [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-xs motion-reduce:transition-none";
+
 function EditCommandBar({ items }: { items: EditCommandItem[] }) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const update = () => setNarrow(el.clientWidth < 520);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!(e.target as HTMLElement | null)?.closest?.("[data-edit-bar-more]")) setMoreOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMoreOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
+  const showMore = narrow;
+  const inline = showMore ? items.filter((it) => !EDIT_BAR_MORE_IDS.includes(it.id)) : items;
+  const more = showMore ? items.filter((it) => EDIT_BAR_MORE_IDS.includes(it.id)) : [];
   return (
     <div
+      ref={barRef}
       role="toolbar"
       aria-label="편집 명령"
       data-testid="edit-command-bar"
       // 캔버스 바깥 영역의 mousedown(선택 해제)이 이 바에서는 일어나지 않게 막아요 — 안 그러면
       // 버튼을 누르기 직전에 선택이 풀려서 복사/잘라내기/중앙맞춤이 대상을 못 찾아요.
       onMouseDown={(e) => e.stopPropagation()}
-      className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 -ml-2"
+      className={`flex h-8 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 -ml-2 max-lg:h-12 [@media(pointer:coarse)]:h-12 ${
+        showMore ? "relative z-30 overflow-visible" : "overflow-x-auto"
+      }`}
     >
-      {items.map((it) => (
-        <button
-          key={it.id}
-          type="button"
-          title={it.title}
-          disabled={it.disabled}
-          onClick={it.onClick}
-          className="flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
-        >
+      {inline.map((it) => (
+        <button key={it.id} type="button" title={it.title} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
           <EditCommandIcon name={it.icon} />
           <span>{it.label}</span>
         </button>
       ))}
+      {more.length > 0 && (
+        <div data-edit-bar-more className="relative shrink-0">
+          <button
+            type="button"
+            title="더보기"
+            aria-haspopup="menu"
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((v) => !v)}
+            className={EDIT_BAR_BTN}
+          >
+            <span aria-hidden="true">⋯</span>
+            <span>더보기</span>
+          </button>
+          {moreOpen && (
+            <div role="menu" className="absolute right-0 top-full z-50 mt-0.5 flex min-w-[140px] flex-col border border-[var(--color-hairline)] bg-white py-1 shadow-lg">
+              {more.map((it) => (
+                <button
+                  key={it.id}
+                  type="button"
+                  role="menuitem"
+                  title={it.title}
+                  disabled={it.disabled}
+                  onClick={() => {
+                    it.onClick();
+                    setMoreOpen(false);
+                  }}
+                  className={`${EDIT_BAR_BTN} w-full justify-start`}
+                >
+                  <EditCommandIcon name={it.icon} />
+                  <span>{it.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -12114,20 +12182,14 @@ function CanvasStage({
   // 으로도 항상 최신 값으로 다시 계산되니 실질적으로 더 이상 필요 없어요(호출부 3곳을
   // 안 건드리려고 prop 자체는 그대로 남겨뒀어요).
   // 43차: 계산은 lib/canvasFit.ts로 옮겼어요. 실제로 잰 캔버스 영역(box)에서 맞춤 크기를 구하고, 실제 크기의 25% 밑으로는
-  // 내려가지 않아요(그보다 작게 맞춰야 하면 25%로 두고 스크롤/이동으로 봐요). 측정값이 비정상적으로 작은 순간(레이아웃이
-  // 아직 안 잡혔을 때 등)에는 직전 정상 값을 그대로 써서 1%로 떨어지지 않아요. 사용자가 직접 정한 배율(manualPct)은 이 값과
+  // 내려가지 않아요(그보다 작게 맞춰야 하면 25%로 두고 스크롤/이동으로 봐요). 사용자가 직접 정한 배율(manualPct)은 이 값과
   // 무관하게 유지돼요 — 맞춤(manualPct === null)일 때만 창 크기를 따라가요.
-  const lastGoodFitRef = useRef<{ w: number; h: number } | null>(null);
-  const fitInfo = useMemo(() => {
-    const f = computeCanvasFit({ boxW: box.w, boxH: box.h, aspect, widthMm, cssPxPerMm: CSS_PX_PER_MM, safetyPx: SAFETY_PX });
-    if (f && f.tiny && lastGoodFitRef.current) return { w: lastGoodFitRef.current.w, h: lastGoodFitRef.current.h, floored: false, tiny: true };
-    return f;
+  const fitInfo = useMemo(
+    () => computeCanvasFit({ boxW: box.w, boxH: box.h, aspect, widthMm, cssPxPerMm: CSS_PX_PER_MM, safetyPx: SAFETY_PX }),
     // fitToken은 계산에 안 쓰이지만 "화면에 맞추기" 버튼을 눌렀을 때 확실히 다시 평가되도록 의존성에 남겨둬요.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [box, aspect, widthMm, fitToken]);
-  useEffect(() => {
-    if (fitInfo && !fitInfo.tiny) lastGoodFitRef.current = { w: fitInfo.w, h: fitInfo.h };
-  }, [fitInfo]);
+    [box, aspect, widthMm, fitToken]
+  );
   const baseFit = fitInfo ? { w: fitInfo.w, h: fitInfo.h } : null;
   const fitFloored = !!fitInfo?.floored;
 

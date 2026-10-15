@@ -9,7 +9,7 @@
 export const FIT_SAFETY_PX = 10;
 /** 맞춤 크기가 이 값(실제 크기 대비 %)보다 작아지려 하면 이 값으로 두고, 넘치는 부분은 스크롤로 봐요. */
 export const FIT_MIN_ACTUAL_PCT = 25;
-/** 쓸 수 있는 공간이 이보다 작으면 "측정이 아직 덜 된 순간"으로 보고 직전 값을 써요(px). */
+/** 쓸 수 있는 공간이 이보다 작으면 tiny 표시만 해요(바닥값은 그래도 적용돼서 1%로 떨어지지 않아요)(px). */
 export const FIT_TINY_PX = 120;
 
 export type CanvasFit = {
@@ -17,7 +17,7 @@ export type CanvasFit = {
   h: number;
   /** 바닥값이 적용돼서 영역보다 커졌어요(스크롤로 이동). */
   floored: boolean;
-  /** 쓸 수 있는 공간이 비정상적으로 작아요(직전 정상 값을 대신 쓰세요). */
+  /** 쓸 수 있는 공간이 비정상적으로 작아요(참고용). */
   tiny: boolean;
 };
 
@@ -46,9 +46,9 @@ export function computeCanvasFit(opts: {
   }
   if (w <= 0 || h <= 0) return null;
   const tiny = availW < tinyPx || availH < tinyPx;
-  if (!tiny && widthMm && widthMm > 0) {
+  if (widthMm && widthMm > 0) {
     const floorW = (widthMm * cssPxPerMm * minPct) / 100;
-    if (w < floorW) return { w: floorW, h: floorW / aspect, floored: true, tiny: false };
+    if (w < floorW) return { w: floorW, h: floorW / aspect, floored: true, tiny };
   }
   return { w, h, floored: false, tiny };
 }
