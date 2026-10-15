@@ -12492,13 +12492,14 @@ function UploadPageContent() {
   // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트). 기존엔 하단에 고정이었는데,
   // 이제 텍스트박스처럼 끌어서 옮길 수 있어요 — 기본값은 예전 고정 위치(하단 중앙)와
   // 비슷한 자리예요.
-  const [coverTitleXPct, setCoverTitleXPct] = useState(8);
+  // 45차: 새 앨범 기본 제목 칸은 책등에서 28mm 밖에서 시작해요(예전 8% = M 기준 20mm라 책등 쪽 안전선에 붙었어요). 저장된 앨범은 자기 값을 그대로 읽어요.
+  const [coverTitleXPct, setCoverTitleXPct] = useState(11);
   const [coverTitleYPct, setCoverTitleYPct] = useState(84);
   // 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 선택 테두리의 손잡이를
   // 드래그해 크기를 조절") — 예전엔 84로 고정된 상수였는데, 이제 일반 글상자
   // (TextBoxDef.widthPct)와 똑같이 손잡이로 드래그해서 바꿀 수 있는 state예요. 기본값
   // 84는 예전 고정값 그대로라 불러온 프로젝트도 화면이 안 바뀌어요.
-  const [coverTitleWidthPct, setCoverTitleWidthPct] = useState(84);
+  const [coverTitleWidthPct, setCoverTitleWidthPct] = useState(81);
   // 표지 제목의 실제 "박스 높이"예요(일반 글상자의 heightPct와 같은 개념, 2026-10(7차)
   // 추가) — 없으면(undefined, 기존 그대로) 예전처럼 글자 양에 맞춰 세로가 자동으로
   // 늘어나고(줄바꿈만큼), 손잡이로 위/아래를 끌면 이 값이 생기면서부터 "고정 높이
