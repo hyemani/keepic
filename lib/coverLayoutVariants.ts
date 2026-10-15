@@ -2,15 +2,16 @@
 // "AI 맞춤 레이아웃"(lib/coverAutoLayout.ts)은 올린 사진을 보고 자동으로 하나를 고르고, 여기 있는 구성은 사용자가 직접 골라요 — 이미 직접 고친 표지는 어느 쪽도 덮어쓰지 않아요.
 //
 // 후보(앞표지 기준, 모두 "눈에 보이는 판"에서 mm로 여백을 맞춰요 — 판 크기(S/M/L·소프트/하드)가 달라도 좌우 여백이 같아요)
-//   전체 사진형   기존 "꽉 채우기"(half-1-fill)를 표지에서 이렇게 불러요 — 사진이 판 전체(도련까지)를 덮어요(책등 쪽 여백 0, 글·로고만 28mm 지켜요)
-//   여백형       cover-1-margin  접힘선에서 28mm, 재단선에서 28mm — 좌우 여백이 같은 한 장
-//   프레임형     cover-1-frame   여백형보다 더 안쪽 + 가는 테두리선이 있는 액자 느낌
+//   전체 사진형   기존 "꽉 채우기"(half-1-fill) — 예전과 똑같이 놓여요(재단선 쪽만 안전선으로 당기고 책등 쪽은 접힘선까지)
+//   여백형       cover-1-margin  접힘선에서 20mm, 재단선에서 20mm — 좌우 여백이 같은 한 장
+//   프레임형     cover-1-frame   여백형과 같은 좌우 여백 + 위아래를 더 두고 가는 테두리선이 있는 액자 느낌
 //   타이틀 중심형 cover-1-title   사진을 위쪽에 작게, 아래 40%를 제목 자리로 비워 둬요(제목 글상자는 안 만들어요 — 직접 쓰면 인쇄돼요)
-//   좌우 분할형   cover-2-split   두 장을 나란히(접힘선에서 22mm = 구성 사진 규칙, lib/coverSpine.ts)
-// 숫자(28·22mm 등)는 인쇄소 확인 전의 디자인 값이에요.
+//   좌우 분할형   cover-2-split   두 장을 나란히(접힘선에서 20mm)
+// 47차: 책등 쪽 여백은 원래 기준(접힘 안전 20mm)이에요. 28mm 실험은 되돌렸고(lib/coverSpine.ts), 예전부터 있던 레이아웃은 45차 이전과 똑같이(책등 쪽 보정 없이) 놓여요.
+// 숫자(20mm 등)는 인쇄소 확인 전의 디자인 값이에요.
 import type { LayoutSlot, PhotoLayoutTemplate } from "./photoLayoutTemplates";
 import { HALF_LAYOUT_TEMPLATES, LISTED_HALF_LAYOUT_TEMPLATES } from "./photoLayoutTemplates";
-import { clampSlotsToSpineClearance, clearanceFor, inferCoverPhotoRole, COVER_SPINE_CLEARANCE_MM, type CoverElementRole } from "./coverSpine";
+import { clearanceFor, inferCoverPhotoRole, COVER_SPINE_CLEARANCE_MM, type CoverElementRole } from "./coverSpine";
 
 const SAFE_EDGE_MM = 15; // 재단선 안쪽 안전 여백(= GUIDE_SAFETY_MARGIN_MM)
 
@@ -24,9 +25,9 @@ function mmSlot(d: Dims, x0: number, y0: number, x1: number, y1: number): Layout
 }
 const trimRight = (d: Dims) => d.panelMm; // = W - bleed : 재단선의 x 위치(판 왼쪽 끝=접힘선 기준)
 
-const MARGIN_MM = COVER_SPINE_CLEARANCE_MM; // 28
-const FRAME_MARGIN_MM = 32;
-const STRUCTURE_MM = clearanceFor("photo-structure"); // 22
+const MARGIN_MM = COVER_SPINE_CLEARANCE_MM; // 20 = 원래 기준(접힘 안전)
+const FRAME_MARGIN_MM = MARGIN_MM; // 프레임형도 접힘선에서 20mm(그 이상 안쪽으로 밀지 않아요) — 위아래 여백과 테두리선으로 여백형과 구분돼요
+const STRUCTURE_MM = clearanceFor("photo-structure"); // 20
 
 export const COVER_VARIANT_TEMPLATES: PhotoLayoutTemplate[] = [
   {
@@ -35,7 +36,7 @@ export const COVER_VARIANT_TEMPLATES: PhotoLayoutTemplate[] = [
     photoCount: 1,
     scope: "half",
     coverRole: "photo-hero",
-    slots: [{ xPct: 11, yPct: 11, widthPct: 76, heightPct: 67 }],
+    slots: [{ xPct: 7.84, yPct: 11.2, widthPct: 82.35, heightPct: 66.8 }],
     coverBuild: (d) => {
       const H = d.panelMm + d.bleedMm * 2;
       return [mmSlot(d, MARGIN_MM, d.bleedMm + 24, trimRight(d) - MARGIN_MM, H * 0.78)];
@@ -48,7 +49,7 @@ export const COVER_VARIANT_TEMPLATES: PhotoLayoutTemplate[] = [
     photoCount: 1,
     scope: "half",
     coverRole: "photo-hero",
-    slots: [{ xPct: 12.5, yPct: 14, widthPct: 72, heightPct: 62 }],
+    slots: [{ xPct: 7.84, yPct: 13.5, widthPct: 82.35, heightPct: 62.5 }],
     coverBuild: (d) => {
       const H = d.panelMm + d.bleedMm * 2;
       return [mmSlot(d, FRAME_MARGIN_MM, d.bleedMm + 30, trimRight(d) - FRAME_MARGIN_MM, H * 0.76)];
@@ -62,7 +63,7 @@ export const COVER_VARIANT_TEMPLATES: PhotoLayoutTemplate[] = [
     photoCount: 1,
     scope: "half",
     coverRole: "photo-hero",
-    slots: [{ xPct: 11, yPct: 9, widthPct: 76, heightPct: 48 }],
+    slots: [{ xPct: 7.84, yPct: 9.6, widthPct: 82.35, heightPct: 48.4 }],
     coverBuild: (d) => {
       const H = d.panelMm + d.bleedMm * 2;
       return [mmSlot(d, MARGIN_MM, d.bleedMm + 20, trimRight(d) - MARGIN_MM, H * 0.58)];
@@ -76,8 +77,8 @@ export const COVER_VARIANT_TEMPLATES: PhotoLayoutTemplate[] = [
     scope: "half",
     coverRole: "photo-structure",
     slots: [
-      { xPct: 8.6, yPct: 11, widthPct: 39, heightPct: 67 },
-      { xPct: 50.4, yPct: 11, widthPct: 39, heightPct: 67 },
+      { xPct: 7.84, yPct: 11.2, widthPct: 40.2, heightPct: 66.8 },
+      { xPct: 50, yPct: 11.2, widthPct: 40.2, heightPct: 66.8 },
     ],
     coverBuild: (d) => {
       const H = d.panelMm + d.bleedMm * 2;
@@ -104,7 +105,7 @@ export function findCoverTemplate(id: string | undefined): PhotoLayoutTemplate |
   return COVER_VARIANT_TEMPLATES.find((t) => t.id === id) ?? HALF_LAYOUT_TEMPLATES.find((t) => t.id === id);
 }
 
-/** 이 템플릿이 표지에서 쓰는 요소 종류(직접 정한 값 → 칸 모양 추측 → 모르면 undefined = 28mm). */
+/** 이 템플릿이 표지에서 쓰는 요소 종류(직접 정한 값 → 칸 모양 추측 → 모르면 undefined = 20mm). 47차: 값은 전부 원래 기준이라 배치에는 쓰이지 않고 검사·표시용이에요. */
 export function coverRoleOfTemplate(t: PhotoLayoutTemplate, override?: CoverElementRole): CoverElementRole | undefined {
   return override ?? t.coverRole ?? inferCoverPhotoRole(t.slots);
 }
@@ -114,22 +115,20 @@ function mirror(slots: LayoutSlot[]): LayoutSlot[] {
 }
 
 /**
- * 표지 판 하나(앞/뒤)에 레이아웃 칸이 실제로 놓일 자리(그 판 기준 %)예요.
- * 1) 재단선(트림) 쪽 가장자리에 닿은 변만 안전선(재단선 15mm 안)으로 당기고(전체 사진형은 건너뛰어요),
- * 2) 책등 쪽은 칸 묶음 전체를 같은 비율로 옮겨 접힘선에서 요소 종류별 최소 거리(clearanceFor)만큼 띄워요.
+ * 표지 판 하나(앞/뒤)에 레이아웃 칸이 실제로 놓일 자리(그 판 기준 %)예요 — 45차 이전(25ddee2)의 clampSlotToCoverSafety와 똑같이 계산해요.
+ *  · 재단선(트림) 쪽 가장자리에 닿은 변만 안전선(재단선 15mm 안)으로 당겨요. 이미 안쪽인 변은 그대로예요.
+ *  · 책등 쪽은 아무것도 하지 않아요(예전 그대로 — 28mm 보정은 47차에 되돌렸어요). 새 구성(여백형 등)은 만들 때부터 접힘선에서 20mm 안쪽이에요.
  * 화면 편집기·썸네일·적용이 모두 이 함수를 써요.
  */
-export function placeCoverSlots(template: PhotoLayoutTemplate, side: "front" | "back", dims: Dims, roleOverride?: CoverElementRole): LayoutSlot[] {
-  const role = coverRoleOfTemplate(template, roleOverride);
+export function placeCoverSlots(template: PhotoLayoutTemplate, side: "front" | "back", dims: Dims): LayoutSlot[] {
   let raw: LayoutSlot[] = template.coverBuild ? template.coverBuild(dims) : template.slots.map((s) => ({ ...s }));
   if (template.coverBuild && side === "back") raw = mirror(raw);
   const W = dims.panelMm + dims.bleedMm;
   const H = dims.panelMm + dims.bleedMm * 2;
-  if (role === "photo-bleed") return raw;
   const sx = W > 0 ? ((dims.bleedMm + SAFE_EDGE_MM) / W) * 100 : 0;
   const sy = H > 0 ? ((dims.bleedMm + SAFE_EDGE_MM) / H) * 100 : 0;
   const EPS = 0.5;
-  const trimmed = raw.map((s) => {
+  return raw.map((s) => {
     let left = s.xPct;
     let right = s.xPct + s.widthPct;
     if (side === "front") {
@@ -139,5 +138,4 @@ export function placeCoverSlots(template: PhotoLayoutTemplate, side: "front" | "
     const bottom = s.yPct + s.heightPct >= 100 - EPS ? Math.min(s.yPct + s.heightPct, 100 - sy) : s.yPct + s.heightPct;
     return { xPct: left, yPct: top, widthPct: Math.max(1, right - left), heightPct: Math.max(1, bottom - top) };
   });
-  return clampSlotsToSpineClearance(trimmed, side, W, clearanceFor(role));
 }
