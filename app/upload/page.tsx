@@ -1291,8 +1291,6 @@ function CaptionSettingsPopover({
 // 45차부터 색도 살짝 달리해요 — 표지에서 바깥 파선·검은 실선·안쪽 점선·글상자 점선 테두리가 모두 같은 검정이라 "레이아웃이 겹쳐 있다"로 보였어요.
 // 도련선=옅은 회색(잘려 나가는 바깥), 재단선=검정(실제 크기), 안전영역=파란 점선(내용이 들어가는 안쪽). 디자인 요소의 점선 테두리는 그대로 검정/하늘색이에요. 편집 화면 전용(인쇄·미리보기에는 안 나와요).
 const GUIDE_LINE_COLOR = "#1a1a1a"; // 재단선
-const GUIDE_BLEED_COLOR = "#9aa0a8"; // 도련선
-const GUIDE_SAFE_COLOR = "#3f6fd9"; // 안전영역
 
 function GuideLines({
   trimXPct,
@@ -1314,10 +1312,10 @@ function GuideLines({
     <div className="pointer-events-none absolute inset-0 z-[26]">
       <div
         className="absolute inset-0 border"
-        style={{ borderStyle: "dashed", borderColor: GUIDE_BLEED_COLOR, ...edgeStyle }}
+        style={{ borderStyle: "dashed", borderColor: GUIDE_LINE_COLOR, ...edgeStyle }}
       />
       <div
-        className="absolute border-[1.5px]"
+        className="absolute border-2"
         style={{
           left: `${trimXPct}%`,
           right: `${trimXPct}%`,
@@ -1351,14 +1349,14 @@ function CoverGuideBox({
 }) {
   return (
     <div
-      className={variant === "solid" ? "pointer-events-none absolute z-[26] border-[1.5px]" : "pointer-events-none absolute z-[26] border"}
+      className={variant === "solid" ? "pointer-events-none absolute z-[26] border-2" : "pointer-events-none absolute z-[26] border"}
       style={{
         left: `${left}%`,
         right: `${100 - right}%`,
         top: `${top}%`,
         bottom: `${100 - bottom}%`,
         borderStyle: variant,
-        borderColor: variant === "dashed" ? GUIDE_BLEED_COLOR : variant === "dotted" ? GUIDE_SAFE_COLOR : GUIDE_LINE_COLOR,
+        borderColor: GUIDE_LINE_COLOR,
       }}
     />
   );
