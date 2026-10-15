@@ -210,13 +210,14 @@ import { BackgroundPanel } from "./backgroundPanel";
 import {
   backgroundSpecToCss,
   resolveCoverPanelSpec,
+  spineBridgeColor,
   resolveSpreadSideSpec,
   specFromLegacy,
   WHITE_SPEC,
   type BackgroundSpec,
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
-import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_CLEARANCE_MM, type CoverElementRole } from "@/lib/coverSpine";
+import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_BAND_OVERHANG_MM, COVER_SPINE_CLEARANCE_MM, type CoverElementRole } from "@/lib/coverSpine";
 import { coverPanelTemplates, placeCoverSlots } from "@/lib/coverLayoutVariants";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 
@@ -15618,6 +15619,8 @@ function UploadPageContent() {
       ...(front.bg ? { front: { ...front.bg, span: "page" as const } } : {}),
       ...(back.bg ? { back: { ...back.bg, span: "page" as const } } : {}),
       spine: { ...d.spine.bg, span: "page" as const },
+      // 좌우 투톤(단색) 표지 디자인만 책등 이음띠를 켜요(CoverDesign.spine.bridge) — 새로 고른 디자인에만 적용되고, 저장된 앨범은 이 값이 없어서 그대로예요.
+      ...(d.spine.bridge ? { spineBridge: true } : {}),
     });
     setCoverPatternId(undefined);
     setBackCoverBackgroundColor(undefined);
@@ -17537,7 +17540,16 @@ function UploadPageContent() {
     // ---- 새 배경 패널: 화면에 깔 CSS 배경 계산 (옛 방식 값만 있으면 예전 계산 그대로) ----
     const coverBackWmm = coverBleedMm + coverPanelMm;
     const coverFrontWmm = coverPanelMm + coverBleedMm;
+    // 책등 이음띠(46차, 좌우 투톤 표지 디자인이 켠 경우): 책등 단색을 앞·뒤표지 가장자리 5mm에도 깔아요(인쇄와 같은 값).
     function coverPanelBackgroundCss(panel: "back" | "spine" | "front"): string {
+      const base = coverPanelBackgroundCssBase(panel);
+      const bridge = spineBridgeColor(coverBackgrounds);
+      if (!bridge || panel === "spine") return base;
+      const wMm = panel === "back" ? coverBackWmm : coverFrontWmm;
+      const x = Math.min(50, (COVER_SPINE_BAND_OVERHANG_MM / wMm) * 100);
+      return `linear-gradient(to ${panel === "back" ? "right" : "left"}, transparent calc(100% - ${x}%), ${bridge} calc(100% - ${x}%)), ${base}`;
+    }
+    function coverPanelBackgroundCssBase(panel: "back" | "spine" | "front"): string {
       const spec = resolveCoverPanelSpec(coverBackgrounds, panel);
       const legacyColor =
         panel === "back" ? backCoverBackgroundColor : panel === "spine" ? coverSpineBackgroundColor : coverFrontBackgroundColor;

@@ -296,7 +296,7 @@ export const KIDS_COVER: CoverDesignDef = {
       stickers: [t.sticker(STK.bear, 0.17, 0.82, 40, -6), t.sticker(STK.penguin, 0.83, 0.82, 40, 6)],
     };
   },
-  spine: { bg: solid(C.spine), titleFontFamily: FONT.jua, titleColor: "#2F6C99" },
+  spine: { bg: solid(C.spine), titleFontFamily: FONT.jua, titleColor: "#2B638D" }, // 46차: 책등 배경(#BFE0F5) 대비 4.08 → 4.64
   backLogo: (g) => {
     const t = toolkit(g);
     const r = t.r([0, 0.95, 1, 0]);

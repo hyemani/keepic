@@ -429,7 +429,7 @@ export const TRAVEL_COVERS: CoverDesignDef[] = [
         stickers: [fr.sticker, t.sticker(STK.shades, 0.14, 0.2, 42, -12), t.sticker(STK.star, 0.9, 0.3, 26, 10)],
       };
     },
-    spine: { bg: solid(C.black), titleFontFamily: MZF.black, titleColor: C.lime },
+    spine: { bg: solid(C.black), titleFontFamily: MZF.black, titleColor: C.lime, bridge: true }, // 46차: 검정/크림 좌우 투톤 → 책등 이음띠 켬
     backLogo: (g) => {
       const t = toolkit(g);
       const r = t.r([0, 0.95, 1, 0]);

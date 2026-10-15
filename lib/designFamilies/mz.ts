@@ -270,7 +270,7 @@ export const MZ_COVER: CoverDesignDef = {
       stickers: [fr.sticker, t.sticker(STK.shades, 0.14, 0.2, 44, -12), t.sticker(STK.star, 0.9, 0.3, 26, 10)],
     };
   },
-  spine: { bg: solid(C.black), titleFontFamily: FONT.black, titleColor: C.lime },
+  spine: { bg: solid(C.black), titleFontFamily: FONT.black, titleColor: C.lime, bridge: true }, // 46차: 앞표지=책등 검정 / 뒤표지 크림인 좌우 투톤 → 책등 이음띠(5mm) 켬
   backLogo: (g) => {
     const t = toolkit(g);
     const r = t.r([0, 0.95, 1, 0]);

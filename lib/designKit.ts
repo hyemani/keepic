@@ -79,7 +79,9 @@ export type CoverDesign = {
   note: string;
   front: (g: DesignGeo) => DesignPageLayout;
   back: (g: DesignGeo) => DesignPageLayout;
-  spine: { bg: BackgroundSpec; titleFontFamily: string; titleColor: string };
+  // bridge: true면 "책등 이음띠"를 켜요(46차) — 책등 단색이 앞·뒤표지 쪽으로 5mm씩 더 나와서(lib/coverSpine.ts COVER_SPINE_BAND_OVERHANG_MM) 제본이 조금 어긋나도 책등 색이 비지 않게 해요.
+  // 앞·뒤표지 배경이 서로 다른 "좌우 투톤(단색)" 표지에만 켜고, 같은 색 표지나 무늬·질감 위에는 켜지 않아요(기본 꺼짐).
+  spine: { bg: BackgroundSpec; titleFontFamily: string; titleColor: string; bridge?: boolean };
   // 뒤표지 아래쪽의 키픽 로고 자리(로고 가운데 위치 %, 크기 %) — 디자인이 정한 자리로 옮겨서 글·사진과 안 겹치게 해요.
   backLogo: (g: DesignGeo) => { xPct: number; yPct: number; scalePct: number };
   // 표지 제목(coverTitle) — 표지 제목은 일반 글상자가 아니라 따로 저장돼서 템플릿은 서식만 정해줘요.

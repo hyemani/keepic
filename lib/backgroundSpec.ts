@@ -36,7 +36,17 @@ export type CoverBackgrounds = {
   front?: BackgroundSpec;
   back?: BackgroundSpec;
   spine?: BackgroundSpec;
+  // 46차: true면 책등 단색(spine)이 앞·뒤표지 쪽으로 COVER_SPINE_BAND_OVERHANG_MM(5mm)씩 더 나와요. 좌우 투톤 표지 디자인이 켜요(없으면 예전과 똑같아요).
+  spineBridge?: boolean;
 };
+
+/** 책등 이음띠를 그릴 색(꺼져 있거나 책등이 단색이 아니면 undefined). 화면·인쇄가 같이 읽어요. */
+export function spineBridgeColor(cb: CoverBackgrounds | undefined): string | undefined {
+  if (!cb?.spineBridge) return undefined;
+  const sp = cb.spine;
+  if (!sp || sp.kind !== "solid") return undefined;
+  return sp.color ?? "#ffffff";
+}
 
 export function resolveCoverPanelSpec(
   cb: CoverBackgrounds | undefined,

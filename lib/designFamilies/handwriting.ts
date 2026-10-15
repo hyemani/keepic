@@ -303,7 +303,7 @@ export const HANDWRITING_COVER: CoverDesignDef = {
       stickers: [t.sticker(STK.noteLined, 0.5, 0.45, 150, 0), t.sticker(STK.heart, 0.78, 0.74, 20, 10)],
     };
   },
-  spine: { bg: solid(C.kraftDeep), titleFontFamily: FONT.pen, titleColor: C.brown },
+  spine: { bg: solid(C.kraftDeep), titleFontFamily: FONT.pen, titleColor: "#574330" }, // 46차: 책등 배경 대비 4.43 → 4.66(갈색을 조금 어둡게)
   backLogo: (g) => {
     const t = toolkit(g);
     const r = t.r([0, 0.94, 1, 0]);

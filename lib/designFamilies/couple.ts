@@ -283,7 +283,7 @@ export const COUPLE_COVERS: CoverDesignDef[] = [
         stickers: [t.sticker(STK.ourStory, 0.5, 0.2, 90, 0, OURSTORY_ASPECT), t.sticker(STK.heartRed, 0.78, 0.76, 22, 10)],
       };
     },
-    spine: { bg: solid(C.dusty), titleFontFamily: HW.pen, titleColor: C.brown },
+    spine: { bg: solid(C.dusty), titleFontFamily: HW.pen, titleColor: "#53402E" }, // 46차: 책등 배경 대비 4.17 → 4.61
     backLogo: (g) => {
       const t = toolkit(g);
       const r = t.r([0, 0.94, 1, 0]);
@@ -324,7 +324,7 @@ export const COUPLE_COVERS: CoverDesignDef[] = [
         stickers: [t.sticker(STK.rose, 0.12, 0.9, 26, 8)],
       };
     },
-    spine: { bg: solid(C.blushDeep), titleFontFamily: WM.serif, titleColor: C.roseDeep },
+    spine: { bg: solid(C.blushDeep), titleFontFamily: WM.serif, titleColor: "#8D4C55" }, // 46차: 책등 배경 대비 3.54 → 4.63(같은 장미색을 어둡게)
     backLogo: (g) => {
       const t = toolkit(g);
       const r = t.r([0, 0.93, 1, 0]);

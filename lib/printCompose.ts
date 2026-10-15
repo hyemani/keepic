@@ -13,11 +13,13 @@
 import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes, isStickerImageBox } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
+import { COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
 import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
 import {
   drawBackgroundSpecOnCanvas,
   resolveCoverPanelSpec,
   resolveSpreadSideSpec,
+  spineBridgeColor,
   type BackgroundSpec,
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
@@ -2991,6 +2993,13 @@ export async function buildCoverPrintPdf({
     ctx.fillStyle = backCoverBackgroundColor;
     ctx.fillRect(0, 0, backCellWpx, backCellHpx);
   }
+  // 책등 이음띠(46차, 좌우 투톤 표지 디자인이 켠 경우만): 책등 단색이 뒤표지 쪽으로도 5mm 나와요(뒤표지 내용 아래에 깔려요). 앞표지 쪽은 앞표지 배경을 그린 뒤 같은 방식으로 그려요.
+  const bridgeColor = spineBridgeColor(coverBackgrounds);
+  const bridgePx = mmToPx(COVER_SPINE_BAND_OVERHANG_MM);
+  if (bridgeColor) {
+    ctx.fillStyle = bridgeColor;
+    ctx.fillRect(backCellWpx - bridgePx, 0, bridgePx, backCellHpx);
+  }
   const backCenterXpx = backCellWpx / 2;
   const backCenterYpx = backCellHpx / 2;
   // 사진(레이아웃 여러 장 또는 사진 1장)과 로고는 이제 서로 독립된 객체라 함께
@@ -3175,6 +3184,10 @@ export async function buildCoverPrintPdf({
   } else if (coverFrontBackgroundColor) {
     ctx.fillStyle = coverFrontBackgroundColor;
     ctx.fillRect(frontX, 0, frontCellWpx, frontCellHpx);
+  }
+  if (bridgeColor) {
+    ctx.fillStyle = bridgeColor;
+    ctx.fillRect(frontX, 0, bridgePx, frontCellHpx);
   }
   // 표지 "제목"(CoverTitleOverlay)은 뒤표지 로고와 같은 이유로 레이어 순서 시스템
   // 밖에 있는 고정 요소예요(2026-09-25) — 화면에서도 별도 z-28로 그려서, 자유 배치

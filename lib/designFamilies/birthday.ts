@@ -326,7 +326,7 @@ export const BIRTHDAY_COVERS: CoverDesignDef[] = [
         stickers: [t.sticker(STK.gift, 0.17, 0.82, 40, -6), t.sticker(STK.bear, 0.83, 0.82, 40, 6)],
       };
     },
-    spine: { bg: solid("#BFE0F5"), titleFontFamily: KD.jua, titleColor: "#2F6C99" },
+    spine: { bg: solid("#BFE0F5"), titleFontFamily: KD.jua, titleColor: "#2B638D" }, // 46차: 책등 배경 대비 4.08 → 4.64(같은 파랑을 조금 어둡게)
     backLogo: (g) => {
       const t = toolkit(g);
       const r = t.r([0, 0.95, 1, 0]);
@@ -370,7 +370,7 @@ export const BIRTHDAY_COVERS: CoverDesignDef[] = [
         stickers: [t.sticker(STK.shades, 0.16, 0.78, 44, -12), t.sticker(STK.bolt, 0.84, 0.74, 36, 12)],
       };
     },
-    spine: { bg: solid(C.black), titleFontFamily: MZF.black, titleColor: C.lime },
+    spine: { bg: solid(C.black), titleFontFamily: MZF.black, titleColor: C.lime, bridge: true }, // 46차: 검정/라임 좌우 투톤 → 책등 이음띠 켬
     backLogo: (g) => {
       const t = toolkit(g);
       const r = t.r([0, 0.95, 1, 0]);

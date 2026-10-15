@@ -346,7 +346,7 @@ export const FAMILY_COVERS: CoverDesignDef[] = [
         stickers: [t.sticker(STK.chick, 0.17, 0.82, 38, -6), t.sticker(STK.penguin, 0.83, 0.82, 38, 6)],
       };
     },
-    spine: { bg: solid("#BFE0F5"), titleFontFamily: KD.jua, titleColor: "#2F6C99" },
+    spine: { bg: solid("#BFE0F5"), titleFontFamily: KD.jua, titleColor: "#2B638D" }, // 46차: 대비 4.08 → 4.64
     backLogo: (g) => {
       const t = toolkit(g);
       const r = t.r([0, 0.95, 1, 0]);
