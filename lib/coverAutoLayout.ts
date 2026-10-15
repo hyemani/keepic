@@ -73,11 +73,11 @@ export const AUTO_COVER_CANDIDATE_IDS: AutoCoverCandidateId[] = CANDIDATES.map((
 export function planAutoCover(input: AutoCoverInput): AutoCoverPlan {
   const g = coverDesignGeo("front", input.panelMm, input.bleedMm);
   const frameAspect = g.W / g.H;
-  // 사진 칸은 역할별 책등 쪽 시작선에서(주인공 28mm / 구성 22mm), 제목 자리는 글 규칙(28mm = g.x0)에서 시작해요. 바깥쪽 끝은 같아요.
-  const rightEdge = g.x0 + g.sw;
+  // 사진 칸은 역할별 책등 쪽 시작선에서(주인공 28mm / 구성 22mm), 제목 자리는 글 규칙(28mm = g.x0)에서 시작해요.
+  // 좌우가 균형 잡히도록 바깥쪽 끝도 재단선에서 같은 거리만큼 안쪽이에요(접힘선 쪽 여백 = 재단선 쪽 여백, 46차). 예전엔 바깥쪽이 재단선 15mm라 28mm와 13mm 차이가 났어요.
   const toPanel = (f: Frac, role: CoverElementRole = "text") => {
     const x0 = Math.min(g.x0, clearanceFor(role));
-    const sw = rightEdge - x0;
+    const sw = g.W - input.bleedMm - x0 - x0;
     return {
       xPct: ((x0 + f[0] * sw) / g.W) * 100,
       yPct: ((g.y0 + f[1] * g.sh) / g.H) * 100,
@@ -130,10 +130,9 @@ export function planAutoCover(input: AutoCoverInput): AutoCoverPlan {
 export function candidateGeometry(id: AutoCoverCandidateId, panelMm: number, bleedMm: number) {
   const cand = CANDIDATES.find((c) => c.id === id) ?? CANDIDATES[0];
   const g = coverDesignGeo("front", panelMm, bleedMm);
-  const rightEdge = g.x0 + g.sw;
   const at = (f: Frac, role: CoverElementRole) => {
     const x0 = Math.min(g.x0, clearanceFor(role));
-    const sw = rightEdge - x0;
+    const sw = g.W - bleedMm - x0 - x0;
     return { xPct: ((x0 + f[0] * sw) / g.W) * 100, yPct: ((g.y0 + f[1] * g.sh) / g.H) * 100, widthPct: ((f[2] * sw) / g.W) * 100, heightPct: ((f[3] * g.sh) / g.H) * 100 };
   };
   return { id: cand.id, role: cand.role, bridge: cand.bridge, slots: cand.slots.map((f) => at(f, cand.role)), titleZone: at([0, cand.title.y, 1, cand.title.h], "text") };
