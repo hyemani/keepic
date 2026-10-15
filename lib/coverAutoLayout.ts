@@ -13,6 +13,7 @@
 //  4) 책등을 가로지르는 사진은 만들 수 없어요(앞·뒤표지는 서로 다른 칸이라서). 대신 "책등 이음"은 배경(좌우 분할 + 책등 이음띠, lib/coverSpine.ts)이 맡아요.
 //  5) 뒤표지는 보조 면이에요 — 사진 없이 키픽 로고만 두고, 앞표지가 주인공이에요.
 import { coverDesignGeo } from "./designKit";
+import { clearanceFor, type CoverElementRole } from "./coverSpine";
 import { assignPhotosToSlots, slotAspectOf, visibleFraction } from "./photoSlotFit";
 
 export type AutoCoverCandidateId = "hero-wide" | "hero-portrait" | "hero-frame" | "hero-band" | "title-top" | "split-cols" | "split-stagger";
@@ -52,17 +53,19 @@ type Candidate = {
   bridge: boolean;
   framed: boolean; // 액자형(사방 여백이 큰 구성) — 하드커버 가산
   wide: boolean; // 가로 구성 — 소프트커버 가산
+  // 사진 칸의 책등 쪽 여백 규칙(46차, lib/coverSpine.ts): 주인공 사진 한 장 = photo-hero(28mm), 두 장 구성 = photo-structure(22mm). 제목 자리는 항상 글 규칙(28mm)이에요.
+  role: CoverElementRole;
 };
 
 // 후보 순서 = 동점일 때 우선순위. 제목 자리(title.y/h)는 사진과 겹치지 않아요.
 const CANDIDATES: Candidate[] = [
-  { id: "hero-wide", slots: [[0, 0.03, 1, 0.66]], title: { y: 0.77, h: 0.17 }, bridge: false, framed: false, wide: true },
-  { id: "hero-frame", slots: [[0.06, 0.03, 0.88, 0.74]], title: { y: 0.83, h: 0.14 }, bridge: true, framed: true, wide: false },
-  { id: "hero-portrait", slots: [[0.19, 0, 0.62, 0.76]], title: { y: 0.83, h: 0.14 }, bridge: true, framed: true, wide: false },
-  { id: "hero-band", slots: [[0, 0.2, 1, 0.42]], title: { y: 0.7, h: 0.17 }, bridge: false, framed: false, wide: true },
-  { id: "title-top", slots: [[0.13, 0.4, 0.74, 0.55]], title: { y: 0.1, h: 0.2 }, bridge: true, framed: true, wide: false },
-  { id: "split-cols", slots: [[0, 0.03, 0.48, 0.7], [0.52, 0.03, 0.48, 0.7]], title: { y: 0.81, h: 0.15 }, bridge: true, framed: true, wide: false },
-  { id: "split-stagger", slots: [[0, 0.02, 0.62, 0.36], [0.38, 0.42, 0.62, 0.36]], title: { y: 0.86, h: 0.12 }, bridge: false, framed: false, wide: true },
+  { id: "hero-wide", slots: [[0, 0.05, 1, 0.74]], title: { y: 0.83, h: 0.14 }, bridge: false, framed: false, wide: true, role: "photo-hero" },
+  { id: "hero-frame", slots: [[0.07, 0.05, 0.86, 0.75]], title: { y: 0.85, h: 0.12 }, bridge: true, framed: true, wide: false, role: "photo-hero" },
+  { id: "hero-portrait", slots: [[0.17, 0.04, 0.66, 0.76]], title: { y: 0.85, h: 0.12 }, bridge: true, framed: true, wide: false, role: "photo-hero" },
+  { id: "hero-band", slots: [[0, 0.22, 1, 0.46]], title: { y: 0.74, h: 0.16 }, bridge: false, framed: false, wide: true, role: "photo-hero" },
+  { id: "title-top", slots: [[0.1, 0.26, 0.8, 0.68]], title: { y: 0.07, h: 0.15 }, bridge: true, framed: true, wide: false, role: "photo-hero" },
+  { id: "split-cols", slots: [[0, 0.05, 0.48, 0.72], [0.52, 0.05, 0.48, 0.72]], title: { y: 0.84, h: 0.13 }, bridge: true, framed: true, wide: false, role: "photo-structure" },
+  { id: "split-stagger", slots: [[0, 0.04, 0.62, 0.36], [0.38, 0.44, 0.62, 0.36]], title: { y: 0.87, h: 0.11 }, bridge: false, framed: false, wide: true, role: "photo-structure" },
 ];
 
 export const AUTO_COVER_CANDIDATE_IDS: AutoCoverCandidateId[] = CANDIDATES.map((c) => c.id);
@@ -70,19 +73,25 @@ export const AUTO_COVER_CANDIDATE_IDS: AutoCoverCandidateId[] = CANDIDATES.map((
 export function planAutoCover(input: AutoCoverInput): AutoCoverPlan {
   const g = coverDesignGeo("front", input.panelMm, input.bleedMm);
   const frameAspect = g.W / g.H;
-  const toPanel = (f: Frac) => ({
-    xPct: ((g.x0 + f[0] * g.sw) / g.W) * 100,
-    yPct: ((g.y0 + f[1] * g.sh) / g.H) * 100,
-    widthPct: ((f[2] * g.sw) / g.W) * 100,
-    heightPct: ((f[3] * g.sh) / g.H) * 100,
-  });
+  // 사진 칸은 역할별 책등 쪽 시작선에서(주인공 28mm / 구성 22mm), 제목 자리는 글 규칙(28mm = g.x0)에서 시작해요. 바깥쪽 끝은 같아요.
+  const rightEdge = g.x0 + g.sw;
+  const toPanel = (f: Frac, role: CoverElementRole = "text") => {
+    const x0 = Math.min(g.x0, clearanceFor(role));
+    const sw = rightEdge - x0;
+    return {
+      xPct: ((x0 + f[0] * sw) / g.W) * 100,
+      yPct: ((g.y0 + f[1] * g.sh) / g.H) * 100,
+      widthPct: ((f[2] * sw) / g.W) * 100,
+      heightPct: ((f[3] * g.sh) / g.H) * 100,
+    };
+  };
   const n = input.photoAspects.length;
   const ranking: { id: AutoCoverCandidateId; score: number; cand: Candidate; assign: number[]; visible: number[] }[] = [];
   for (const cand of CANDIDATES) {
     const k = cand.slots.length;
     if (k > n) continue;
     if (k >= 2 && n < TWO_PHOTO_MIN_BATCH) continue;
-    const slots = cand.slots.map(toPanel);
+    const slots = cand.slots.map((f) => toPanel(f, cand.role));
     const slotAsp = slots.map((s) => slotAspectOf(s, frameAspect));
     const assign = assignPhotosToSlots(input.photoAspects.slice(0, k), slotAsp);
     const visible = slots.map((_, s) => visibleFraction(input.photoAspects[assign[s]] ?? null, slotAsp[s]));
@@ -108,11 +117,24 @@ export function planAutoCover(input: AutoCoverInput): AutoCoverPlan {
   return {
     id: cand.id,
     photoCount: cand.slots.length,
-    slots: cand.slots.map((f, s) => ({ ...toPanel(f), photoIndex: best.assign[s] ?? s })),
+    slots: cand.slots.map((f, s) => ({ ...toPanel(f, cand.role), photoIndex: best.assign[s] ?? s })),
     title: { xPct: t.xPct, yPct: t.yPct, widthPct: t.widthPct, pt: Math.round(30 * g.k * 10) / 10, color: TITLE_COLOR },
     bridge: cand.bridge,
     score: best.score,
     visible: best.visible,
     ranking: ranking.map((r) => ({ id: r.id, score: Math.round(r.score * 1000) / 1000 })),
   };
+}
+
+/** 후보 하나의 칸·제목 자리를 사진 없이 그대로 돌려줘요(후보 모양 비교·썸네일·검사용). */
+export function candidateGeometry(id: AutoCoverCandidateId, panelMm: number, bleedMm: number) {
+  const cand = CANDIDATES.find((c) => c.id === id) ?? CANDIDATES[0];
+  const g = coverDesignGeo("front", panelMm, bleedMm);
+  const rightEdge = g.x0 + g.sw;
+  const at = (f: Frac, role: CoverElementRole) => {
+    const x0 = Math.min(g.x0, clearanceFor(role));
+    const sw = rightEdge - x0;
+    return { xPct: ((x0 + f[0] * sw) / g.W) * 100, yPct: ((g.y0 + f[1] * g.sh) / g.H) * 100, widthPct: ((f[2] * sw) / g.W) * 100, heightPct: ((f[3] * g.sh) / g.H) * 100 };
+  };
+  return { id: cand.id, role: cand.role, bridge: cand.bridge, slots: cand.slots.map((f) => at(f, cand.role)), titleZone: at([0, cand.title.y, 1, cand.title.h], "text") };
 }

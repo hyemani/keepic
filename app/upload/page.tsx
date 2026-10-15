@@ -2493,10 +2493,13 @@ function TextBoxRichEditor({
   box,
   onChange,
   onSelectionRangeChange,
+  emptyHint = "텍스트 입력",
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
   onSelectionRangeChange: TextSelectionRangeSetter;
+  // 비어 있을 때 편집 화면에만 흐리게 보이는 안내 글자(인쇄·미리보기에는 나오지 않아요). 표지 제목은 "제목을 입력하세요".
+  emptyHint?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
@@ -2679,7 +2682,7 @@ function TextBoxRichEditor({
             color: box.color,
           }}
         >
-          텍스트 입력
+          {emptyHint}
         </div>
       )}
       <div
@@ -11255,6 +11258,7 @@ function CoverTitleOverlay({
             box={editableBox}
             onChange={onEditableBoxChange}
             onSelectionRangeChange={noopSelectionRangeSetter}
+            emptyHint="제목을 입력하세요"
           />
         </div>
       ) : title.trim() ? (
@@ -13079,6 +13083,8 @@ function UploadPageContent() {
       cover: photobookCover === "hard" ? "hard" : "soft",
     });
     setCoverPhoto(null);
+    // 제목·문구·배경을 이미 직접 만진 표지는 제목 서식·자리·배경을 건드리지 않아요(사진 칸만 정해요).
+    const coverTextTouched = coverTitle.trim().length > 0 || coverTextBoxes.length > 0 || coverTableBoxes.length > 0;
     setCoverImageBoxes(
       plan.slots.map((sl) => {
         const ph = batch[sl.photoIndex] ?? batch[0];
@@ -13097,19 +13103,21 @@ function UploadPageContent() {
         };
       })
     );
+    // 제목은 "자리·색만" 정해요 — 제목 글자는 절대 넣지 않아요(비어 있으면 인쇄에 아무것도 안 나가고, 편집 화면에서만 "제목을 입력하세요" 안내가 보여요).
     // 제목 자리·색: 사진 밝기 위가 아니라 종이색 위에 놓이므로 어두운 글씨, 번짐 그림자는 꺼요(표지 디자인 적용과 같은 방식).
-    setCoverTitleXPct(Math.round(plan.title.xPct * 100) / 100);
-    setCoverTitleYPct(Math.round(plan.title.yPct * 100) / 100);
-    setCoverTitleWidthPct(Math.round(plan.title.widthPct * 100) / 100);
-    setCoverTitleHeightPct(undefined);
-    setCoverTitleFontSizePt(plan.title.pt);
-    setCoverTitleColor(plan.title.color);
-    setCoverTitleShadowColor("#000000");
-    setCoverTitleShadowBlur(0);
-    setCoverTitleShadowOffsetX(0);
-    setCoverTitleShadowOffsetY(0);
-    setCoverTitleShadowOpacity(0);
-
+    if (!coverTextTouched) {
+      setCoverTitleXPct(Math.round(plan.title.xPct * 100) / 100);
+      setCoverTitleYPct(Math.round(plan.title.yPct * 100) / 100);
+      setCoverTitleWidthPct(Math.round(plan.title.widthPct * 100) / 100);
+      setCoverTitleHeightPct(undefined);
+      setCoverTitleFontSizePt(plan.title.pt);
+      setCoverTitleColor(plan.title.color);
+      setCoverTitleShadowColor("#000000");
+      setCoverTitleShadowBlur(0);
+      setCoverTitleShadowOffsetX(0);
+      setCoverTitleShadowOffsetY(0);
+      setCoverTitleShadowOpacity(0);
+    }
     const noBackgroundYet =
       Object.keys(coverBackgrounds).length === 0 && !coverPatternId && !backCoverBackgroundColor && !coverFrontBackgroundColor && !coverSpineBackgroundColor;
     if (noBackgroundYet) {
