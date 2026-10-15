@@ -21,6 +21,7 @@ import {
   type PersistedDoc,
 } from "./projectPersistence";
 import { HeaderMoreMenu, HeaderZoomGroup } from "./headerOverflow";
+import { EditBarMoreMenu } from "./editBarMore";
 import {
   albumTemplates,
   pageTemplates,
@@ -11859,7 +11860,6 @@ const EDIT_BAR_BTN =
 function EditCommandBar({ items }: { items: EditCommandItem[] }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => {
     const el = barRef.current;
     if (!el) return;
@@ -11869,21 +11869,6 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onDown = (e: PointerEvent) => {
-      if (!(e.target as HTMLElement | null)?.closest?.("[data-edit-bar-more]")) setMoreOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMoreOpen(false);
-    };
-    window.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [moreOpen]);
   const showMore = narrow;
   const inline = showMore ? items.filter((it) => !EDIT_BAR_MORE_IDS.includes(it.id)) : items;
   const more = showMore ? items.filter((it) => EDIT_BAR_MORE_IDS.includes(it.id)) : [];
@@ -11906,42 +11891,7 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
           <span>{it.label}</span>
         </button>
       ))}
-      {more.length > 0 && (
-        <div data-edit-bar-more className="relative shrink-0">
-          <button
-            type="button"
-            title="더보기"
-            aria-haspopup="menu"
-            aria-expanded={moreOpen}
-            onClick={() => setMoreOpen((v) => !v)}
-            className={EDIT_BAR_BTN}
-          >
-            <span aria-hidden="true">⋯</span>
-            <span>더보기</span>
-          </button>
-          {moreOpen && (
-            <div role="menu" className="absolute right-0 top-full z-50 mt-0.5 flex min-w-[140px] flex-col border border-[var(--color-hairline)] bg-white py-1 shadow-lg">
-              {more.map((it) => (
-                <button
-                  key={it.id}
-                  type="button"
-                  role="menuitem"
-                  title={it.title}
-                  disabled={it.disabled}
-                  onClick={() => {
-                    it.onClick();
-                    setMoreOpen(false);
-                  }}
-                  className={`${EDIT_BAR_BTN} w-full justify-start`}
-                >
-                  <EditCommandIcon name={it.icon} />
-                  <span>{it.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {more.length > 0 && <EditBarMoreMenu items={more} btnClass={EDIT_BAR_BTN} renderIcon={(n) => <EditCommandIcon name={n as EditCommandIconName} />} />}
     </div>
   );
 }
