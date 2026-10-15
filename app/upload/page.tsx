@@ -142,6 +142,7 @@ import { chooseLibraryTarget, libraryHintOf, parseCanvasId, type LibraryClickTar
 import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
 import { useCompactEditor, useDrawerDismiss } from "@/lib/useCompactEditor";
 import { computeCanvasFit } from "@/lib/canvasFit";
+import { useFloatingToolbarClamp } from "./floatingToolbarClamp";
 import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
 import {
   PhotoLayoutTemplate,
@@ -3735,14 +3736,19 @@ function StackOrderToolbar({
   // 누르면 닫혀요(2026-09-26 신규 기능이라 바깥 클릭 감지 같은 복잡한 처리는 넣지
   // 않고, 아이콘 재클릭이나 박스 선택 해제로 닫히는 가장 단순한 방식으로 했어요).
   const [openPanel, setOpenPanel] = useState<"opacity" | "border" | "rotation" | null>(null);
+  // 43차: 화면(보이는 캔버스 영역) 밖으로 잘리지 않게 위치 보정 — 좁으면 두 줄로 줄바꿈해요(버튼은 그대로 다 있어요).
+  const rootRef = useRef<HTMLDivElement>(null);
+  useFloatingToolbarClamp(rootRef, { fillsFrame, flip, extraClearPx });
 
   return (
     <div
+      ref={rootRef}
+      data-floating-toolbar
       // 캔버스의 드래그·선택 로직(onMouseDown)이 부모 박스에 달려있어서, 여기서 누른
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
+      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
       // 2026-11(18번째 라운드 19차), 혜민님 요청("편집패널이 위쪽 상단에 배치되어있는데
       // 하단쪽에 배치되는게 좋을거같아요") — "화면 하단 공간 부족" fallback(flip, 박스가
       // 페이지 밑바닥에 가까울 때만 위로 띄움)은 그대로 안 건드렸어요. 바꾼 건
