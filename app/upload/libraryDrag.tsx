@@ -13,11 +13,23 @@ export const LIBRARY_DRAG_MIME = "application/x-keepic-library-photo";
 
 let dragging: LibraryPhotoInfo | null = null;
 
+// 44차: 폭 1024px 미만에서는 사진 목록이 캔버스 위에 뜨는 서랍 안에 있어서, 서랍 아래 칸에는 놓을 수 없었어요.
+// 끌기가 시작되면(다음 프레임에) <html data-lib-dragging>을 달아 서랍을 반투명+터치 통과로 바꾸고(아래 STYLE),
+// 놓기·취소·끌기 끝에 바로 떼요. dragstart 안에서 바로 바꾸면 일부 브라우저가 끌기를 취소해서 한 프레임 미뤄요.
+function setDragMode(on: boolean) {
+  if (typeof document === "undefined") return;
+  if (on) document.documentElement.setAttribute("data-lib-dragging", "true");
+  else document.documentElement.removeAttribute("data-lib-dragging");
+}
+
 export function libraryPhotoDragProps(photo: LibraryPhotoInfo) {
   return {
     draggable: true as const,
     onDragStart: (e: React.DragEvent<HTMLElement>) => {
       dragging = photo;
+      requestAnimationFrame(() => {
+        if (dragging === photo) setDragMode(true);
+      });
       try {
         e.dataTransfer.setData(LIBRARY_DRAG_MIME, photo.url);
         e.dataTransfer.effectAllowed = "copy";
@@ -27,6 +39,7 @@ export function libraryPhotoDragProps(photo: LibraryPhotoInfo) {
     },
     onDragEnd: () => {
       dragging = null;
+      setDragMode(false);
       clearHighlight();
     },
   };
@@ -76,6 +89,8 @@ export function resolveDropTarget(
 }
 
 const STYLE = `
+@media (max-width:1023.98px){html[data-lib-dragging] [data-side-panel]{pointer-events:none!important;opacity:.2;transition:opacity 120ms ease-out}}
+@media (prefers-reduced-motion:reduce){html[data-lib-dragging] [data-side-panel]{transition:none}}
 [data-lib-drop]{transition:none!important}
 [data-lib-drop="insert"],[data-lib-drop="replace"]{z-index:99000!important}
 [data-lib-drop="insert"]::before,[data-lib-drop="replace"]::before,[data-lib-drop="insert"]::after,[data-lib-drop="replace"]::after{content:"";position:absolute;inset:0;pointer-events:none;box-sizing:border-box;z-index:99999}
@@ -121,12 +136,14 @@ export function LibraryDragController({
       const hit = cur.enabled && photo ? resolveDropTarget(e.target, e.clientX, e.clientY, cur.resolveBox) : null;
       clearHighlight();
       dragging = null;
+      setDragMode(false);
       if (!hit || !photo) return;
       e.preventDefault();
       cur.onDropPhoto(photo, hit.result);
     };
     const onEnd = () => {
       dragging = null;
+      setDragMode(false);
       clearHighlight();
     };
     const onLeaveWindow = (e: DragEvent) => {
