@@ -7972,12 +7972,12 @@ function ImageBoxPanel({
                     const lowCount = lib.filter(isLow).length;
                     return (
                       <div className="mt-1" data-photo-library>
-                        <p className="mb-1 text-[11px] font-semibold text-[var(--color-charcoal)]">
+                        <p className="mb-1 text-xs font-semibold text-[var(--color-charcoal)]">
                           올린 사진{" "}
                           <span className="font-normal text-[var(--color-charcoal)]/50">({lib.length}장)</span>
                         </p>
                         {lib.length > 0 && (
-                          <p data-library-hint={libraryHint ?? "add"} className={`mb-1.5 text-[10px] break-keep ${libraryHint === "insert" || libraryHint === "replace" ? "font-medium text-[var(--color-sky)]" : "text-[var(--color-charcoal)]/50"}`}>
+                          <p data-library-hint={libraryHint ?? "add"} className={`mb-1.5 text-xs leading-snug break-keep ${libraryHint === "insert" || libraryHint === "replace" ? "font-medium text-[var(--color-sky)]" : "text-[var(--color-charcoal)]/50"}`}>
                             {libraryHint === "insert"
                               ? "누르면 선택한 빈 칸에 들어가요 (끌어다 놓아도 돼요)"
                               : libraryHint === "replace"
@@ -7991,13 +7991,13 @@ function ImageBoxPanel({
                           <p
                             role="status"
                             data-lowres-warning
-                            className="mb-1.5 bg-red-50 px-1.5 py-1.5 text-[10px] leading-snug text-red-600 break-keep"
+                            className="mb-1.5 bg-red-50 px-1.5 py-1.5 text-xs leading-snug text-red-600 break-keep"
                           >
                             해상도가 낮은 사진이 {lowCount}장 있어요. 인쇄 시 흐릿할 수 있으니 더 큰 사진으로 바꿔주세요.
                           </p>
                         )}
                         {lib.length > 0 && onAddLibraryPhoto && (
-                          <div className={`grid max-h-[264px] grid-cols-3 gap-1.5 ${NESTED_SCROLL}`}>
+                          <div className={`grid max-h-[max(264px,calc(100dvh-340px))] grid-cols-3 gap-1.5 ${NESTED_SCROLL}`}>
                             {lib.map((lp, li) => {
                               const orderIndex = managed.findIndex((m) => m.url === lp.url);
                               return (
