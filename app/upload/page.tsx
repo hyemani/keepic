@@ -17998,7 +17998,7 @@ function UploadPageContent() {
           })()}
         />
         <header
-          className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur max-md:relative max-md:z-40"
+          className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur max-md:relative max-md:z-40 max-md:has-[[data-testid=header-more-panel]]:z-[45]"
         >
           {/* 2026-10-05, 혜민님 요청: "현재 패널이 위쪽에 몰려있는데 사이 간격을 벌여줘
               (세로폭만, 가로는 그대로 넓히지말고)" — 좁은 화면에서 버튼들이 여러 줄로
