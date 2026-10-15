@@ -15060,6 +15060,8 @@ function UploadPageContent() {
       if (isFront) {
         setCoverImageBoxes(withOpts([...coverStickerBoxes, ...placed]));
         setCoverPhoto(null);
+        // 표지 구성(여백형·프레임형 등)은 제목 자리를 사진 아래로 비워 둬요 — 아직 제목 글자가 없으면 빈 제목 칸을 그 자리로 옮겨서, 나중에 쓴 제목이 사진 위에 겹치지 않게 해요(글자가 있으면 그대로).
+        if (template.titleZone && coverTitle.trim() === "") setCoverTitleYPct(template.titleZone.yPct);
         if (captionSlot) {
           setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
         }
