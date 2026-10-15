@@ -16,6 +16,19 @@ let dragging: LibraryPhotoInfo | null = null;
 // 44차: 폭 1024px 미만에서는 사진 목록이 캔버스 위에 뜨는 서랍 안에 있어서, 서랍 아래 칸에는 놓을 수 없었어요.
 // 끌기가 시작되면(다음 프레임에) <html data-lib-dragging>을 달아 서랍을 반투명+터치 통과로 바꾸고(아래 STYLE),
 // 놓기·취소·끌기 끝에 바로 떼요. dragstart 안에서 바로 바꾸면 일부 브라우저가 끌기를 취소해서 한 프레임 미뤄요.
+// 서랍이 반투명으로 바뀐 동안 포인터가 서랍 영역 위에 있으면, "빈 캔버스에 새 칸 만들기(add)"는 막아요 — 서랍 목록 위에서 손을 떼
+// 취소하려던 건데 아래 빈 자리에 사진 칸이 새로 생기는 사고를 막으려는 거예요. 서랍 아래 "기존 칸"에 넣기·바꾸기는 그대로 돼요
+// (대상 칸에 색 테두리가 떠서 보여요, 놓은 뒤 실행취소 한 번으로 되돌려요).
+function overDrawer(x: number, y: number): boolean {
+  if (typeof document === "undefined" || !document.documentElement.hasAttribute("data-lib-dragging")) return false;
+  const r = document.querySelector("[data-side-panel]")?.getBoundingClientRect();
+  return !!r && r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+function resolveForDrag(...args: Parameters<typeof resolveDropTarget>): ReturnType<typeof resolveDropTarget> {
+  const hit = resolveDropTarget(...args);
+  return hit && hit.result.kind === "add" && overDrawer(args[1], args[2]) ? null : hit;
+}
+
 function setDragMode(on: boolean) {
   if (typeof document === "undefined") return;
   if (on) document.documentElement.setAttribute("data-lib-dragging", "true");
@@ -119,7 +132,7 @@ export function LibraryDragController({
     const onOver = (e: DragEvent) => {
       if (!ours(e)) return;
       const cur = latest.current;
-      const hit = cur.enabled ? resolveDropTarget(e.target, e.clientX, e.clientY, cur.resolveBox) : null;
+      const hit = cur.enabled ? resolveForDrag(e.target, e.clientX, e.clientY, cur.resolveBox) : null;
       if (!hit) {
         clearHighlight();
         if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
@@ -133,7 +146,7 @@ export function LibraryDragController({
       if (!ours(e)) return;
       const cur = latest.current;
       const photo = dragging;
-      const hit = cur.enabled && photo ? resolveDropTarget(e.target, e.clientX, e.clientY, cur.resolveBox) : null;
+      const hit = cur.enabled && photo ? resolveForDrag(e.target, e.clientX, e.clientY, cur.resolveBox) : null;
       clearHighlight();
       dragging = null;
       setDragMode(false);
