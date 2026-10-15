@@ -15,10 +15,12 @@ import {
 import {
   LoadOverlay,
   SaveControls,
+  saveStatusText,
   PROJECT_SCHEMA_VERSION,
   useProjectPersistence,
   type PersistedDoc,
 } from "./projectPersistence";
+import { HeaderMoreMenu, HeaderZoomGroup } from "./headerOverflow";
 import {
   albumTemplates,
   pageTemplates,
@@ -18046,13 +18048,13 @@ function UploadPageContent() {
           })()}
         />
         <header
-          className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur"
+          className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur max-md:relative max-md:z-40"
         >
           {/* 2026-10-05, 혜민님 요청: "현재 패널이 위쪽에 몰려있는데 사이 간격을 벌여줘
               (세로폭만, 가로는 그대로 넓히지말고)" — 좁은 화면에서 버튼들이 여러 줄로
               줄바꿈될 때 줄 사이 세로 간격만 넉넉하게(gap-y-1.5 -> gap-y-3) 늘리고, 한
               줄 안의 버튼 간 가로 간격(gap-x-1.5)은 그대로 둠. */}
-          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5">
+          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5 max-lg:flex-nowrap max-sm:gap-x-1">
             {/* 2026-11(19번째 라운드), 혜민님 요청: "미리보기" 버튼을 화면 맨 왼쪽 위로 옮기고
                 "← 미리보기로 돌아가기"로 바꿔주세요. 기존 "←" 뒤로가기(router.back, 편집기를
                 아예 나가는 동작)와 자리가 겹쳐서 하나로 합쳤어요 — 같은 맨 왼쪽 자리에
@@ -18069,29 +18071,33 @@ function UploadPageContent() {
                   setEditorMode("preview");
                 }}
                 aria-label="미리보기로 돌아가기"
-                className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+                title="미리보기로 돌아가기"
+                className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:min-w-11 max-lg:justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:justify-center motion-reduce:transition-none"
               >
                 <span aria-hidden="true">←</span>
-                <span>미리보기로 돌아가기</span>
+                <span className="max-md:hidden">미리보기로 돌아가기</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => router.back()}
                 aria-label="뒤로가기"
-                className="flex h-8 w-8 shrink-0 items-center justify-center text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
+                className="flex h-8 w-8 shrink-0 items-center justify-center text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:w-11 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 motion-reduce:transition-none"
               >
                 ←
               </button>
             )}
-            <a href="/" className="shrink-0">
+            <a href="/" className="shrink-0 max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center">
               <img src="/logo.svg" alt="Keepic" className="h-6 w-auto" />
             </a>
             {/* 2026-10-04, 혜민님 요청(항목4): "Keepic 제목 없는 포토북 <- 제목없는포토북
                 문구 삭제" — 표지 제목을 아직 안 정했을 때 뜨던 "제목 없는 포토북" 자리표시
                 문구를 없앴어요. 제목을 이미 정했다면(coverTitle) 로고 옆에 그대로 보여줘요. */}
             {coverTitle.trim() && (
-              <span className="min-w-0 max-w-[40vw] truncate text-sm font-medium text-[var(--color-charcoal)]/80 sm:max-w-xs">
+              <span
+                title={coverTitle.trim()}
+                className="min-w-0 max-w-[40vw] truncate text-sm font-medium text-[var(--color-charcoal)]/80 sm:max-w-xs max-lg:max-w-none max-lg:flex-1"
+              >
                 {coverTitle.trim()}
               </span>
             )}
@@ -18102,13 +18108,13 @@ function UploadPageContent() {
                     aria-label="편집하기")로 편집 모드에 들어가요. 편집 중엔 페이지를 바꾸지
                     않고도 미리보기로 돌아갈 수 있어야 해서, 같은 자리에 작은 "완료" 버튼만
                     남겨뒀어요(편집 중일 때만 보임). */}
-              <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <div className="ml-auto flex flex-wrap items-center gap-1.5 max-lg:shrink-0 max-lg:flex-nowrap max-sm:gap-1">
                 {editorMode === "preview" && (
                   <button
                     type="button"
                     onClick={() => setIsPrintPreview((v) => !v)}
                     title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
-                    className={`flex h-8 min-w-[68px] items-center justify-center border px-1.5 text-xs font-medium transition ${
+                    className={`flex h-8 min-w-[68px] items-center justify-center border px-1.5 text-xs font-medium transition max-lg:h-11 [@media(pointer:coarse)]:h-11 max-md:hidden ${
  isPrintPreview
                         ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
                         : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
@@ -18117,28 +18123,51 @@ function UploadPageContent() {
                     🖨️ 인쇄 미리보기
                   </button>
                 )}
-                <div className="flex h-8 items-center gap-1 border border-[var(--color-hairline)] bg-white px-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={handleZoomOut}
-                    title="축소 (Ctrl+-)"
-                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                  >
-                    −
-                  </button>
-                  <ZoomPctField
-                    percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
-                    onCommit={handleZoomSet}
+                <HeaderZoomGroup
+                  className="max-md:hidden"
+                  onZoomOut={handleZoomOut}
+                  onZoomIn={handleZoomIn}
+                  field={
+                    <ZoomPctField
+                      percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
+                      onCommit={handleZoomSet}
+                    />
+                  }
+                />
+                {/* 44차: 폭 768px 미만에서는 화면 배율·인쇄 미리보기·저장 상태 글자를 "더보기"로 묶어요(저장·다음은 그대로 바깥). */}
+                <HeaderMoreMenu>
+                  <HeaderZoomGroup
+                    className="justify-center"
+                    onZoomOut={handleZoomOut}
+                    onZoomIn={handleZoomIn}
+                    field={
+                      <ZoomPctField
+                        percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
+                        onCommit={handleZoomSet}
+                      />
+                    }
                   />
-                  <button
-                    type="button"
-                    onClick={handleZoomIn}
-                    title="확대 (Ctrl+=)"
-                    className="flex h-full items-center px-2 text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-ivory)]"
-                  >
-                    +
-                  </button>
-                </div>
+                  {editorMode === "preview" && (
+                    <button
+                      type="button"
+                      onClick={() => setIsPrintPreview((v) => !v)}
+                      title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
+                      aria-pressed={isPrintPreview}
+                      className={`flex h-11 items-center justify-center border px-1.5 text-xs font-medium transition ${
+                        isPrintPreview
+                          ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                          : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+                      }`}
+                    >
+                      🖨️ 인쇄 미리보기
+                    </button>
+                  )}
+                  {saveStatusText(persistence.phase, persistence.savedAt).text && (
+                    <p className="text-xs tabular-nums text-[var(--color-charcoal)]/60">
+                      {saveStatusText(persistence.phase, persistence.savedAt).text}
+                    </p>
+                  )}
+                </HeaderMoreMenu>
                 <SaveControls
                   phase={persistence.phase}
                   savedAt={persistence.savedAt}
@@ -18151,7 +18180,7 @@ function UploadPageContent() {
                     onClick={() => handleNextClick(nextUrl, photos)}
                     disabled={isSaving}
                     data-testid="next-step-button"
-                    className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition ${
+                    className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
                       isSaving
                         ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
                         : "bg-[var(--color-charcoal)] hover:opacity-90"
@@ -18167,7 +18196,7 @@ function UploadPageContent() {
                   <button
                     type="button"
                     disabled
-                    className="flex h-8 min-w-[68px] shrink-0 cursor-not-allowed items-center justify-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70"
+                    className="flex h-8 min-w-[68px] shrink-0 cursor-not-allowed items-center justify-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70 max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11"
                   >
                     다음
                   </button>

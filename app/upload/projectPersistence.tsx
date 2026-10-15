@@ -308,6 +308,19 @@ export function useProjectPersistence(opts: Options) {
 }
 
 // ---- 상단바 UI: [상태 문구] [저장] ----
+// 저장 상태 글자·색(상단바 본문과 44차 "더보기" 메뉴가 같이 써요).
+export function saveStatusText(phase: SavePhase, savedAt: number | null): { text: string; tone: string } {
+  let text = "";
+  let tone = "text-[var(--color-charcoal)]/50";
+  if (phase === "saving") text = "저장 중…";
+  else if (phase === "saved") text = savedAt ? `저장 완료 · ${formatTime(savedAt)}` : "저장 완료";
+  else if (phase === "error") {
+    text = "저장 실패 · 다시 시도";
+    tone = "text-red-600";
+  } else if (phase === "dirty") text = "변경됨";
+  return { text, tone };
+}
+
 export function SaveControls({
   phase,
   savedAt,
@@ -319,14 +332,7 @@ export function SaveControls({
   errorMessage: string;
   onSave: () => void;
 }) {
-  let text = "";
-  let tone = "text-[var(--color-charcoal)]/50";
-  if (phase === "saving") text = "저장 중…";
-  else if (phase === "saved") text = savedAt ? `저장 완료 · ${formatTime(savedAt)}` : "저장 완료";
-  else if (phase === "error") {
-    text = "저장 실패 · 다시 시도";
-    tone = "text-red-600";
-  } else if (phase === "dirty") text = "변경됨";
+  const { text, tone } = saveStatusText(phase, savedAt);
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       {text && (
@@ -337,9 +343,10 @@ export function SaveControls({
           disabled={phase !== "error"}
           onClick={onSave}
           title={phase === "error" ? `${errorMessage || "저장하지 못했어요."} 눌러서 다시 시도해요.` : undefined}
-          className={`whitespace-nowrap text-xs ${tone} ${phase === "error" ? "underline" : "cursor-default"}`}
+          className={`whitespace-nowrap text-xs max-lg:tabular-nums [@media(pointer:coarse)]:tabular-nums max-md:pointer-events-none max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center ${tone} ${phase === "error" ? "underline" : "cursor-default"}`}
         >
-          {text}
+          <span className="max-md:sr-only">{text}</span>
+          <span aria-hidden="true" className={`hidden h-2.5 w-2.5 rounded-full max-md:block ${phase === "error" ? "bg-red-600" : phase === "saving" ? "bg-[var(--color-charcoal)]/40" : phase === "dirty" ? "bg-amber-500" : "bg-emerald-600"}`} />
         </button>
       )}
       <button
@@ -348,7 +355,7 @@ export function SaveControls({
         onClick={onSave}
         disabled={phase === "saving"}
         title="저장 (Ctrl+S / ⌘S)"
-        className="flex h-8 min-w-[52px] shrink-0 items-center justify-center border border-[var(--color-charcoal)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-8 min-w-[52px] shrink-0 items-center justify-center border border-[var(--color-charcoal)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-60 max-lg:h-11 [@media(pointer:coarse)]:h-11 motion-reduce:transition-none"
       >
         저장
       </button>
