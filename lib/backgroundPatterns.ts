@@ -32,6 +32,7 @@ export type BackgroundPatternKind =
   | "thinFrame"
   | "rules"
   | "splitPlain"
+  | "splitSpine"
   // 패턴
   | "checks"
   | "gingham"
@@ -150,6 +151,21 @@ export const backgroundPatterns: BackgroundPatternPreset[] = [
     label: "좌우 분할(하늘)",
     category: "graphic",
     kind: "splitPlain",
+    colors: ["#F6F3EC", "#E1EAF0"],
+  },
+  // 45차: 표지 전용 — 색이 바뀌는 자리를 책등 이음띠 안으로 옮긴 좌우 분할(표지 "표지 전체" 대상에서만 목록에 나와요, 옛 "좌우 분할"은 그대로 남아 있어요).
+  {
+    id: "g2-split-sage-spine",
+    label: "좌우 분할 · 책등 이음(세이지)",
+    category: "graphic",
+    kind: "splitSpine",
+    colors: ["#F6F3EC", "#E3E9DE"],
+  },
+  {
+    id: "g2-split-sky-spine",
+    label: "좌우 분할 · 책등 이음(하늘)",
+    category: "graphic",
+    kind: "splitSpine",
     colors: ["#F6F3EC", "#E1EAF0"],
   },
   {
@@ -1049,7 +1065,7 @@ export function drawBackgroundPatternOnCanvas(
   // 2026-10-06, 혜민님 요청: "그라데이션이 낱장만 적용되는데 스프레드페이지 기준으로
   // 적용해주세요" — 전체 펼침면(내지 스프레드 또는 표지 전체) 기준 좌표(px)예요.
   // 안 넘기면 이 낱장(x,y,w,h) 하나만 기준으로 그리던 기존 방식 그대로예요.
-  fullSpan?: { x: number; y: number; w: number; h: number },
+  fullSpan?: { x: number; y: number; w: number; h: number; spineW?: number },
   // true면 점·줄무늬·격자의 반복 위상을 "펼침면(fullSpan) 왼쪽 위"에 맞춰요(새 배경 패널이 쓰는 방식 —
   // 왼쪽·오른쪽 낱장 무늬가 가운데에서 이어져요). 안 주면(옛 방식) 이 낱장 왼쪽 위 기준 그대로예요.
   anchorToSpan?: boolean

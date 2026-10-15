@@ -6,8 +6,9 @@
 // 화면과 인쇄(해상도가 달라도)가 똑같은 모양이에요. 호출하는 쪽(drawBackgroundPatternOnCanvas)이
 // 이미 (x,y,w,h)로 클립하고 첫 번째 색(c0)으로 바탕을 칠한 뒤 불러요.
 
+import { COVER_SPINE_BAND_OVERHANG_MM } from "./coverSpine";
 export type ArtPreset = { id: string; kind: string; colors: [string, string]; spacingMm?: number };
-type Rect = { x: number; y: number; w: number; h: number };
+type Rect = { x: number; y: number; w: number; h: number; spineW?: number }; // spineW: 표지 펼침면일 때 책등 폭(px) — splitSpine만 읽어요
 
 // ---------- 작은 도우미 ----------
 function hexToRgb(hex: string): [number, number, number] {
@@ -569,6 +570,20 @@ function drawGraphic(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
       ctx.fillRect(ox + sw * 0.5, oy, sw * 0.5 + 1, sh);
       break;
     }
+    case "splitSpine": {
+      // 좌우 분할 + 책등 이음띠(45차, 표지 전용): 색이 바뀌는 자리를 책등 가운데에서 "띠" 안으로 옮겨요.
+      // 띠 = 책등 폭 + 양옆 COVER_SPINE_BAND_OVERHANG_MM(5mm)씩, 오른쪽 색을 살짝 진하게 한 한 가지 색이라 책등 글자가 색 경계에 걸리지 않고,
+      // 뒤·앞표지가 한 장짜리 표지로 이어져 보여요. 책등 폭을 모르는 곳(내지·작은 썸네일)에서는 띠 없이 좌우 분할만 그려요.
+      ctx.fillStyle = c1;
+      ctx.fillRect(ox + sw * 0.5, oy, sw * 0.5 + 1, sh);
+      const spW = span.spineW ?? 0;
+      if (spW > 0) {
+        const half = spW / 2 + mm(COVER_SPINE_BAND_OVERHANG_MM);
+        ctx.fillStyle = mixHex(c1, "#000000", 0.09);
+        ctx.fillRect(ox + sw * 0.5 - half, oy, half * 2, sh);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -803,7 +818,7 @@ function drawTexture(ctx: CanvasRenderingContext2D, p: ArtPreset, r: Rect, span:
   }
 }
 
-export const ART_GRAPHIC_KINDS = ["clouds", "cloudsSoft", "archesLow", "meadow", "leaves", "wave", "blockBottom", "blockSplit", "arches", "cornerVine", "cornerVine4", "cornerArc", "thinFrame", "rules", "splitPlain"];
+export const ART_GRAPHIC_KINDS = ["clouds", "cloudsSoft", "archesLow", "meadow", "leaves", "wave", "blockBottom", "blockSplit", "arches", "cornerVine", "cornerVine4", "cornerArc", "thinFrame", "rules", "splitPlain", "splitSpine"];
 export const ART_PATTERN_KINDS = ["checks", "gingham", "diamonds", "zigzag", "stars", "hearts", "scallops", "dotsFine", "pinstripes", "windowpane", "tattersall", "harlequin", "bands"];
 export const ART_TEXTURE_KINDS = ["paper", "linen", "watercolor", "grain"];
 

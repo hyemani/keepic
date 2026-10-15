@@ -90,7 +90,7 @@ export function drawBackgroundSpecOnCanvas(
   w: number,
   h: number,
   mmToPxFn: (mm: number) => number,
-  fullSpan?: { x: number; y: number; w: number; h: number }
+  fullSpan?: { x: number; y: number; w: number; h: number; spineW?: number }
 ) {
   const preset = effectivePreset(spec);
   if (!preset) {
@@ -109,6 +109,7 @@ export type BackgroundGeomMm = {
   panelWmm: number;
   heightMm: number; // 낱장·펼침면 공통 높이
   spanWmm: number;
+  spineWmm?: number; // 표지 펼침면일 때 책등 폭(mm) — 책등 이음띠(splitSpine)만 읽어요
 };
 
 const urlCache = new Map<string, string>();
@@ -126,7 +127,7 @@ export function renderBackgroundDataUrl(spec: BackgroundSpec, geom: BackgroundGe
   cv.height = Math.max(2, Math.round(geom.heightMm * ppm));
   const ctx = cv.getContext("2d");
   if (!ctx) return null;
-  const span: Mm = { x: -geom.panelXmm * ppm, y: 0, w: geom.spanWmm * ppm, h: geom.heightMm * ppm };
+  const span: Mm & { spineW?: number } = { x: -geom.panelXmm * ppm, y: 0, w: geom.spanWmm * ppm, h: geom.heightMm * ppm, ...(geom.spineWmm ? { spineW: geom.spineWmm * ppm } : {}) };
   drawBackgroundSpecOnCanvas(ctx, spec, 0, 0, cv.width, cv.height, (mm) => mm * ppm, span);
   const url = cv.toDataURL(preset.kind === "paper" || preset.kind === "linen" || preset.kind === "watercolor" ? "image/jpeg" : "image/png", 0.92);
   if (urlCache.size > 60) urlCache.delete(urlCache.keys().next().value as string);

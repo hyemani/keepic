@@ -2979,7 +2979,7 @@ export async function buildCoverPrintPdf({
   // 적용해주세요" — 뒤표지·책등·앞표지 전체 폭(coverTotalCoverSpanWpx)을 기준으로 한
   // 그라데이션 하나를 세 군데 모두에 넘겨서, 제본 경계에서 끊기지 않고 이어지게 해요.
   const coverTotalCoverSpanWpx = backCellWpx + spinePx + backCellWpx;
-  const coverFullSpan = { x: 0, y: 0, w: coverTotalCoverSpanWpx, h: backCellHpx };
+  const coverFullSpan = { x: 0, y: 0, w: coverTotalCoverSpanWpx, h: backCellHpx, spineW: spinePx }; // spineW: 책등 이음띠(splitSpine)용
   const backSpec = resolveCoverPanelSpec(coverBackgrounds, "back");
   const spineSpec = resolveCoverPanelSpec(coverBackgrounds, "spine");
   const frontSpec = resolveCoverPanelSpec(coverBackgrounds, "front");

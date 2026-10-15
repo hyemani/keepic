@@ -9,6 +9,7 @@
 import type { ImageBoxDef, TextBoxDef } from "./albumTemplates";
 import type { BackgroundSpec } from "./backgroundSpec";
 import { textBoxPtToFontScale } from "./textBoxFontSize";
+import { COVER_SPINE_CLEARANCE_MM } from "./coverSpine";
 
 export const DESIGN_ID_PREFIX = "dt-"; // 디자인 템플릿이 만든 글상자·스티커 id 머리글(다시 적용할 때 이것만 바꿔 끼워요)
 
@@ -119,12 +120,12 @@ export function innerSideGeo(g: DesignGeo, side: "left" | "right"): DesignGeo {
 }
 
 // 앞표지/뒤표지 칸: 가로 = 판 + 바깥쪽 도련(책등 쪽은 도련 없음), 세로 = 판 + 위아래 도련.
-// 책등 쪽 안쪽 여백은 접히는 자리라 FOLD_SAFE_MM(20mm, 편집기 안내선과 같은 값) 비워요 — 글·사진 칸·스티커 모두 책등에서 20mm 안쪽으로는 안 들어가요.
+// 책등 쪽 안쪽 여백은 COVER_SPINE_CLEARANCE_MM(28mm = 접힘 안전 20mm + 숨 쉴 자리 8mm, 45차) 비워요 — 글·사진 칸·스티커 모두 책등에서 28mm 안쪽으로는 안 들어가요.
 export function coverDesignGeo(side: "front" | "back", panelMm: number, bleedMm: number): DesignGeo {
   const W = panelMm + bleedMm;
   const H = panelMm + bleedMm * 2;
   const outer = bleedMm + DESIGN_SAFE_EDGE_MM;
-  const spineSide = FOLD_SAFE_MM;
+  const spineSide = COVER_SPINE_CLEARANCE_MM; // 책등 쪽은 접힘 안전(20mm) + 숨 쉴 자리(8mm) — lib/coverSpine.ts
   const x0 = side === "front" ? spineSide : outer;
   const x1 = side === "front" ? W - outer : W - spineSide;
   const sw = Math.max(10, x1 - x0);
@@ -137,7 +138,7 @@ export function coverDesignGeo(side: "front" | "back", panelMm: number, bleedMm:
     sw,
     sh,
     k: Math.min(sw, sh) / REF_SAFE_MM,
-    stk: side === "front" ? { l: FOLD_SAFE_MM, r: bleedMm, t: bleedMm, b: bleedMm } : { l: bleedMm, r: FOLD_SAFE_MM, t: bleedMm, b: bleedMm },
+    stk: side === "front" ? { l: spineSide, r: bleedMm, t: bleedMm, b: bleedMm } : { l: bleedMm, r: spineSide, t: bleedMm, b: bleedMm },
   };
 }
 

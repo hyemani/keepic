@@ -47,11 +47,13 @@ function BackgroundThumb({ spec, pageMm }: { spec: BackgroundSpec; pageMm: { w: 
     const ppm = THUMB_PX / viewWmm;
     cv.width = THUMB_PX;
     cv.height = Math.max(2, Math.round(viewHmm * ppm));
-    drawBackgroundSpecOnCanvas(ctx, { ...spec, span: "page" }, 0, 0, cv.width, cv.height, (mm) => mm * ppm, {
+    drawBackgroundSpecOnCanvas(ctx, { ...spec, span: "whole" }, 0, 0, cv.width, cv.height, (mm) => mm * ppm, {
       x: 0,
       y: 0,
       w: pageMm.w * ppm,
       h: pageMm.h * ppm,
+      // 책등 이음띠 무늬는 한 판 썸네일에서도 띠가 보이게 책등 폭 7.2mm(소프트 20쪽)로 그려요(실제 표지는 실제 책등 폭을 써요).
+      ...(preset?.kind === "splitSpine" ? { spineW: 7.2 * ppm } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
@@ -75,6 +77,7 @@ export function BackgroundPanel({
   onApplyAllInner,
   pageMm,
   renderColorChart,
+  coverWhole = false,
 }: {
   targets: BackgroundTargetOption[];
   target: string;
@@ -84,6 +87,8 @@ export function BackgroundPanel({
   onReset: () => void;
   onApplyAllInner?: () => void;
   pageMm: { w: number; h: number };
+  // true면(표지 · "표지 전체" 대상) 책등 이음띠가 있는 좌우 분할 배경도 목록에 보여요(45차). 내지·앞/뒤 한 판에는 책등이 없어서 안 보여요.
+  coverWhole?: boolean;
   renderColorChart: (p: {
     activeColor: string;
     onPick: (c: string) => void;
@@ -225,7 +230,7 @@ export function BackgroundPanel({
           })
         ) : (
           (() => {
-            const items = backgroundPatterns.filter((p) => p.category === tab);
+            const items = backgroundPatterns.filter((p) => p.category === tab && (p.kind !== "splitSpine" || coverWhole || current?.presetId === p.id));
             const byGroup = (g: "default" | "kids" | "legacy") => items.filter((p) => backgroundPresetGroup(p) === g);
             const kids = byGroup("kids");
             // 목록에서 숨긴 예전 소재가 지금 배경이면, 목록 맨 위에 '현재 배경' 한 칸만 보여서 확인·초기화할 수 있게 해요.
