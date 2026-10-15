@@ -1,0 +1,42 @@
+import { useEffect, useSyncExternalStore } from "react";
+
+// 편집기 "좁은 화면(태블릿 세로 등, 폭 1024px 미만)" 판별 + 상세 패널을 캔버스 위에 띄우는(오버레이) 서랍 처리(43차).
+// Tailwind의 lg(1024px)와 같은 기준이라, 그 이상(데스크톱·태블릿 가로 1024px~)은 예전 그대로예요.
+const QUERY = "(max-width: 1023.98px)";
+
+function subscribe(cb: () => void) {
+  const mq = window.matchMedia(QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+export function useCompactEditor(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(QUERY).matches,
+    () => false
+  );
+}
+
+// 서랍이 열려 있을 때: Esc 또는 왼쪽 메뉴·서랍 바깥을 누르면 닫아요(캔버스 터치는 막지 않고 그대로 동작해요).
+export function useDrawerDismiss(active: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      onClose();
+    };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.("[data-edit-sidebar]")) return;
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [active, onClose]);
+}

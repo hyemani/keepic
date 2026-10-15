@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
@@ -140,6 +140,8 @@ import { EmptyPhotoFrame } from "./emptyPhotoFrame";
 import { splitUploadFiles } from "@/lib/frameUpload";
 import { chooseLibraryTarget, libraryHintOf, parseCanvasId, type LibraryClickTarget, type LibraryHint, type SlotScope } from "@/lib/librarySlotTarget";
 import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
+import { useCompactEditor, useDrawerDismiss } from "@/lib/useCompactEditor";
+import { computeCanvasFit } from "@/lib/canvasFit";
 import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
 import {
   PhotoLayoutTemplate,
@@ -11849,7 +11851,7 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
       // 캔버스 바깥 영역의 mousedown(선택 해제)이 이 바에서는 일어나지 않게 막아요 — 안 그러면
       // 버튼을 누르기 직전에 선택이 풀려서 복사/잘라내기/중앙맞춤이 대상을 못 찾아요.
       onMouseDown={(e) => e.stopPropagation()}
-      className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 lg:-ml-2"
+      className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 -ml-2"
     >
       {items.map((it) => (
         <button
@@ -12105,23 +12107,23 @@ function CanvasStage({
   // "화면에 맞추기" 버튼을 눌렀을 때만 바뀌던 예전 트리거였는데, 이제 뷰포트 크기 변화만
   // 으로도 항상 최신 값으로 다시 계산되니 실질적으로 더 이상 필요 없어요(호출부 3곳을
   // 안 건드리려고 prop 자체는 그대로 남겨뒀어요).
-  const baseFit = useMemo(() => {
-    if (box.w <= 0 || box.h <= 0) return null;
-    const availW = Math.max(0, box.w - SAFETY_PX * 2);
-    const availH = Math.max(0, box.h - SAFETY_PX * 2);
-    let fitW = availW;
-    let fitH = availW / aspect;
-    if (fitH > availH && availH > 0) {
-      fitH = availH;
-      fitW = availH * aspect;
-    }
-    if (fitW <= 0 || fitH <= 0) return null;
-    return { w: fitW, h: fitH };
-    // fitToken은 계산에 안 쓰이지만(이제 뷰포트 크기 변화만으로 항상 최신으로
-    // 재계산돼요) 의존성에 남겨둬요 — "화면에 맞추기" 버튼을 눌렀을 때도(같은 크기라도)
-    // 이 메모가 확실히 다시 평가되도록 보장하는 안전장치예요.
+  // 43차: 계산은 lib/canvasFit.ts로 옮겼어요. 실제로 잰 캔버스 영역(box)에서 맞춤 크기를 구하고, 실제 크기의 25% 밑으로는
+  // 내려가지 않아요(그보다 작게 맞춰야 하면 25%로 두고 스크롤/이동으로 봐요). 측정값이 비정상적으로 작은 순간(레이아웃이
+  // 아직 안 잡혔을 때 등)에는 직전 정상 값을 그대로 써서 1%로 떨어지지 않아요. 사용자가 직접 정한 배율(manualPct)은 이 값과
+  // 무관하게 유지돼요 — 맞춤(manualPct === null)일 때만 창 크기를 따라가요.
+  const lastGoodFitRef = useRef<{ w: number; h: number } | null>(null);
+  const fitInfo = useMemo(() => {
+    const f = computeCanvasFit({ boxW: box.w, boxH: box.h, aspect, widthMm, cssPxPerMm: CSS_PX_PER_MM, safetyPx: SAFETY_PX });
+    if (f && f.tiny && lastGoodFitRef.current) return { w: lastGoodFitRef.current.w, h: lastGoodFitRef.current.h, floored: false, tiny: true };
+    return f;
+    // fitToken은 계산에 안 쓰이지만 "화면에 맞추기" 버튼을 눌렀을 때 확실히 다시 평가되도록 의존성에 남겨둬요.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [box, aspect, fitToken]);
+  }, [box, aspect, widthMm, fitToken]);
+  useEffect(() => {
+    if (fitInfo && !fitInfo.tiny) lastGoodFitRef.current = { w: fitInfo.w, h: fitInfo.h };
+  }, [fitInfo]);
+  const baseFit = fitInfo ? { w: fitInfo.w, h: fitInfo.h } : null;
+  const fitFloored = !!fitInfo?.floored;
 
   const ready = !!baseFit;
   // 맞춤(manualPct=null)이면 baseFit, 직접 정한 배율이면 "실제 크기(mm → 96dpi px) × %"로 정확히 계산해요.
@@ -12224,7 +12226,7 @@ function CanvasStage({
   }, [displayW, widthMm, onActualSizePercentChange]);
 
   return (
-    <div ref={measureRef} data-canvas-stage className={`relative flex min-h-0 min-w-0 flex-1 ${className ?? ""}`}>
+    <div ref={measureRef} data-canvas-stage className={`relative flex min-h-0 min-w-0 flex-1 max-lg:isolate ${className ?? ""}`}>
       {/* 2026-09-24 items-start -> items-center: 책 비율(aspect)이 컨테이너 비율과
           다르면 항상 위/아래 또는 좌/우 중 한쪽에 여백이 남는데(레터박싱, 스위트북도
           마찬가지), items-start였을 때는 그 여백이 전부 "아래쪽"에만 몰려서 옅은
@@ -12250,7 +12252,7 @@ function CanvasStage({
       <div
         ref={viewportRef}
         data-canvas-viewport
-        className={`flex h-full w-full ${manual ? "overflow-auto" : "overflow-visible"} ${spaceDown ? "cursor-grab" : ""}`}
+        className={`flex h-full w-full ${manual || fitFloored ? "overflow-auto" : "overflow-visible"} ${spaceDown ? "cursor-grab" : ""}`}
         onMouseDownCapture={(e) => {
           if (!spaceDown || e.button !== 0) return;
           const vp = viewportRef.current;
@@ -12919,6 +12921,13 @@ function UploadPageContent() {
   // null(아무 탭도 안 고른 상태)을 표현할 수 있게 바꾸고, 편집하기를 누를 때마다
   // null로 되돌림(아래 편집하기 버튼 onClick 참고).
   const [activeEditTab, setActiveEditTab] = useState<EditTabId | null>(null);
+  // 43차: 폭 1024px 미만(태블릿 세로)에서는 상세 패널이 캔버스 "위에 뜨는 서랍"이에요(왼쪽 아이콘 메뉴는 그대로 보임).
+  // drawerOpen은 사용자가 아이콘 메뉴를 눌렀을 때만 true — 선택(사진·글상자 등)에 따라 탭 내용이 바뀌어도 서랍이 저절로 열리지 않아요.
+  // 데스크톱(1024px~)은 이 값을 쓰지 않아서 예전과 똑같아요.
+  const compactEditor = useCompactEditor();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  useDrawerDismiss(compactEditor && drawerOpen, closeDrawer);
   // "텍스트" 탭의 "+ 글상자 추가" 버튼이 왼쪽/오른쪽 페이지 중 어디에 넣을지 기억해두는
   // 작은 토글이에요(2026-09-27, 버튼 두 개를 하나로 합치면서 추가).
   // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
@@ -18476,22 +18485,29 @@ function UploadPageContent() {
                     )}
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5">
-                      <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
+                      <div className="flex min-h-0 flex-1 flex-row gap-2" style={{ containerType: "inline-size" }}>
                         {editorMode === "edit" && (
-                        <div data-edit-sidebar="true" className="-ml-2.5 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2.5 lg:-ml-[18px] lg:shrink-0 lg:border-r lg:pr-0">
+                        <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2.5 max-lg:relative max-lg:z-40 -ml-2.5 lg:-ml-[18px] lg:pr-0">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
                               (2026-09-23, 이전엔 전부 한 화면에 세로로 나열돼 있었어요).
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex flex-row gap-1 overflow-x-auto lg:w-12 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                          <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
                                 type="button"
-                                onClick={() => setActiveCoverEditTab(tab.id)}
-                                className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition ${
-                                  activeCoverEditTab === tab.id
+                                onClick={() => {
+                                  if (compactEditor && drawerOpen && activeCoverEditTab === tab.id) setDrawerOpen(false);
+                                  else {
+                                    setActiveCoverEditTab(tab.id);
+                                    setDrawerOpen(true);
+                                  }
+                                }}
+                                aria-pressed={activeCoverEditTab === tab.id && (!compactEditor || drawerOpen)}
+                                className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
+                                  activeCoverEditTab === tab.id && (!compactEditor || drawerOpen)
                                     ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                     : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                 }`}
@@ -18506,7 +18522,7 @@ function UploadPageContent() {
                               activeCoverEditTab==="..." 조건이라 내용은 안 보였지만, 빈
                               칸만 224px 차지하고 있던 걸 없앰). */}
                           {activeCoverEditTab && (
-                          <SidePanelShell>
+                          <SidePanelShell drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer}>
                           {activeCoverEditTab === "theme" && (
                             // 2026-10-04, 혜민님 요청: "표지테마 상단에 문구삭제" — 위
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
@@ -19366,9 +19382,9 @@ function UploadPageContent() {
                       const textStaticGuidesY = [0, 50, 100, trimYPct, 100 - trimYPct, safetyYPct, 100 - safetyYPct];
                       return (
                         <div className="flex h-full min-h-0 flex-col px-2 pb-2">
-                          <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row" style={{ containerType: "inline-size" }}>
+                          <div className="flex min-h-0 flex-1 flex-row gap-2" style={{ containerType: "inline-size" }}>
                             {editorMode === "edit" && (
-                            <div data-edit-sidebar="true" className="-ml-2 flex flex-col gap-2 lg:flex-row border-[var(--color-hairline)] pl-2 lg:-ml-4 lg:shrink-0 lg:border-r lg:pr-0">
+                            <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2 max-lg:relative max-lg:z-40 -ml-2 lg:-ml-4 lg:pr-0">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
                                   아이콘으로 골라요. 예전엔 배경만 항상 펼쳐져 있고 사진·스티커
                                   추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
@@ -19376,7 +19392,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex flex-row gap-1 overflow-x-auto lg:w-12 lg:shrink-0 lg:flex-col lg:gap-0 lg:overflow-visible">
+                              <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
@@ -19384,9 +19400,17 @@ function UploadPageContent() {
                                   <button
                                     key={tab.id}
                                     type="button"
-                                    onClick={() => setActiveEditTab(tab.id)}
-                                    className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition ${
-                                      activeEditTab === tab.id
+                                    onClick={() => {
+                                      // 좁은 화면: 열려 있는 메뉴 아이콘을 다시 누르면 서랍이 닫혀요(데스크톱은 예전 그대로).
+                                      if (compactEditor && drawerOpen && activeEditTab === tab.id) setDrawerOpen(false);
+                                      else {
+                                        setActiveEditTab(tab.id);
+                                        setDrawerOpen(true);
+                                      }
+                                    }}
+                                    aria-pressed={activeEditTab === tab.id && (!compactEditor || drawerOpen)}
+                                    className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
+                                      activeEditTab === tab.id && (!compactEditor || drawerOpen)
                                         ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                         : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                     }`}
@@ -19401,7 +19425,7 @@ function UploadPageContent() {
                                   조건이라 null이면 어차피 안 보이지만, 빈 칸만 224px를
                                   차지하고 있던 걸 없앰(closing 태그를 건드리지 않는 안전한
                                   방식으로, 폭만 조건부로 바꿈). */}
-                              <SidePanelShell open={!!activeEditTab}>
+                              <SidePanelShell open={!!activeEditTab} drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer}>
                             {activeEditTab === "text" && (
                               <div className="mb-1.5 border-b border-[var(--color-hairline)] pb-2">
                                 {/* 2026-10(13번째 라운드) — 탭 3개 비율을 11번째 라운드 이전과 같은

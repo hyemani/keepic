@@ -15,16 +15,45 @@ import type { ReactNode } from "react";
 //   못해요 (글은 줄바꿈).
 export const SIDE_PANEL_WIDTH_PX = 232;
 
-export function SidePanelShell({ open = true, children }: { open?: boolean; children: ReactNode }) {
+export function SidePanelShell({
+  open = true,
+  drawerOpen = true,
+  onClose,
+  children,
+}: {
+  open?: boolean;
+  // 43차: 폭 1024px 미만(태블릿 세로)에서만 의미 있어요 — 패널은 캔버스 위에 뜨는 서랍이고, false면 숨겨요.
+  // 데스크톱(lg~)은 이 값과 상관없이 예전 그대로예요(폭 232px 고정, 캔버스 옆 자리).
+  drawerOpen?: boolean;
+  onClose?: () => void;
+  children: ReactNode;
+}) {
   return (
     <div
       data-side-panel
-      className={
+      data-drawer-open={drawerOpen ? "true" : "false"}
+      className={`${
         open
-          ? "flex min-h-0 w-full min-w-0 flex-col overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:w-[232px] lg:shrink-0 [&>*]:min-w-0"
+          ? "flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:w-[232px] lg:shrink-0 [&>*]:min-w-0"
           : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
-      }
+      } max-lg:absolute max-lg:bottom-0 max-lg:left-full max-lg:top-0 max-lg:z-40 max-lg:w-[296px] max-lg:max-w-[calc(100vw-72px)] max-lg:border-r max-lg:border-[var(--color-hairline)] max-lg:bg-white max-lg:p-2 max-lg:shadow-[8px_0_24px_-12px_rgba(0,0,0,0.35)] ${
+        drawerOpen && open ? "" : "max-lg:hidden"
+      }`}
     >
+      {onClose && (
+        <button
+          type="button"
+          data-drawer-close
+          onClick={onClose}
+          aria-label="패널 닫기"
+          className="mb-1 hidden h-11 shrink-0 items-center justify-end gap-1 px-2 text-xs text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] max-lg:flex motion-reduce:transition-none"
+        >
+          닫기
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      )}
       {children}
     </div>
   );
