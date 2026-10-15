@@ -217,7 +217,7 @@ import {
   type BackgroundSpec,
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
-import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_BAND_OVERHANG_MM, COVER_SPINE_CLEARANCE_MM, type CoverElementRole } from "@/lib/coverSpine";
+import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_BAND_OVERHANG_MM, COVER_SPINE_CLEARANCE_MM } from "@/lib/coverSpine";
 import { coverPanelTemplates, placeCoverSlots } from "@/lib/coverLayoutVariants";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 
@@ -12498,14 +12498,14 @@ function UploadPageContent() {
   // 표지 제목 위치예요(앞표지 칸 전체를 100%로 보는 퍼센트). 기존엔 하단에 고정이었는데,
   // 이제 텍스트박스처럼 끌어서 옮길 수 있어요 — 기본값은 예전 고정 위치(하단 중앙)와
   // 비슷한 자리예요.
-  // 45차: 새 앨범 기본 제목 칸은 책등에서 28mm 밖에서 시작해요(예전 8% = M 기준 20mm라 책등 쪽 안전선에 붙었어요). 저장된 앨범은 자기 값을 그대로 읽어요.
-  const [coverTitleXPct, setCoverTitleXPct] = useState(11);
+  // 47차: 새 앨범 기본 제목 칸 위치는 45차 이전 원래 값(8%)이에요(45~46차에 책등에서 28mm 밖 11%로 옮겼다가 되돌렸어요). 저장된 앨범은 자기 값을 그대로 읽어요.
+  const [coverTitleXPct, setCoverTitleXPct] = useState(8);
   const [coverTitleYPct, setCoverTitleYPct] = useState(84);
   // 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 선택 테두리의 손잡이를
   // 드래그해 크기를 조절") — 예전엔 84로 고정된 상수였는데, 이제 일반 글상자
   // (TextBoxDef.widthPct)와 똑같이 손잡이로 드래그해서 바꿀 수 있는 state예요. 기본값
   // 84는 예전 고정값 그대로라 불러온 프로젝트도 화면이 안 바뀌어요.
-  const [coverTitleWidthPct, setCoverTitleWidthPct] = useState(81);
+  const [coverTitleWidthPct, setCoverTitleWidthPct] = useState(84);
   // 표지 제목의 실제 "박스 높이"예요(일반 글상자의 heightPct와 같은 개념, 2026-10(7차)
   // 추가) — 없으면(undefined, 기존 그대로) 예전처럼 글자 양에 맞춰 세로가 자동으로
   // 늘어나고(줄바꿈만큼), 손잡이로 위/아래를 끌면 이 값이 생기면서부터 "고정 높이
@@ -13073,7 +13073,7 @@ function UploadPageContent() {
     });
   }
 
-  // "AI 맞춤 레이아웃"에서 표지가 비어 있을 때 처음 올린 사진들로 앞표지를 구성해요(lib/coverAutoLayout.ts — 책등 여백 28mm 안쪽, 사진+제목 자리+여백).
+  // "AI 맞춤 레이아웃"에서 표지가 비어 있을 때 처음 올린 사진들로 앞표지를 구성해요(lib/coverAutoLayout.ts — 책등 쪽 접힘선 20mm 안쪽, 사진+제목 자리+여백).
   // 직접 만지기 전(표지가 비어 있을 때)에만 불리고, 이미 사진·박스가 있는 표지는 건드리지 않아요. 앞표지에 쓴 사진 수를 돌려줘요.
   function applyAutoCoverPlan(batch: Photo[]): number {
     const { panelMm, bleedMm } = computeCoverDesignDims();
@@ -14927,12 +14927,11 @@ function UploadPageContent() {
   // 레이아웃 패널 썸네일이 같이 써서 썸네일 = 적용 결과예요.
   function placeCoverTemplateSlots(
     target: "front" | "back",
-    template: PhotoLayoutTemplate,
-    spineRole?: CoverElementRole
+    template: PhotoLayoutTemplate
   ): { xPct: number; yPct: number; widthPct: number; heightPct: number }[] {
-    // 46차: 재단선 안전 보정 + 책등 쪽 여백(요소 종류별: 전체 사진 0mm · 구성 사진 22mm · 주인공 사진 28mm, lib/coverSpine.ts)을 lib 한 곳에서 계산해요(썸네일 = 적용 결과).
+    // 재단선 쪽 안전 보정은 lib 한 곳(placeCoverSlots, 45차 이전과 같은 계산)에서 해요(썸네일 = 적용 결과). 책등 쪽은 예전 그대로 건드리지 않아요(47차).
     const cd = computeCoverDesignDims();
-    return placeCoverSlots(template, target, { panelMm: cd.panelMm, bleedMm: cd.bleedMm }, spineRole);
+    return placeCoverSlots(template, target, { panelMm: cd.panelMm, bleedMm: cd.bleedMm });
   }
 
   function applyCoverLayoutTemplate(
@@ -14944,7 +14943,6 @@ function UploadPageContent() {
       slotPatches?: (Partial<ImageBoxDef> | undefined)[];
       finalizeBoxes?: (boxes: ImageBoxDef[]) => ImageBoxDef[];
       mergeTexts?: (prev: TextBoxDef[]) => TextBoxDef[];
-      spineRole?: CoverElementRole; // 책등 쪽 여백 규칙을 정하는 요소 종류(디자인 적용은 "photo-structure"). 안 넘기면 템플릿이 정하거나 칸 모양으로 추측해요.
       fitOrientation?: boolean; // 디자인 적용용: 사진 가로·세로에 맞는 칸으로(lib/photoSlotFit.ts). 안 넘기면 예전과 같아요.
       syncLegacyPhoto?: boolean; // 예전 방식 표지 사진 1장을 이미지 크기 읽기를 기다리지 않고 바로 첫 칸으로 이어받아요
       onResult?: (r: { extraPhotos: number; slots: number }) => void;
@@ -14962,7 +14960,7 @@ function UploadPageContent() {
     const captionSlotRaw = captionSlotFor(template);
     // 뒤표지 로고와 겹치는 문구 칸은 로고를 피해 줄여요(45차, 빈 글상자의 "텍스트 입력" 안내가 로고 위에 겹쳐 보이던 문제).
     // 문구 칸 아래쪽도 안전선 안으로 줄여요(예전엔 100%=도련 끝까지 내려가서 글이 재단선 근처에 놓일 수 있었어요).
-    // 가로도 같아요: 책등 쪽은 책등 여백(28mm), 바깥쪽은 안전선 안으로(예전엔 0~100% 꽉 찬 글상자라 책등에 붙었어요).
+    // 가로도 같아요: 책등 쪽은 접힘 안전(20mm = 편집기 안내선), 바깥쪽은 안전선 안으로(예전엔 0~100% 꽉 찬 글상자라 책등에 붙었어요).
     const capSafe = computeCoverPanelSafetyPct();
     const capDims = computeCoverDesignDims();
     const capSpinePct = ((capDims.panelMm + capDims.bleedMm) > 0 ? (COVER_SPINE_CLEARANCE_MM / (capDims.panelMm + capDims.bleedMm)) * 100 : 0);
@@ -14985,7 +14983,7 @@ function UploadPageContent() {
       );
     }
 
-    const placedSlots = placeCoverTemplateSlots(target, template, opts?.spineRole);
+    const placedSlots = placeCoverTemplateSlots(target, template);
 
     function finish(baseBoxes: ImageBoxDef[]) {
       const usable = selectedIds
@@ -15643,7 +15641,6 @@ function UploadPageContent() {
         slotPatches: layout.slots.map((s, i) => ({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + i, ...s.patch, designSlot: slotKey(target, i) })),
         syncLegacyPhoto: true,
         fitOrientation: true,
-        spineRole: "photo-structure", // 디자인의 사진 칸은 기준 영역(28mm) 안에 이미 있어서 그대로예요 — 구성 사진 규칙(22mm)이 하한
         mergeTexts: (prev) => mergeDesignTexts(prev, d.id, target, layout.texts).boxes,
         finalizeBoxes: (boxes) => [
           ...boxes.filter((b) => !isDesignItemId(b.id)),
