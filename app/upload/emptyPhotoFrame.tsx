@@ -22,9 +22,15 @@ export function EmptyPhotoFrame({
         onSelect();
       }}
       style={style}
-      className="absolute inset-0 flex cursor-default flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-[var(--color-sky)]/40 bg-[var(--color-sky)]/10 text-[var(--color-sky)] transition hover:border-[var(--color-sky)] hover:bg-[var(--color-sky)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none"
+      className="absolute inset-0 flex cursor-default flex-col items-center justify-center gap-1 overflow-hidden [container-type:size] border border-dashed border-[var(--color-sky)]/40 bg-[var(--color-sky)]/10 text-[var(--color-sky)] transition hover:border-[var(--color-sky)] hover:bg-[var(--color-sky)]/15 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none"
     >
-      <span className="text-[13px] font-semibold tracking-[0.15em]">PHOTO</span>
+      {/* 46차: 작은 칸에서 글자가 칸 밖으로 잘려 보이지 않게 칸 크기에 맞춰 글자를 줄이고(cqmin), 아주 좁은 칸(28px 미만)에서는 숨겨요. */}
+      <span
+        className="max-w-full overflow-hidden whitespace-nowrap font-semibold tracking-[0.12em] @max-[28px]:hidden"
+        style={{ fontSize: "clamp(6px, 22cqmin, 13px)" }}
+      >
+        PHOTO
+      </span>
     </button>
   );
 }
