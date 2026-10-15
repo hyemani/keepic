@@ -9,7 +9,7 @@
 import type { ImageBoxDef, TextBoxDef } from "./albumTemplates";
 import type { BackgroundSpec } from "./backgroundSpec";
 import { textBoxPtToFontScale } from "./textBoxFontSize";
-import { COVER_SPINE_CLEARANCE_MM } from "./coverSpine";
+import { COVER_SPINE_CLEARANCE_MM, clearanceFor } from "./coverSpine";
 
 export const DESIGN_ID_PREFIX = "dt-"; // 디자인 템플릿이 만든 글상자·스티커 id 머리글(다시 적용할 때 이것만 바꿔 끼워요)
 
@@ -120,12 +120,14 @@ export function innerSideGeo(g: DesignGeo, side: "left" | "right"): DesignGeo {
 }
 
 // 앞표지/뒤표지 칸: 가로 = 판 + 바깥쪽 도련(책등 쪽은 도련 없음), 세로 = 판 + 위아래 도련.
-// 책등 쪽 안쪽 여백은 COVER_SPINE_CLEARANCE_MM(28mm = 접힘 안전 20mm + 숨 쉴 자리 8mm, 45차) 비워요 — 글·사진 칸·스티커 모두 책등에서 28mm 안쪽으로는 안 들어가요.
+// 책등 쪽 안쪽 여백(46차, 요소 종류별 — lib/coverSpine.ts 표): 구성의 기준 영역(글·글상자·사진 칸의 좌표 비율)은 COVER_SPINE_CLEARANCE_MM(28mm = 접힘 안전 20 + 숨 쉴 자리 8)에서 시작하고,
+// 장식 스티커가 눌리는 한계(stk)만 스티커 규칙(접힘 안전 20mm)이에요. 숫자는 모두 "그 판 자기 접힘선(책등 경계)에서 판 안쪽으로" 잰 mm예요. 인쇄소 확인 전의 디자인 값이에요.
 export function coverDesignGeo(side: "front" | "back", panelMm: number, bleedMm: number): DesignGeo {
   const W = panelMm + bleedMm;
   const H = panelMm + bleedMm * 2;
   const outer = bleedMm + DESIGN_SAFE_EDGE_MM;
-  const spineSide = COVER_SPINE_CLEARANCE_MM; // 책등 쪽은 접힘 안전(20mm) + 숨 쉴 자리(8mm) — lib/coverSpine.ts
+  const spineSide = COVER_SPINE_CLEARANCE_MM; // 글·사진 칸 기준: 접힘 안전(20mm) + 숨 쉴 자리(8mm) — lib/coverSpine.ts
+  const spineSticker = clearanceFor("sticker"); // 장식 스티커는 접힘 안전선(20mm)까지
   const x0 = side === "front" ? spineSide : outer;
   const x1 = side === "front" ? W - outer : W - spineSide;
   const sw = Math.max(10, x1 - x0);
@@ -138,7 +140,7 @@ export function coverDesignGeo(side: "front" | "back", panelMm: number, bleedMm:
     sw,
     sh,
     k: Math.min(sw, sh) / REF_SAFE_MM,
-    stk: side === "front" ? { l: spineSide, r: bleedMm, t: bleedMm, b: bleedMm } : { l: bleedMm, r: spineSide, t: bleedMm, b: bleedMm },
+    stk: side === "front" ? { l: spineSticker, r: bleedMm, t: bleedMm, b: bleedMm } : { l: bleedMm, r: spineSticker, t: bleedMm, b: bleedMm },
   };
 }
 

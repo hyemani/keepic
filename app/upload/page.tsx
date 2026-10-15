@@ -216,7 +216,8 @@ import {
   type BackgroundSpec,
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
-import { clampSlotsToSpineClearance, captionAvoidLogo, backLogoRectPct, COVER_SPINE_CLEARANCE_MM } from "@/lib/coverSpine";
+import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_CLEARANCE_MM, type CoverElementRole } from "@/lib/coverSpine";
+import { coverPanelTemplates, placeCoverSlots } from "@/lib/coverLayoutVariants";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
@@ -13108,6 +13109,7 @@ function UploadPageContent() {
     setCoverTitleShadowOffsetX(0);
     setCoverTitleShadowOffsetY(0);
     setCoverTitleShadowOpacity(0);
+
     const noBackgroundYet =
       Object.keys(coverBackgrounds).length === 0 && !coverPatternId && !backCoverBackgroundColor && !coverFrontBackgroundColor && !coverSpineBackgroundColor;
     if (noBackgroundYet) {
@@ -14565,39 +14567,7 @@ function UploadPageContent() {
     }));
   }
 
-  // 표지 판(앞/뒤) 전용 버전 — 책등 쪽 경계는 안전영역 대상이 아니라서(혜민님 확인:
-  // "책등은 별도 안전영역 여백을 두지 않는다") 그쪽 변은 그대로 두고, 진짜 바깥쪽
-  // (트림) 가장자리 쪽 변만 당겨요. side="front"면 오른쪽이 바깥쪽, "back"이면 왼쪽이
-  // 바깥쪽이에요(coverFrontPct/coverBackPct 렌더링 순서 기준).
-  function clampSlotToCoverSafety(
-    xPct: number,
-    yPct: number,
-    widthPct: number,
-    heightPct: number,
-    safety: { xPct: number; yPct: number },
-    side: "front" | "back"
-  ) {
-    // 내지 clampSlotToSpreadSafety와 같은 이유로, 실제로 트림 가장자리에 닿아 있던
-    // 변만 당겨요(2026-09-27 재확인) — 이미 여백이 있는 템플릿은 그대로 둬요.
-    const EDGE_EPS = 0.5; // %
-    let left = xPct;
-    let right = xPct + widthPct;
-    if (side === "front") {
-      if (right >= 100 - EDGE_EPS) right = Math.min(right, 100 - safety.xPct);
-    } else {
-      if (left <= EDGE_EPS) left = Math.max(left, safety.xPct);
-    }
-    const touchesTop = yPct <= EDGE_EPS;
-    const touchesBottom = yPct + heightPct >= 100 - EDGE_EPS;
-    const top = touchesTop ? Math.max(yPct, safety.yPct) : yPct;
-    const bottom = touchesBottom ? Math.min(yPct + heightPct, 100 - safety.yPct) : yPct + heightPct;
-    return {
-      xPct: left,
-      yPct: top,
-      widthPct: Math.max(1, right - left),
-      heightPct: Math.max(1, bottom - top),
-    };
-  }
+  // (표지 판 안전 보정 + 책등 쪽 여백은 46차부터 lib/coverLayoutVariants.ts placeCoverSlots가 해요.)
 
   // 레이아웃을 바꿔서 새 칸에 못 들어간 사진(박스)을 지우지 않고 "전체 사진 목록"(photos)으로 돌려보낼 때 쓰는 변환이에요.
   function boxToLibraryPhoto(b: ImageBoxDef): Photo {
@@ -14948,15 +14918,12 @@ function UploadPageContent() {
   // 레이아웃 패널 썸네일이 같이 써서 썸네일 = 적용 결과예요.
   function placeCoverTemplateSlots(
     target: "front" | "back",
-    template: PhotoLayoutTemplate
+    template: PhotoLayoutTemplate,
+    spineRole?: CoverElementRole
   ): { xPct: number; yPct: number; widthPct: number; heightPct: number }[] {
-    const safety = computeCoverPanelSafetyPct();
-    const trimmed = template.slots.map((slot) =>
-      clampSlotToCoverSafety(slot.xPct, slot.yPct, slot.widthPct, slot.heightPct, safety, target)
-    );
-    // 45차: 책등 쪽도 숨 쉴 자리(lib/coverSpine.ts COVER_SPINE_CLEARANCE_MM, 28mm)만큼 비워요 — 묶음 전체를 같은 비율로 옮겨서 같은 폭 칸은 같은 폭으로 남아요.
+    // 46차: 재단선 안전 보정 + 책등 쪽 여백(요소 종류별: 전체 사진 0mm · 구성 사진 22mm · 주인공 사진 28mm, lib/coverSpine.ts)을 lib 한 곳에서 계산해요(썸네일 = 적용 결과).
     const cd = computeCoverDesignDims();
-    return clampSlotsToSpineClearance(trimmed, target, cd.panelMm + cd.bleedMm);
+    return placeCoverSlots(template, target, { panelMm: cd.panelMm, bleedMm: cd.bleedMm }, spineRole);
   }
 
   function applyCoverLayoutTemplate(
@@ -14968,6 +14935,7 @@ function UploadPageContent() {
       slotPatches?: (Partial<ImageBoxDef> | undefined)[];
       finalizeBoxes?: (boxes: ImageBoxDef[]) => ImageBoxDef[];
       mergeTexts?: (prev: TextBoxDef[]) => TextBoxDef[];
+      spineRole?: CoverElementRole; // 책등 쪽 여백 규칙을 정하는 요소 종류(디자인 적용은 "photo-structure"). 안 넘기면 템플릿이 정하거나 칸 모양으로 추측해요.
       fitOrientation?: boolean; // 디자인 적용용: 사진 가로·세로에 맞는 칸으로(lib/photoSlotFit.ts). 안 넘기면 예전과 같아요.
       syncLegacyPhoto?: boolean; // 예전 방식 표지 사진 1장을 이미지 크기 읽기를 기다리지 않고 바로 첫 칸으로 이어받아요
       onResult?: (r: { extraPhotos: number; slots: number }) => void;
@@ -15008,7 +14976,7 @@ function UploadPageContent() {
       );
     }
 
-    const placedSlots = placeCoverTemplateSlots(target, template);
+    const placedSlots = placeCoverTemplateSlots(target, template, opts?.spineRole);
 
     function finish(baseBoxes: ImageBoxDef[]) {
       const usable = selectedIds
@@ -15037,6 +15005,11 @@ function UploadPageContent() {
             heightPct: clamped.heightPct,
             layoutTemplateId: template.id,
             ...(existing.layoutTemplateId?.startsWith("design:") ? { rotation: undefined } : {}),
+            // 프레임형이 입힌 테두리는 다른 구성으로 바꿀 때 같이 풀어요(그 구성이 직접 테두리를 정하지 않는 한).
+            ...(existing.layoutTemplateId === "cover-1-frame" && template.id !== "cover-1-frame" && !template.coverSlotPatches?.[idx]
+              ? { borderWidthPx: undefined, borderColor: undefined }
+              : {}),
+            ...(template.coverSlotPatches?.[idx] ?? {}),
           };
         }
         const emptyBox: ImageBoxDef = {
@@ -15052,6 +15025,7 @@ function UploadPageContent() {
           innerOffsetYPct: 0,
           innerScale: 1,
           layoutTemplateId: template.id,
+          ...(template.coverSlotPatches?.[idx] ?? {}),
         };
         return emptyBox;
       });
@@ -15656,6 +15630,7 @@ function UploadPageContent() {
         slotPatches: layout.slots.map((s, i) => ({ ...DESIGN_SLOT_RESET, zOrder: DESIGN_PHOTO_Z0 + i, ...s.patch, designSlot: slotKey(target, i) })),
         syncLegacyPhoto: true,
         fitOrientation: true,
+        spineRole: "photo-structure", // 디자인의 사진 칸은 기준 영역(28mm) 안에 이미 있어서 그대로예요 — 구성 사진 규칙(22mm)이 하한
         mergeTexts: (prev) => mergeDesignTexts(prev, d.id, target, layout.texts).boxes,
         finalizeBoxes: (boxes) => [
           ...boxes.filter((b) => !isDesignItemId(b.id)),
@@ -18806,7 +18781,7 @@ function UploadPageContent() {
                                 ]}
                                 target={target}
                                 onTargetChange={(id) => setCoverLayoutApplyTarget(id === "back" ? "back" : "front")}
-                                templates={LISTED_HALF_LAYOUT_TEMPLATES}
+                                templates={coverPanelTemplates()}
                                 frame={{
                                   kind: "cover",
                                   target,
