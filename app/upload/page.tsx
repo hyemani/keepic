@@ -19132,14 +19132,16 @@ function UploadPageContent() {
                                 src="/logo.svg"
                                 alt="Keepic"
                                 onClick={() => selectBackCoverLogo()}
-                                className={`absolute cursor-pointer opacity-80 transition ${
+                                className={`absolute cursor-pointer transition ${
  backCoverLogoSelected ? "outline outline-2 outline-[var(--color-sky)]" : ""
                                 }`}
+                                // 46차: 화면 로고 = 인쇄 로고. 인쇄(lib/printCompose.ts drawBackCoverLogo)는 칸 너비의 34% × 크기%인데, 화면에는 예전에
+                                // maxWidth 96px(× 크기%) 상한이 있어서 칸이 96px/0.34 = 282px보다 넓으면 항상 96px로 눌려 인쇄보다 훨씬 작게 보였어요(칸 폭 약 660px 기준 14.5% vs 34%).
+                                // 상한을 없애서 칸 폭이 얼마든 같은 비율이에요. 흐림(opacity 0.8)도 없애서 인쇄(불투명)와 같은 색이에요.
                                 style={{
                                   left: `${backCoverLogo.xPct}%`,
                                   top: `${backCoverLogo.yPct}%`,
                                   width: `${34 * (backCoverLogo.scalePct / 100)}%`,
-                                  maxWidth: `${96 * (backCoverLogo.scalePct / 100)}px`,
                                   transform: "translate(-50%, -50%)",
                                 }}
                               />
