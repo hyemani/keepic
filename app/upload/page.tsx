@@ -216,6 +216,8 @@ import {
   type BackgroundSpec,
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
+import { clampSlotsToSpineClearance, captionAvoidLogo, backLogoRectPct, COVER_SPINE_CLEARANCE_MM } from "@/lib/coverSpine";
+import { planAutoCover } from "@/lib/coverAutoLayout";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -1283,9 +1285,12 @@ function CaptionSettingsPopover({
 // 책등 경계처럼 실제로 잘리는 자리가 아닌 쪽이 있으면 hideEdge로 그 변만 빼고 그려요.)
 // 반드시 스프레드(또는 표지) 전체를 감싸는 딱 하나의 요소로만 그려야 점선이 가운데서
 // 끊기지 않아요. (페이지마다 따로 그리면 이어지는 자리에서 점선 위상이 어긋나 끊겨 보여요)
-// 모든 안내선을 색 대신 검정 하나로 통일하고, 종류는 선 굵기·스타일로만 구분해요
-// (도련선=가는 파선, 재단선=굵은 실선, 안전영역=점선, 책등·제본 경계=이중선).
-const GUIDE_LINE_COLOR = "#1a1a1a";
+// 안내선은 선 굵기·스타일로 구분하고(도련선=가는 파선, 재단선=실선, 안전영역=점선, 책등·제본 경계=이중선),
+// 45차부터 색도 살짝 달리해요 — 표지에서 바깥 파선·검은 실선·안쪽 점선·글상자 점선 테두리가 모두 같은 검정이라 "레이아웃이 겹쳐 있다"로 보였어요.
+// 도련선=옅은 회색(잘려 나가는 바깥), 재단선=검정(실제 크기), 안전영역=파란 점선(내용이 들어가는 안쪽). 디자인 요소의 점선 테두리는 그대로 검정/하늘색이에요. 편집 화면 전용(인쇄·미리보기에는 안 나와요).
+const GUIDE_LINE_COLOR = "#1a1a1a"; // 재단선
+const GUIDE_BLEED_COLOR = "#9aa0a8"; // 도련선
+const GUIDE_SAFE_COLOR = "#3f6fd9"; // 안전영역
 
 function GuideLines({
   trimXPct,
@@ -1307,10 +1312,10 @@ function GuideLines({
     <div className="pointer-events-none absolute inset-0 z-[26]">
       <div
         className="absolute inset-0 border"
-        style={{ borderStyle: "dashed", borderColor: GUIDE_LINE_COLOR, ...edgeStyle }}
+        style={{ borderStyle: "dashed", borderColor: GUIDE_BLEED_COLOR, ...edgeStyle }}
       />
       <div
-        className="absolute border-2"
+        className="absolute border-[1.5px]"
         style={{
           left: `${trimXPct}%`,
           right: `${trimXPct}%`,
@@ -1344,14 +1349,14 @@ function CoverGuideBox({
 }) {
   return (
     <div
-      className={variant === "solid" ? "pointer-events-none absolute z-[26] border-2" : "pointer-events-none absolute z-[26] border"}
+      className={variant === "solid" ? "pointer-events-none absolute z-[26] border-[1.5px]" : "pointer-events-none absolute z-[26] border"}
       style={{
         left: `${left}%`,
         right: `${100 - right}%`,
         top: `${top}%`,
         bottom: `${100 - bottom}%`,
         borderStyle: variant,
-        borderColor: GUIDE_LINE_COLOR,
+        borderColor: variant === "dashed" ? GUIDE_BLEED_COLOR : variant === "dotted" ? GUIDE_SAFE_COLOR : GUIDE_LINE_COLOR,
       }}
     />
   );
@@ -13061,6 +13066,59 @@ function UploadPageContent() {
     });
   }
 
+  // "AI 맞춤 레이아웃"에서 표지가 비어 있을 때 처음 올린 사진들로 앞표지를 구성해요(lib/coverAutoLayout.ts — 책등 여백 28mm 안쪽, 사진+제목 자리+여백).
+  // 직접 만지기 전(표지가 비어 있을 때)에만 불리고, 이미 사진·박스가 있는 표지는 건드리지 않아요. 앞표지에 쓴 사진 수를 돌려줘요.
+  function applyAutoCoverPlan(batch: Photo[]): number {
+    const { panelMm, bleedMm } = computeCoverDesignDims();
+    const plan = planAutoCover({
+      photoAspects: batch.map((p) => (p.width > 0 && p.height > 0 ? p.width / p.height : null)),
+      panelMm,
+      bleedMm,
+      cover: photobookCover === "hard" ? "hard" : "soft",
+    });
+    setCoverPhoto(null);
+    setCoverImageBoxes(
+      plan.slots.map((sl) => {
+        const ph = batch[sl.photoIndex] ?? batch[0];
+        return {
+          id: crypto.randomUUID(),
+          url: ph.url,
+          naturalWidth: ph.width || 1,
+          naturalHeight: ph.height || 1,
+          xPct: sl.xPct,
+          yPct: sl.yPct,
+          widthPct: sl.widthPct,
+          heightPct: sl.heightPct,
+          innerOffsetXPct: 0,
+          innerOffsetYPct: 0,
+          innerScale: 1,
+        };
+      })
+    );
+    // 제목 자리·색: 사진 밝기 위가 아니라 종이색 위에 놓이므로 어두운 글씨, 번짐 그림자는 꺼요(표지 디자인 적용과 같은 방식).
+    setCoverTitleXPct(Math.round(plan.title.xPct * 100) / 100);
+    setCoverTitleYPct(Math.round(plan.title.yPct * 100) / 100);
+    setCoverTitleWidthPct(Math.round(plan.title.widthPct * 100) / 100);
+    setCoverTitleHeightPct(undefined);
+    setCoverTitleFontSizePt(plan.title.pt);
+    setCoverTitleColor(plan.title.color);
+    setCoverTitleShadowColor("#000000");
+    setCoverTitleShadowBlur(0);
+    setCoverTitleShadowOffsetX(0);
+    setCoverTitleShadowOffsetY(0);
+    setCoverTitleShadowOpacity(0);
+    const noBackgroundYet =
+      Object.keys(coverBackgrounds).length === 0 && !coverPatternId && !backCoverBackgroundColor && !coverFrontBackgroundColor && !coverSpineBackgroundColor;
+    if (noBackgroundYet) {
+      setCoverBackgrounds({
+        whole: plan.bridge
+          ? { kind: "graphic", presetId: "g2-split-sage-spine", span: "whole" }
+          : { kind: "solid", color: "#F6F3EC", span: "whole" },
+      });
+    }
+    return plan.photoCount;
+  }
+
   async function handleCoverFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -13183,10 +13241,16 @@ function UploadPageContent() {
     // (autoPhotoBaseSlot + k - 1) 내지 첫 페이지(slot 0)에 newPhotos[1]이 들어가도록
     // 고쳤어요 — 빈 칸 없이 그대로 순서대로 채워져요(아래 forEach 쪽 slot 계산 참고).
     const coverPhotoJustAutoAssigned = !coverPhoto && coverImageBoxes.length === 0 && !!newPhotos[0];
+    // 앞표지에 새로 들어간 사진 수(내지로 안 보내요). "AI 맞춤 레이아웃"은 표지 전용 고르기(lib/coverAutoLayout.ts)가 1~2장을 정해요.
+    let coverPhotosUsed = coverPhotoJustAutoAssigned ? 1 : 0;
     if (coverPhotoJustAutoAssigned) {
       const first = newPhotos[0];
-      setCoverPhoto({ ...first, caption: "", size: "base", align: "center", position: "below" });
-      applyCoverPhotoAsImageBox("front", first.url, first.width, first.height);
+      if (isAiAuto) {
+        coverPhotosUsed = applyAutoCoverPlan(newPhotos);
+      } else {
+        setCoverPhoto({ ...first, caption: "", size: "base", align: "center", position: "below" });
+        applyCoverPhotoAsImageBox("front", first.url, first.width, first.height);
+      }
     }
 
     // "AI 맞춤 레이아웃"이면 방금 올린 사진들을 곧바로 자유 배치 이미지박스로 넣어요
@@ -13199,8 +13263,8 @@ function UploadPageContent() {
           // 방금 표지 사진으로 자동 배정된 0번째 사진은 내지에 또 넣지 않아요(위 주석,
           // 중복 적용 버그 수정). 1번째부터는 slot을 1칸씩 당겨서 내지 첫 페이지가
           // 빈 칸으로 남지 않게 해요(18번째 라운드 회귀 수정).
-          if (coverPhotoJustAutoAssigned && k === 0) return;
-          const slot = coverPhotoJustAutoAssigned ? autoPhotoBaseSlot + k - 1 : autoPhotoBaseSlot + k;
+          if (k < coverPhotosUsed) return;
+          const slot = autoPhotoBaseSlot + k - coverPhotosUsed;
           const pos = findAutoPhotoSlotPosition(slot, requiredSpreadCount);
           const box: ImageBoxDef = {
             id: crypto.randomUUID(),
@@ -14886,9 +14950,12 @@ function UploadPageContent() {
     template: PhotoLayoutTemplate
   ): { xPct: number; yPct: number; widthPct: number; heightPct: number }[] {
     const safety = computeCoverPanelSafetyPct();
-    return template.slots.map((slot) =>
+    const trimmed = template.slots.map((slot) =>
       clampSlotToCoverSafety(slot.xPct, slot.yPct, slot.widthPct, slot.heightPct, safety, target)
     );
+    // 45차: 책등 쪽도 숨 쉴 자리(lib/coverSpine.ts COVER_SPINE_CLEARANCE_MM, 28mm)만큼 비워요 — 묶음 전체를 같은 비율로 옮겨서 같은 폭 칸은 같은 폭으로 남아요.
+    const cd = computeCoverDesignDims();
+    return clampSlotsToSpineClearance(trimmed, target, cd.panelMm + cd.bleedMm);
   }
 
   function applyCoverLayoutTemplate(
@@ -14914,7 +14981,31 @@ function UploadPageContent() {
     // "사진 아래 문구 공간" 템플릿이면(내지 applyLayoutTemplate과 같은 방식) 남는 세로
     // 공간에 캡션 텍스트박스를 자동으로 하나 만들어줘요. 표지는 "범위" 개념이 없어서
     // 항상 coverTextBoxes/backCoverTextBoxes 전체에 적용해요.
-    const captionSlot = captionSlotFor(template);
+    const captionSlotRaw = captionSlotFor(template);
+    // 뒤표지 로고와 겹치는 문구 칸은 로고를 피해 줄여요(45차, 빈 글상자의 "텍스트 입력" 안내가 로고 위에 겹쳐 보이던 문제).
+    // 문구 칸 아래쪽도 안전선 안으로 줄여요(예전엔 100%=도련 끝까지 내려가서 글이 재단선 근처에 놓일 수 있었어요).
+    // 가로도 같아요: 책등 쪽은 책등 여백(28mm), 바깥쪽은 안전선 안으로(예전엔 0~100% 꽉 찬 글상자라 책등에 붙었어요).
+    const capSafe = computeCoverPanelSafetyPct();
+    const capDims = computeCoverDesignDims();
+    const capSpinePct = ((capDims.panelMm + capDims.bleedMm) > 0 ? (COVER_SPINE_CLEARANCE_MM / (capDims.panelMm + capDims.bleedMm)) * 100 : 0);
+    const capX0 = isFront ? capSpinePct : capSafe.xPct;
+    const capX1 = isFront ? 100 - capSafe.xPct : 100 - capSpinePct;
+    const captionSlotSafe = captionSlotRaw
+      ? {
+          ...captionSlotRaw,
+          xPct: Math.max(captionSlotRaw.xPct, capX0),
+          widthPct: Math.max(10, Math.min(captionSlotRaw.xPct + captionSlotRaw.widthPct, capX1) - Math.max(captionSlotRaw.xPct, capX0)),
+          heightPct: Math.min(captionSlotRaw.heightPct, Math.max(4, 100 - capSafe.yPct - captionSlotRaw.yPct)),
+        }
+      : null;
+    let captionSlot = captionSlotSafe;
+    if (captionSlotSafe && !isFront && backCoverLogo) {
+      const cd = computeCoverDesignDims();
+      captionSlot = captionAvoidLogo(
+        captionSlotSafe,
+        backLogoRectPct(backCoverLogo, (cd.panelMm + cd.bleedMm) / (cd.panelMm + cd.bleedMm * 2)),
+      );
+    }
 
     const placedSlots = placeCoverTemplateSlots(target, template);
 
@@ -17472,6 +17563,7 @@ function UploadPageContent() {
           panelWmm: panel === "back" ? coverBackWmm : panel === "spine" ? coverSpineMm : coverFrontWmm,
           heightMm: coverTotalHmm,
           spanWmm: coverTotalWmm,
+          spineWmm: coverSpineMm,
         });
       }
       if (!coverPatternId) return legacyColor ?? "#ffffff";
@@ -18950,6 +19042,7 @@ function UploadPageContent() {
                                 onApply={(spec) => handleApplyCoverBackground(coverBgScope, spec)}
                                 onReset={() => handleApplyCoverBackground(coverBgScope, undefined)}
                                 pageMm={{ w: coverPanelMm + coverBleedMm, h: coverTotalHmm }}
+                                coverWhole={coverBgScope === "whole"}
                                 renderColorChart={(p) => <ColorChartPicker {...p} />}
                               />
                             );
