@@ -2,8 +2,8 @@
 // 올린 사진 수·가로/세로 모양·표지 종류(소프트/하드)·책 크기로 점수를 매겨 하나를 골라요. 같은 입력이면 항상 같은 결과예요(무작위 없음).
 //
 // 규칙 요약
-//  1) 후보는 모두 "안전 영역"(책등 쪽 = 접힘 안전 20mm + 숨 쉴 자리 8mm = 28mm, 바깥쪽 = 재단선에서 15mm) 안에서만 그려요 → 책등에 붙는 후보가 없어요.
-//     (lib/designKit.ts coverDesignGeo가 표지 디자인과 같은 안전 영역을 줘요)
+//  1) 후보는 모두 책등 쪽 접힘선에서 20mm(= 접힘 안전, 원래 기준) 안쪽에서 시작해요 → 책등에 붙는 후보가 없어요. 좌우 균형을 위해 바깥쪽 끝도 재단선에서 같은 20mm 안쪽이에요
+//     (접힘선 20mm / 재단선 20mm — 편집기 안전선(재단선 15mm)보다 안쪽이라 안전선 밖으로 나가지 않아요). 47차: 46차의 28mm 실험은 되돌렸어요(lib/coverSpine.ts).
 //  2) 사진을 표지 전체에 꽉 채우는 후보는 없어요 — 사진 + 제목 자리 + 여백이 있는 "마무리된" 구성만 있어요(제목은 사진 아래/위에 따로 자리가 있어요).
 //  3) 점수 = 칸에 사진이 꽉 채워 들어갈 때 "보이는 비율"(lib/photoSlotFit.ts visibleFraction)의 평균
 //        − 0.25 (어느 사진이든 보이는 비율이 0.55 미만이면) + 표지 종류 가산점(소프트: 가로 구성 +0.03, 하드: 액자형 +0.03)
@@ -53,7 +53,7 @@ type Candidate = {
   bridge: boolean;
   framed: boolean; // 액자형(사방 여백이 큰 구성) — 하드커버 가산
   wide: boolean; // 가로 구성 — 소프트커버 가산
-  // 사진 칸의 책등 쪽 여백 규칙(46차, lib/coverSpine.ts): 주인공 사진 한 장 = photo-hero(28mm), 두 장 구성 = photo-structure(22mm). 제목 자리는 항상 글 규칙(28mm)이에요.
+  // 요소 종류(lib/coverSpine.ts): 주인공 사진 한 장 = photo-hero, 두 장 구성 = photo-structure, 제목 자리는 글 규칙 — 47차부터 모두 원래 기준 20mm예요.
   role: CoverElementRole;
 };
 
@@ -73,8 +73,7 @@ export const AUTO_COVER_CANDIDATE_IDS: AutoCoverCandidateId[] = CANDIDATES.map((
 export function planAutoCover(input: AutoCoverInput): AutoCoverPlan {
   const g = coverDesignGeo("front", input.panelMm, input.bleedMm);
   const frameAspect = g.W / g.H;
-  // 사진 칸은 역할별 책등 쪽 시작선에서(주인공 28mm / 구성 22mm), 제목 자리는 글 규칙(28mm = g.x0)에서 시작해요.
-  // 좌우가 균형 잡히도록 바깥쪽 끝도 재단선에서 같은 거리만큼 안쪽이에요(접힘선 쪽 여백 = 재단선 쪽 여백, 46차). 예전엔 바깥쪽이 재단선 15mm라 28mm와 13mm 차이가 났어요.
+  // 사진 칸·제목 자리는 책등 쪽 접힘선에서 20mm(g.x0)부터 시작해요(원래 기준). 좌우가 균형 잡히도록 바깥쪽 끝도 재단선에서 같은 20mm 안쪽이에요(접힘선 쪽 여백 = 재단선 쪽 여백).
   const toPanel = (f: Frac, role: CoverElementRole = "text") => {
     const x0 = Math.min(g.x0, clearanceFor(role));
     const sw = g.W - input.bleedMm - x0 - x0;
