@@ -11,10 +11,10 @@ import { COVER_SPINE_CLEARANCE_MM } from "./coverSpine";
 const SAFE_EDGE_MM = 15; // 재단선 안쪽 안전 여백(= GUIDE_SAFETY_MARGIN_MM)
 /**
  * 책등 쪽 접힘선에 딱 붙어 시작하는 칸(꽉 채우기·2단·격자의 왼쪽 열 등, 접힘선까지 0mm)도 20mm 안내선으로 당길지 정해요.
- * true(48차 요청: "책등 쪽 사진 칸이 20mm 안내선을 넘으면 안 돼요")면 접힘선에서 20mm 안쪽으로 당기고(재단선 쪽을 안전선으로 당기던 것과 같은 방식), false면 붙은 칸은 예전처럼 접힘선까지 두고
- * "사방 여백" 계열처럼 어중간하게 가까운 칸(S 사이즈 16.4mm)만 20mm로 당겨요.
+ * 49차 결정: false — 접힘선에 붙은 칸은 25ddee2처럼 접힘선까지 그대로 두고(책등 안으로는 들어가지 않아요),
+ * "사방 여백" 계열처럼 접힘선에서 0.5mm보다 멀고 20mm보다 가까운 칸(S 사이즈 16.4mm·18.08mm)만 20mm로 당겨요.
  */
-export const CLAMP_FOLD_FLUSH_SLOTS = true;
+export const CLAMP_FOLD_FLUSH_SLOTS = false;
 
 type Dims = { panelMm: number; bleedMm: number };
 
@@ -31,7 +31,7 @@ export function findCoverTemplate(id: string | undefined): PhotoLayoutTemplate |
 /**
  * 표지 판 하나(앞/뒤)에 레이아웃 칸이 실제로 놓일 자리(그 판 기준 %)예요.
  *  · 재단선(트림) 쪽 가장자리에 닿은 변만 안전선(재단선 15mm 안)으로 당겨요 — 45차 이전(25ddee2)의 clampSlotToCoverSafety와 똑같아요. 이미 안쪽인 변은 그대로예요.
- *  · 48차: 책등 쪽 변은 접힘선에서 20mm(편집기 안내선)보다 가까우면 그 변만 20mm로 당겨요(책등에 붙거나 안내선을 넘는 칸). 이미 20mm 밖인 칸·다른 세 변·칸 크기 비율은 그대로예요
+ *  · 49차: 책등 쪽 변이 접힘선에서 0.5mm 초과 ~ 20mm 미만이면 그 변만 20mm로 당겨요. 접힘선에 붙은 칸(0mm)·이미 20mm 밖인 칸·다른 세 변·칸 크기 비율은 그대로예요
  *    (예: 소프트 S의 "사방 여백" 계열은 접힘선에서 16.4mm → 20mm, M·L은 20.4·24.4mm라 그대로).
  */
 export function placeCoverSlots(template: PhotoLayoutTemplate, side: "front" | "back", dims: Dims): LayoutSlot[] {
@@ -42,15 +42,16 @@ export function placeCoverSlots(template: PhotoLayoutTemplate, side: "front" | "
   const sy = H > 0 ? ((dims.bleedMm + SAFE_EDGE_MM) / H) * 100 : 0;
   const spineX = W > 0 ? (COVER_SPINE_CLEARANCE_MM / W) * 100 : 0; // 책등 쪽 접힘 안전(20mm)
   const EPS = 0.5;
+  const flushPct = W > 0 ? (0.5 / W) * 100 : EPS; // 접힘선에 붙은 칸(간격 0.5mm 이하)은 접힘선에서 멈추게 그대로 둬요(25ddee2와 똑같이)
   return raw.map((s) => {
     let left = s.xPct;
     let right = s.xPct + s.widthPct;
     if (side === "front") {
       if (right >= 100 - EPS) right = Math.min(right, 100 - sx);
-      if (CLAMP_FOLD_FLUSH_SLOTS || left > EPS) left = Math.max(left, spineX);
+      if (CLAMP_FOLD_FLUSH_SLOTS || left > flushPct) left = Math.max(left, spineX);
     } else {
       if (left <= EPS) left = Math.max(left, sx);
-      if (CLAMP_FOLD_FLUSH_SLOTS || right < 100 - EPS) right = Math.min(right, 100 - spineX);
+      if (CLAMP_FOLD_FLUSH_SLOTS || right < 100 - flushPct) right = Math.min(right, 100 - spineX);
     }
     const top = s.yPct <= EPS ? Math.max(s.yPct, sy) : s.yPct;
     const bottom = s.yPct + s.heightPct >= 100 - EPS ? Math.min(s.yPct + s.heightPct, 100 - sy) : s.yPct + s.heightPct;
