@@ -217,7 +217,7 @@ import {
   type BackgroundSpec,
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
-import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
+import { captionAvoidLogo, backLogoRectPct, BACK_LOGO_DEFAULT_SCALE_PCT, COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
 import { placeCoverSlots, clampCaptionSlotToCover, defaultCoverTitleBox } from "@/lib/coverLayoutVariants";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 
@@ -12668,7 +12668,7 @@ function UploadPageContent() {
   const [backCoverLogo, setBackCoverLogo] = useState<{ xPct: number; yPct: number; scalePct: number } | null>({
     xPct: 50,
     yPct: 50,
-    scalePct: 100,
+    scalePct: BACK_LOGO_DEFAULT_SCALE_PCT, // 48차: 새 앨범만 약 21%(예전 100 = 34%). 저장된 앨범은 아래 불러오기에서 자기 값을 그대로 읽어요.
   });
   // 지금 뒤표지 로고가 선택된 상태인지예요(캔버스에서 클릭해 고르면 true — 내지
   // activeImageBox·표지 activeCoverImageBox와 같은 역할, 로고는 ImageBoxDef가 아니라서

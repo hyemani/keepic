@@ -97,6 +97,12 @@ export function minSpineClearanceMm(rects: readonly Slot[], side: "front" | "bac
 // ---- 뒤표지 키픽 로고 자리 ----
 // 인쇄(lib/printCompose.ts drawBackCoverLogo)와 같은 크기 규칙이에요: 너비 = 칸 너비의 34% × (scalePct/100), 높이 = 너비 ÷ 로고 가로세로비(1155:367).
 const BACK_LOGO_ASPECT = 1155 / 367;
+/**
+ * 새 앨범의 뒤표지 키픽 로고 기본 크기(48차, 혜민님: "로고가 너무 커요"). scalePct는 "칸 너비의 34% 대비 %"라서 62 → 칸 너비의 약 21%예요(예전 기본 100 = 34%).
+ * 화면 편집·인쇄 미리보기·PDF가 모두 같은 식(34% × scalePct/100)을 읽어서 크기는 항상 같아요. 이 값은 "새 앨범"에만 쓰여요 —
+ * 저장된 앨범은 자기 backCoverLogo.scalePct를 그대로 읽고(예전 기본 100 포함), 표지 디자인을 고르면 디자인이 정한 크기(36~42)를 써요.
+ */
+export const BACK_LOGO_DEFAULT_SCALE_PCT = 62;
 export type Rect4 = { xPct: number; yPct: number; widthPct: number; heightPct: number };
 
 /** 뒤표지 칸(도련 포함) 기준 % 사각형. cellAspect = 칸 가로÷세로. */
