@@ -17741,7 +17741,8 @@ function UploadPageContent() {
       if (!untouched) return;
       const lineH = coverTitleLinePct({ panelMm: coverPanelMm, bleedMm: coverBleedMm }, coverTitleFontSizePt, coverTitleLineHeightEm);
       const box = { xPct: coverTitleXPct, yPct: coverTitleYPct, widthPct: coverTitleWidthPct, heightPct: coverTitleHeightPct ?? lineH };
-      const photoRects = coverImageBoxes.filter((b) => !isStickerImageBox(b) && !!b.url);
+      // 아직 사진이 안 들어간 빈 사진 칸도 "사진 자리"로 봐요(나중에 사진이 들어갈 자리라서).
+      const photoRects = coverImageBoxes.filter((b) => !isStickerImageBox(b));
       const hasLegacy = !!coverPhoto?.url && photoRects.length === 0;
       const overlapsPhoto = hasLegacy || titleOverlapPct2(box, photoRects) > 0.01;
       const spec = resolveCoverPanelSpec(coverBackgrounds, "front");
