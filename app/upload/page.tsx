@@ -53,7 +53,7 @@ import {
   calcEstimatedSpineWidthMm,
   printFileSpec,
 } from "@/lib/photobookPricing";
-import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup, TEXT_BOX_FONT_SCALE_BASE_RATIO } from "@/lib/printCompose";
+import { buildInnerPrintPdf, buildCoverPrintPdf, GUIDE_SAFETY_MARGIN_MM, SpreadPhotoGroup, TEXT_BOX_FONT_SCALE_BASE_RATIO, renderCoverFrontBackdrop } from "@/lib/printCompose";
 import {
   borderWidthMm,
   frameBorderMarks,
@@ -219,10 +219,10 @@ import {
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
 import { captionAvoidLogo, backLogoRectPct, BACK_LOGO_DEFAULT_SCALE_PCT, COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
-import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox, coverPanelTemplates } from "@/lib/coverLayoutVariants";
-import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleReadability, coverTitleLinePct, titleOverlapPct2, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
+import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox, coverPanelTemplates, coverSafeBoxPct } from "@/lib/coverLayoutVariants";
+import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleReadability, coverTitleLinePct, titleOverlapPct2, coverTitleFitY, coverTitlePlateClip, chooseCoverTitleTreatment, READABILITY_PLATE_COLOR, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
 import { planAutoCover } from "@/lib/coverAutoLayout";
-import { coverTitleLinesWithCanvas, coverTitleInsetEm, coverTitleNotices, type CoverTitleNotice } from "@/lib/coverTitleWrap";
+import { coverTitleLinesWithCanvas, coverTitleInsetEm, coverTitleNotices, coverTitleMaxLineWidthMm, type CoverTitleNotice } from "@/lib/coverTitleWrap";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -10836,6 +10836,11 @@ function TableBoxLayer({
 // 52차 — 제목 줄바꿈을 canvas로 재는 작은 캐시(렌더마다 다시 재지 않도록). 서체가 아직 안 불러와졌을 땐 결과가 달라질 수 있어서 서체 로딩 상태도 키에 넣어요.
 let coverTitleWrapCanvas: HTMLCanvasElement | null = null;
 const coverTitleWrapCache = new Map<string, string[]>();
+function coverTitleMeasureCtx(): CanvasRenderingContext2D | null {
+  if (typeof document === "undefined") return null;
+  coverTitleWrapCanvas ??= document.createElement("canvas");
+  return coverTitleWrapCanvas.getContext("2d");
+}
 function coverTitleLinesCached(
   text: string,
   spec: { fontFamily: string; bold: boolean; italic: boolean; letterSpacingEm: number },
@@ -10880,6 +10885,7 @@ function CoverTitleOverlay({
   editableBox,
   onEditableBoxChange,
   wrapV2 = false,
+  plateClip = null,
   notice,
 }: {
   title: string;
@@ -10938,6 +10944,8 @@ function CoverTitleOverlay({
   onEditableBoxChange: (changes: Partial<TextBoxDef>) => void;
   // 52차 — 새 방식(화면과 인쇄가 같은 줄바꿈·같은 안쪽 여백) 앨범이면 true. 편집 화면에서 배경·여백을 바깥 칸이 한 번만 그리고(미리보기·인쇄와 같아요), 안쪽 에디터는 글자만 그려요.
   wrapV2?: boolean;
+  // 52차 — 새 방식에서 자동으로 깐 반투명 띠(fillBox)가 사진 밖(여백·재단 쪽)으로 삐져나가지 않게, 띠를 이 가로 범위(앞표지 판 가로 %, x0~x1)로 제한해요(없으면 제목 칸 전체 너비).
+  plateClip?: { x0: number; x1: number } | null;
   // 52차 — 편집 화면에서만 보이는 작은 안내(예: 옛 앨범에서 "PDF에서는 한 줄로 인쇄돼요" + 한 번 눌러 새 방식으로 바꾸기, 제목이 칸을 넘을 때).
   notice?: { text: string; actionLabel?: string; onAction?: () => void } | null;
 }) {
@@ -11224,13 +11232,21 @@ function CoverTitleOverlay({
         <div
           aria-hidden
           className="pointer-events-none absolute top-0 bottom-0"
-          style={{
-            backgroundColor: editableBox.backgroundColor,
-            width: `${backgroundStripPctOfBox}%`,
-            left: align === "left" ? 0 : align === "center" ? "50%" : undefined,
-            right: align === "right" ? 0 : undefined,
-            transform: align === "center" ? "translateX(-50%)" : undefined,
-          }}
+          style={
+            isFillBoxMode && plateClip && widthPct > 0
+              ? {
+                  backgroundColor: editableBox.backgroundColor,
+                  left: `${((plateClip.x0 - xPct) / widthPct) * 100}%`,
+                  width: `${((plateClip.x1 - plateClip.x0) / widthPct) * 100}%`,
+                }
+              : {
+                  backgroundColor: editableBox.backgroundColor,
+                  width: `${backgroundStripPctOfBox}%`,
+                  left: align === "left" ? 0 : align === "center" ? "50%" : undefined,
+                  right: align === "right" ? 0 : undefined,
+                  transform: align === "center" ? "translateX(-50%)" : undefined,
+                }
+          }
         />
       )}
       {snapGuide.rect && (snapGuide.v || snapGuide.h) && (
@@ -12723,6 +12739,11 @@ function UploadPageContent() {
   // 52차 — 표지 제목 줄바꿈 방식 버전. 2 = 화면과 똑같이 자동 줄바꿈해서 인쇄(미리보기·PDF)도 같은 줄 수·같은 줄바꿈으로 나와요(새 앨범 기본).
   // 1 = 옛 방식(인쇄는 Enter 줄바꿈만 나누고 긴 줄은 한 줄로 눌러 찍어요) — 저장된 옛 앨범은 이 값이 없어서 1로 열려요(자동으로 바꾸지 않아요, 편집 화면 안내의 버튼으로 직접 바꿔요).
   const [coverTitleWrapVersion, setCoverTitleWrapVersion] = useState<number>(2);
+  // 52차 — 제목 자동 처리 기억(저장 안 해요): (1) 여러 줄이 되면 첫 줄 자리(anchorY)에서 위로 올려 앉힌 자리(lastY) — 사용자가 직접 옮기면(y가 lastY와 달라지면) 더는 안 건드려요.
+  // (2) 글자색·판을 자동으로 정했으면 그 값 — 사용자가 직접 바꾸면(현재 값이 이 값과 달라지면) 더는 안 건드려요.
+  const coverTitleAnchorRef = useRef<{ anchorY: number; ys: number[] } | null>(null); // ys = 우리가 지금까지 이 제목에 정해 준 세로 위치들(빨리 타이핑할 때 화면 값이 한 박자 늦어도 "아직 우리가 놓은 자리"로 알아봐요)
+  const coverTitleAutoStyleRef = useRef<{ color: string; bg: string | undefined; mode: string | undefined } | null>(null);
+  const coverTitleEvaluateRef = useRef<(() => void) | null>(null);
   // 표지 제목⇄책등 제목 서체 연결 스위치예요(2026-09-25, 혜민님 요청). 기본 켜짐 — 켜진
   // 동안은 둘 중 어느 쪽 서체를 바꿔도 같이 바뀌어요(아래 handleCoverTitleFontFamilyChange/
   // handleSpineTitleFontFamilyChange 참고). 크기·위치·회전은 서로 영향 안 받고 각자 값
@@ -16158,6 +16179,15 @@ function UploadPageContent() {
   const undoStackRef = useRef<string[]>([]);
   const redoStackRef = useRef<string[]>([]);
   const isRestoringHistoryRef = useRef(false);
+  // 52차 — 제목을 쓰는 동안(이번 편집 중) 제목 칸을 옮기거나 크기·글자 크기·사진을 바꾸면, 우리가 자동으로 정한 자리·글자색·판만 다시 맞춰요(사용자가 직접 바꾼 값은 그대로).
+  useEffect(() => {
+    if (!coverTitle.trim()) return;
+    if (!coverTitleAnchorRef.current && !coverTitleAutoStyleRef.current) return;
+    const t = setTimeout(() => {
+      if (!isRestoringHistoryRef.current) coverTitleEvaluateRef.current?.();
+    }, 450);
+    return () => clearTimeout(t);
+  }, [coverTitle, coverTitleXPct, coverTitleYPct, coverTitleWidthPct, coverTitleFontSizePt, coverTitleLineHeightEm, coverImageBoxes, coverFrontBackgroundColor]);
   const lastHistorySnapshotRef = useRef<string | null>(null);
   // 드래그·리사이즈처럼 짧은 시간에 onChange가 여러 번(마우스무브마다) 연달아 일어나는
   // 동작을 "실행취소 한 번"으로 묶어주는 디바운스예요(2026-09-19, 혜민님 확인 — 예전엔
@@ -16356,6 +16386,9 @@ function UploadPageContent() {
     setCoverTitleVerticalAlign(s.coverTitleVerticalAlign ?? "top");
     // 52차: 이 값이 없는 문서 = 이 기능 이전에 저장된 옛 앨범 → 1(옛 인쇄 방식 그대로).
     setCoverTitleWrapVersion(typeof s.coverTitleWrapVersion === "number" ? s.coverTitleWrapVersion : 1);
+    // 실행취소·불러오기로 제목 상태가 바뀌면, 제목 자동 처리(위로 올려 앉히기·글자색/판 자동 판단) 기억은 버려요 — 되돌린 값은 그대로 둬요.
+    coverTitleAnchorRef.current = null;
+    coverTitleAutoStyleRef.current = null;
     // 2026-10-08, 혜민님 요청(항목6) — spineTitle이 없는(이번 업데이트 전에 만들어진)
     // 스냅샷이면, 그때는 책등이 항상 coverTitle을 그대로 썼으니(coverTitle.replace
     // (/\n/g," ")) 그 값으로 채워서 불러온 순간 화면이 예전과 똑같이 보이게 해요. 그
@@ -17843,29 +17876,143 @@ function UploadPageContent() {
             : {}),
         }
       : null;
-    function applyCoverTitleReadabilityOnFirstText() {
-      const untouched =
-        coverTitleColor.toLowerCase() === "#ffffff" &&
-        coverTitleBackgroundColor === undefined &&
-        coverTitleShadowColor === undefined &&
-        coverTitleStrokeColor === undefined &&
-        coverTitleStrokeWidth === undefined &&
-        !coverTitleGradientEnabled;
-      if (!untouched) return;
-      const lineH = coverTitleLinePct({ panelMm: coverPanelMm, bleedMm: coverBleedMm }, coverTitleFontSizePt, coverTitleLineHeightEm);
-      const box = { xPct: coverTitleXPct, yPct: coverTitleYPct, widthPct: coverTitleWidthPct, heightPct: coverTitleHeightPct ?? lineH };
+    // 52차 — 제목을 쓸 때의 자동 처리(새 방식 앨범만, 사용자가 직접 정한 값은 절대 덮어쓰지 않아요):
+    //  (1) 여러 줄이 되면 첫 줄 자리에서 위로 올려 앉혀서 아래 줄이 사진·안전선 밖으로 안 나가게(사진 칸은 그대로) — reanchorCoverTitle
+    //  (2) 글자 뒤 사진의 실제 밝기를 재서 글자색·판을 정해요(어두운 사진=흰 글자, 밝은 사진=진한 글자, 중간·복잡=반투명 판, 대비 4.5:1 이상) — evaluateCoverTitleAutoStyle
+    const coverTitleDimsForLayout = { panelMm: coverPanelMm, bleedMm: coverBleedMm };
+    const coverTitleSpecForWrap = {
+      fontFamily: coverTitleFontFamily,
+      bold: coverTitleBold,
+      italic: coverTitleItalic,
+      letterSpacingEm: coverTitleLetterSpacingEm,
+    };
+    function coverTitleLinesFor(text: string, insetXEm: number): string[] | null {
+      return coverTitleLinesCached(
+        coverTitleTextTransformUppercase ? text.toUpperCase() : text,
+        coverTitleSpecForWrap,
+        (coverTitleWidthPct / 100) * coverTitleCellWmm - insetXEm * 2 * coverTitleFontMm,
+        coverTitleFontMm
+      );
+    }
+    const coverTitleLinePctNow = coverTitleLinePct(coverTitleDimsForLayout, coverTitleFontSizePt, coverTitleLineHeightEm);
+    // 사진 자리(아직 사진이 안 들어간 빈 칸 포함, 스티커 제외) — 옛 한 장 표지 사진(coverPhoto)은 판 전체로 봐요.
+    const coverTitlePhotoRects: { xPct: number; yPct: number; widthPct: number; heightPct: number }[] = (() => {
+      const r = coverImageBoxes.filter((b) => !isStickerImageBox(b)).map((b) => ({ xPct: b.xPct, yPct: b.yPct, widthPct: b.widthPct, heightPct: b.heightPct }));
+      return r.length === 0 && !!coverPhoto?.url ? [{ xPct: 0, yPct: 0, widthPct: 100, heightPct: 100 }] : r;
+    })();
+    function reanchorCoverTitle(text: string, insetYEm: number, insetXEm: number) {
+      if (coverTitleHeightPct !== undefined) return;
+      const ref = coverTitleAnchorRef.current;
+      let anchorY: number | null = null;
+      if (ref && (Math.abs(ref.anchorY - coverTitleYPct) <= 0.02 || ref.ys.some((v) => Math.abs(v - coverTitleYPct) <= 0.02))) anchorY = ref.anchorY;
+      else {
+        const autoYs = coverTitleAutoYSet(coverPanelTemplates(), coverTitleDimsForLayout, coverTitleFontSizePt, coverTitleLineHeightEm);
+        if (autoYs.some((y) => Math.abs(y - coverTitleYPct) <= 0.02)) anchorY = coverTitleYPct;
+      }
+      if (anchorY === null) {
+        coverTitleAnchorRef.current = null;
+        return;
+      }
+      const lines = coverTitleLinesFor(text, insetXEm);
+      if (!lines) return;
+      const y = coverTitleFitY({
+        anchorYPct: anchorY,
+        lineCount: Math.max(1, lines.length),
+        linePct: coverTitleLinePctNow,
+        insetYPct: ((insetYEm * coverTitleFontMm) / coverTotalHmm) * 100,
+        xPct: coverTitleXPct,
+        widthPct: coverTitleWidthPct,
+        photos: coverTitlePhotoRects,
+        obstaclesBelow: (coverTextBoxes ?? []).map((t) => ({ xPct: t.xPct, yPct: t.yPct, widthPct: t.widthPct, heightPct: t.heightPct ?? 0 })),
+        safe: coverSafeBoxPct("front", coverTitleDimsForLayout),
+      });
+      coverTitleAnchorRef.current = { anchorY, ys: [...(ref && ref.anchorY === anchorY ? ref.ys : []), y].slice(-8) };
+      if (Math.abs(y - coverTitleYPct) > 0.001) setCoverTitleYPct(y);
+    }
+    async function evaluateCoverTitleAutoStyle(firstText?: string) {
+      const text = firstText ?? coverTitle;
+      if (!text.trim()) return;
+      const auto = coverTitleAutoStyleRef.current;
+      const hasOtherStyle =
+        coverTitleShadowColor !== undefined ||
+        coverTitleStrokeColor !== undefined ||
+        coverTitleStrokeWidth !== undefined ||
+        !!coverTitleGradientEnabled;
+      if (hasOtherStyle) return;
+      if (firstText !== undefined) {
+        // 처음 쓰는 제목: 서식을 한 번도 안 건드린 흰색 제목일 때만.
+        if (!(coverTitleColor.toLowerCase() === "#ffffff" && coverTitleBackgroundColor === undefined)) return;
+      } else {
+        // 다시 판단할 때: 방금 우리가 자동으로 정한 값 그대로일 때만(사용자가 색·배경을 바꿨으면 그대로 둬요).
+        if (!auto || coverTitleColor !== auto.color || coverTitleBackgroundColor !== auto.bg || coverTitleBackgroundMode !== auto.mode) return;
+      }
+      const lines = coverTitleLinesFor(text, 0) ?? [text];
+      const yUse = coverTitleAnchorRef.current ? coverTitleAnchorRef.current.ys[coverTitleAnchorRef.current.ys.length - 1] ?? coverTitleYPct : coverTitleYPct;
+      const blockPct = lines.length * coverTitleLinePctNow;
+      const box = { xPct: coverTitleXPct, yPct: yUse, widthPct: coverTitleWidthPct, heightPct: coverTitleHeightPct ?? blockPct };
       // 아직 사진이 안 들어간 빈 사진 칸도 "사진 자리"로 봐요(나중에 사진이 들어갈 자리라서).
-      const photoRects = coverImageBoxes.filter((b) => !isStickerImageBox(b));
-      const hasLegacy = !!coverPhoto?.url && photoRects.length === 0;
-      const overlapsPhoto = hasLegacy || titleOverlapPct2(box, photoRects) > 0.01;
+      const overlapsPhoto = titleOverlapPct2(box, coverTitlePhotoRects) > 0.01;
       const spec = resolveCoverPanelSpec(coverBackgrounds, "front");
       const bgColor = spec ? (spec.kind === "solid" ? spec.color : effectivePreset(spec)?.colors[0]) : coverFrontBackgroundColor;
-      const fix = coverTitleReadability({ overlapsPhoto, bgColor: bgColor ?? "#ffffff" });
-      if (!fix) return;
-      if (fix.color) setCoverTitleColor(fix.color);
-      if (fix.backgroundColor) {
-        setCoverTitleBackgroundColor(fix.backgroundColor);
-        setCoverTitleBackgroundMode(fix.backgroundMode);
+      let next: { color: string; bg: string | undefined; mode: "fillBox" | undefined } | null = null;
+      if (!overlapsPhoto) {
+        const fix = coverTitleReadability({ overlapsPhoto: false, bgColor: bgColor ?? "#ffffff" });
+        next = { color: fix?.color ?? "#ffffff", bg: undefined, mode: undefined };
+      } else {
+        let treatment: ReturnType<typeof chooseCoverTitleTreatment> | null = null;
+        const hasBoxPhotos = coverImageBoxes.some((b) => !isStickerImageBox(b) && !!b.url);
+        if (hasBoxPhotos) {
+          const cv = await renderCoverFrontBackdrop({ boxes: coverImageBoxes, bgColor: bgColor ?? "#ffffff", widthPx: 360, cellWmm: coverTitleCellWmm, cellHmm: coverTotalHmm });
+          const cctx = cv?.getContext("2d");
+          const mctx = coverTitleMeasureCtx();
+          if (cv && cctx && mctx) {
+            // 글자가 실제로 놓이는 가로 범위(가장 넓은 줄 기준, 정렬 반영) × 글자 덩어리 높이.
+            const textWmm = Math.min((coverTitleWidthPct / 100) * coverTitleCellWmm, coverTitleMaxLineWidthMm(mctx, lines, coverTitleSpecForWrap, coverTitleFontMm));
+            const boxLeftMm = (coverTitleXPct / 100) * coverTitleCellWmm;
+            const boxWmm = (coverTitleWidthPct / 100) * coverTitleCellWmm;
+            const leftMm = coverTitleAlign === "left" ? boxLeftMm : coverTitleAlign === "right" ? boxLeftMm + boxWmm - textWmm : boxLeftMm + (boxWmm - textWmm) / 2;
+            const pxPerMm = cv.width / coverTitleCellWmm;
+            const x0 = Math.max(0, Math.floor(leftMm * pxPerMm));
+            const x1 = Math.min(cv.width, Math.ceil((leftMm + textWmm) * pxPerMm));
+            const y0 = Math.max(0, Math.floor((yUse / 100) * cv.height));
+            const y1 = Math.min(cv.height, Math.ceil(((yUse + blockPct) / 100) * cv.height));
+            if (x1 > x0 && y1 > y0) treatment = chooseCoverTitleTreatment(cctx.getImageData(x0, y0, x1 - x0, y1 - y0).data);
+          }
+        }
+        next = treatment
+          ? { color: treatment.color, bg: treatment.backgroundColor, mode: treatment.backgroundColor ? "fillBox" : undefined }
+          : { color: "#ffffff", bg: READABILITY_PLATE_COLOR, mode: "fillBox" }; // 사진을 못 읽으면 예전처럼 흰 글자 + 반투명 검정 띠
+      }
+      // 이미 같은 값이면 아무것도 안 해요.
+      if (coverTitleColor === next.color && coverTitleBackgroundColor === next.bg && coverTitleBackgroundMode === next.mode) {
+        coverTitleAutoStyleRef.current = next;
+        return;
+      }
+      coverTitleAutoStyleRef.current = next;
+      setCoverTitleColor(next.color);
+      setCoverTitleBackgroundColor(next.bg);
+      setCoverTitleBackgroundMode(next.mode);
+      // 판이 생기면(위아래 안쪽 여백이 생겨) 글자 덩어리가 조금 커져서 위치도 다시 맞춰요.
+      if (coverTitleWrapVersion >= 2 || firstText !== undefined) reanchorCoverTitle(text, next.bg ? 0.25 : 0, 0);
+    }
+    coverTitleEvaluateRef.current = () => {
+      if (!coverTitle.trim()) return;
+      if (coverTitleWrapVersion >= 2) reanchorCoverTitle(coverTitle, coverTitleInset.y, 0);
+      void evaluateCoverTitleAutoStyle();
+    };
+    // 52차 — 새 방식에서 반투명 띠(fillBox)가 사진 밖으로(하드커버는 기본 제목 칸이 사진 안전 상자보다 13mm쯤 넓어요) 안 나가게, 띠를 글자 덩어리 높이 구간의 사진 가로 범위로 제한해요(화면·미리보기·인쇄 같은 계산).
+    let coverTitlePlateClipNow: { x0: number; x1: number } | null = null;
+    if (coverTitleWrapVersion >= 2 && coverTitle.trim() && coverTitleBackgroundColor && coverTitleBackgroundMode === "fillBox") {
+      const ln = coverTitleLinesFor(coverTitle, 0);
+      if (ln) {
+        const blockPct = (((ln.length * coverTitleLineHeightEm + coverTitleInset.y * 2) * coverTitleFontMm) / coverTotalHmm) * 100;
+        coverTitlePlateClipNow = coverTitlePlateClip({
+          xPct: coverTitleXPct,
+          widthPct: coverTitleWidthPct,
+          topPct: coverTitleYPct,
+          bottomPct: coverTitleYPct + (coverTitleHeightPct ?? blockPct),
+          photos: coverTitlePhotoRects,
+        });
       }
     }
     function handleCoverTitleBoxChange(changes: Partial<TextBoxDef>) {
@@ -17874,9 +18021,29 @@ function UploadPageContent() {
       // text만 coverTitle 상태로 반영해요 — handleCoverTitleChange를 그대로 써서 책등
       // 자동 동기화(spineTitleEditedRef가 아직 false일 때) 로직도 똑같이 타요.
       if (changes.text !== undefined) {
-        // 51차: 서식을 한 번도 안 건드린 흰색 제목을 "처음 쓰는" 순간에만 읽기 쉬운 서식을 줘요(이미 쓴 제목·서식을 만진 제목은 그대로).
-        if (coverTitle.trim() === "" && changes.text.trim() !== "") applyCoverTitleReadabilityOnFirstText();
+        // 51·52차: 서식을 한 번도 안 건드린 흰색 제목을 "처음 쓰는" 순간에만 읽기 쉬운 서식을 줘요(이미 쓴 제목·서식을 만진 제목은 그대로) — 52차부터는 사진 밝기를 재서 정해요.
+        const firstText = coverTitle.trim() === "" && changes.text.trim() !== "";
         handleCoverTitleChange(changes.text);
+        if (coverTitleWrapVersion >= 2 || firstText) {
+          // 새 방식: 여러 줄이 되면 위로 올려 앉혀요(사진 칸은 그대로).
+          reanchorCoverTitle(changes.text, coverTitleInset.y, 0);
+        }
+        if (firstText) void evaluateCoverTitleAutoStyle(changes.text);
+        else if (changes.text.trim() === "") {
+          // 글자를 다 지웠으면: 우리가 자동으로 깔았던 서식만 되돌려서(다음에 쓸 때 다시 판단) 글자 없는 칸에 판이 남지 않게 해요. 직접 바꾼 서식은 그대로예요.
+          const auto = coverTitleAutoStyleRef.current;
+          if (auto && coverTitleColor === auto.color && coverTitleBackgroundColor === auto.bg && coverTitleBackgroundMode === auto.mode) {
+            setCoverTitleColor("#ffffff");
+            setCoverTitleBackgroundColor(undefined);
+            setCoverTitleBackgroundMode(undefined);
+            coverTitleAutoStyleRef.current = null;
+          }
+          const anc = coverTitleAnchorRef.current;
+          if (anc && (Math.abs(anc.anchorY - coverTitleYPct) <= 0.02 || anc.ys.some((v) => Math.abs(v - coverTitleYPct) <= 0.02))) {
+            setCoverTitleYPct(anc.anchorY);
+            coverTitleAnchorRef.current = null;
+          }
+        }
       }
       // 2026-10(7차) — 속성 패널의 "가로 폭(%)"/"세로 폭(%)" 입력칸(TextBoxToolbar가
       // 이미 widthPct/heightPct로 갖고 있던 필드를 그대로 재사용)과, 캔버스에서 손잡이를
@@ -19488,6 +19655,7 @@ function UploadPageContent() {
                               editableBox={coverTitleAsTextBox}
                               onEditableBoxChange={handleCoverTitleBoxChange}
                               wrapV2={coverTitleWrapVersion >= 2}
+                              plateClip={coverTitlePlateClipNow}
                               notice={coverTitleNotice}
                             />
                             <TextBoxLayer

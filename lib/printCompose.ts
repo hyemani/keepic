@@ -15,6 +15,7 @@ import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableB
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import { COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
 import { coverTitleLinesWithCanvas, coverTitleInsetEm } from "@/lib/coverTitleWrap";
+import { coverTitlePlateClip } from "@/lib/coverTitlePlacement";
 import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
 import {
   drawBackgroundSpecOnCanvas,
@@ -1324,6 +1325,35 @@ function drawImageBoxOnCanvas(
 // 페이지 경계를 넘나들 일이 없는 패널 하나(앞표지 칸 또는 뒤표지 칸) 안에서만 그려서 더
 // 단순해요. box의 xPct 등은 이 패널 자체를 100%로 보는 좌표예요(화면 편집기의 표지
 // 레이아웃 탭과 같은 좌표계). 빈 프레임(url이 빈 문자열)은 그대로 건너뛰어요.
+/**
+ * 표지 앞면의 "사진 뒤쪽 모습"(배경색 + 사진 칸)을 작은 canvas로 그려서 돌려줘요 — 제목 글자 뒤 사진이 얼마나 밝은지 재서 글자색·판을 정할 때 써요(제목·글상자는 안 그려요).
+ * 인쇄와 같은 사진 그리기(자르기·확대·회전)를 그대로 써서 화면에서 본 구도 그대로예요.
+ */
+export async function renderCoverFrontBackdrop(args: {
+  boxes: ImageBoxDef[];
+  bgColor: string;
+  widthPx: number;
+  cellWmm: number;
+  cellHmm: number;
+}): Promise<HTMLCanvasElement | null> {
+  if (typeof document === "undefined") return null;
+  const w = Math.max(40, Math.round(args.widthPx));
+  const h = Math.max(40, Math.round((w * args.cellHmm) / args.cellWmm));
+  const cv = document.createElement("canvas");
+  cv.width = w;
+  cv.height = h;
+  const c = cv.getContext("2d", { willReadFrequently: true });
+  if (!c) return null;
+  c.fillStyle = args.bgColor || "#ffffff";
+  c.fillRect(0, 0, w, h);
+  try {
+    await drawImageBoxesInPanel(c, args.boxes.filter((b) => !isStickerImageBox(b)), 0, 0, w, h);
+  } catch {
+    return null;
+  }
+  return cv;
+}
+
 async function drawImageBoxesInPanel(
   ctx: CanvasRenderingContext2D,
   boxes: ImageBoxDef[],
@@ -3328,12 +3358,30 @@ export async function buildCoverPrintPdf({
       const isStrip = coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct !== undefined;
       const plateH = titleBoxHeightPx !== undefined && isStrip ? titleBoxHeightPx : titleBlockHeightPx;
       const plateTop = isStrip ? titleBoxTopPx : titleBlockTopPx;
-      const plateW =
-        coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct === undefined
+      // 자동으로 깐 반투명 띠(fillBox)는 사진 밖으로 안 나가게 사진 가로 범위로 제한(화면과 같은 lib 계산).
+      const plateClip =
+        coverTitleBackgroundMode === "fillBox"
+          ? coverTitlePlateClip({
+              xPct: coverTitleXPct,
+              widthPct: coverTitleWidthPct,
+              topPct: (plateTop / frontCellHpx) * 100,
+              bottomPct: ((plateTop + plateH) / frontCellHpx) * 100,
+              photos:
+                (coverImageBoxes ?? []).filter((b) => !isStickerImageBox(b)).length > 0
+                  ? (coverImageBoxes ?? []).filter((b) => !isStickerImageBox(b)).map((b) => ({ xPct: b.xPct, yPct: b.yPct, widthPct: b.widthPct, heightPct: b.heightPct }))
+                  : coverPhoto?.url
+                    ? [{ xPct: 0, yPct: 0, widthPct: 100, heightPct: 100 }]
+                    : [],
+            })
+          : null;
+      const plateW = plateClip
+        ? ((plateClip.x1 - plateClip.x0) / 100) * frontCellWpx
+        : coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct === undefined
           ? titleBoxWidthPx
           : (coverTitleBackgroundWidthPct / 100) * frontCellWpx;
-      const plateX =
-        coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct === undefined
+      const plateX = plateClip
+        ? frontX + (plateClip.x0 / 100) * frontCellWpx
+        : coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct === undefined
           ? titleBoxLeftPx
           : coverTitleAlign === "left"
             ? titleBoxLeftPx

@@ -162,3 +162,105 @@ export function titleOverlapPct2(box: { xPct: number; yPct: number; widthPct: nu
   }
   return a;
 }
+
+// ---- 52차: 여러 줄 제목 위치 · 사진 밝기에 맞춘 글자색/판 · 판이 사진 밖으로 안 나가게 ----
+type RectPct = { xPct: number; yPct: number; widthPct: number; heightPct: number };
+
+/**
+ * 제목이 여러 줄이 되면 첫 줄이 놓이던 자리(anchorYPct)에서 시작하면 아래 줄이 사진·안전선 밖으로 나가요.
+ * 그래서 "글자 덩어리 아래쪽이 한계(제목이 올라앉은 사진의 아래쪽, 사진이 없으면 안전선, 아래에 문구 칸이 있으면 그 위)를 안 넘도록" 위로 올려 앉혀요(한 줄이면 원래 자리).
+ * 사진 칸 크기·위치는 건드리지 않아요. 반환값은 제목 칸의 세로 위치(판 높이 %).
+ */
+export function coverTitleFitY(args: {
+  anchorYPct: number;
+  lineCount: number;
+  linePct: number;
+  insetYPct: number;
+  xPct: number;
+  widthPct: number;
+  photos: RectPct[];
+  obstaclesBelow: RectPct[];
+  safe: { y0: number; y1: number };
+}): number {
+  const { anchorYPct, lineCount, linePct, insetYPct, xPct, widthPct, photos, obstaclesBelow, safe } = args;
+  const block = Math.max(1, lineCount) * linePct + insetYPct * 2;
+  const overlapX = (r: RectPct) => Math.min(xPct + widthPct, r.xPct + r.widthPct) - Math.max(xPct, r.xPct) > 0.01;
+  const probe = anchorYPct + (linePct + insetYPct * 2) / 2; // 첫 줄 가운데
+  let limit = safe.y1;
+  const under = photos.filter((p) => overlapX(p) && p.yPct <= probe && probe < p.yPct + p.heightPct);
+  if (under.length) limit = Math.max(...under.map((p) => p.yPct + p.heightPct));
+  for (const o of obstaclesBelow) if (overlapX(o) && o.yPct >= anchorYPct + 0.05) limit = Math.min(limit, o.yPct);
+  let y = Math.min(anchorYPct, limit - block);
+  y = Math.max(Math.min(safe.y0, anchorYPct), y);
+  return Math.round(y * 100) / 100;
+}
+
+/** fillBox 판이 사진 밖(여백·재단 쪽)으로 삐져나가지 않게, 글자 덩어리 높이 구간에서 사진들이 덮는 가로 범위(판 가로 %)로 제한한 판의 x0~x1을 돌려줘요. 겹치는 사진이 없으면 null(제한 없음). */
+export function coverTitlePlateClip(args: { xPct: number; widthPct: number; topPct: number; bottomPct: number; photos: RectPct[] }): { x0: number; x1: number } | null {
+  const { xPct, widthPct, topPct, bottomPct, photos } = args;
+  const hit = photos.filter((p) => Math.min(bottomPct, p.yPct + p.heightPct) - Math.max(topPct, p.yPct) > 0.01);
+  if (!hit.length) return null;
+  const x0 = Math.max(xPct, Math.min(...hit.map((p) => p.xPct)));
+  const x1 = Math.min(xPct + widthPct, Math.max(...hit.map((p) => p.xPct + p.widthPct)));
+  if (x1 - x0 < 0.5) return null;
+  // 이미 박스가 사진 안에 다 들어가면 제한할 게 없어요.
+  if (Math.abs(x0 - xPct) < 0.01 && Math.abs(x1 - (xPct + widthPct)) < 0.01) return null;
+  return { x0: Math.round(x0 * 100) / 100, x1: Math.round(x1 * 100) / 100 };
+}
+
+export type TitleTreatment = {
+  color: "#ffffff" | "#1a1a1a";
+  /** 판(배경)이 필요할 때만 값이 있어요. */
+  backgroundColor?: string;
+  worstContrast: number; // 4.5 이상이어야 하는 "95% 지점" 대비
+  mode: "light-text" | "dark-text" | "light-text+dark-plate" | "dark-text+light-plate";
+};
+
+/**
+ * 제목 글자 뒤 사진 픽셀들(rgba 바이트 배열)을 보고 글자색·판을 정해요. 대비 4.5:1 이상을 픽셀의 95% 이상에서 만족하는 가장 "덜 거슬리는" 조합:
+ *  어두운 사진 → 흰 글자(판 없음) / 밝은 사진 → 진한 글자(판 없음) / 중간 밝기·복잡한 사진 → 평균 밝기에 따라 반투명 검정 판+흰 글자 또는 반투명 흰 판+진한 글자(투명도 낮은 쪽부터).
+ * 판을 올린 뒤의 색은 브라우저가 섞는 방식(sRGB 값 그대로 섞기)과 같게 계산해요. 마지막 후보(흰 글자+검정 60% 판)는 어떤 사진에서도 최악 약 5.7:1이라 항상 통과해요.
+ */
+export function chooseCoverTitleTreatment(rgba: Uint8ClampedArray | number[]): TitleTreatment {
+  const n = Math.floor(rgba.length / 4);
+  const white: Rgb = [255, 255, 255];
+  const dark: Rgb = [26, 26, 26];
+  const px: Rgb[] = [];
+  let sumL = 0;
+  const step = Math.max(1, Math.floor(n / 4000));
+  for (let i = 0; i < n; i += step) {
+    const c: Rgb = [rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2]];
+    px.push(c);
+    sumL += luminance(c);
+  }
+  const meanL = px.length ? sumL / px.length : 1;
+  const passRatio = (text: Rgb, plate: Rgb | null, alpha: number) => {
+    const cs = px
+      .map((c) => {
+        const bg: Rgb = plate ? [c[0] * (1 - alpha) + plate[0] * alpha, c[1] * (1 - alpha) + plate[1] * alpha, c[2] * (1 - alpha) + plate[2] * alpha] : c;
+        return contrastRatio(text, bg);
+      })
+      .sort((a, b) => a - b);
+    const p5 = cs.length ? cs[Math.floor(cs.length * 0.05)] : 21;
+    return { ok: p5 >= 4.5, p5 };
+  };
+  if (px.length === 0) return { color: "#ffffff", backgroundColor: READABILITY_PLATE_COLOR, worstContrast: 5.7, mode: "light-text+dark-plate" };
+  let r = passRatio(white, null, 0);
+  if (r.ok) return { color: "#ffffff", worstContrast: r.p5, mode: "light-text" };
+  r = passRatio(dark, null, 0);
+  if (r.ok) return { color: "#1a1a1a", worstContrast: r.p5, mode: "dark-text" };
+  const darkPlateFirst = meanL < 0.35;
+  const ladder: Array<["dark" | "light", number]> = darkPlateFirst
+    ? [["dark", 0.3], ["dark", 0.45], ["dark", 0.6], ["light", 0.6], ["light", 0.75]]
+    : [["light", 0.45], ["light", 0.6], ["light", 0.75], ["dark", 0.45], ["dark", 0.6]];
+  for (const [kind, a] of ladder) {
+    const res = kind === "dark" ? passRatio(white, [0, 0, 0], a) : passRatio(dark, [255, 255, 255], a);
+    if (res.ok) {
+      return kind === "dark"
+        ? { color: "#ffffff", backgroundColor: `rgba(0,0,0,${a})`, worstContrast: res.p5, mode: "light-text+dark-plate" }
+        : { color: "#1a1a1a", backgroundColor: `rgba(255,255,255,${a})`, worstContrast: res.p5, mode: "dark-text+light-plate" };
+    }
+  }
+  const last = passRatio(white, [0, 0, 0], READABILITY_PLATE_ALPHA);
+  return { color: "#ffffff", backgroundColor: READABILITY_PLATE_COLOR, worstContrast: last.p5, mode: "light-text+dark-plate" };
+}
