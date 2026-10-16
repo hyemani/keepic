@@ -14,6 +14,7 @@ import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes, isStickerImageBox } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import { COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
+import { coverTitleLinesWithCanvas, coverTitleInsetEm } from "@/lib/coverTitleWrap";
 import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
 import {
   drawBackgroundSpecOnCanvas,
@@ -2749,6 +2750,7 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundPaddingYPct = 25,
   coverTitleBackgroundWidthPct,
   coverTitleBackgroundMode,
+  coverTitleWrapVersion = 1,
   innerPaperWeightG,
   pages,
   spineTitle,
@@ -2866,6 +2868,8 @@ export async function buildCoverPrintPdf({
   // 예전처럼 글자에 맞춰 자동이에요(화면 CoverTitleOverlay와 같은 인터림 범위).
   // 없으면(undefined) "hugText"와 동일(기존과 완전히 동일, 하위 호환).
   coverTitleBackgroundMode?: "hugText" | "fillBox";
+  // 52차 — 표지 제목 줄바꿈/배치 버전. 2면 화면(편집·미리보기)과 같은 자동 줄바꿈·같은 안쪽 여백·같은 글자 굵기/세로 위치로 그려요(글자를 가로로 눌러 한 줄로 만들지 않아요). 1(기본, 옛 앨범)은 예전 그대로예요.
+  coverTitleWrapVersion?: number;
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
@@ -3203,9 +3207,12 @@ export async function buildCoverPrintPdf({
     // 맞춰요. 글자 크기는 슬라이더 배율이 아니라 pt 단위 실제 크기를 그대로 써요(예:
     // 24pt, 36pt). Enter로 줄바꿈하면 여러 줄로 나눠 그리고, 줄 간격(행간)·자간도
     // 사용자가 지정한 값을 그대로 반영해요.
+    const titleV2 = coverTitleWrapVersion >= 2;
     const titlePx = mmToPx((coverTitleFontSizePt * 25.4) / 72);
     const coverTitleFontStylePrefix = `${coverTitleItalic ? "italic " : ""}${coverTitleBold ? "bold " : ""}`;
     ctxNN.font = `${coverTitleFontStylePrefix}${titlePx}px ${coverTitleFontFamily}`;
+    // v2: 화면 DOM과 같은 글자 폭(커닝)으로 재고 그려요(coverTitleLinesWithCanvas와 같은 설정).
+    if (titleV2) (ctxNN as CanvasRenderingContext2D & { textRendering?: string }).textRendering = "optimizeLegibility";
     ctxNN.fillStyle = coverTitleColor;
     ctxNN.textAlign = coverTitleAlign;
     ctxNN.textBaseline = "top";
@@ -3233,24 +3240,45 @@ export async function buildCoverPrintPdf({
     }
     const titleBoxLeftPx = frontX + (coverTitleXPct / 100) * frontCellWpx;
     const titleBoxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
+    // v2: 화면의 글자 안쪽 여백(배경이 있을 때만; hugText는 좌우도, 띠 전체·직접 너비 지정은 위아래만)을 그대로 따라요.
+    const titleInset = titleV2
+      ? coverTitleInsetEm({
+          color: coverTitleBackgroundColor,
+          mode: coverTitleBackgroundMode,
+          paddingXPct: coverTitleBackgroundPaddingXPct,
+          paddingYPct: coverTitleBackgroundPaddingYPct,
+          widthPct: coverTitleBackgroundWidthPct,
+        })
+      : { x: 0, y: 0 };
+    const titleInsetXpx = titleInset.x * titlePx;
+    const titleInsetYpx = titleInset.y * titlePx;
     const titleXpx =
       coverTitleAlign === "left"
-        ? titleBoxLeftPx
+        ? titleBoxLeftPx + titleInsetXpx
         : coverTitleAlign === "right"
-          ? titleBoxLeftPx + titleBoxWidthPx
+          ? titleBoxLeftPx + titleBoxWidthPx - titleInsetXpx
           : titleBoxLeftPx + titleBoxWidthPx / 2;
     const titleBoxTopPx = (coverTitleYPct / 100) * frontCellHpx;
-    const titleMaxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx;
+    const titleMaxWidthPx = (coverTitleWidthPct / 100) * frontCellWpx - titleInsetXpx * 2;
     const titleLinePx = titlePx * coverTitleLineHeightEm;
     // 모두 대문자(2026-11, 15번째 라운드, 새 기능) — 측정·줄바꿈·그리기 전부 이
     // 변환된 문자열을 쓰도록 맨 앞에서 한 번만 바꿔요(화면과 똑같이 줄바꿈 결과도
     // 대문자 기준으로 맞아떨어져요). 작은 대문자는 canvas 2D에 대응 기능이 없어서
     // 인쇄엔 반영 안 해요(화면 전용, 작업 보고에 명시).
     const effCoverTitleText = coverTitleTextTransformUppercase ? coverTitle.toUpperCase() : coverTitle;
-    const titleLines = effCoverTitleText.trim().split("\n");
+    // v2: 화면(contentEditable, pre-wrap)과 같은 자동 줄바꿈 — 화면이 2줄이면 인쇄도 같은 자리에서 2줄이에요. v1(옛 앨범)은 Enter 줄바꿈만 나눠요(긴 줄은 아래 fillText의 maxWidth로 가로로 눌려 한 줄로 찍혀요 — 예전 모습 그대로).
+    const titleLines = titleV2
+      ? coverTitleLinesWithCanvas(
+          ctxNN,
+          effCoverTitleText,
+          { fontFamily: coverTitleFontFamily, bold: !!coverTitleBold, italic: !!coverTitleItalic, letterSpacingEm: coverTitleLetterSpacingEm },
+          titleMaxWidthPx / mmToPx(1),
+          (coverTitleFontSizePt * 25.4) / 72
+        )
+      : effCoverTitleText.trim().split("\n");
     // 2026-10(7차) — 화면(CoverTitleOverlay)과 같은 "실제 높이(heightPct)가 있을 때만
     // 세로 정렬"이에요. 없으면(예전과 동일) 항상 맨 위부터 그려요.
-    const titleBlockHeightPx = titleLines.length * titleLinePx;
+    const titleBlockHeightPx = titleLines.length * titleLinePx + titleInsetYpx * 2;
     const titleBoxHeightPx =
       coverTitleHeightPct !== undefined ? (coverTitleHeightPct / 100) * frontCellHpx : undefined;
     const titleStartYOffsetPx =
@@ -3261,7 +3289,21 @@ export async function buildCoverPrintPdf({
             ? Math.max(0, titleBoxHeightPx - titleBlockHeightPx)
             : 0
         : 0;
-    const titleYpx = titleBoxTopPx + titleStartYOffsetPx;
+    // v2: 화면은 글자 줄 상자(line-height) 안에서 글자를 위아래 가운데(반행간)에 놓고 baseline에 맞춰 그려요 — canvas의 "top" 기준과 맞추려고 같은 폰트 지표로 보정해요.
+    // alphabetic baseline = 줄 상자 위 + 반행간 + 글꼴 ascent (브라우저가 줄 안에서 글자를 놓는 식 그대로, fontBoundingBox는 같은 글꼴 지표).
+    let titleGlyphShiftPx = titlePx * 0.9; // 지표를 못 얻을 때의 대략값
+    if (titleV2) {
+      ctxNN.textBaseline = "alphabetic"; // fontBoundingBox 값은 textBaseline 기준이라, 재기 전에 먼저 맞춰요.
+      const tm = ctxNN.measureText("가Hg");
+      const fa = tm.fontBoundingBoxAscent;
+      const fd = tm.fontBoundingBoxDescent;
+      if (Number.isFinite(fa) && Number.isFinite(fd)) titleGlyphShiftPx = (titleLinePx - (fa + fd)) / 2 + fa;
+    } else {
+      titleGlyphShiftPx = 0;
+    }
+    const titleYpx = titleBoxTopPx + titleStartYOffsetPx + titleInsetYpx + titleGlyphShiftPx;
+    // v2의 배경 띠 위치(글자 보정 전의 줄 상자 위쪽)
+    const titleBlockTopPx = titleBoxTopPx + titleStartYOffsetPx;
     // 그라데이션(2026-11, 15번째 라운드, 새 기능) — 제목 전체 글상자 bounding box
     // 기준으로 한 번만 계산해서, 아래 줄별 fillText가 다 같은 그라데이션을 공유해요
     // (화면의 "박스 전체에 한 그라데이션" 모습과 같아요).
@@ -3272,14 +3314,39 @@ export async function buildCoverPrintPdf({
       coverTitleGradientColorEnd,
       coverTitleGradientAngle,
       titleBoxLeftPx,
-      titleYpx,
+      titleBlockTopPx,
       titleBoxWidthPx,
       titleBlockHeightPx
     );
     if (titleGradient) ctxNN.fillStyle = titleGradient;
     // "박스 전체 배경"(fillBox) + 실제 높이가 있으면, 화면의 TextBoxOverlay와 똑같이
     // 줄마다가 아니라 박스 전체를 덮는 사각형 하나를 글자보다 먼저 한 번만 그려요.
-    if (coverTitleBackgroundColor && coverTitleBackgroundMode === "fillBox" && titleBoxHeightPx !== undefined) {
+    if (titleV2 && coverTitleBackgroundColor) {
+      // v2: 화면이 그리는 배경 사각형 하나를 그대로 그려요(줄마다 따로 그리지 않아요).
+      //  · fillBox/직접 너비 지정: 박스 위쪽부터(높이가 있으면 박스 높이, 없으면 글자 덩어리 높이), 글자 줄 상자와 별개의 띠
+      //  · hugText: 글자 덩어리(안쪽 여백 포함)를 박스 폭 전체로 덮는 사각형(화면의 <p> 배경과 같아요)
+      const isStrip = coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct !== undefined;
+      const plateH = titleBoxHeightPx !== undefined && isStrip ? titleBoxHeightPx : titleBlockHeightPx;
+      const plateTop = isStrip ? titleBoxTopPx : titleBlockTopPx;
+      const plateW =
+        coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct === undefined
+          ? titleBoxWidthPx
+          : (coverTitleBackgroundWidthPct / 100) * frontCellWpx;
+      const plateX =
+        coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct === undefined
+          ? titleBoxLeftPx
+          : coverTitleAlign === "left"
+            ? titleBoxLeftPx
+            : coverTitleAlign === "right"
+              ? titleBoxLeftPx + titleBoxWidthPx - plateW
+              : titleBoxLeftPx + titleBoxWidthPx / 2 - plateW / 2;
+      ctxNN.save();
+      ctxNN.shadowBlur = 0;
+      ctxNN.fillStyle = coverTitleBackgroundColor;
+      if (coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct !== undefined) ctxNN.fillRect(plateX, plateTop, plateW, plateH);
+      else fillRoundedRect(ctxNN, plateX, plateTop, plateW, plateH, coverTitleCornerRadiusPct);
+      ctxNN.restore();
+    } else if (coverTitleBackgroundColor && coverTitleBackgroundMode === "fillBox" && titleBoxHeightPx !== undefined) {
       ctxNN.save();
       ctxNN.shadowBlur = 0;
       ctxNN.fillStyle = coverTitleBackgroundColor;
@@ -3291,7 +3358,7 @@ export async function buildCoverPrintPdf({
     // (drawTextBoxOnCanvas의 measureLineBox와 같은 방식).
     titleLines.forEach((line, i) => {
       const lineY = titleYpx + i * titleLinePx;
-      const lineWidth = Math.min(ctxNN.measureText(line).width, titleMaxWidthPx);
+      const lineWidth = titleV2 ? ctxNN.measureText(line).width : Math.min(ctxNN.measureText(line).width, titleMaxWidthPx);
       const lineStartX =
         coverTitleAlign === "left"
           ? titleXpx
@@ -3304,6 +3371,7 @@ export async function buildCoverPrintPdf({
       // (2026-10 7차) 줄마다 또 그리지 않아요(중복 방지).
       if (
         coverTitleBackgroundColor &&
+        !titleV2 &&
         line.trim() &&
         !(coverTitleBackgroundMode === "fillBox" && titleBoxHeightPx !== undefined)
       ) {
@@ -3342,17 +3410,21 @@ export async function buildCoverPrintPdf({
         ctxNN.strokeStyle = coverTitleStrokeColor!;
         ctxNN.lineWidth = titlePx * coverTitleStrokeWidth!;
         ctxNN.lineJoin = "round";
-        ctxNN.strokeText(line, titleXpx, lineY, titleMaxWidthPx);
+        if (titleV2) ctxNN.strokeText(line, titleXpx, lineY);
+        else ctxNN.strokeText(line, titleXpx, lineY, titleMaxWidthPx);
         ctxNN.restore();
         ctxNN.save();
         ctxNN.shadowBlur = 0;
-        ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
+        if (titleV2) ctxNN.fillText(line, titleXpx, lineY);
+        else ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
         ctxNN.restore();
+      } else if (titleV2) {
+        ctxNN.fillText(line, titleXpx, lineY);
       } else {
         ctxNN.fillText(line, titleXpx, lineY, titleMaxWidthPx);
       }
       if (coverTitleUnderline && line.trim()) {
-        const underlineY = lineY + titlePx * 0.92;
+        const underlineY = titleV2 ? lineY + titlePx * 0.1 : lineY + titlePx * 0.92;
         ctxNN.save();
         ctxNN.shadowBlur = 0;
         ctxNN.strokeStyle = coverTitleUnderlineColor ?? coverTitleColor;
@@ -3365,7 +3437,7 @@ export async function buildCoverPrintPdf({
       }
       // 취소선(2026-10 6차)
       if (coverTitleStrikethrough && line.trim()) {
-        const strikeY = lineY + titlePx * 0.55;
+        const strikeY = titleV2 ? lineY - titlePx * 0.3 : lineY + titlePx * 0.55;
         ctxNN.save();
         ctxNN.shadowBlur = 0;
         ctxNN.strokeStyle = coverTitleStrikethroughColor ?? coverTitleColor;
@@ -3379,6 +3451,10 @@ export async function buildCoverPrintPdf({
     });
     if ("letterSpacing" in ctxNN) {
       (ctxNN as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = "0px";
+    }
+    if (titleV2) {
+      (ctxNN as CanvasRenderingContext2D & { textRendering?: string }).textRendering = "auto";
+      ctxNN.textBaseline = "top";
     }
     ctxNN.shadowColor = "transparent";
     ctxNN.shadowBlur = 0;

@@ -222,6 +222,7 @@ import { captionAvoidLogo, backLogoRectPct, BACK_LOGO_DEFAULT_SCALE_PCT, COVER_S
 import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox, coverPanelTemplates } from "@/lib/coverLayoutVariants";
 import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleReadability, coverTitleLinePct, titleOverlapPct2, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
 import { planAutoCover } from "@/lib/coverAutoLayout";
+import { coverTitleLinesWithCanvas, coverTitleInsetEm, coverTitleNotices, type CoverTitleNotice } from "@/lib/coverTitleWrap";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
 // drawSpineTitleCanvas와 같은 원리예요 — 다만 "300dpi px" 대신 "mm"을 그대로 캔버스
@@ -2496,6 +2497,7 @@ function TextBoxRichEditor({
   onSelectionRangeChange,
   emptyHint = "텍스트 입력",
   emptyHintSubtle = false,
+  plain = false,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -2504,6 +2506,8 @@ function TextBoxRichEditor({
   emptyHint?: string;
   // 51차: 표지 제목처럼 사진 위에 놓일 수 있는 빈 칸의 안내 글자를 더 작고 옅게 보여줘요(글자색이 흰색이어도 흰 여백·밝은 사진 위에서 보이도록 얇은 어두운 테두리 그림자). 편집 화면에서만 보여요.
   emptyHintSubtle?: boolean;
+  // 52차: true면 배경색·안쪽 여백·배경 띠를 이 에디터가 안 그려요(바깥 감싸는 칸이 미리보기·인쇄와 똑같이 한 번만 그려요). 표지 제목(새 방식)에서 편집 화면과 미리보기·인쇄의 글자 자리·줄바꿈을 맞추려고 써요.
+  plain?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
@@ -2657,7 +2661,7 @@ function TextBoxRichEditor({
   // 깔아요. 띠 너비는 이 박스가 속한 페이지 전체를 100%로 보는 backgroundWidthPct를
   // "박스 자신의 너비" 기준 퍼센트로 환산해요(box.widthPct가 0이면 나눗셈을 피해요).
   const hasBackgroundWidthOverride =
-    !isFillBoxMode && box.backgroundColor !== undefined && box.backgroundWidthPct !== undefined;
+    !plain && !isFillBoxMode && box.backgroundColor !== undefined && box.backgroundWidthPct !== undefined;
   const backgroundStripPctOfBox =
     hasBackgroundWidthOverride && box.widthPct > 0 ? (box.backgroundWidthPct! / box.widthPct) * 100 : 0;
 
@@ -2710,7 +2714,7 @@ function TextBoxRichEditor({
           // 최소 높이가, div는 내용이 없으면 0이 될 수 있어서).
           fontFamily: box.fontFamily,
           fontSize: screenFontSizeCss(box.fontScale),
-          ...(box.backgroundColor
+          ...(box.backgroundColor && !plain
             ? isFillBoxMode
               ? // fillBox 모드는 부모(TextBoxOverlay)가 박스 전체 크기로 배경을 따로
                 // 그려서(아래 fillBoxBackground) 여기서는 배경색·여백을 전혀 안 줘요.
@@ -10829,6 +10833,29 @@ function TableBoxLayer({
 
 // 표지 제목이에요. 예전엔 하단에 고정된 텍스트였는데, 이제 텍스트박스처럼 끌어서 원하는
 // 자리로 옮길 수 있어요(가운데로 가져가면 딱 붙는 안내선도 함께 떠요).
+// 52차 — 제목 줄바꿈을 canvas로 재는 작은 캐시(렌더마다 다시 재지 않도록). 서체가 아직 안 불러와졌을 땐 결과가 달라질 수 있어서 서체 로딩 상태도 키에 넣어요.
+let coverTitleWrapCanvas: HTMLCanvasElement | null = null;
+const coverTitleWrapCache = new Map<string, string[]>();
+function coverTitleLinesCached(
+  text: string,
+  spec: { fontFamily: string; bold: boolean; italic: boolean; letterSpacingEm: number },
+  textWidthMm: number,
+  fontSizeMm: number
+): string[] | null {
+  if (typeof document === "undefined") return null;
+  const loaded = document.fonts ? document.fonts.check(`${spec.bold ? "bold " : ""}20px ${spec.fontFamily}`, text) : true;
+  const key = JSON.stringify([text, spec, Math.round(textWidthMm * 1000), Math.round(fontSizeMm * 1000), loaded]);
+  const hit = coverTitleWrapCache.get(key);
+  if (hit) return hit;
+  coverTitleWrapCanvas ??= document.createElement("canvas");
+  const ctx = coverTitleWrapCanvas.getContext("2d");
+  if (!ctx) return null;
+  const lines = coverTitleLinesWithCanvas(ctx, text, spec, textWidthMm, fontSizeMm);
+  if (coverTitleWrapCache.size > 60) coverTitleWrapCache.clear();
+  coverTitleWrapCache.set(key, lines);
+  return lines;
+}
+
 function CoverTitleOverlay({
   title,
   xPct,
@@ -10852,6 +10879,8 @@ function CoverTitleOverlay({
   onSelect,
   editableBox,
   onEditableBoxChange,
+  wrapV2 = false,
+  notice,
 }: {
   title: string;
   xPct: number;
@@ -10907,6 +10936,10 @@ function CoverTitleOverlay({
   // 놓이도록, 별도 상태 갱신을 기다리지 않아요).
   editableBox: TextBoxDef;
   onEditableBoxChange: (changes: Partial<TextBoxDef>) => void;
+  // 52차 — 새 방식(화면과 인쇄가 같은 줄바꿈·같은 안쪽 여백) 앨범이면 true. 편집 화면에서 배경·여백을 바깥 칸이 한 번만 그리고(미리보기·인쇄와 같아요), 안쪽 에디터는 글자만 그려요.
+  wrapV2?: boolean;
+  // 52차 — 편집 화면에서만 보이는 작은 안내(예: 옛 앨범에서 "PDF에서는 한 줄로 인쇄돼요" + 한 번 눌러 새 방식으로 바꾸기, 제목이 칸을 넘을 때).
+  notice?: { text: string; actionLabel?: string; onAction?: () => void } | null;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [snapGuide, setSnapGuide] = useState<{ v: boolean; h: boolean; rect: DOMRect | null }>({
@@ -11085,7 +11118,8 @@ function CoverTitleOverlay({
     fontFamily,
     textAlign: align,
     color,
-    fontWeight: bold ? 600 : 400,
+    // 52차: 편집 화면(TextBoxRichEditor 글자 조각)·인쇄(canvas bold)는 700인데 미리보기만 600이라 같은 제목의 글자 폭·줄바꿈이 달랐어요 — 700으로 맞춰요.
+    fontWeight: bold ? 700 : 400,
     // 그라데이션·모두 대문자·작은 대문자(2026-11, 15번째 라운드, 새 기능) — editMode일
     // 땐 TextBoxRichEditor(applyRunStyleToSpan)가 따로 그려서 이미 반영되고, 이
     // textStyle은 미리보기(!editMode) <p> 전용이라 여기서도 같이 반영해요.
@@ -11109,7 +11143,7 @@ function CoverTitleOverlay({
       color
     ),
     fontStyle: italic ? "italic" : "normal",
-    ...(editableBox.backgroundColor
+    ...(editableBox.backgroundColor && title.trim()
       ? hasBackgroundWidthOverride
         ? {
             paddingTop: `${(editableBox.backgroundPaddingYPct ?? 25) / 100}em`,
@@ -11186,7 +11220,7 @@ function CoverTitleOverlay({
             : undefined,
       }}
     >
-      {hasBackgroundWidthOverride && (
+      {hasBackgroundWidthOverride && title.trim() && (
         <div
           aria-hidden
           className="pointer-events-none absolute top-0 bottom-0"
@@ -11265,6 +11299,7 @@ function CoverTitleOverlay({
             onSelectionRangeChange={noopSelectionRangeSetter}
             emptyHint="제목을 입력하세요"
             emptyHintSubtle
+            plain={wrapV2}
           />
         </div>
       ) : title.trim() ? (
@@ -11277,6 +11312,30 @@ function CoverTitleOverlay({
           드래그해 크기를 조절") — 일반 글상자(TextBoxOverlay)와 똑같이 SelectionHandles를
           재사용해요(같은 컴포넌트, 같은 8방향). */}
       {editMode && <SelectionHandles active={isActive} onResizeStart={handleResizeStart} />}
+      {editMode && notice && title.trim() && (
+        <div
+          data-cover-title-notice
+          onMouseDown={(e) => e.stopPropagation()}
+          className={`absolute left-0 z-30 flex w-max max-w-[22rem] items-center gap-2 rounded-md bg-neutral-900/85 px-2 py-1 text-[11px] leading-snug text-white shadow ${
+            yPct > 50 ? "bottom-full mb-1" : "top-full mt-1"
+          }`}
+          style={{ fontFamily: "Pretendard, sans-serif", fontWeight: 400, fontSize: "11px", letterSpacing: 0, lineHeight: 1.35 }}
+        >
+          <span>{notice.text}</span>
+          {notice.actionLabel && notice.onAction && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                notice.onAction?.();
+              }}
+              className="shrink-0 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-semibold text-neutral-900 hover:bg-white"
+            >
+              {notice.actionLabel}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -12661,6 +12720,9 @@ function UploadPageContent() {
   const [coverTitleScaleXPct, setCoverTitleScaleXPct] = useState(100);
   const [coverTitleScaleYPct, setCoverTitleScaleYPct] = useState(100);
   const [coverTitleVerticalAlign, setCoverTitleVerticalAlign] = useState<"top" | "middle" | "bottom">("top");
+  // 52차 — 표지 제목 줄바꿈 방식 버전. 2 = 화면과 똑같이 자동 줄바꿈해서 인쇄(미리보기·PDF)도 같은 줄 수·같은 줄바꿈으로 나와요(새 앨범 기본).
+  // 1 = 옛 방식(인쇄는 Enter 줄바꿈만 나누고 긴 줄은 한 줄로 눌러 찍어요) — 저장된 옛 앨범은 이 값이 없어서 1로 열려요(자동으로 바꾸지 않아요, 편집 화면 안내의 버튼으로 직접 바꿔요).
+  const [coverTitleWrapVersion, setCoverTitleWrapVersion] = useState<number>(2);
   // 표지 제목⇄책등 제목 서체 연결 스위치예요(2026-09-25, 혜민님 요청). 기본 켜짐 — 켜진
   // 동안은 둘 중 어느 쪽 서체를 바꿔도 같이 바뀌어요(아래 handleCoverTitleFontFamilyChange/
   // handleSpineTitleFontFamilyChange 참고). 크기·위치·회전은 서로 영향 안 받고 각자 값
@@ -12885,6 +12947,8 @@ function UploadPageContent() {
   // 한 번이라도 직접 고친 적이 있으면(spineTitleEditedRef) 그 뒤로는 더 이상 안 따라가요
   // (spineTitle 상태 선언부 주석 참고, 2026-10-08).
   function handleCoverTitleChange(value: string) {
+    // 52차: 제목이 아직 없던(인쇄 결과가 없던) 옛 앨범에 처음 글자를 쓰면 새 줄바꿈 방식(2)으로 시작해요 — 이미 있던 제목은 건드리지 않아요.
+    if (coverTitle.trim() === "" && value.trim() !== "" && coverTitleWrapVersion < 2) setCoverTitleWrapVersion(2);
     setCoverTitle(value);
     if (!spineTitleEditedRef.current) {
       setSpineTitle(value.replace(/\n/g, " "));
@@ -16182,6 +16246,7 @@ function UploadPageContent() {
       coverTitleScaleXPct,
       coverTitleScaleYPct,
       coverTitleVerticalAlign,
+      coverTitleWrapVersion,
       spineTitle,
       spineTitleYPct,
       spineTitleHeightPct,
@@ -16289,6 +16354,8 @@ function UploadPageContent() {
     setCoverTitleScaleXPct(s.coverTitleScaleXPct ?? 100);
     setCoverTitleScaleYPct(s.coverTitleScaleYPct ?? 100);
     setCoverTitleVerticalAlign(s.coverTitleVerticalAlign ?? "top");
+    // 52차: 이 값이 없는 문서 = 이 기능 이전에 저장된 옛 앨범 → 1(옛 인쇄 방식 그대로).
+    setCoverTitleWrapVersion(typeof s.coverTitleWrapVersion === "number" ? s.coverTitleWrapVersion : 1);
     // 2026-10-08, 혜민님 요청(항목6) — spineTitle이 없는(이번 업데이트 전에 만들어진)
     // 스냅샷이면, 그때는 책등이 항상 coverTitle을 그대로 썼으니(coverTitle.replace
     // (/\n/g," ")) 그 값으로 채워서 불러온 순간 화면이 예전과 똑같이 보이게 해요. 그
@@ -16433,6 +16500,7 @@ function UploadPageContent() {
     coverTitleScaleXPct,
     coverTitleScaleYPct,
     coverTitleVerticalAlign,
+    coverTitleWrapVersion,
     spineTitle,
     spineTitleYPct,
     spineTitleHeightPct,
@@ -17082,6 +17150,7 @@ function UploadPageContent() {
       coverTitleHeightPct,
       coverTitleCornerRadiusPct,
       coverTitleVerticalAlign,
+      coverTitleWrapVersion,
       coverTitleColor,
       coverTitleBold,
       coverTitleUnderline,
@@ -17730,6 +17799,50 @@ function UploadPageContent() {
       scaleYPct: coverTitleScaleYPct,
       verticalAlign: coverTitleVerticalAlign,
     };
+    // 52차 — 편집 화면 안내: 화면이 보여주는 줄 수(canvas로 같은 규칙 계산)와, 옛 방식 인쇄 줄 수(Enter 수) 비교 / 새 방식에서 칸·안전선을 넘는지.
+    const coverTitleCellWmm = coverPanelMm + coverBleedMm;
+    const coverTitleFontMm = (coverTitleFontSizePt * 25.4) / 72;
+    const coverTitleInset = coverTitleInsetEm({
+      color: coverTitleBackgroundColor,
+      mode: coverTitleBackgroundMode,
+      paddingXPct: coverTitleBackgroundPaddingXPct,
+      paddingYPct: coverTitleBackgroundPaddingYPct,
+      widthPct: coverTitleBackgroundWidthPct,
+    });
+    let coverTitleNoticeList: CoverTitleNotice[] = [];
+    if (coverTitle.trim() && editorMode === "edit") {
+      // 옛 방식 앨범의 편집 화면은 hugText 배경 여백이 바깥+안쪽 두 겹으로 적용돼(예전 그대로) 글자 폭이 그만큼 더 좁아요.
+      const legacyDoubleInset = coverTitleWrapVersion < 2 && coverTitleInset.x > 0 ? 2 : 1;
+      const domLines = coverTitleLinesCached(
+        coverTitleTextTransformUppercase ? coverTitle.toUpperCase() : coverTitle,
+        { fontFamily: coverTitleFontFamily, bold: coverTitleBold, italic: coverTitleItalic, letterSpacingEm: coverTitleLetterSpacingEm },
+        (coverTitleWidthPct / 100) * coverTitleCellWmm - coverTitleInset.x * legacyDoubleInset * 2 * coverTitleFontMm,
+        coverTitleFontMm
+      );
+      if (domLines) {
+        coverTitleNoticeList = coverTitleNotices({
+          version: coverTitleWrapVersion,
+          domLines: domLines.length,
+          legacyLines: coverTitle.trim().split("\n").length,
+          lineHeightEm: coverTitleLineHeightEm,
+          fontSizeMm: coverTitleFontMm,
+          insetYEm: coverTitleInset.y,
+          heightPct: coverTitleHeightPct,
+          yPct: coverTitleYPct,
+          cellHmm: coverTotalHmm,
+          bleedMm: coverBleedMm,
+          safetyMm: GUIDE_SAFETY_MM,
+        });
+      }
+    }
+    const coverTitleNotice = coverTitleNoticeList[0]
+      ? {
+          text: coverTitleNoticeList[0].text,
+          ...(coverTitleNoticeList[0].kind === "legacy-wrap"
+            ? { actionLabel: "화면처럼 인쇄하기", onAction: () => setCoverTitleWrapVersion(2) }
+            : {}),
+        }
+      : null;
     function applyCoverTitleReadabilityOnFirstText() {
       const untouched =
         coverTitleColor.toLowerCase() === "#ffffff" &&
@@ -19374,6 +19487,8 @@ function UploadPageContent() {
                               onSelect={selectCoverTitle}
                               editableBox={coverTitleAsTextBox}
                               onEditableBoxChange={handleCoverTitleBoxChange}
+                              wrapV2={coverTitleWrapVersion >= 2}
+                              notice={coverTitleNotice}
                             />
                             <TextBoxLayer
                               onSelectionRangeChange={setActiveTextSelectionRange}
