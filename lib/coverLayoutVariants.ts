@@ -58,8 +58,33 @@ export function fitSlotToCoverSafeBox(slot: LayoutSlot, side: "front" | "back", 
  * 테마 표지 디자인("design:*" 합성 템플릿)은 이미 자기 안전영역(coverDesignGeo) 좌표라서 다시 줄이면 안 돼요 — 예전 계산(바깥 변만 안전선 보정)을 그대로 써요.
  */
 export function placeCoverSlots(template: PhotoLayoutTemplate, side: "front" | "back", dims: Dims): LayoutSlot[] {
-  if (isListedCoverTemplate(template)) return template.slots.map((s) => fitSlotToCoverSafeBox(s, side, dims));
+  if (isListedCoverTemplate(template)) return trimTinyCoverOverlaps(template.slots.map((s) => fitSlotToCoverSafeBox(s, side, dims)));
   return clampDesignSlotsToCover(template.slots, side, dims);
+}
+
+/**
+ * 51차: 원본 템플릿의 반올림 오차로 칸끼리 0.01%(약 0.03mm)씩 겹치는 경우를 표지에서만 바로잡아요.
+ * 예) half-4-bigPlusThree는 오른쪽 작은 사진 3장이 y 0 / 33.33 / 66.67에서 시작하는데 첫 칸 높이가 33.34라서 첫째·둘째 칸이 0.01%(템플릿 좌표) 겹쳐요 — 의도한 값이 아니라 33.34를 33.33으로 적을 자리를 잘못 쓴 반올림 흔적이에요.
+ * 내지에서도 같은 템플릿을 쓰므로 템플릿 원본은 그대로 두고, 표지 칸 계산(여기)에서만 위 칸의 높이(또는 왼쪽 칸의 폭)를 아래·오른쪽 칸이 시작하는 곳까지로 줄여요.
+ * 겹침이 0.05%(판 기준) 이하일 때만 고치고, 부동소수 오차(1e-6 이하)는 건드리지 않아서 이미 안 겹치는 레이아웃은 숫자가 하나도 안 바뀌어요.
+ */
+export function trimTinyCoverOverlaps(slots: LayoutSlot[]): LayoutSlot[] {
+  const out = slots.map((s) => ({ ...s }));
+  const EPS = 1e-6;
+  const MAX = 0.05;
+  for (let i = 0; i < out.length; i++) {
+    for (let j = 0; j < out.length; j++) {
+      if (i === j) continue;
+      const a = out[i];
+      const b = out[j];
+      const ox = Math.min(a.xPct + a.widthPct, b.xPct + b.widthPct) - Math.max(a.xPct, b.xPct);
+      const oy = Math.min(a.yPct + a.heightPct, b.yPct + b.heightPct) - Math.max(a.yPct, b.yPct);
+      if (!(ox > EPS && oy > EPS)) continue;
+      if (oy <= MAX && ox > MAX && a.yPct < b.yPct) a.heightPct = b.yPct - a.yPct;
+      else if (ox <= MAX && oy > MAX && a.xPct < b.xPct) a.widthPct = b.xPct - a.xPct;
+    }
+  }
+  return out;
 }
 
 function isListedCoverTemplate(t: PhotoLayoutTemplate): boolean {
