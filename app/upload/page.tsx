@@ -210,6 +210,7 @@ import { BackgroundPanel } from "./backgroundPanel";
 import {
   backgroundSpecToCss,
   resolveCoverPanelSpec,
+  effectivePreset,
   spineBridgeColor,
   resolveSpreadSideSpec,
   specFromLegacy,
@@ -218,7 +219,8 @@ import {
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
 import { captionAvoidLogo, backLogoRectPct, BACK_LOGO_DEFAULT_SCALE_PCT, COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
-import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox } from "@/lib/coverLayoutVariants";
+import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox, coverPanelTemplates } from "@/lib/coverLayoutVariants";
+import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleReadability, coverTitleLinePct, titleOverlapPct2, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
@@ -2493,12 +2495,15 @@ function TextBoxRichEditor({
   onChange,
   onSelectionRangeChange,
   emptyHint = "텍스트 입력",
+  emptyHintSubtle = false,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
   onSelectionRangeChange: TextSelectionRangeSetter;
   // 비어 있을 때 편집 화면에만 흐리게 보이는 안내 글자(인쇄·미리보기에는 나오지 않아요). 표지 제목은 "제목을 입력하세요".
   emptyHint?: string;
+  // 51차: 표지 제목처럼 사진 위에 놓일 수 있는 빈 칸의 안내 글자를 더 작고 옅게 보여줘요(글자색이 흰색이어도 흰 여백·밝은 사진 위에서 보이도록 얇은 어두운 테두리 그림자). 편집 화면에서만 보여요.
+  emptyHintSubtle?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
@@ -2673,12 +2678,13 @@ function TextBoxRichEditor({
       )}
       {isEmpty && (
         <div
-          className="pointer-events-none absolute inset-0 select-none opacity-40"
+          className={`pointer-events-none absolute inset-0 select-none ${emptyHintSubtle ? "opacity-50" : "opacity-40"}`}
           style={{
             fontFamily: box.fontFamily,
-            fontSize: screenFontSizeCss(box.fontScale),
+            fontSize: emptyHintSubtle ? `calc(${screenFontSizeCss(box.fontScale)} * 0.45)` : screenFontSizeCss(box.fontScale),
             textAlign: box.align,
             color: box.color,
+            ...(emptyHintSubtle ? { textShadow: "0 0 2px rgba(0,0,0,0.75), 0 0 1px rgba(0,0,0,0.6)" } : {}),
           }}
         >
           {emptyHint}
@@ -11249,7 +11255,7 @@ function CoverTitleOverlay({
           className={
             title.trim()
               ? "cursor-text"
-              : "cursor-text border border-dashed border-white/70 bg-black/10 px-2 py-1"
+              : "cursor-text border border-dashed border-neutral-500/40 px-2 py-1"
           }
           style={textStyle}
         >
@@ -11258,10 +11264,12 @@ function CoverTitleOverlay({
             onChange={onEditableBoxChange}
             onSelectionRangeChange={noopSelectionRangeSetter}
             emptyHint="제목을 입력하세요"
+            emptyHintSubtle
           />
         </div>
       ) : title.trim() ? (
-        <p className="pointer-events-none whitespace-pre-wrap" style={textStyle}>
+        // relative: 배경 띠(fillBox)가 absolute라 글자(<p>)보다 위에 그려져 미리보기에서 글자가 흐려 보이던 것을 막아요(글자가 항상 띠 위에).
+        <p className="pointer-events-none relative whitespace-pre-wrap" style={textStyle}>
           {title}
         </p>
       ) : null}
@@ -14956,6 +14964,34 @@ function UploadPageContent() {
 
     const placedSlots = placeCoverTemplateSlots(target, template);
 
+    // 51차(혜민님 요청): 목록 레이아웃을 앞표지에 적용할 때, "아직 글자가 없고 처음 그대로인" 빈 제목 칸만 사진과 안 겹치는 자리(문구 영역 위쪽·여백 띠)로 옮겨요.
+    // 사진 칸은 그대로예요(줄이거나 옮기지 않아요). 제목을 쓴 표지·칸을 옮기거나 크기를 바꾼 표지는 건드리지 않아요. 자리가 없으면(꽉 채우기·2단·격자 등) 그대로 두고, 글자를 쓸 때 읽기 쉬운 서식을 줘요.
+    let titlePlan: CoverTitlePlan | null = null;
+    if (isFront && !opts && !selectedIds && coverPanelTemplates().some((t) => t.id === template.id)) {
+      const fd = { panelMm: capDims.panelMm, bleedMm: capDims.bleedMm };
+      const autoYs = coverTitleAutoYSet(coverPanelTemplates(), fd, coverTitleFontSizePt, coverTitleLineHeightEm);
+      if (
+        isCoverTitleBoxPristine({
+          title: coverTitle,
+          xPct: coverTitleXPct,
+          widthPct: coverTitleWidthPct,
+          heightPct: coverTitleHeightPct,
+          yPct: coverTitleYPct,
+          defaultBox: coverTitleDefaultBox,
+          autoYs,
+        })
+      ) {
+        const plan = planCoverTitle({
+          placed: placedSlots,
+          captionSlot: captionSlot && !hasAutoCaptionBox(coverTextBoxes) ? captionSlot : null, // 이미 있는 문구 칸은 안 건드려요(그 칸이 있는 띠는 사진 아래라 기본 제목 자리와 안 겹쳐요)
+          dims: fd,
+          fontPt: coverTitleFontSizePt,
+          lineHeightEm: coverTitleLineHeightEm,
+        });
+        titlePlan = plan;
+      }
+    }
+
     function finish(baseBoxes: ImageBoxDef[]) {
       const usable = selectedIds
         ? selectedIds.map((id) => baseBoxes.find((b) => b.id === id)).filter((b): b is ImageBoxDef => !!b)
@@ -15025,8 +15061,10 @@ function UploadPageContent() {
       if (isFront) {
         setCoverImageBoxes(withOpts([...coverStickerBoxes, ...placed]));
         setCoverPhoto(null);
+        if (titlePlan) setCoverTitleYPct(titlePlan.titleYPct);
         if (captionSlot) {
-          setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
+          const capForNew = titlePlan?.captionSlot ?? captionSlot;
+          setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(capForNew)]));
         }
       } else {
         setBackCoverImageBoxes(withOpts([...coverStickerBoxes, ...placed]));
@@ -17692,12 +17730,40 @@ function UploadPageContent() {
       scaleYPct: coverTitleScaleYPct,
       verticalAlign: coverTitleVerticalAlign,
     };
+    function applyCoverTitleReadabilityOnFirstText() {
+      const untouched =
+        coverTitleColor.toLowerCase() === "#ffffff" &&
+        coverTitleBackgroundColor === undefined &&
+        coverTitleShadowColor === undefined &&
+        coverTitleStrokeColor === undefined &&
+        coverTitleStrokeWidth === undefined &&
+        !coverTitleGradientEnabled;
+      if (!untouched) return;
+      const lineH = coverTitleLinePct({ panelMm: coverPanelMm, bleedMm: coverBleedMm }, coverTitleFontSizePt, coverTitleLineHeightEm);
+      const box = { xPct: coverTitleXPct, yPct: coverTitleYPct, widthPct: coverTitleWidthPct, heightPct: coverTitleHeightPct ?? lineH };
+      const photoRects = coverImageBoxes.filter((b) => !isStickerImageBox(b) && !!b.url);
+      const hasLegacy = !!coverPhoto?.url && photoRects.length === 0;
+      const overlapsPhoto = hasLegacy || titleOverlapPct2(box, photoRects) > 0.01;
+      const spec = resolveCoverPanelSpec(coverBackgrounds, "front");
+      const bgColor = spec ? (spec.kind === "solid" ? spec.color : effectivePreset(spec)?.colors[0]) : coverFrontBackgroundColor;
+      const fix = coverTitleReadability({ overlapsPhoto, bgColor: bgColor ?? "#ffffff" });
+      if (!fix) return;
+      if (fix.color) setCoverTitleColor(fix.color);
+      if (fix.backgroundColor) {
+        setCoverTitleBackgroundColor(fix.backgroundColor);
+        setCoverTitleBackgroundMode(fix.backgroundMode);
+      }
+    }
     function handleCoverTitleBoxChange(changes: Partial<TextBoxDef>) {
       // 2026-10(5차): 캔버스 위 TextBoxRichEditor에서 직접 타이핑하면 여기로 text(+runs)가
       // 들어와요. runs는 이 어댑터가 애초에 안 만드니(위 주석 참고) 조용히 무시하고,
       // text만 coverTitle 상태로 반영해요 — handleCoverTitleChange를 그대로 써서 책등
       // 자동 동기화(spineTitleEditedRef가 아직 false일 때) 로직도 똑같이 타요.
-      if (changes.text !== undefined) handleCoverTitleChange(changes.text);
+      if (changes.text !== undefined) {
+        // 51차: 서식을 한 번도 안 건드린 흰색 제목을 "처음 쓰는" 순간에만 읽기 쉬운 서식을 줘요(이미 쓴 제목·서식을 만진 제목은 그대로).
+        if (coverTitle.trim() === "" && changes.text.trim() !== "") applyCoverTitleReadabilityOnFirstText();
+        handleCoverTitleChange(changes.text);
+      }
       // 2026-10(7차) — 속성 패널의 "가로 폭(%)"/"세로 폭(%)" 입력칸(TextBoxToolbar가
       // 이미 widthPct/heightPct로 갖고 있던 필드를 그대로 재사용)과, 캔버스에서 손잡이를
       // 끌 때(아래 CoverTitleOverlay onResizeBox) 둘 다 이 경로로 들어와요.
