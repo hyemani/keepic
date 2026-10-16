@@ -2,8 +2,8 @@
 // 올린 사진 수·가로/세로 모양·표지 종류(소프트/하드)·책 크기로 점수를 매겨 하나를 골라요. 같은 입력이면 항상 같은 결과예요(무작위 없음).
 //
 // 규칙 요약
-//  1) 후보는 모두 책등 쪽 접힘선에서 20mm(= 접힘 안전, 원래 기준) 안쪽에서 시작해요 → 책등에 붙는 후보가 없어요. 좌우 균형을 위해 바깥쪽 끝도 재단선에서 같은 20mm 안쪽이에요
-//     (접힘선 20mm / 재단선 20mm — 편집기 안전선(재단선 15mm)보다 안쪽이라 안전선 밖으로 나가지 않아요). 47차: 46차의 28mm 실험은 되돌렸어요(lib/coverSpine.ts).
+//  1) 후보는 모두 책등 쪽 접힘선에서 20mm(= 접힘 안전, 원래 기준) 안쪽에서 시작해요 → 책등에 붙는 후보가 없어요. 바깥쪽 끝은 원래 안전선(재단선에서 15mm)이에요
+//     (48차: 46~47차에는 바깥쪽도 20mm로 맞췄는데, "책등 쪽만 20mm, 나머지는 원래대로"로 되돌렸어요). 47차: 46차의 28mm 실험은 되돌렸어요(lib/coverSpine.ts).
 //  2) 사진을 표지 전체에 꽉 채우는 후보는 없어요 — 사진 + 제목 자리 + 여백이 있는 "마무리된" 구성만 있어요(제목은 사진 아래/위에 따로 자리가 있어요).
 //  3) 점수 = 칸에 사진이 꽉 채워 들어갈 때 "보이는 비율"(lib/photoSlotFit.ts visibleFraction)의 평균
 //        − 0.25 (어느 사진이든 보이는 비율이 0.55 미만이면) + 표지 종류 가산점(소프트: 가로 구성 +0.03, 하드: 액자형 +0.03)
@@ -73,10 +73,10 @@ export const AUTO_COVER_CANDIDATE_IDS: AutoCoverCandidateId[] = CANDIDATES.map((
 export function planAutoCover(input: AutoCoverInput): AutoCoverPlan {
   const g = coverDesignGeo("front", input.panelMm, input.bleedMm);
   const frameAspect = g.W / g.H;
-  // 사진 칸·제목 자리는 책등 쪽 접힘선에서 20mm(g.x0)부터 시작해요(원래 기준). 좌우가 균형 잡히도록 바깥쪽 끝도 재단선에서 같은 20mm 안쪽이에요(접힘선 쪽 여백 = 재단선 쪽 여백).
+  // 사진 칸·제목 자리는 책등 쪽 접힘선에서 20mm(g.x0)부터 시작해요(원래 기준). 바깥쪽 끝은 원래 안전선(재단선에서 15mm)이에요(g.x0 + g.sw).
   const toPanel = (f: Frac, role: CoverElementRole = "text") => {
     const x0 = Math.min(g.x0, clearanceFor(role));
-    const sw = g.W - input.bleedMm - x0 - x0;
+    const sw = g.x0 + g.sw - x0; // 오른쪽(재단선 쪽) 끝은 원래 안전선(재단선에서 15mm) — 책등 쪽만 접힘 20mm
     return {
       xPct: ((x0 + f[0] * sw) / g.W) * 100,
       yPct: ((g.y0 + f[1] * g.sh) / g.H) * 100,
@@ -131,7 +131,7 @@ export function candidateGeometry(id: AutoCoverCandidateId, panelMm: number, ble
   const g = coverDesignGeo("front", panelMm, bleedMm);
   const at = (f: Frac, role: CoverElementRole) => {
     const x0 = Math.min(g.x0, clearanceFor(role));
-    const sw = g.W - bleedMm - x0 - x0;
+    const sw = g.x0 + g.sw - x0;
     return { xPct: ((x0 + f[0] * sw) / g.W) * 100, yPct: ((g.y0 + f[1] * g.sh) / g.H) * 100, widthPct: ((f[2] * sw) / g.W) * 100, heightPct: ((f[3] * g.sh) / g.H) * 100 };
   };
   return { id: cand.id, role: cand.role, bridge: cand.bridge, slots: cand.slots.map((f) => at(f, cand.role)), titleZone: at([0, cand.title.y, 1, cand.title.h], "text") };
