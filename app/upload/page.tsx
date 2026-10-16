@@ -218,7 +218,7 @@ import {
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
 import { captionAvoidLogo, backLogoRectPct, BACK_LOGO_DEFAULT_SCALE_PCT, COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
-import { placeCoverSlots, clampCaptionSlotToCover, defaultCoverTitleBox } from "@/lib/coverLayoutVariants";
+import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox } from "@/lib/coverLayoutVariants";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
@@ -14907,7 +14907,7 @@ function UploadPageContent() {
     target: "front" | "back",
     template: PhotoLayoutTemplate
   ): { xPct: number; yPct: number; widthPct: number; heightPct: number }[] {
-    // 재단선 쪽 안전 보정은 lib 한 곳(placeCoverSlots, 45차 이전과 같은 계산)에서 해요(썸네일 = 적용 결과). 책등 쪽은 예전 그대로 건드리지 않아요(47차).
+    // 안내선 안쪽 안전 상자에 맞춰 넣는 계산은 lib 한 곳(placeCoverSlots, 50차)에서 해요(썸네일 = 적용 결과).
     const cd = computeCoverDesignDims();
     return placeCoverSlots(template, target, { panelMm: cd.panelMm, bleedMm: cd.bleedMm });
   }
@@ -14936,10 +14936,16 @@ function UploadPageContent() {
     // 공간에 캡션 텍스트박스를 자동으로 하나 만들어줘요. 표지는 "범위" 개념이 없어서
     // 항상 coverTextBoxes/backCoverTextBoxes 전체에 적용해요.
     const captionSlotRaw = captionSlotFor(template);
-    // 문구 칸은 책등 쪽만 접힘 안전선(20mm 안내선)으로, 바깥쪽은 원래 안전선(재단선 15mm)으로, 아래쪽도 안전선 안으로 줄여요(lib/coverLayoutVariants.ts clampCaptionSlotToCover).
+    // 문구 칸도 사진 칸과 같이 안내선 안쪽 안전 상자에 맞춰 넣어요(50차, lib/coverLayoutVariants.ts fitSlotToCoverSafeBox) — 그다음 안전선 보정(clampCaptionSlotToCover)은 안전장치예요.
     // 뒤표지 로고와 겹치면 로고를 피해 줄여요(45차, 빈 글상자의 "텍스트 입력" 안내가 로고 위에 겹쳐 보이던 문제).
     const capDims = computeCoverDesignDims();
-    const captionSlotSafe = captionSlotRaw ? clampCaptionSlotToCover(captionSlotRaw, isFront ? "front" : "back", { panelMm: capDims.panelMm, bleedMm: capDims.bleedMm }) : null;
+    const captionSlotSafe = captionSlotRaw
+      ? clampCaptionSlotToCover(
+          fitSlotToCoverSafeBox(captionSlotRaw, isFront ? "front" : "back", { panelMm: capDims.panelMm, bleedMm: capDims.bleedMm }),
+          isFront ? "front" : "back",
+          { panelMm: capDims.panelMm, bleedMm: capDims.bleedMm },
+        )
+      : null;
     let captionSlot = captionSlotSafe;
     if (captionSlotSafe && !isFront && backCoverLogo) {
       captionSlot = captionAvoidLogo(
@@ -18769,6 +18775,11 @@ function UploadPageContent() {
                                   aspect: coverTotalWmm / coverTotalHmm,
                                 }}
                                 slotsFor={(t) => placeCoverTemplateSlots(target, t)}
+                                captionFor={(t) => {
+                                  const c = captionSlotFor(t);
+                                  const cd = computeCoverDesignDims();
+                                  return c ? fitSlotToCoverSafeBox(c, target, { panelMm: cd.panelMm, bleedMm: cd.bleedMm }) : null;
+                                }}
                                 isSelected={(t) =>
                                   targetPhotoBoxes.length > 0 && targetPhotoBoxes.every((b) => b.layoutTemplateId === t.id)
                                 }

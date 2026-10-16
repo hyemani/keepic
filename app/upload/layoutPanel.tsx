@@ -65,14 +65,16 @@ function LayoutThumb({
   template,
   frame,
   slots,
+  caption: captionOverride,
   selected,
 }: {
   template: PhotoLayoutTemplate;
   frame: LayoutThumbFrame;
   slots: LayoutSlot[];
+  caption?: LayoutSlot | null;
   selected: boolean;
 }) {
-  const caption = captionSlotFor(template);
+  const caption = captionOverride !== undefined ? captionOverride : captionSlotFor(template);
   if (frame.kind === "spread") {
     const range = frame.range;
     const cap = caption && range !== "spread" ? { ...caption, ...slotToSpreadCoords(caption, range) } : null;
@@ -130,6 +132,7 @@ export function LayoutPanel({
   templates,
   frame,
   slotsFor,
+  captionFor,
   isSelected,
   onApply,
   filter,
@@ -142,6 +145,7 @@ export function LayoutPanel({
   templates: PhotoLayoutTemplate[];
   frame: LayoutThumbFrame;
   slotsFor: (t: PhotoLayoutTemplate) => LayoutSlot[];
+  captionFor?: (t: PhotoLayoutTemplate) => LayoutSlot | null; // 표지: 문구 칸도 안내선 안에 맞춘 값(안 넘기면 템플릿 원래 값)
   isSelected: (t: PhotoLayoutTemplate) => boolean;
   onApply: (t: PhotoLayoutTemplate) => void;
   filter: LayoutCountFilter;
@@ -206,7 +210,7 @@ export function LayoutPanel({
                   : "border-[var(--color-hairline)] hover:border-[var(--color-sky)]/60"
               }`}
             >
-              <LayoutThumb template={t} frame={frame} slots={slotsFor(t)} selected={selected} />
+              <LayoutThumb template={t} frame={frame} slots={slotsFor(t)} caption={captionFor ? captionFor(t) : undefined} selected={selected} />
             </button>
           );
         })}
