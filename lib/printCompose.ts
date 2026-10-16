@@ -3302,7 +3302,7 @@ export async function buildCoverPrintPdf({
           ctxNN,
           effCoverTitleText,
           { fontFamily: coverTitleFontFamily, bold: !!coverTitleBold, italic: !!coverTitleItalic, letterSpacingEm: coverTitleLetterSpacingEm },
-          titleMaxWidthPx / mmToPx(1),
+          pxToMm(titleMaxWidthPx),
           (coverTitleFontSizePt * 25.4) / 72
         )
       : effCoverTitleText.trim().split("\n");

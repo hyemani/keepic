@@ -121,7 +121,9 @@ export function coverTitleLinesWithCanvas(
   // 브라우저(DOM)는 한글 글자 사이·띄어쓰기 커닝을 켜서 재요 — canvas 기본값(auto)은 그걸 안 해서 폭이 달라지므로 같게 맞춰요.
   (ctx as CanvasRenderingContext2D & { textRendering?: string }).textRendering = "optimizeLegibility";
   if ("letterSpacing" in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${TITLE_REF_PX * spec.letterSpacingEm}px`;
-  const lines = wrapCoverTitle(text, (s) => ctx.measureText(s).width, boxWidthInFontUnits(textWidthMm, fontSizeMm));
+  const maxW = boxWidthInFontUnits(textWidthMm, fontSizeMm);
+  // 줄 끝에 0.03% 차이로 딱 맞는 글자는 브라우저(DOM)가 다음 줄로 넘겨요(52차 측정: 같은 제목 10건). canvas가 반대로 한 글자 더 담지 않게 0.2%만 보수적으로 재요.
+  const lines = wrapCoverTitle(text, (s) => ctx.measureText(s).width, maxW, { epsilon: -maxW * 0.002 });
   ctx.restore();
   return lines;
 }
