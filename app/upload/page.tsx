@@ -217,8 +217,8 @@ import {
   type BackgroundSpec,
   type CoverBackgrounds,
 } from "@/lib/backgroundSpec";
-import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_BAND_OVERHANG_MM, COVER_SPINE_CLEARANCE_MM } from "@/lib/coverSpine";
-import { coverPanelTemplates, placeCoverSlots } from "@/lib/coverLayoutVariants";
+import { captionAvoidLogo, backLogoRectPct, COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
+import { placeCoverSlots, clampCaptionSlotToCover, defaultCoverTitleBox } from "@/lib/coverLayoutVariants";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 
 // 책등 제목의 글자 크기를 실제 mm 기준으로 재요(화면 미리보기용). lib/printCompose.ts의
@@ -12497,13 +12497,23 @@ function UploadPageContent() {
   // 이제 텍스트박스처럼 끌어서 옮길 수 있어요 — 기본값은 예전 고정 위치(하단 중앙)와
   // 비슷한 자리예요.
   // 47차: 새 앨범 기본 제목 칸 위치는 45차 이전 원래 값(8%)이에요(45~46차에 책등에서 28mm 밖 11%로 옮겼다가 되돌렸어요). 저장된 앨범은 자기 값을 그대로 읽어요.
-  const [coverTitleXPct, setCoverTitleXPct] = useState(8);
+  // 48차: 판이 작아서 8%가 접힘 안내선(20mm)보다 책등 쪽이면(S 소프트 16.4mm) 왼쪽 끝만 20mm로 옮기고 오른쪽 끝(92%)은 그대로예요(defaultCoverTitleBox). M·L은 예전과 똑같이 8%·84%예요.
+  const [coverTitleDefaultBox] = useState(() => {
+    const isHard = photobookCover === "hard";
+    const m = (photobookSizes.find((z) => z.id === selectedSizeInfo.id)?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
+    const trimMm = (m ? parseFloat(m[1]) : 30) * 10;
+    return defaultCoverTitleBox({
+      panelMm: isHard ? trimMm + printFileSpec.hardCoverPanelOverhangMm * 2 : trimMm,
+      bleedMm: isHard ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm,
+    });
+  });
+  const [coverTitleXPct, setCoverTitleXPct] = useState(coverTitleDefaultBox.xPct);
   const [coverTitleYPct, setCoverTitleYPct] = useState(84);
   // 2026-10(7차), 혜민님 요청("표지 문구도 일반 글상자처럼 선택 테두리의 손잡이를
   // 드래그해 크기를 조절") — 예전엔 84로 고정된 상수였는데, 이제 일반 글상자
   // (TextBoxDef.widthPct)와 똑같이 손잡이로 드래그해서 바꿀 수 있는 state예요. 기본값
   // 84는 예전 고정값 그대로라 불러온 프로젝트도 화면이 안 바뀌어요.
-  const [coverTitleWidthPct, setCoverTitleWidthPct] = useState(84);
+  const [coverTitleWidthPct, setCoverTitleWidthPct] = useState(coverTitleDefaultBox.widthPct);
   // 표지 제목의 실제 "박스 높이"예요(일반 글상자의 heightPct와 같은 개념, 2026-10(7차)
   // 추가) — 없으면(undefined, 기존 그대로) 예전처럼 글자 양에 맞춰 세로가 자동으로
   // 늘어나고(줄바꿈만큼), 손잡이로 위/아래를 끌면 이 값이 생기면서부터 "고정 높이
@@ -14493,36 +14503,6 @@ function UploadPageContent() {
     };
   }
 
-  // 표지 앞/뒤판 기준 안전영역(%) — 표지 이미지박스 좌표는 스프레드 전체가 아니라 그
-  // 판(앞표지 또는 뒤표지) 자기 자신을 0~100으로 보는 좌표계라서, 판 자신의 실제
-  // mm 폭 기준으로 따로 계산해요(coverSafetyXPct처럼 표지 전체 폭 기준으로 계산하면
-  // 판 폭이 아니라 표지 전체 폭을 나눈 값이 돼서 훨씬 작게 나와요).
-  function computeCoverPanelSafetyPct(): { xPct: number; yPct: number } {
-    const coverIsHardLocal = photobookCover === "hard";
-    const coverSizeInfo = photobookSizes.find((s) => s.id === selectedSizeInfo.id);
-    const coverTrimMatch = (coverSizeInfo?.finishedSizeCm ?? "").match(/(\d+(\.\d+)?)/);
-    const coverTrimCm = coverTrimMatch ? parseFloat(coverTrimMatch[1]) : 30;
-    const coverInnerTrimMm = coverTrimCm * 10;
-    const coverPanelMmLocal = coverIsHardLocal
-      ? coverInnerTrimMm + printFileSpec.hardCoverPanelOverhangMm * 2
-      : coverInnerTrimMm;
-    const coverBleedMmLocal = coverIsHardLocal ? printFileSpec.hardCoverWrapBleedMm : printFileSpec.softCoverBleedMm;
-    const panelWidthMm = coverPanelMmLocal + coverBleedMmLocal;
-    const panelHeightMm = coverPanelMmLocal + coverBleedMmLocal * 2;
-    // 2026-10-04, 혜민님 요청(항목13): "안전여백 기준이 20mm로 되어있다면 선도 안전여백과
-    // 동일하게 맞춰주세요. 이미지는 20mm로 되어있고 선은 15mm로 되어있으니 일치하지
-    // 않습니다" — 화면에 그려지는 파란 점선 안전선(coverSafetyXPct/YPct, 아래
-    // renderPage 근처)은 "도련(bleed) + 15mm"(=재단선에서 안쪽으로 15mm)로 계산되는데,
-    // 정작 사진 슬롯을 안쪽으로 당기는 이 함수는 도련을 더하지 않고 15mm만 썼어요 —
-    // panelWidthMm/panelHeightMm는 도련을 포함한 판 전체 폭이 0%~100%라서, 도련을 안
-    // 더하면 재단선 기준으로는 (15mm - 도련)만큼만 당겨져서 화면 안전선보다 사진이
-    // 재단선에 더 가깝게 놓일 수 있었어요. 안전선과 똑같이 "도련 + 15mm"로 맞춰요.
-    return {
-      xPct: panelWidthMm > 0 ? ((coverBleedMmLocal + GUIDE_SAFETY_MARGIN_MM) / panelWidthMm) * 100 : 0,
-      yPct: panelHeightMm > 0 ? ((coverBleedMmLocal + GUIDE_SAFETY_MARGIN_MM) / panelHeightMm) * 100 : 0,
-    };
-  }
-
   // 슬롯의 네 변 중 트림(재단) 가장자리(0%/100%)에 닿아 있던 변만 안전영역 안쪽으로
   // 당겨요 — min/max 클램프라 이미 안전영역보다 안쪽인 변(게터 있는 템플릿)은 안 건드려요.
   // 2026-11(18번째 라운드 12차), 혜민님 버그 리포트("가로 이미지 하단에
@@ -14956,28 +14936,15 @@ function UploadPageContent() {
     // 공간에 캡션 텍스트박스를 자동으로 하나 만들어줘요. 표지는 "범위" 개념이 없어서
     // 항상 coverTextBoxes/backCoverTextBoxes 전체에 적용해요.
     const captionSlotRaw = captionSlotFor(template);
-    // 뒤표지 로고와 겹치는 문구 칸은 로고를 피해 줄여요(45차, 빈 글상자의 "텍스트 입력" 안내가 로고 위에 겹쳐 보이던 문제).
-    // 문구 칸 아래쪽도 안전선 안으로 줄여요(예전엔 100%=도련 끝까지 내려가서 글이 재단선 근처에 놓일 수 있었어요).
-    // 가로도 같아요: 책등 쪽은 접힘 안전(20mm = 편집기 안내선), 바깥쪽은 안전선 안으로(예전엔 0~100% 꽉 찬 글상자라 책등에 붙었어요).
-    const capSafe = computeCoverPanelSafetyPct();
+    // 문구 칸은 책등 쪽만 접힘 안전선(20mm 안내선)으로, 바깥쪽은 원래 안전선(재단선 15mm)으로, 아래쪽도 안전선 안으로 줄여요(lib/coverLayoutVariants.ts clampCaptionSlotToCover).
+    // 뒤표지 로고와 겹치면 로고를 피해 줄여요(45차, 빈 글상자의 "텍스트 입력" 안내가 로고 위에 겹쳐 보이던 문제).
     const capDims = computeCoverDesignDims();
-    const capSpinePct = ((capDims.panelMm + capDims.bleedMm) > 0 ? (COVER_SPINE_CLEARANCE_MM / (capDims.panelMm + capDims.bleedMm)) * 100 : 0);
-    const capX0 = isFront ? capSpinePct : capSafe.xPct;
-    const capX1 = isFront ? 100 - capSafe.xPct : 100 - capSpinePct;
-    const captionSlotSafe = captionSlotRaw
-      ? {
-          ...captionSlotRaw,
-          xPct: Math.max(captionSlotRaw.xPct, capX0),
-          widthPct: Math.max(10, Math.min(captionSlotRaw.xPct + captionSlotRaw.widthPct, capX1) - Math.max(captionSlotRaw.xPct, capX0)),
-          heightPct: Math.min(captionSlotRaw.heightPct, Math.max(4, 100 - capSafe.yPct - captionSlotRaw.yPct)),
-        }
-      : null;
+    const captionSlotSafe = captionSlotRaw ? clampCaptionSlotToCover(captionSlotRaw, isFront ? "front" : "back", { panelMm: capDims.panelMm, bleedMm: capDims.bleedMm }) : null;
     let captionSlot = captionSlotSafe;
     if (captionSlotSafe && !isFront && backCoverLogo) {
-      const cd = computeCoverDesignDims();
       captionSlot = captionAvoidLogo(
         captionSlotSafe,
-        backLogoRectPct(backCoverLogo, (cd.panelMm + cd.bleedMm) / (cd.panelMm + cd.bleedMm * 2)),
+        backLogoRectPct(backCoverLogo, (capDims.panelMm + capDims.bleedMm) / (capDims.panelMm + capDims.bleedMm * 2)),
       );
     }
 
@@ -15010,11 +14977,8 @@ function UploadPageContent() {
             heightPct: clamped.heightPct,
             layoutTemplateId: template.id,
             ...(existing.layoutTemplateId?.startsWith("design:") ? { rotation: undefined } : {}),
-            // 프레임형이 입힌 테두리는 다른 구성으로 바꿀 때 같이 풀어요(그 구성이 직접 테두리를 정하지 않는 한).
-            ...(existing.layoutTemplateId === "cover-1-frame" && template.id !== "cover-1-frame" && !template.coverSlotPatches?.[idx]
-              ? { borderWidthPx: undefined, borderColor: undefined }
-              : {}),
-            ...(template.coverSlotPatches?.[idx] ?? {}),
+            // 46차 "프레임형"(48차에 없앰)으로 이미 입혀진 테두리는 다른 구성으로 바꿀 때 같이 풀어요.
+            ...(existing.layoutTemplateId === "cover-1-frame" ? { borderWidthPx: undefined, borderColor: undefined } : {}),
           };
         }
         const emptyBox: ImageBoxDef = {
@@ -15030,7 +14994,6 @@ function UploadPageContent() {
           innerOffsetYPct: 0,
           innerScale: 1,
           layoutTemplateId: template.id,
-          ...(template.coverSlotPatches?.[idx] ?? {}),
         };
         return emptyBox;
       });
@@ -15056,8 +15019,6 @@ function UploadPageContent() {
       if (isFront) {
         setCoverImageBoxes(withOpts([...coverStickerBoxes, ...placed]));
         setCoverPhoto(null);
-        // 표지 구성(여백형·프레임형 등)은 제목 자리를 사진 아래로 비워 둬요 — 아직 제목 글자가 없으면 빈 제목 칸을 그 자리로 옮겨서, 나중에 쓴 제목이 사진 위에 겹치지 않게 해요(글자가 있으면 그대로).
-        if (template.titleZone && coverTitle.trim() === "") setCoverTitleYPct(template.titleZone.yPct);
         if (captionSlot) {
           setCoverTextBoxes((prev) => (hasAutoCaptionBox(prev) ? prev : [...prev, makeCaptionTextBox(captionSlot)]));
         }
@@ -18798,7 +18759,7 @@ function UploadPageContent() {
                                 ]}
                                 target={target}
                                 onTargetChange={(id) => setCoverLayoutApplyTarget(id === "back" ? "back" : "front")}
-                                templates={coverPanelTemplates()}
+                                templates={LISTED_HALF_LAYOUT_TEMPLATES}
                                 frame={{
                                   kind: "cover",
                                   target,

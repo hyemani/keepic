@@ -11,9 +11,6 @@
 //   펼침면 템플릿은 기본적으로 중앙(50%) 근처에 작은 여백(SPREAD_GUTTER_PCT)을 둬서 사진이
 //   제본 경계를 가로지르지 않게 설계했어요.
 
-import type { CoverElementRole } from "./coverSpine";
-import type { ImageBoxDef } from "./albumTemplates";
-
 export type LayoutSlot = {
   xPct: number;
   yPct: number;
@@ -31,15 +28,6 @@ export type PhotoLayoutTemplate = {
   slots: LayoutSlot[];
   isPanorama?: boolean;
   hasCaptionSpace?: boolean;
-  // ---- 표지 전용 선택 필드(46차, 모두 생략 가능 — 내지·옛 템플릿은 그대로예요) ----
-  // 책등 쪽 여백을 정하는 요소 종류(lib/coverSpine.ts). 생략하면 칸 모양으로 추측해요(inferCoverPhotoRole).
-  coverRole?: CoverElementRole;
-  // 판 크기(mm)에 맞춰 앞표지 기준 칸을 직접 계산해요(여백을 mm로 맞추는 표지 구성용). 뒤표지는 좌우를 뒤집어서 써요. 생략하면 slots를 그대로 써요.
-  coverBuild?: (dims: { panelMm: number; bleedMm: number }) => LayoutSlot[];
-  // 칸마다 덧붙일 사진 칸 값(테두리 등). 표지 구성에서만 써요.
-  coverSlotPatches?: Partial<ImageBoxDef>[];
-  // 제목 자리 안내(썸네일에 가는 줄로만 보여줘요 — 글상자를 만들지 않아요). 표지 판 기준 %.
-  titleZone?: { yPct: number; heightPct: number };
 };
 
 type Rect = { x: number; y: number; w: number; h: number };

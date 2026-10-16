@@ -119,31 +119,6 @@ function LayoutThumb({
           rect={{ xPct: mapX(caption.xPct), yPct: caption.yPct, widthPct: mapW(caption.widthPct), heightPct: caption.heightPct }}
         />
       )}
-      {template.titleZone && (
-        // 제목 자리 안내(46차): 글상자를 만들지 않고 썸네일에만 보여줘요 — 제목은 표지 화면에서 직접 쓰면 그때부터 인쇄돼요.
-        <CaptionBars
-          rect={{ xPct: mapX(14), yPct: template.titleZone.yPct, widthPct: mapW(72), heightPct: template.titleZone.heightPct }}
-        />
-      )}
-      {template.coverSlotPatches?.some((p) => (p?.borderWidthPx ?? 0) > 0) && (
-        // 프레임형: 칸마다 테두리선을 그려 일반 여백형과 구분돼요.
-        <>
-          {slots.map((s, i) =>
-            template.coverSlotPatches?.[i]?.borderWidthPx ? (
-              <div
-                key={`b${i}`}
-                className="pointer-events-none absolute border border-[var(--color-charcoal)]"
-                style={{
-                  left: `${mapX(s.xPct) - 1.2}%`,
-                  top: `${s.yPct - 1.6}%`,
-                  width: `${mapW(s.widthPct) + 2.4}%`,
-                  height: `${s.heightPct + 3.2}%`,
-                }}
-              />
-            ) : null
-          )}
-        </>
-      )}
     </div>
   );
 }
