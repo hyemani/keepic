@@ -17951,7 +17951,10 @@ function UploadPageContent() {
       const blockPct = lines.length * coverTitleLinePctNow;
       const box = { xPct: coverTitleXPct, yPct: yUse, widthPct: coverTitleWidthPct, heightPct: coverTitleHeightPct ?? blockPct };
       // 아직 사진이 안 들어간 빈 사진 칸도 "사진 자리"로 봐요(나중에 사진이 들어갈 자리라서).
-      const overlapsPhoto = titleOverlapPct2(box, coverTitlePhotoRects) > 0.01;
+      // 글자가 사진 위에 "실제로 걸치는지"는 글자 모양 높이로 봐요(줄 상자 위아래의 반 행간은 글자가 아니에요).
+      const inkTrim = ((Math.max(0, (coverTitleLineHeightEm - 1) / 2) * coverTitleFontMm) / coverTotalHmm) * 100;
+      const overlapBox = coverTitleHeightPct !== undefined ? box : { ...box, yPct: box.yPct + inkTrim, heightPct: Math.max(0.1, box.heightPct - 2 * inkTrim) };
+      const overlapsPhoto = titleOverlapPct2(overlapBox, coverTitlePhotoRects) > 0.01;
       const spec = resolveCoverPanelSpec(coverBackgrounds, "front");
       const bgColor = spec ? (spec.kind === "solid" ? spec.color : effectivePreset(spec)?.colors[0]) : coverFrontBackgroundColor;
       let next: { color: string; bg: string | undefined; mode: "fillBox" | undefined } | null = null;

@@ -70,6 +70,11 @@ export function planCoverTitle(args: {
   const topBand = top - safe.y0;
   if (bottomBand >= line) return { kind: "margin", titleYPct: ceil2(bottom + (bottomBand - line) / 2) };
   if (topBand >= line) return { kind: "margin", titleYPct: ceil2(safe.y0 + (topBand - line) / 2) };
+  // 52차: 띠가 "줄 높이(글자 크기×행간)"보다 좁아도 실제 글자(윗부분~아랫부분 ≈ 글자 크기 1배)가 들어가면 그 띠 가운데에 글자를 앉혀요 — 줄 상자가 위아래로 반 행간만큼 띠 밖(사진 쪽 0.7mm)으로 나가도 글자 모양은 안 걸쳐요.
+  // (예: S 소프트 사방 여백의 13.6mm 띠 < 한 줄 15.24mm지만 36pt 글자 모양 높이는 약 12.7mm) 사진·글자 크기는 줄이지 않아요.
+  const ink = H > 0 ? ((fontPt * PT_TO_MM) / H) * 100 : 0;
+  if (bottomBand >= ink) return { kind: "margin", titleYPct: ceil2(bottom + (bottomBand - line) / 2) };
+  if (topBand >= ink) return { kind: "margin", titleYPct: ceil2(safe.y0 + (topBand - line) / 2) };
   return keep;
 }
 

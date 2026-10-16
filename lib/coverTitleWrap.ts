@@ -185,7 +185,8 @@ export function coverTitleNotices(a: {
   const topMm = (a.yPct / 100) * a.cellHmm;
   if (a.heightPct !== undefined && blockMm > (a.heightPct / 100) * a.cellHmm + 0.3) {
     out.push({ kind: "overflow-box", text: "제목이 제목 칸보다 길어요. 칸을 늘리거나 글자 크기를 줄여 주세요." });
-  } else if (topMm + blockMm > a.cellHmm - a.bleedMm - a.safetyMm + 0.3) {
+  } else if (topMm + (a.insetYEm + a.domLines * a.lineHeightEm - Math.max(0, (a.lineHeightEm - 1) / 2)) * a.fontSizeMm > a.cellHmm - a.bleedMm - a.safetyMm + 0.3) {
+    // 안전선 판단은 "글자 모양의 아래쪽"(줄 상자 맨 아래의 반 행간은 뺀 값) 기준이에요.
     out.push({ kind: "overflow-safe", text: "제목 아래쪽이 안전선 밖으로 나가요. 위로 옮기거나 글자 크기를 줄여 주세요." });
   }
   return out;
