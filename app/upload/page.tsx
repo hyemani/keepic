@@ -223,6 +223,7 @@ import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaul
 import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleLinePct, titleOverlapPct2, coverTitleFitY, coverTitlePlateClip, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 import { collectEditablePieces, splitPastedLines, isImeEnter } from "@/lib/editableText";
+import { coverTitleDefaultShadow, coverTitleDefaultShadowCss } from "@/lib/coverTitleShadow";
 import { ensureFontsReady, fontsAlreadyLoaded } from "@/lib/fontReady";
 import { ownedFields, chooseCoverTitleStyle, autoPlatePads, coverTitleHugPlate, estimateTextBoxRectPct, shadowIsUnset, type CoverTitleAuto } from "@/lib/coverTitleAuto";
 import { coverTitleLinesWithCanvas, coverTitleInsetEm, coverTitleNotices, coverTitleMaxLineWidthMm, coverTitleLineWidthsMm, type CoverTitleNotice } from "@/lib/coverTitleWrap";
@@ -2240,8 +2241,6 @@ type TextSelectionRangeSetter = React.Dispatch<React.SetStateAction<TextSelectio
 // 자체는 100% 그대로 동작해요(그 값은 오직 "부분 선택 서식" 기능에만 쓰여요).
 const noopSelectionRangeSetter: TextSelectionRangeSetter = () => {};
 
-// 표지 제목(새 방식) 기본 그림자 — 인쇄 drawCoverTitle의 rgba(0,0,0,0.45) + 흐림 글자 크기×0.4와 같은 값이에요(em 단위라 크기와 무관).
-const COVER_TITLE_DEFAULT_SHADOW = "0 0 0.4em rgba(0,0,0,0.45)";
 
 // Range API로 (node, offset)을 "컨테이너 시작부터 몇 글자째인지"로 바꿔요. 텍스트
 // 노드 한가운데든, span 경계든, 컨테이너 알아서 처리해줘서 직접 트리를 걷는 것보다 훨씬 덜 위험해요.
@@ -2767,7 +2766,10 @@ function TextBoxRichEditor({
               box.shadowOpacity
             );
             // 53차: 새 방식 표지 제목(plain)은 그림자를 따로 안 줘도 인쇄(lib/printCompose.ts drawCoverTitle)가 항상 약한 검정 그림자(0.45, 흐림 0.4em)를 깔아요 — 화면도 똑같이 보이게(CSS blur 반지름 = canvas shadowBlur).
-            if (plain && !box.shadowColor) ts = ts ? `${ts}, ${COVER_TITLE_DEFAULT_SHADOW}` : COVER_TITLE_DEFAULT_SHADOW;
+            if (plain) {
+              const ds = coverTitleDefaultShadowCss(coverTitleDefaultShadow({ wrapVersion: 2, hasUserShadow: !!box.shadowColor, hasPlate: !!box.backgroundColor }));
+              if (ds) ts = ts ? `${ts}, ${ds}` : ds;
+            }
             return ts ? { textShadow: ts } : {};
           })(),
         }}
@@ -11191,7 +11193,10 @@ function CoverTitleOverlay({
         editableBox.shadowOffsetY,
         editableBox.shadowOpacity
       );
-      if (wrapV2 && !editableBox.shadowColor) ts = ts ? `${ts}, ${COVER_TITLE_DEFAULT_SHADOW}` : COVER_TITLE_DEFAULT_SHADOW; // 53차: 인쇄와 같은 기본 그림자(위 TextBoxRichEditor 주석)
+      if (wrapV2) {
+        const ds = coverTitleDefaultShadowCss(coverTitleDefaultShadow({ wrapVersion: 2, hasUserShadow: !!editableBox.shadowColor, hasPlate: !!editableBox.backgroundColor }));
+        if (ds) ts = ts ? `${ts}, ${ds}` : ds;
+      } // 53차: 인쇄와 같은 기본 그림자(위 TextBoxRichEditor 주석)
       return ts ? { textShadow: ts } : {};
     })(),
     // 2026-10(12번째 라운드) — "모퉁이"(cornerRadiusPct). 배경이 켜져 있을 때만

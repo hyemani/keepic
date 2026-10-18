@@ -19,6 +19,7 @@ import { ensureFontsReady } from "@/lib/fontReady";
 import { coverTitleHugPlate, estimateTextBoxRectPct } from "@/lib/coverTitleAuto";
 import { coverSafeBoxPct } from "@/lib/coverLayoutVariants";
 import { coverTitlePlateClip } from "@/lib/coverTitlePlacement";
+import { coverTitleDefaultShadow } from "@/lib/coverTitleShadow";
 import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
 import {
   drawBackgroundSpecOnCanvas,
@@ -3251,10 +3252,16 @@ export async function buildCoverPrintPdf({
     // titlePx*0.4, 이동 없음)를 그대로 써요 — 하위 호환, 기존 표지는 렌더링이 전혀
     // 안 바뀌어요.
     const hasCustomTitleShadow = !!coverTitleShadowColor;
+    // 54차: 기본 그림자는 lib/coverTitleShadow.ts 한 곳에서 정해요(화면·미리보기와 같은 값). 옛 방식은 예전 값 그대로, 새 방식은 판이 없을 때만 아주 약하게.
+    const defaultTitleShadow = hasCustomTitleShadow
+      ? null
+      : coverTitleDefaultShadow({ wrapVersion: coverTitleWrapVersion, hasUserShadow: false, hasPlate: !!coverTitleBackgroundColor });
     const titleShadowColor = hasCustomTitleShadow
       ? hexToRgbaPrint(coverTitleShadowColor!, (coverTitleShadowOpacity ?? 100) / 100)
-      : "rgba(0,0,0,0.45)";
-    const titleShadowBlur = hasCustomTitleShadow ? titlePx * (coverTitleShadowBlur ?? 0) : titlePx * 0.4;
+      : defaultTitleShadow
+        ? `rgba(0,0,0,${defaultTitleShadow.alpha})`
+        : "rgba(0,0,0,0)";
+    const titleShadowBlur = hasCustomTitleShadow ? titlePx * (coverTitleShadowBlur ?? 0) : defaultTitleShadow ? titlePx * defaultTitleShadow.blurEm : 0;
     const titleShadowOffsetX = hasCustomTitleShadow ? titlePx * (coverTitleShadowOffsetX ?? 0) : 0;
     const titleShadowOffsetY = hasCustomTitleShadow ? titlePx * (coverTitleShadowOffsetY ?? 0) : 0;
     ctxNN.shadowColor = titleShadowColor;
