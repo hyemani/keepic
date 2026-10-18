@@ -14,7 +14,10 @@ import { jsPDF } from "jspdf";
 import { PageTemplateId, SpreadDef, TextBoxDef, ImageBoxDef, TableBoxDef, TableBorderPositionKey, pageTemplates, sortStackedBoxes, isStickerImageBox } from "@/lib/albumTemplates";
 import { findBackgroundPattern, drawBackgroundPatternOnCanvas } from "@/lib/backgroundPatterns";
 import { COVER_SPINE_BAND_OVERHANG_MM } from "@/lib/coverSpine";
-import { coverTitleLinesWithCanvas, coverTitleInsetEm } from "@/lib/coverTitleWrap";
+import { coverTitleLinesWithCanvas, coverTitleInsetEm, coverTitleLineWidthsMm } from "@/lib/coverTitleWrap";
+import { ensureFontsReady } from "@/lib/fontReady";
+import { coverTitleHugPlate, estimateTextBoxRectPct } from "@/lib/coverTitleAuto";
+import { coverSafeBoxPct } from "@/lib/coverLayoutVariants";
 import { coverTitlePlateClip } from "@/lib/coverTitlePlacement";
 import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
 import {
@@ -309,18 +312,10 @@ function textGradientFillStyle(
 
 // 글자를 캔버스에 그리기 전에, 쓰이는 서체(와 그 글자 조각)를 브라우저가 다 불러왔는지 확인해요 — 웹 폰트는 화면에 쓰인 만큼만 늦게
 // 불러오는데, 안 불러온 채로 캔버스에 그리면 기본 서체로 찍혀요(인쇄 PDF에 엉뚱한 서체가 박히는 문제 방지). 실패해도 그냥 진행해요.
-async function ensureTextFontsLoaded(items: { fontFamily?: string; text?: string; bold?: boolean }[]): Promise<void> {
-  if (typeof document === "undefined" || !document.fonts) return;
-  const seen = new Set<string>();
-  const jobs: Promise<unknown>[] = [];
-  for (const it of items) {
-    if (!it.fontFamily || !it.text || !it.text.trim()) continue;
-    const key = `${it.bold ? "b" : ""}|${it.fontFamily}|${it.text}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    jobs.push(document.fonts.load(`${it.bold ? "bold " : ""}20px ${it.fontFamily}`, it.text).catch(() => null));
-  }
-  await Promise.all(jobs);
+async function ensureTextFontsLoaded(items: { fontFamily?: string; text?: string; bold?: boolean; italic?: boolean }[]): Promise<void> {
+  // 53차: 굵기·기울임까지 맞춰 불러오고, document.fonts.ready까지 기다리되 시간 제한(10초)을 둬요(lib/fontReady.ts). 못 불러와도 멈추지 않고 진행해요.
+  const r = await ensureFontsReady(items, { timeoutMs: 10000 });
+  if (!r.ok && typeof console !== "undefined") console.warn("[print] 서체를 다 불러오지 못했어요(기본 서체로 찍힐 수 있어요):", r.pending.join(", "));
 }
 
 export function parseWorkSizeMm(productionFileSizeMm: string | null): { w: number; h: number } {
@@ -2781,6 +2776,7 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundWidthPct,
   coverTitleBackgroundMode,
   coverTitleWrapVersion = 1,
+  coverTitlePlateFit,
   innerPaperWeightG,
   pages,
   spineTitle,
@@ -2900,6 +2896,8 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundMode?: "hugText" | "fillBox";
   // 52차 — 표지 제목 줄바꿈/배치 버전. 2면 화면(편집·미리보기)과 같은 자동 줄바꿈·같은 안쪽 여백·같은 글자 굵기/세로 위치로 그려요(글자를 가로로 눌러 한 줄로 만들지 않아요). 1(기본, 옛 앨범)은 예전 그대로예요.
   coverTitleWrapVersion?: number;
+  // 53차 — 자동 판을 글자 덩어리에 딱 맞게("hug") 깔지 여부(화면과 같은 lib/coverTitleAuto.ts 계산). 없으면 예전 방식(제목 칸 너비 전체, 사진 가로 범위로만 제한).
+  coverTitlePlateFit?: "hug";
   innerPaperWeightG: number;
   pages: number;
   spineTitle?: string; // 책등 제목. 비어 있으면 coverTitle을 대신 써요.
@@ -2959,7 +2957,7 @@ export async function buildCoverPrintPdf({
   backCoverTableBoxes?: TableBoxDef[];
 }): Promise<PrintPdfResult> {
   await ensureTextFontsLoaded([
-    { fontFamily: coverTitleFontFamily, text: coverTitle, bold: coverTitleBold },
+    { fontFamily: coverTitleFontFamily, text: coverTitleTextTransformUppercase ? coverTitle.toUpperCase() : coverTitle, bold: coverTitleBold, italic: coverTitleItalic },
     { fontFamily: spineTitleFontFamily, text: spineTitle, bold: spineTitleBold },
     ...[...(coverTextBoxes ?? []), ...(backCoverTextBoxes ?? [])].map((b) => ({ fontFamily: b.fontFamily, text: b.text, bold: b.bold })),
   ]);
@@ -3306,6 +3304,8 @@ export async function buildCoverPrintPdf({
           (coverTitleFontSizePt * 25.4) / 72
         )
       : effCoverTitleText.trim().split("\n");
+    // 53차: 줄 끝 띄어쓰기는 화면(CSS pre-wrap)에선 줄 너비에 안 세지만 canvas의 textAlign(center/right)은 글자폭에 포함해서, 줄이 띄어쓰기에서 끊긴 줄이 가운데 정렬은 띄어쓰기 폭의 절반, 오른쪽 정렬은 띄어쓰기 폭만큼 왼쪽으로 밀려 인쇄됐어요(36pt에서 약 2.8mm) — 새 방식은 줄 끝 띄어쓰기를 떼고 그려요.
+    if (titleV2) for (let i = 0; i < titleLines.length; i++) titleLines[i] = titleLines[i].replace(/[ \t]+$/, "");
     // 2026-10(7차) — 화면(CoverTitleOverlay)과 같은 "실제 높이(heightPct)가 있을 때만
     // 세로 정렬"이에요. 없으면(예전과 동일) 항상 맨 위부터 그려요.
     const titleBlockHeightPx = titleLines.length * titleLinePx + titleInsetYpx * 2;
@@ -3359,8 +3359,47 @@ export async function buildCoverPrintPdf({
       const plateH = titleBoxHeightPx !== undefined && isStrip ? titleBoxHeightPx : titleBlockHeightPx;
       const plateTop = isStrip ? titleBoxTopPx : titleBlockTopPx;
       // 자동으로 깐 반투명 띠(fillBox)는 사진 밖으로 안 나가게 사진 가로 범위로 제한(화면과 같은 lib 계산).
+      let hugNone = false;
+      const hugClip = (() => {
+        if (coverTitlePlateFit !== "hug" || coverTitleBackgroundMode !== "fillBox") return null;
+        const cellWmm = pxToMm(frontCellWpx);
+        const cellHmm = pxToMm(frontCellHpx);
+        const fontMm = (coverTitleFontSizePt * 25.4) / 72;
+        const widthsMm = coverTitleLineWidthsMm(
+          ctxNN,
+          titleLines,
+          { fontFamily: coverTitleFontFamily, bold: !!coverTitleBold, italic: !!coverTitleItalic, letterSpacingEm: coverTitleLetterSpacingEm },
+          fontMm
+        );
+        const safe = coverSafeBoxPct("front", { panelMm, bleedMm });
+        const photos =
+          (coverImageBoxes ?? []).filter((b) => !isStickerImageBox(b)).length > 0
+            ? (coverImageBoxes ?? []).filter((b) => !isStickerImageBox(b)).map((b) => ({ xPct: b.xPct, yPct: b.yPct, widthPct: b.widthPct, heightPct: b.heightPct }))
+            : coverPhoto?.url
+              ? [{ xPct: 0, yPct: 0, widthPct: 100, heightPct: 100 }]
+              : [];
+        const avoid = (coverTextBoxes ?? [])
+          .map((b) => estimateTextBoxRectPct(b, { wMm: cellWmm, hMm: cellHmm }, TEXT_BOX_FONT_SCALE_BASE_RATIO))
+          .filter((r): r is NonNullable<typeof r> => !!r);
+        const r = coverTitleHugPlate({
+          align: coverTitleAlign,
+          xPct: coverTitleXPct,
+          widthPct: coverTitleWidthPct,
+          lineWidthsPct: widthsMm.map((w) => (w / cellWmm) * 100),
+          padXPct: (((coverTitleBackgroundPaddingXPct / 100) * fontMm) / cellWmm) * 100,
+          topPct: (plateTop / frontCellHpx) * 100,
+          bottomPct: ((plateTop + plateH) / frontCellHpx) * 100,
+          photos,
+          safeX: { x0: safe.x0, x1: safe.x1 },
+          avoid,
+        });
+        if (!r) hugNone = true;
+        return r;
+      })();
       const plateClip =
-        coverTitleBackgroundMode === "fillBox"
+        coverTitlePlateFit === "hug" && coverTitleBackgroundMode === "fillBox"
+          ? hugClip
+          : coverTitleBackgroundMode === "fillBox"
           ? coverTitlePlateClip({
               xPct: coverTitleXPct,
               widthPct: coverTitleWidthPct,
@@ -3388,12 +3427,14 @@ export async function buildCoverPrintPdf({
             : coverTitleAlign === "right"
               ? titleBoxLeftPx + titleBoxWidthPx - plateW
               : titleBoxLeftPx + titleBoxWidthPx / 2 - plateW / 2;
-      ctxNN.save();
-      ctxNN.shadowBlur = 0;
-      ctxNN.fillStyle = coverTitleBackgroundColor;
-      if (coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct !== undefined) ctxNN.fillRect(plateX, plateTop, plateW, plateH);
-      else fillRoundedRect(ctxNN, plateX, plateTop, plateW, plateH, coverTitleCornerRadiusPct);
-      ctxNN.restore();
+      if (!hugNone) {
+        ctxNN.save();
+        ctxNN.shadowBlur = 0;
+        ctxNN.fillStyle = coverTitleBackgroundColor;
+        if (coverTitleBackgroundMode === "fillBox" || coverTitleBackgroundWidthPct !== undefined) ctxNN.fillRect(plateX, plateTop, plateW, plateH);
+        else fillRoundedRect(ctxNN, plateX, plateTop, plateW, plateH, coverTitleCornerRadiusPct);
+        ctxNN.restore();
+      }
     } else if (coverTitleBackgroundColor && coverTitleBackgroundMode === "fillBox" && titleBoxHeightPx !== undefined) {
       ctxNN.save();
       ctxNN.shadowBlur = 0;
