@@ -194,6 +194,17 @@ export function coverTitleNotices(a: {
   return out;
 }
 
+/** 줄마다 글자 폭(mm, 줄 끝 띄어쓰기는 뺀 값) — 글자 덩어리에 딱 맞는 판을 깔 때 써요(화면·인쇄가 같은 함수). */
+export function coverTitleLineWidthsMm(ctx: CanvasRenderingContext2D, lines: string[], spec: CoverTitleFontSpec, fontSizeMm: number): number[] {
+  ctx.save();
+  ctx.font = `${spec.italic ? "italic " : ""}${spec.bold ? "bold " : ""}${TITLE_REF_PX}px ${spec.fontFamily}`;
+  (ctx as CanvasRenderingContext2D & { textRendering?: string }).textRendering = "optimizeLegibility";
+  if ("letterSpacing" in ctx) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${TITLE_REF_PX * spec.letterSpacingEm}px`;
+  const out = lines.map((l) => (ctx.measureText(l.replace(/[ \t]+$/, "")).width / TITLE_REF_PX) * fontSizeMm);
+  ctx.restore();
+  return out;
+}
+
 /** 줄들 중 가장 넓은 줄의 폭(mm) — 글자 뒤 사진 밝기를 "글자가 실제로 놓이는 가로 범위"에서만 재려고 써요. */
 export function coverTitleMaxLineWidthMm(ctx: CanvasRenderingContext2D, lines: string[], spec: CoverTitleFontSpec, fontSizeMm: number): number {
   ctx.save();
