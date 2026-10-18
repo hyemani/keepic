@@ -222,7 +222,7 @@ import { captionAvoidLogo, backLogoRectPct, BACK_LOGO_DEFAULT_SCALE_PCT, COVER_S
 import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox, coverPanelTemplates, coverSafeBoxPct } from "@/lib/coverLayoutVariants";
 import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleLinePct, titleOverlapPct2, coverTitleFitY, coverTitlePlateClip, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
 import { planAutoCover } from "@/lib/coverAutoLayout";
-import { collectEditablePieces, splitPastedLines } from "@/lib/editableText";
+import { collectEditablePieces, splitPastedLines, isImeEnter } from "@/lib/editableText";
 import { ensureFontsReady, fontsAlreadyLoaded } from "@/lib/fontReady";
 import { ownedFields, chooseCoverTitleStyle, autoPlatePads, coverTitleHugPlate, estimateTextBoxRectPct, shadowIsUnset, type CoverTitleAuto } from "@/lib/coverTitleAuto";
 import { coverTitleLinesWithCanvas, coverTitleInsetEm, coverTitleNotices, coverTitleMaxLineWidthMm, coverTitleLineWidthsMm, type CoverTitleNotice } from "@/lib/coverTitleWrap";
@@ -2608,7 +2608,7 @@ function TextBoxRichEditor({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.key === "Enter" && !isComposingRef.current) {
+    if (e.key === "Enter" && !isImeEnter(e.nativeEvent, isComposingRef.current)) {
       // 기본 동작(브라우저가 <div>/<p>/<br>로 줄을 나누는 것)을 막고, 예전
       // textarea와 똑같이 줄바꿈 문자(\n) 하나를 직접 넣어요 — 그래야 이 DOM이
       // 계속 "컨테이너 바로 아래 span들만" 있는 단순한 구조로 유지돼서 위

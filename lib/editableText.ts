@@ -9,7 +9,7 @@
 //  · <br> → "\n" (단, 블록 안에 <br> 하나만 있는 "빈 줄 자리표시"는 블록 경계가 줄바꿈을 대신하므로 무시)
 //  · <div>/<p> 블록 → 앞에 이미 줄이 시작됐으면 "\n"을 하나 넣고 안쪽을 읽어요(첫 블록이 맨 앞이면 넣지 않아요)
 
-export type EditablePiece = { text: string; el: HTMLElement | null };
+export type EditablePiece = { text: string; el: HTMLElement | null; fromBr?: boolean };
 
 const BLOCK_TAGS = new Set(["DIV", "P", "LI", "H1", "H2", "H3", "H4", "H5", "H6"]);
 
@@ -35,7 +35,7 @@ export function collectEditablePieces(root: Node): EditablePiece[] {
           const parent = el.parentNode as HTMLElement | null;
           const placeholder = !!parent && BLOCK_TAGS.has(parent.tagName) && parent.childNodes.length === 1;
           if (!placeholder) {
-            out.push({ text: "\n", el: span ?? lastEl() });
+            out.push({ text: "\n", el: span ?? lastEl(), fromBr: true });
             started = true;
           }
         } else if (BLOCK_TAGS.has(tag)) {
@@ -49,6 +49,13 @@ export function collectEditablePieces(root: Node): EditablePiece[] {
     }
   }
   walk(root, null);
+  // 54차: Firefox는 Enter 뒤에 글자를 insertText(한글 입력기 포함)로 넣으면 맨 끝에 캐럿용 <br>을 그대로 남겨요("우리 가족\n여행<br>") — 이걸 줄바꿈으로 읽으면 제목 끝에 안 쓴 줄바꿈이 하나 저장돼요.
+  // 맨 끝 <br>이 "글자 바로 뒤"(앞이 줄바꿈이 아닌)에 있으면 자리표시자라서 버려요. 줄바꿈 바로 뒤의 <br>("ab\n<br>" = Enter로 만든 빈 마지막 줄)은 Chromium의 "ab\n\n"과 같게 그대로 둬요.
+  const last = out[out.length - 1];
+  if (last && last.fromBr) {
+    const before = out.slice(0, -1).map((x) => x.text).join("");
+    if (before.length > 0 && !before.endsWith("\n")) out.pop();
+  }
   return out;
 }
 
@@ -62,4 +69,13 @@ export function editablePlainText(root: Node): string {
 /** 붙여넣은 글자를 줄 단위로 쪼개요(\r\n·\r도 줄바꿈 하나로). */
 export function splitPastedLines(text: string): string[] {
   return text.replace(/\r\n?/g, "\n").split("\n");
+}
+
+/**
+ * 54차: Enter 키를 우리가 직접 줄바꿈으로 바꿔도 되는지. 한글 입력기(IME)로 글자를 확정하는 Enter는 건드리면 안 돼요.
+ *  · Chrome/Firefox: 조합 중 keydown은 isComposing=true (그리고 keyCode 229)
+ *  · Safari: compositionend가 keydown "보다 먼저" 와서 그 keydown의 isComposing은 이미 false지만 keyCode는 229로 남아요 — 이걸 안 거르면 확정 Enter가 줄바꿈으로 한 번 더 들어가요.
+ */
+export function isImeEnter(ev: { isComposing?: boolean; keyCode?: number }, composingRef: boolean): boolean {
+  return composingRef || !!ev.isComposing || ev.keyCode === 229;
 }
