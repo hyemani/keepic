@@ -7,9 +7,18 @@ export const V2_DEFAULT_SHADOW = { blurEm: 0.3, alpha: 0.3 } as const;
 
 export type DefaultShadow = { blurEm: number; alpha: number };
 
-export function coverTitleDefaultShadow(a: { wrapVersion: number; hasUserShadow: boolean; hasPlate: boolean }): DefaultShadow | null {
+// 55차: 기본 그림자 버전 표시(coverTitleShadowVersion). 2 = 가벼운 새 기본값(지금부터 새로 만든 앨범에만 저장돼요).
+// 표시가 없는 저장된 앨범(52·53차에 만든 것 포함)은 54차 이전 모습 그대로예요 — 열어도, 저장해도, 되돌려도 표시를 절대 자동으로 붙이지 않아요.
+export const COVER_TITLE_SHADOW_VERSION_LIGHT = 2;
+export function isLightShadowVersion(v: unknown): boolean {
+  return typeof v === "number" && v >= COVER_TITLE_SHADOW_VERSION_LIGHT;
+}
+
+// shadowVersion 이 없으면(옛 저장 앨범) 54차 이전과 똑같이: wrapVersion<2 → 인쇄만 옛 값, wrapVersion>=2 → 화면·미리보기·인쇄 모두 옛 값(판이 있어도 깔렸어요).
+export function coverTitleDefaultShadow(a: { wrapVersion: number; hasUserShadow: boolean; hasPlate: boolean; shadowVersion?: number }): DefaultShadow | null {
   if (a.hasUserShadow) return null;
   if (a.wrapVersion < 2) return LEGACY_DEFAULT_SHADOW;
+  if (!isLightShadowVersion(a.shadowVersion)) return LEGACY_DEFAULT_SHADOW;
   if (a.hasPlate) return null;
   return V2_DEFAULT_SHADOW;
 }

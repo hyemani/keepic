@@ -2777,6 +2777,7 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundWidthPct,
   coverTitleBackgroundMode,
   coverTitleWrapVersion = 1,
+  coverTitleShadowVersion,
   coverTitlePlateFit,
   innerPaperWeightG,
   pages,
@@ -2897,6 +2898,8 @@ export async function buildCoverPrintPdf({
   coverTitleBackgroundMode?: "hugText" | "fillBox";
   // 52차 — 표지 제목 줄바꿈/배치 버전. 2면 화면(편집·미리보기)과 같은 자동 줄바꿈·같은 안쪽 여백·같은 글자 굵기/세로 위치로 그려요(글자를 가로로 눌러 한 줄로 만들지 않아요). 1(기본, 옛 앨범)은 예전 그대로예요.
   coverTitleWrapVersion?: number;
+  // 55차: 기본 그림자 버전(2 = 가벼운 새 기본값, 없으면 54차 이전 그대로).
+  coverTitleShadowVersion?: number;
   // 53차 — 자동 판을 글자 덩어리에 딱 맞게("hug") 깔지 여부(화면과 같은 lib/coverTitleAuto.ts 계산). 없으면 예전 방식(제목 칸 너비 전체, 사진 가로 범위로만 제한).
   coverTitlePlateFit?: "hug";
   innerPaperWeightG: number;
@@ -3255,7 +3258,7 @@ export async function buildCoverPrintPdf({
     // 54차: 기본 그림자는 lib/coverTitleShadow.ts 한 곳에서 정해요(화면·미리보기와 같은 값). 옛 방식은 예전 값 그대로, 새 방식은 판이 없을 때만 아주 약하게.
     const defaultTitleShadow = hasCustomTitleShadow
       ? null
-      : coverTitleDefaultShadow({ wrapVersion: coverTitleWrapVersion, hasUserShadow: false, hasPlate: !!coverTitleBackgroundColor });
+      : coverTitleDefaultShadow({ wrapVersion: coverTitleWrapVersion, hasUserShadow: false, hasPlate: !!coverTitleBackgroundColor, shadowVersion: coverTitleShadowVersion });
     const titleShadowColor = hasCustomTitleShadow
       ? hexToRgbaPrint(coverTitleShadowColor!, (coverTitleShadowOpacity ?? 100) / 100)
       : defaultTitleShadow

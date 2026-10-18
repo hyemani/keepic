@@ -223,7 +223,7 @@ import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaul
 import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleLinePct, titleOverlapPct2, coverTitleFitY, coverTitlePlateClip, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
 import { planAutoCover } from "@/lib/coverAutoLayout";
 import { collectEditablePieces, splitPastedLines, isImeEnter } from "@/lib/editableText";
-import { coverTitleDefaultShadow, coverTitleDefaultShadowCss } from "@/lib/coverTitleShadow";
+import { coverTitleDefaultShadow, coverTitleDefaultShadowCss, COVER_TITLE_SHADOW_VERSION_LIGHT } from "@/lib/coverTitleShadow";
 import { ensureFontsReady, fontsAlreadyLoaded } from "@/lib/fontReady";
 import { ownedFields, chooseCoverTitleStyle, autoPlatePads, coverTitleHugPlate, estimateTextBoxRectPct, shadowIsUnset, type CoverTitleAuto } from "@/lib/coverTitleAuto";
 import { coverTitleLinesWithCanvas, coverTitleInsetEm, coverTitleNotices, coverTitleMaxLineWidthMm, coverTitleLineWidthsMm, type CoverTitleNotice } from "@/lib/coverTitleWrap";
@@ -2503,6 +2503,7 @@ function TextBoxRichEditor({
   emptyHint = "텍스트 입력",
   emptyHintSubtle = false,
   plain = false,
+  shadowVersion,
 }: {
   box: TextBoxDef;
   onChange: (changes: Partial<TextBoxDef>) => void;
@@ -2513,6 +2514,8 @@ function TextBoxRichEditor({
   emptyHintSubtle?: boolean;
   // 52차: true면 배경색·안쪽 여백·배경 띠를 이 에디터가 안 그려요(바깥 감싸는 칸이 미리보기·인쇄와 똑같이 한 번만 그려요). 표지 제목(새 방식)에서 편집 화면과 미리보기·인쇄의 글자 자리·줄바꿈을 맞추려고 써요.
   plain?: boolean;
+  // 55차: 표지 제목 기본 그림자 버전(coverTitleShadowVersion). 2일 때만 54차의 가벼운 기본 그림자, 없으면 54차 이전 모습 그대로.
+  shadowVersion?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
@@ -2767,7 +2770,7 @@ function TextBoxRichEditor({
             );
             // 53차: 새 방식 표지 제목(plain)은 그림자를 따로 안 줘도 인쇄(lib/printCompose.ts drawCoverTitle)가 항상 약한 검정 그림자(0.45, 흐림 0.4em)를 깔아요 — 화면도 똑같이 보이게(CSS blur 반지름 = canvas shadowBlur).
             if (plain) {
-              const ds = coverTitleDefaultShadowCss(coverTitleDefaultShadow({ wrapVersion: 2, hasUserShadow: !!box.shadowColor, hasPlate: !!box.backgroundColor }));
+              const ds = coverTitleDefaultShadowCss(coverTitleDefaultShadow({ wrapVersion: 2, hasUserShadow: !!box.shadowColor, hasPlate: !!box.backgroundColor, shadowVersion }));
               if (ds) ts = ts ? `${ts}, ${ds}` : ds;
             }
             return ts ? { textShadow: ts } : {};
@@ -10895,6 +10898,7 @@ function CoverTitleOverlay({
   editableBox,
   onEditableBoxChange,
   wrapV2 = false,
+  shadowVersion,
   plateClip = null,
   notice,
 }: {
@@ -10954,6 +10958,8 @@ function CoverTitleOverlay({
   onEditableBoxChange: (changes: Partial<TextBoxDef>) => void;
   // 52차 — 새 방식(화면과 인쇄가 같은 줄바꿈·같은 안쪽 여백) 앨범이면 true. 편집 화면에서 배경·여백을 바깥 칸이 한 번만 그리고(미리보기·인쇄와 같아요), 안쪽 에디터는 글자만 그려요.
   wrapV2?: boolean;
+  // 55차 — 기본 그림자 버전(없으면 54차 이전 모습). 새로 만든 앨범만 2.
+  shadowVersion?: number;
   // 52차 — 새 방식에서 자동으로 깐 반투명 띠(fillBox)가 사진 밖(여백·재단 쪽)으로 삐져나가지 않게, 띠를 이 가로 범위(앞표지 판 가로 %, x0~x1)로 제한해요(없으면 제목 칸 전체 너비).
   plateClip?: { x0: number; x1: number } | "none" | null; // "none" = 판을 안 깔아요(자동 판이 다른 글상자와 겹칠 때)
   // 52차 — 편집 화면에서만 보이는 작은 안내(예: 옛 앨범에서 "PDF에서는 한 줄로 인쇄돼요" + 한 번 눌러 새 방식으로 바꾸기, 제목이 칸을 넘을 때).
@@ -11194,7 +11200,7 @@ function CoverTitleOverlay({
         editableBox.shadowOpacity
       );
       if (wrapV2) {
-        const ds = coverTitleDefaultShadowCss(coverTitleDefaultShadow({ wrapVersion: 2, hasUserShadow: !!editableBox.shadowColor, hasPlate: !!editableBox.backgroundColor }));
+        const ds = coverTitleDefaultShadowCss(coverTitleDefaultShadow({ wrapVersion: 2, hasUserShadow: !!editableBox.shadowColor, hasPlate: !!editableBox.backgroundColor, shadowVersion }));
         if (ds) ts = ts ? `${ts}, ${ds}` : ds;
       } // 53차: 인쇄와 같은 기본 그림자(위 TextBoxRichEditor 주석)
       return ts ? { textShadow: ts } : {};
@@ -11330,6 +11336,7 @@ function CoverTitleOverlay({
             emptyHint="제목을 입력하세요"
             emptyHintSubtle
             plain={wrapV2}
+            shadowVersion={shadowVersion}
           />
         </div>
       ) : title.trim() ? (
@@ -12753,6 +12760,8 @@ function UploadPageContent() {
   // 52차 — 표지 제목 줄바꿈 방식 버전. 2 = 화면과 똑같이 자동 줄바꿈해서 인쇄(미리보기·PDF)도 같은 줄 수·같은 줄바꿈으로 나와요(새 앨범 기본).
   // 1 = 옛 방식(인쇄는 Enter 줄바꿈만 나누고 긴 줄은 한 줄로 눌러 찍어요) — 저장된 옛 앨범은 이 값이 없어서 1로 열려요(자동으로 바꾸지 않아요, 편집 화면 안내의 버튼으로 직접 바꿔요).
   const [coverTitleWrapVersion, setCoverTitleWrapVersion] = useState<number>(2);
+  // 55차 — 표지 제목 "기본 그림자" 버전. 2 = 54차의 가벼운 기본 그림자(새 앨범만 저장돼요). 값이 없는 저장 앨범(52·53차 포함)은 undefined로 열려서 54차 이전 모습 그대로예요 — 열기·저장·실행취소·글자 입력 어디서도 자동으로 2로 바꾸지 않아요.
+  const [coverTitleShadowVersion, setCoverTitleShadowVersion] = useState<number | undefined>(COVER_TITLE_SHADOW_VERSION_LIGHT);
   // 53차 — 제목 자동 처리 기록(CoverTitleAuto, lib/coverTitleAuto.ts)을 저장해요: (1) 여러 줄이 되면 첫 줄 자리(anchorY)에서 위로 올려 앉힌 자리들 (2) 자동으로 정한 글자색·그림자·배경 판.
   //  · 항목이 기록에 있고 지금 값이 기록한 값 그대로일 때만 "자동"이에요. 사용자가 패널·끌기로 바꾸면 기록에서 그 항목을 지워요(markCoverTitleUser) — 레이아웃을 바꿔도 사용자 값은 안 바뀌어요.
   //  · 이 필드는 새 앨범(새 방식 v2)에서 자동 처리가 처음 일어날 때 생겨요. 옛 앨범은 필드가 없어서(undefined) 열어도, 레이아웃을 바꿔도 다시 꾸미지 않아요.
@@ -16349,6 +16358,7 @@ function UploadPageContent() {
       coverTitleScaleYPct,
       coverTitleVerticalAlign,
       coverTitleWrapVersion,
+      coverTitleShadowVersion,
       coverTitleAuto,
       coverTitlePlateFit,
       spineTitle,
@@ -16460,6 +16470,8 @@ function UploadPageContent() {
     setCoverTitleVerticalAlign(s.coverTitleVerticalAlign ?? "top");
     // 52차: 이 값이 없는 문서 = 이 기능 이전에 저장된 옛 앨범 → 1(옛 인쇄 방식 그대로).
     setCoverTitleWrapVersion(typeof s.coverTitleWrapVersion === "number" ? s.coverTitleWrapVersion : 1);
+    // 55차: 표시가 없는 문서는 undefined 그대로(54차 이전 그림자) — 절대 자동 업그레이드하지 않아요.
+    setCoverTitleShadowVersion(typeof s.coverTitleShadowVersion === "number" ? s.coverTitleShadowVersion : undefined);
     // 실행취소·불러오기로 제목 상태가 바뀌면, 제목 자동 처리(위로 올려 앉히기·글자색/판 자동 판단) 기억은 버려요 — 되돌린 값은 그대로 둬요.
     // 53차: 자동 처리 기록·판 모양도 같이 되돌려요(필드가 없는 옛 문서는 undefined = 자동으로 정한 값 없음 → 어떤 경우에도 다시 꾸미지 않아요).
     {
@@ -16620,6 +16632,7 @@ function UploadPageContent() {
     coverTitleScaleYPct,
     coverTitleVerticalAlign,
     coverTitleWrapVersion,
+    coverTitleShadowVersion,
     coverTitleAuto,
     coverTitlePlateFit,
     spineTitle,
@@ -17272,6 +17285,7 @@ function UploadPageContent() {
       coverTitleCornerRadiusPct,
       coverTitleVerticalAlign,
       coverTitleWrapVersion,
+      coverTitleShadowVersion,
       coverTitlePlateFit,
       coverTitleColor,
       coverTitleBold,
@@ -19925,6 +19939,7 @@ function UploadPageContent() {
                               editableBox={coverTitleAsTextBox}
                               onEditableBoxChange={handleCoverTitleBoxChange}
                               wrapV2={coverTitleWrapVersion >= 2}
+                              shadowVersion={coverTitleShadowVersion}
                               plateClip={coverTitlePlateClipNow}
                               notice={coverTitleNotice}
                             />
