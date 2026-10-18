@@ -79,3 +79,50 @@ export function splitPastedLines(text: string): string[] {
 export function isImeEnter(ev: { isComposing?: boolean; keyCode?: number }, composingRef: boolean): boolean {
   return composingRef || !!ev.isComposing || ev.keyCode === 229;
 }
+
+/**
+ * 55차: "Enter로 줄을 바꾼 뒤 글자를 쓰면 저장된 제목 끝에 안 쓴 줄바꿈이 하나 더 붙는" 문제(Firefox)를 막아요.
+ *
+ * 왜 생기나요: 제목 끝에서 Enter를 누르면 "맨 끝 빈 줄" 자리를 위해 글자 모양의 줄바꿈이 하나 더 있어요(저장값은 Chromium과 같게 "ab\n\n").
+ * 이때 스타일이 다시 그려지는 일(글자색을 자동으로 정하는 등)이 끼면, 그 뒤에 쓰는 글자는 "빈 줄의 시작"이 아니라 "마지막 줄바꿈 바로 앞"에 들어가서
+ * "ab\n" + 쓴 글자 + 남은 줄바꿈 → "ab\ncd\n"이 돼요(쓰지 않은 줄바꿈이 끝에 하나 남아요).
+ *
+ * 고치는 방법: 글자를 "쓰는" 입력(insert*)인데, 커서가 맨 끝 줄바꿈 바로 앞에 있고, 그 줄바꿈 앞이 또 줄바꿈이 아니면(= 빈 줄을 만든 Enter의 자리표시 줄바꿈이 아니라 남은 찌꺼기) 그 맨 끝 줄바꿈 하나를 지워요.
+ * Enter 자체(insertLineBreak)나 지우기, 붙여넣기 줄바꿈은 건드리지 않아요 — 그래서 끝에서 Enter만 누른 값("ab\n\n")은 그대로예요.
+ * 지운 줄바꿈은 글자 노드의 끝 글자 하나뿐이고, 커서 앞이라 커서 위치는 안 움직여요. 지웠으면 true.
+ */
+export function dropStaleTrailingNewline(container: HTMLElement, inputType: string | undefined): boolean {
+  if (!inputType || !/^insert(Text|CompositionText|FromComposition|ReplacementText)$/.test(inputType)) return false;
+  const sel = typeof window !== "undefined" ? window.getSelection() : null;
+  if (!sel || sel.rangeCount === 0 || !sel.isCollapsed || !sel.anchorNode || !container.contains(sel.anchorNode)) return false;
+  const full = container.textContent ?? "";
+  if (full.length < 2 || !full.endsWith("\n") || full[full.length - 2] === "\n") return false;
+  // 캐럿이 맨 끝 줄바꿈 바로 앞인지(글자 노드 길이만 센 값)
+  const range = document.createRange();
+  try {
+    range.selectNodeContents(container);
+    range.setEnd(sel.anchorNode, sel.anchorOffset);
+  } catch {
+    return false;
+  }
+  if (range.toString().length !== full.length - 1) return false;
+  // 맨 끝 "\n"이 정말 글자 노드의 것이어야 해요(뒤에 <br> 같은 게 따로 있으면 그건 읽기 쪽 규칙이 처리해요)
+  const pieces = collectEditablePieces(container);
+  const lastPiece = pieces[pieces.length - 1];
+  if (!lastPiece || lastPiece.fromBr) return false;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let last: Text | null = null;
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) if ((n as Text).data) last = n as Text;
+  if (!last || !last.data.endsWith("\n")) return false;
+  // Firefox는 글자 노드의 data를 바꾸면 캐럿을 맨 앞(0)으로 보내 버려요 → 지우기 전에 캐럿 자리를 적어 두고 지운 뒤 같은 자리로 되돌려요.
+  const anchorNode = sel.anchorNode;
+  const anchorOffset = sel.anchorOffset;
+  last.deleteData(last.data.length - 1, 1);
+  try {
+    const maxOffset = anchorNode.nodeType === 3 ? (anchorNode as Text).data.length : anchorNode.childNodes.length;
+    sel.collapse(anchorNode, Math.min(anchorOffset, maxOffset));
+  } catch {
+    /* 캐럿 복원 실패는 무시 — 글자는 이미 맞게 지워졌어요 */
+  }
+  return true;
+}

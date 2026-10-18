@@ -222,7 +222,7 @@ import { captionAvoidLogo, backLogoRectPct, BACK_LOGO_DEFAULT_SCALE_PCT, COVER_S
 import { placeCoverSlots, fitSlotToCoverSafeBox, clampCaptionSlotToCover, defaultCoverTitleBox, coverPanelTemplates, coverSafeBoxPct } from "@/lib/coverLayoutVariants";
 import { planCoverTitle, coverTitleAutoYSet, isCoverTitleBoxPristine, coverTitleLinePct, titleOverlapPct2, coverTitleFitY, coverTitlePlateClip, type CoverTitlePlan } from "@/lib/coverTitlePlacement";
 import { planAutoCover } from "@/lib/coverAutoLayout";
-import { collectEditablePieces, splitPastedLines, isImeEnter } from "@/lib/editableText";
+import { collectEditablePieces, splitPastedLines, isImeEnter, dropStaleTrailingNewline } from "@/lib/editableText";
 import { coverTitleDefaultShadow, coverTitleDefaultShadowCss, COVER_TITLE_SHADOW_VERSION_LIGHT } from "@/lib/coverTitleShadow";
 import { ensureFontsReady, fontsAlreadyLoaded } from "@/lib/fontReady";
 import { ownedFields, chooseCoverTitleStyle, autoPlatePads, coverTitleHugPlate, estimateTextBoxRectPct, shadowIsUnset, type CoverTitleAuto } from "@/lib/coverTitleAuto";
@@ -2583,7 +2583,10 @@ function TextBoxRichEditor({
     return mergeAdjacentRuns(out);
   }
 
-  function commitFromDom() {
+  function commitFromDom(inputType?: string) {
+    // 55차: Enter 뒤에 글자를 쓸 때 맨 끝에 남는 찌꺼기 줄바꿈 하나를 지워요(lib/editableText.ts dropStaleTrailingNewline). 글자를 쓰는 입력일 때만.
+    // 표지 제목(plain, 새 방식)에만 적용해요 — 다른 글상자·옛 방식 제목의 입력은 그대로예요.
+    if (plain && containerRef.current) dropStaleTrailingNewline(containerRef.current, inputType);
     const newRuns = readRunsFromDom();
     const newText = runsPlainText(newRuns);
     // 우리가 스스로 emit하는 값이니, box가 이 값 그대로 되돌아와도 다시 그리지
@@ -2597,7 +2600,7 @@ function TextBoxRichEditor({
     // (compositionend) 글자가 확정돼요. 이걸 건너뛰지 않으면 조합 중간 글자가
     // runs로 잘못 확정되면서 한글 입력이 깨져요.
     if ((e.nativeEvent as InputEvent).isComposing || isComposingRef.current) return;
-    commitFromDom();
+    commitFromDom((e.nativeEvent as InputEvent).inputType);
   }
 
   function handleCompositionStart() {
@@ -2606,7 +2609,7 @@ function TextBoxRichEditor({
 
   function handleCompositionEnd() {
     isComposingRef.current = false;
-    commitFromDom();
+    commitFromDom("insertCompositionText");
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
