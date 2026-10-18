@@ -17954,6 +17954,30 @@ function UploadPageContent() {
           cellHmm: coverTotalHmm,
           bleedMm: coverBleedMm,
           safetyMm: GUIDE_SAFETY_MM,
+          // 54차: 글자(잉크) 기준으로 왼쪽(책등 쪽 20mm)·오른쪽·위·아래 안전선을 모두 재요. 회전은 표지 제목에 없어서 0.
+          safe: (() => {
+            const mctx = coverTitleMeasureCtx();
+            if (!mctx) return undefined;
+            return {
+              cellWmm: coverTitleCellWmm,
+              cellHmm: coverTotalHmm,
+              bleedMm: coverBleedMm,
+              safetyMm: GUIDE_SAFETY_MM,
+              spineSafetyMm: GUIDE_BINDING_MARGIN_MM,
+              xPct: coverTitleXPct,
+              yPct: coverTitleYPct,
+              widthPct: coverTitleWidthPct,
+              heightPct: coverTitleHeightPct,
+              verticalAlign: coverTitleVerticalAlign,
+              align: coverTitleAlign,
+              lineWidthsMm: coverTitleLineWidthsMm(mctx, domLines, { fontFamily: coverTitleFontFamily, bold: coverTitleBold, italic: coverTitleItalic, letterSpacingEm: coverTitleLetterSpacingEm }, coverTitleFontMm),
+              lineHeightEm: coverTitleLineHeightEm,
+              fontSizeMm: coverTitleFontMm,
+              insetXEm: coverTitleInset.x,
+              insetYEm: coverTitleInset.y,
+              rotationDeg: 0,
+            };
+          })(),
         });
       }
     }

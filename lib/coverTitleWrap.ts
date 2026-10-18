@@ -1,3 +1,4 @@
+import { coverTitleSafeViolations, coverTitleSafeNoticeText, type CoverTitleSafeInput, type SafeSide } from "./coverTitleSafe";
 // 표지 제목 줄바꿈 계산(52차, 혜민님 요청: "편집 화면에서 보이는 제목이 인쇄에서도 같은 줄바꿈으로").
 //
 // 편집 화면(CoverTitleOverlay → contentEditable)은 CSS `white-space: pre-wrap; word-break: break-word`로 줄을 나눠요:
@@ -148,7 +149,7 @@ export function coverTitleInsetEm(bg: {
 }
 
 // ---- 편집 화면 안내(작게 보여주는 알림) ----
-export type CoverTitleNotice = { kind: "legacy-wrap" | "overflow-box" | "overflow-safe"; text: string };
+export type CoverTitleNotice = { kind: "legacy-wrap" | "overflow-box" | "overflow-safe"; text: string; sides?: SafeSide[] };
 
 /**
  * 제목에 대해 편집 화면에서 보여줄 안내를 정해요(없으면 빈 배열).
@@ -168,9 +169,16 @@ export function coverTitleNotices(a: {
   cellHmm: number;
   bleedMm: number;
   safetyMm: number;
+  // 54차: 글자(잉크) 기준 안전선 검사 입력(가로·세로·회전). 없으면 52차 방식(아래쪽만)으로 재요.
+  safe?: CoverTitleSafeInput;
 }): CoverTitleNotice[] {
   const out: CoverTitleNotice[] = [];
   if (a.domLines <= 0) return out;
+  const safeNotice = (): CoverTitleNotice | null => {
+    if (!a.safe) return null;
+    const v = coverTitleSafeViolations(a.safe);
+    return v && v.sides.length ? { kind: "overflow-safe", text: coverTitleSafeNoticeText(v.sides), sides: v.sides } : null;
+  };
   if (a.version < 2) {
     if (a.domLines > a.legacyLines) {
       out.push({
@@ -180,15 +188,21 @@ export function coverTitleNotices(a: {
             ? `화면에서는 ${a.domLines}줄이지만 PDF에서는 한 줄로 인쇄돼요.`
             : `화면에서는 ${a.domLines}줄이지만 PDF에서는 ${a.legacyLines}줄로 인쇄돼요.`,
       });
+      return out;
     }
+    const sn = safeNotice();
+    if (sn) out.push(sn);
     return out;
   }
   const blockMm = (a.domLines * a.lineHeightEm + a.insetYEm * 2) * a.fontSizeMm;
   const topMm = (a.yPct / 100) * a.cellHmm;
   if (a.heightPct !== undefined && blockMm > (a.heightPct / 100) * a.cellHmm + 0.3) {
     out.push({ kind: "overflow-box", text: "제목이 제목 칸보다 길어요. 칸을 늘리거나 글자 크기를 줄여 주세요." });
-  } else if (topMm + (a.insetYEm + a.domLines * a.lineHeightEm - Math.max(0, (a.lineHeightEm - 1) / 2)) * a.fontSizeMm > a.cellHmm - a.bleedMm - a.safetyMm + 0.3) {
-    // 안전선 판단은 "글자 모양의 아래쪽"(줄 상자 맨 아래의 반 행간은 뺀 값) 기준이에요.
+  }
+  const sn = safeNotice();
+  if (sn) out.unshift(sn); // 인쇄에서 잘릴 수 있는 안전선 안내를 칸 높이 안내보다 먼저 보여줘요.
+  else if (!a.safe && !out.length && topMm + (a.insetYEm + a.domLines * a.lineHeightEm - Math.max(0, (a.lineHeightEm - 1) / 2)) * a.fontSizeMm > a.cellHmm - a.bleedMm - a.safetyMm + 0.3) {
+    // (안전선 입력이 없을 때의 52차 방식: 글자 모양의 아래쪽 = 줄 상자 맨 아래의 반 행간은 뺀 값)
     out.push({ kind: "overflow-safe", text: "제목 아래쪽이 안전선 밖으로 나가요. 위로 옮기거나 글자 크기를 줄여 주세요." });
   }
   return out;
