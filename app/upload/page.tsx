@@ -13360,36 +13360,18 @@ function UploadPageContent() {
     // 몇 번째 사진부터 새로 추가되는지"가 곧 지금 이 순간의 photos.length예요.
     const autoPhotoBaseSlot = photos.length;
 
-    const newPhotosPromises = Array.from(files).map((file) => {
-      return new Promise<Photo>((resolve) => {
-        const url = URL.createObjectURL(file);
-        const img = new window.Image();
-        img.onload = () => {
-          resolve({
-            url,
-            caption: "",
-            x: 0,
-            y: 0,
-            scale: 1,
-            width: img.naturalWidth,
-            height: img.naturalHeight,
-            fontFamily: fontOptions[0].id,
-            size: "sm",
-            bold: false,
-            color: "#2B2B2B",
-            align: "left",
-            position: "below",
-            containerW: 0,
-            containerH: 0,
-            rotation: 0,
-            flipX: false,
-          });
-        };
-        img.src = url;
-      });
-    });
-
-    const newPhotos = await Promise.all(newPhotosPromises);
+    // 56차: 읽을 수 없는 파일(깨진 사진·사진이 아닌 파일)이 하나라도 섞이면 예전에는 그 파일의 "불러오기 끝"이 영영 오지 않아
+    // 같이 고른 사진 전부가 아무 안내 없이 사라졌어요. loadLibraryPhoto는 읽기 실패 시 null을 주니, 그 사진만 빼고 나머지는 그대로 넣고 몇 장을 뺐는지 알려줘요.
+    const picked = Array.from(files);
+    event.target.value = ""; // 같은 사진을 다시 골라도 반응하도록(이미 복사해 뒀어요)
+    const loaded = await Promise.all(picked.map((file) => loadLibraryPhoto(file)));
+    const newPhotos = loaded.filter((ph): ph is Photo => ph !== null);
+    if (newPhotos.length < picked.length) {
+      window.alert(
+        `사진 ${picked.length - newPhotos.length}장은 읽을 수 없는 파일이라 넣지 못했어요. 사진 파일(JPG·PNG 등)이 맞는지 확인해 주세요.`
+      );
+    }
+    if (newPhotos.length === 0) return;
     setPhotos((prev) => [...prev, ...newPhotos]);
 
     // 표지 사진을 아직 안 골랐으면, 처음 올린 사진을 표지 앞면에 자동으로 배치해요.
