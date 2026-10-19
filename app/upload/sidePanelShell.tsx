@@ -71,7 +71,7 @@ export const NESTED_SCROLL = "overflow-y-auto overflow-x-hidden [scrollbar-width
 // 탭 줄: 칸 수만큼 똑같이 나눠요(grid). 선택 여부·글자 길이와 상관없이 칸 폭/높이가 안 변해요.
 export const SEG_TAB_ROW = "grid grid-cols-3";
 export const segTabClass = (active: boolean) =>
-  `box-border flex h-[34px] min-w-0 items-center justify-center whitespace-nowrap px-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35 ${
+  `box-border flex h-[34px] [@media(pointer:coarse)]:h-11 min-w-0 items-center justify-center whitespace-nowrap px-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35 ${
     active
       ? "bg-[var(--color-charcoal)] text-white"
       : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:text-[var(--color-charcoal)]"
@@ -125,5 +125,5 @@ export function SegTabs({
 
 // 패널 안 "실행 버튼" 공통 규격: 높이 34px · 글자 12px · 아이콘 20px · 아이콘-글자 간격 6px.
 export const ACTION_BUTTON_BASE =
-  "flex h-[34px] w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium leading-none transition disabled:cursor-not-allowed disabled:opacity-40";
+  "flex h-[34px] [@media(pointer:coarse)]:h-11 w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium leading-none transition disabled:cursor-not-allowed disabled:opacity-40";
 export const SECONDARY_ACTION_BUTTON_CLASS = `${ACTION_BUTTON_BASE} border border-[var(--color-hairline)] bg-white px-2 text-[var(--color-charcoal)] hover:bg-[var(--color-ivory)]`;

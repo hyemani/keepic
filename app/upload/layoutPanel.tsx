@@ -173,7 +173,7 @@ export function LayoutPanel({
             aria-pressed={filter === f.id}
             onClick={() => onFilterChange(f.id)}
             title={`${countOf(f.id)}개`}
-            className={`flex min-h-[30px] items-center justify-center whitespace-nowrap px-1 font-medium transition ${
+            className={`flex min-h-[30px] [@media(pointer:coarse)]:min-h-11 items-center justify-center whitespace-nowrap px-1 font-medium transition ${
               f.id === "6+" ? "col-span-2" : ""
             } ${
               filter === f.id

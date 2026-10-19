@@ -4114,7 +4114,7 @@ function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => 
       <button
         type="button"
         onClick={() => onAdd(rows, cols)}
-        className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
+        className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
       >
         + 표 추가
       </button>
@@ -7454,7 +7454,7 @@ function TextBoxLayer({
         <button
           type="button"
           onClick={onAdd}
-          className="absolute right-1 top-1 z-20 bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
+          className="absolute right-1 top-1 z-20 bg-black/60 px-2 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100 [@media(pointer:coarse)]:hidden"
         >
           + 텍스트 추가
         </button>
@@ -16209,7 +16209,7 @@ function UploadPageContent() {
           disabled={pageOrder.findIndex((k) => k === selectedPageKey) <= 0}
           aria-label="이전 페이지"
           style={halfGap !== undefined ? { left: `calc(50% - ${halfGap}px)`, transform: "translate(-100%, -50%)" } : undefined}
-          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
+          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "left-1 -translate-y-1/2 sm:left-2"
           }`}
         >
@@ -16228,7 +16228,7 @@ function UploadPageContent() {
           })()}
           aria-label="다음 페이지"
           style={halfGap !== undefined ? { left: `calc(50% + ${halfGap}px)`, transform: "translateY(-50%)" } : undefined}
-          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
+          className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "right-1 -translate-y-1/2 sm:right-2"
           }`}
         >
@@ -19047,7 +19047,7 @@ function UploadPageContent() {
                   // 2026-10-01, 혜민님 요청: "페이지 상단과 하단에있는 화살표에 박스와
                   // 선은 없애고 아이콘만 남겨주세요" — 테두리·배경을 빼고 화살표 글자만
                   // 남김.
-                  className="flex h-8 w-8 shrink-0 items-center justify-center text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
                   aria-label="이전 페이지"
                 >
                   ‹
@@ -19231,7 +19231,7 @@ function UploadPageContent() {
                   // 2026-10-01, 혜민님 요청: "페이지 상단과 하단에있는 화살표에 박스와
                   // 선은 없애고 아이콘만 남겨주세요" — 테두리·배경을 빼고 화살표 글자만
                   // 남김.
-                  className="flex h-8 w-8 shrink-0 items-center justify-center text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
                   aria-label="다음 페이지"
                 >
                   ›
@@ -19601,7 +19601,7 @@ function UploadPageContent() {
                                       ? handleAddBackCoverTextBox()
                                       : handleAddCoverTextBox()
                                   }
-                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
+                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
                                   + 텍스트 추가
                                 </button>
@@ -20328,7 +20328,7 @@ function UploadPageContent() {
                                 <button
                                   type="button"
                                   onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
-                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
+                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
                                   + 텍스트 추가
                                 </button>

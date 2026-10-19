@@ -521,7 +521,7 @@ export function DesignPanel({
         aria-label="디자인 스타일"
         value={style}
         onChange={(e) => onStyleFilterChange(e.target.value)}
-        className="box-border h-8 w-full min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
+        className="box-border h-8 [@media(pointer:coarse)]:h-11 w-full min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
       >
         <option value="all">스타일: 전체</option>
         {styles.map((x) => (
@@ -591,7 +591,7 @@ export function DesignPanel({
             data-single-spread-toggle
             aria-expanded={singleOpen}
             onClick={() => setSingleOpen((v) => !v)}
-            className="flex h-8 w-full items-center justify-between px-0.5 text-left text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-charcoal)]"
+            className="flex h-8 [@media(pointer:coarse)]:h-11 w-full items-center justify-between px-0.5 text-left text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-charcoal)]"
           >
             <span>이 펼침면만 바꾸기</span>
             <span className="flex items-center gap-1 font-normal text-[var(--color-charcoal)]/50">
