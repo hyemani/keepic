@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* 57차: 폰을 가로로 눕힌 화면(손가락 + 높이 600px 미만) 전용 컴팩트 변형. phl:py-0 처럼 써요. 마우스 PC에는 해당 없어요. */
+@keyframes rotate-hint {
+  0%, 20% { transform: rotate(0deg); }
+  60%, 100% { transform: rotate(-90deg); }
+}
+@custom-variant phl (@media (pointer: coarse) and (orientation: landscape) and (max-height: 599.98px));
+
 :root {
   --color-ivory: #FFFFFF;
   --color-charcoal: #2B2B2B;

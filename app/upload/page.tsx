@@ -21,6 +21,8 @@ import {
   type PersistedDoc,
 } from "./projectPersistence";
 import { HeaderMoreMenu, HeaderZoomGroup } from "./headerOverflow";
+import { TouchZoomControls } from "./touchZoomControls";
+import { RotateNotice } from "./rotateNotice";
 import { EditBarMoreMenu } from "./editBarMore";
 import {
   albumTemplates,
@@ -144,6 +146,8 @@ import { splitUploadFiles } from "@/lib/frameUpload";
 import { chooseLibraryTarget, libraryHintOf, parseCanvasId, type LibraryClickTarget, type LibraryHint, type SlotScope } from "@/lib/librarySlotTarget";
 import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
 import { useCompactEditor, useDrawerDismiss } from "@/lib/useCompactEditor";
+import { tryLockLandscape, tryUnlockOrientation, useCoarsePointer, useTouchLayout } from "@/lib/touchEditor";
+import { useCanvasTouchGestures } from "@/lib/useCanvasTouchGestures";
 import { computeCanvasFit } from "@/lib/canvasFit";
 import { useFloatingToolbarClamp } from "./floatingToolbarClamp";
 import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
@@ -11997,7 +12001,7 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
       // 캔버스 바깥 영역의 mousedown(선택 해제)이 이 바에서는 일어나지 않게 막아요 — 안 그러면
       // 버튼을 누르기 직전에 선택이 풀려서 복사/잘라내기/중앙맞춤이 대상을 못 찾아요.
       onMouseDown={(e) => e.stopPropagation()}
-      className={`flex h-8 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 -ml-2 max-lg:h-12 [@media(pointer:coarse)]:h-12 ${
+      className={`flex h-8 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 -ml-2 max-lg:h-12 [@media(pointer:coarse)]:h-12 phl:h-11 ${
         showMore ? "relative z-30 overflow-visible" : "overflow-x-auto"
       }`}
     >
@@ -12252,11 +12256,23 @@ function CanvasStage({
   // 43차: 계산은 lib/canvasFit.ts로 옮겼어요. 실제로 잰 캔버스 영역(box)에서 맞춤 크기를 구하고, 실제 크기의 25% 밑으로는
   // 내려가지 않아요(그보다 작게 맞춰야 하면 25%로 두고 스크롤/이동으로 봐요). 사용자가 직접 정한 배율(manualPct)은 이 값과
   // 무관하게 유지돼요 — 맞춤(manualPct === null)일 때만 창 크기를 따라가요.
+  // 57차: 손가락 기기(폰·태블릿)에서는 바닥값을 5%로 낮춰서 작은 화면에서도 펼침면 전체가 한눈에 들어오게 해요
+  // (예전엔 25% 바닥값 때문에 폰 세로에서 오른쪽이 40% 잘렸어요). 마우스 PC는 예전 25% 그대로예요.
+  const coarseForFit = useCoarsePointer();
   const fitInfo = useMemo(
-    () => computeCanvasFit({ boxW: box.w, boxH: box.h, aspect, widthMm, cssPxPerMm: CSS_PX_PER_MM, safetyPx: SAFETY_PX }),
+    () =>
+      computeCanvasFit({
+        boxW: box.w,
+        boxH: box.h,
+        aspect,
+        widthMm,
+        cssPxPerMm: CSS_PX_PER_MM,
+        safetyPx: SAFETY_PX,
+        minPct: coarseForFit ? 5 : undefined,
+      }),
     // fitToken은 계산에 안 쓰이지만 "화면에 맞추기" 버튼을 눌렀을 때 확실히 다시 평가되도록 의존성에 남겨둬요.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [box, aspect, widthMm, fitToken]
+    [box, aspect, widthMm, fitToken, coarseForFit]
   );
   const baseFit = fitInfo ? { w: fitInfo.w, h: fitInfo.h } : null;
   const fitFloored = !!fitInfo?.floored;
@@ -12362,7 +12378,12 @@ function CanvasStage({
   }, [displayW, widthMm, onActualSizePercentChange]);
 
   return (
-    <div ref={measureRef} data-canvas-stage className={`relative flex min-h-0 min-w-0 flex-1 max-lg:isolate ${className ?? ""}`}>
+    <div
+      ref={measureRef}
+      data-canvas-stage
+      data-fit-pct={baseFit && widthMm && widthMm > 0 ? String(Math.round(((baseFit.w / (widthMm * CSS_PX_PER_MM)) * 100) * 10) / 10) : undefined}
+      className={`relative flex min-h-0 min-w-0 flex-1 max-lg:isolate [@media(pointer:coarse)]:touch-none ${className ?? ""}`}
+    >
       {/* 2026-09-24 items-start -> items-center: 책 비율(aspect)이 컨테이너 비율과
           다르면 항상 위/아래 또는 좌/우 중 한쪽에 여백이 남는데(레터박싱, 스위트북도
           마찬가지), items-start였을 때는 그 여백이 전부 "아래쪽"에만 몰려서 옅은
@@ -17028,6 +17049,27 @@ function UploadPageContent() {
     setManualZoomPct(null);
     setCanvasFitToken((t) => t + 1);
   }
+  // 57차: 폰·태블릿 손가락 조작(핀치 확대·두 손가락 이동·손가락 끌기 → 마우스 끌기로 전달). 마우스 PC에서는 꺼져 있어요.
+  const canvasGestureRef = useRef<HTMLDivElement>(null);
+  const touchCoarse = useCoarsePointer();
+  // 폰 세로로 편집에 들어오면 "가로로 돌려주세요" 안내(57차). "세로 화면으로 계속하기"를 누르면 이번 접속 동안 다시 안 떠요.
+  const touchLayout = useTouchLayout();
+  const [portraitEditOk, setPortraitEditOk] = useState(false);
+  const showRotateNotice = editorMode === "edit" && touchLayout.phonePortrait && !portraitEditOk && photos.length > 0;
+  useCanvasTouchGestures(canvasGestureRef, {
+    enabled: touchCoarse,
+    getZoomPct: () => currentZoomPctRef.current,
+    getFitPct: (stage) => {
+      const v = parseFloat(stage.dataset.fitPct ?? "");
+      return Number.isFinite(v) && v > 0 ? v : null;
+    },
+    setZoom: (pct, anchor) => {
+      zoomAnchorRef.current = anchor;
+      setManualZoomPct(pct === null ? null : Math.min(ZOOM_PCT_MAX, Math.max(ZOOM_PCT_MIN, pct)));
+    },
+    minPct: ZOOM_PCT_MIN,
+    maxPct: ZOOM_PCT_MAX,
+  });
 
   // 실행취소(Ctrl/Cmd+Z), 다시실행(Ctrl/Cmd+Shift+Z 또는 Ctrl/Cmd+Y), 텍스트박스
   // 복사·붙여넣기(Ctrl/Cmd+C/V)를 전역 단축키로 등록해요. 텍스트를 직접 입력 중일
@@ -18670,7 +18712,7 @@ function UploadPageContent() {
               (세로폭만, 가로는 그대로 넓히지말고)" — 좁은 화면에서 버튼들이 여러 줄로
               줄바꿈될 때 줄 사이 세로 간격만 넉넉하게(gap-y-1.5 -> gap-y-3) 늘리고, 한
               줄 안의 버튼 간 가로 간격(gap-x-1.5)은 그대로 둠. */}
-          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5 max-lg:flex-nowrap max-sm:gap-x-1">
+          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5 max-lg:flex-nowrap max-sm:gap-x-1 phl:py-0.5">
             {/* 2026-11(19번째 라운드), 혜민님 요청: "미리보기" 버튼을 화면 맨 왼쪽 위로 옮기고
                 "← 미리보기로 돌아가기"로 바꿔주세요. 기존 "←" 뒤로가기(router.back, 편집기를
                 아예 나가는 동작)와 자리가 겹쳐서 하나로 합쳤어요 — 같은 맨 왼쪽 자리에
@@ -18685,22 +18727,27 @@ function UploadPageContent() {
                 onClick={() => {
                   clearAllCanvasSelection();
                   setEditorMode("preview");
+                  tryUnlockOrientation();
                 }}
                 aria-label="미리보기로 돌아가기"
                 title="미리보기로 돌아가기"
                 className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:min-w-11 max-lg:justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:justify-center motion-reduce:transition-none"
               >
                 <span aria-hidden="true">←</span>
+                {/* 57차: 좁은 화면에서도 화살표만 덩그러니 있지 않고 짧은 글자가 같이 보여요(편집 중 ←=미리보기로, 미리보기 중 ←=편집기 나가기가 한눈에 구분돼요). */}
                 <span className="max-md:hidden">미리보기로 돌아가기</span>
+                <span className="md:hidden">미리보기</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => router.back()}
-                aria-label="뒤로가기"
-                className="flex h-8 w-8 shrink-0 items-center justify-center text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:w-11 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 motion-reduce:transition-none"
+                aria-label="편집기 나가기 (이전 화면으로)"
+                title="편집기 나가기 (이전 화면으로)"
+                className="flex h-8 w-8 shrink-0 items-center justify-center whitespace-nowrap max-md:w-auto max-md:gap-1 max-md:px-2 max-md:text-xs max-md:font-medium text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:w-11 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 motion-reduce:transition-none"
               >
-                ←
+                <span aria-hidden="true">←</span>
+                <span className="md:hidden">나가기</span>
               </button>
             )}
             <a href="/" className="shrink-0 max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center">
@@ -18822,6 +18869,15 @@ function UploadPageContent() {
             )}
           </div>
         </header>
+        {showRotateNotice && (
+          <RotateNotice
+            onBackToPreview={() => {
+              clearAllCanvasSelection();
+              setEditorMode("preview");
+            }}
+            onContinue={() => setPortraitEditOk(true)}
+          />
+        )}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {isPdfLibTestMode && (
@@ -18922,7 +18978,8 @@ function UploadPageContent() {
               // 거였음. 전체 폭은 다시 lg:max-w-none으로 꽉 채움(2026-10-01의
               // lg:w-2/3는 되돌림).
               className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
-              style={{ minHeight: 420 }}
+              // 57차: 손가락 기기는 폰을 가로로 눕히면 화면 높이가 390px 안팎이라 420px 바닥값이 캔버스를 화면 밖으로 밀어냈어요 — 터치 기기만 0으로.
+              style={{ minHeight: touchCoarse ? 0 : 420 }}
             >
               {/* 왼쪽(데스크톱)/하단(모바일) 페이지 목록 — "미리보기" 모드일 때만 보여요.
                   2026-09-28 재확인: "스프레드 페이지 왼쪽패널로 옮기는 부분 적용
@@ -19173,6 +19230,7 @@ function UploadPageContent() {
                 }}
               >
                   <div
+                    ref={canvasGestureRef}
                     className={
                       (editorMode === "preview" ? "pointer-events-none select-none " : "") +
                       "relative flex min-h-0 flex-1 flex-col"
@@ -19187,15 +19245,26 @@ function UploadPageContent() {
                           // 편집하기 진입 시엔 항상 접힌(아무 탭도 안 고른) 상태로 시작.
                           setActiveEditTab(null);
                           setActiveCoverEditTab(null);
+                          // 폰이면 가로 고정을 "시도"만 해요(iOS 등 대부분은 안 되고, 안 돼도 조용히 넘어가요 — 안내 화면이 따로 있어요).
+                          if (touchLayout.phone) void tryLockLandscape();
                         }}
                         aria-label="편집하기"
-                        className="group pointer-events-auto absolute inset-0 z-30 flex cursor-pointer items-center justify-center"
+                        data-preview-edit-overlay
+                        className="group pointer-events-auto absolute inset-0 z-30 flex cursor-pointer items-center justify-center [@media(pointer:coarse)]:touch-none [@media(pointer:coarse)]:items-end [@media(pointer:coarse)]:justify-start [@media(pointer:coarse)]:pb-3 [@media(pointer:coarse)]:pl-3"
                       >
-                        <span className="pointer-events-none bg-black/60 px-2.5 py-2.5 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100">
+                        {/* 57차: 손가락 기기는 마우스를 올릴 수 없어서 "편집하기"가 항상 보여요(44px 이상). 마우스 PC는 예전처럼 올렸을 때만 떠요. */}
+                        <span className="pointer-events-none bg-black/60 px-2.5 py-2.5 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100 [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:bg-[var(--color-charcoal)] [@media(pointer:coarse)]:px-5 [@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:shadow-lg">
                           ✏️ 편집하기
                         </span>
                       </button>
                     )}
+                    <TouchZoomControls
+                      percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
+                      isFit={manualZoomPct === null}
+                      onZoomOut={handleZoomOut}
+                      onZoomIn={handleZoomIn}
+                      onFit={handleZoomReset}
+                    />
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5">
                       <div className="flex min-h-0 flex-1 flex-row gap-2" style={{ containerType: "inline-size" }}>
@@ -19219,7 +19288,7 @@ function UploadPageContent() {
                                   }
                                 }}
                                 aria-pressed={activeCoverEditTab === tab.id && (!compactEditor || drawerOpen)}
-                                className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
+                                className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 phl:min-h-11 phl:justify-center phl:gap-0 phl:py-0.5 text-[10px] tracking-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
                                   activeCoverEditTab === tab.id && (!compactEditor || drawerOpen)
                                     ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                     : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
@@ -20136,7 +20205,7 @@ function UploadPageContent() {
                                       }
                                     }}
                                     aria-pressed={activeEditTab === tab.id && (!compactEditor || drawerOpen)}
-                                    className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 text-[10px] tracking-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
+                                    className={`flex shrink-0 flex-col items-center gap-1 px-0.5 py-2 phl:min-h-11 phl:justify-center phl:gap-0 phl:py-0.5 text-[10px] tracking-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ${
                                       activeEditTab === tab.id && (!compactEditor || drawerOpen)
                                         ? "bg-[var(--color-sky)]/15 text-[var(--color-sky)]"
                                         : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
