@@ -13627,6 +13627,30 @@ function UploadPageContent() {
     return isPagePrinted(spreadIndex, sp, side) ? side : printedSidesOf(spreadIndex, sp)[0];
   }
 
+  // 57차 버그 수정: "+ 텍스트 추가"를 누른 뒤에도 포커스가 버튼에 남아 있어서, 바로 스페이스를 치면 버튼이 또 눌려
+  // 글상자가 겹겹이 생겼어요. 새 글상자가 그려지면 그 안(글 입력 칸)으로 포커스를 바로 옮기고 커서를 끝에 둬요.
+  // preventScroll이라 폰 가상 키보드가 열려도 화면이 튀지 않아요.
+  function focusNewTextBox(boxId: string) {
+    let tries = 0;
+    const go = () => {
+      const ed = document.querySelector<HTMLElement>(`[data-text-box-id="${boxId}"] [contenteditable]`);
+      if (!ed) {
+        if (++tries < 12) requestAnimationFrame(go);
+        return;
+      }
+      ed.focus({ preventScroll: true });
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(ed);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    };
+    requestAnimationFrame(go);
+  }
+
   function handleAddTextBox(spreadIndex: number, sideReq: "left" | "right", overrides?: Partial<TextBoxDef>) {
     const side = printedSideOrFirst(spreadIndex, sideReq); // 인쇄 안 되는 면이면 인쇄되는 면으로
     const box = makeTextBox(overrides);
@@ -13635,6 +13659,7 @@ function UploadPageContent() {
       prev.map((s, i) => (i === spreadIndex ? { ...s, [key]: [...(s[key] ?? []), box] } : s))
     );
     selectTextBox({ scope: "spread", spreadIndex, side }, box.id);
+    focusNewTextBox(box.id);
   }
 
   function handleTextBoxChange(
@@ -13665,6 +13690,7 @@ function UploadPageContent() {
     const box = makeTextBox(overrides);
     setCoverTextBoxes((prev) => [...prev, box]);
     selectTextBox({ scope: "cover" }, box.id);
+    focusNewTextBox(box.id);
   }
 
   function handleCoverTextBoxChange(boxId: string, changes: Partial<TextBoxDef>) {
@@ -13681,6 +13707,7 @@ function UploadPageContent() {
     const box = makeTextBox(overrides);
     setBackCoverTextBoxes((prev) => [...prev, box]);
     selectTextBox({ scope: "backCover" }, box.id);
+    focusNewTextBox(box.id);
   }
 
   function handleBackCoverTextBoxChange(boxId: string, changes: Partial<TextBoxDef>) {
@@ -17055,6 +17082,19 @@ function UploadPageContent() {
   // 폰 세로로 편집에 들어오면 "가로로 돌려주세요" 안내(57차). "세로 화면으로 계속하기"를 누르면 이번 접속 동안 다시 안 떠요.
   const touchLayout = useTouchLayout();
   const [portraitEditOk, setPortraitEditOk] = useState(false);
+  // 폰 가상 키보드가 열리면(안드로이드 Chrome 등) 화면 높이가 키보드만큼 줄어든 걸로 취급해서 캔버스가 남은 자리에 다시 맞춰져요 —
+  // 글을 치는 상자가 키보드 뒤에 가려지지 않게 하려는 거예요. 이 편집 화면에서만, 손가락 기기에서만 켜고 나가면 원래대로 돌려요.
+  // (iOS Safari는 이 설정을 무시해요 — 실제 기기에서 확인 필요.)
+  useEffect(() => {
+    if (!touchCoarse) return;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (!meta) return;
+    const old = meta.content;
+    if (!/interactive-widget/.test(old)) meta.content = `${old}, interactive-widget=resizes-content`;
+    return () => {
+      meta.content = old;
+    };
+  }, [touchCoarse]);
   const showRotateNotice = editorMode === "edit" && touchLayout.phonePortrait && !portraitEditOk && photos.length > 0;
   useCanvasTouchGestures(canvasGestureRef, {
     enabled: touchCoarse,
