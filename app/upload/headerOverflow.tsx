@@ -6,7 +6,8 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 // 한 메뉴로 묶어요. 저장·다음은 절대 여기로 들어가지 않고 항상 바깥에 보여요. 768px 이상에서는 이 버튼 자체가 안 보여서
 // (md:hidden) 예전 상단바와 똑같아요. 항목들은 메뉴를 열었을 때만 그려서 화면 안에 같은 입력칸이 두 개 생기지 않아요.
 // 닫기: 버튼 다시 누르기·Esc·바깥 누르기 — 닫히면 포커스는 "더보기" 버튼으로 돌아와요.
-export function HeaderMoreMenu({ children }: { children: ReactNode }) {
+// 58차: alwaysShow = 폰 가로 화면에서는 폭이 768px 이상이어도 "···"를 보여줘요(상단바를 없앤 자리에 배율 등을 묶어요). 기본(false)은 예전 그대로예요.
+export function HeaderMoreMenu({ children, alwaysShow = false }: { children: ReactNode; alwaysShow?: boolean }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popId = useId();
@@ -28,7 +29,7 @@ export function HeaderMoreMenu({ children }: { children: ReactNode }) {
     // 창이 넓어져 이 버튼이 사라지면(768px 이상) 열린 메뉴도 같이 닫아요.
     const mq = window.matchMedia("(min-width: 768px)");
     const onMq = () => {
-      if (mq.matches) setOpen(false);
+      if (mq.matches && !alwaysShow) setOpen(false);
     };
     window.addEventListener("pointerdown", onDown, true);
     window.addEventListener("keydown", onKey, true);
@@ -38,9 +39,9 @@ export function HeaderMoreMenu({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", onKey, true);
       mq.removeEventListener("change", onMq);
     };
-  }, [open, close]);
+  }, [open, close, alwaysShow]);
   return (
-    <div data-header-more className="relative shrink-0 md:hidden">
+    <div data-header-more className={`relative shrink-0 ${alwaysShow ? "" : "md:hidden"}`}>
       <button
         ref={btnRef}
         type="button"
@@ -51,7 +52,7 @@ export function HeaderMoreMenu({ children }: { children: ReactNode }) {
         aria-expanded={open}
         aria-controls={open ? popId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-11 min-w-11 items-center justify-center gap-1 border border-[var(--color-hairline)] bg-white px-2 text-xs font-medium text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none"
+        className="flex h-11 min-w-11 items-center justify-center gap-1 border border-[var(--color-hairline)] bg-white px-2 text-xs font-medium text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ph:relative ph:h-9 ph:w-9 ph:min-w-0 ph:border-0 ph:bg-transparent ph:px-0 ph:text-lg ph:leading-none ph:text-[var(--color-charcoal)] ph:after:absolute ph:after:-inset-y-1 ph:after:inset-x-0 ph:after:content-[''] motion-reduce:transition-none"
       >
         <span aria-hidden="true">⋯</span>
       </button>

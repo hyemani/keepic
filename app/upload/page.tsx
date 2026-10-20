@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
 import { supabase } from "@/lib/supabase";
@@ -11977,13 +11977,14 @@ const EDIT_BAR_MORE_IDS = ["copy", "cut", "paste", "center"];
 const EDIT_BAR_BTN =
   "flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent max-lg:h-11 max-lg:px-2.5 max-lg:text-xs [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-xs phl:h-10 phl:min-w-11 phl:justify-center phl:px-2 motion-reduce:transition-none";
 
-function EditCommandBar({ items }: { items: EditCommandItem[] }) {
+// 58차: trailing = 폰 가로 편집에서 상단바를 없애고 이 줄 오른쪽 끝에 붙이는 묶음(배율·····미리보기·저장·다음). 없으면(대부분) 예전 그대로예요.
+function EditCommandBar({ items, trailing }: { items: EditCommandItem[]; trailing?: ReactNode }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     const el = barRef.current;
     if (!el) return;
-    const update = () => setNarrow(el.clientWidth < 520);
+    const update = () => setNarrow(el.clientWidth < 520 && !el.hasAttribute("data-has-trailing"));
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -11992,6 +11993,35 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
   const showMore = narrow;
   const inline = showMore ? items.filter((it) => !EDIT_BAR_MORE_IDS.includes(it.id)) : items;
   const more = showMore ? items.filter((it) => EDIT_BAR_MORE_IDS.includes(it.id)) : [];
+  const iconButtons = (
+    <>
+      {inline.map((it) => (
+        <button key={it.id} type="button" title={it.title} aria-label={it.label} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
+          <EditCommandIcon name={it.icon} />
+          <span className="phl:hidden">{it.label}</span>
+        </button>
+      ))}
+      {more.length > 0 && <EditBarMoreMenu items={more} btnClass={EDIT_BAR_BTN} renderIcon={(n) => <EditCommandIcon name={n as EditCommandIconName} />} />}
+    </>
+  );
+  if (trailing) {
+    return (
+      <div
+        ref={barRef}
+        role="toolbar"
+        aria-label="편집 명령"
+        data-testid="edit-command-bar"
+        data-has-trailing=""
+        onMouseDown={(e) => e.stopPropagation()}
+        className="relative z-30 flex h-11 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white pl-0 pr-2 -ml-2"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{iconButtons}</div>
+        <div data-testid="edit-bar-trailing" className="flex shrink-0 items-center gap-1 pl-1">
+          {trailing}
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       ref={barRef}
@@ -18532,6 +18562,112 @@ function UploadPageContent() {
       if (changes.verticalAlign !== undefined) setSpineTitleVerticalAlign(changes.verticalAlign);
     }
 
+    // 58차: 폰 가로 화면은 위아래가 좁아서, 편집 중에는 맨 위 상단바(로고·제목 줄)를 아예 없애고 그 기능(미리보기로·저장·다음·배율····)을
+    // 편집 명령 줄 오른쪽 끝으로 옮겨요. 미리보기에서는 상단바를 한 줄로 얇게(로고·제목 없이) 줄여요. 마우스 PC·태블릿·폰 세로는 예전 구조 그대로예요.
+    const phl = touchLayout.phoneLandscape;
+    const phlEdit = phl && editorMode === "edit" && photos.length > 0;
+    const goBackToPreview = () => {
+      clearAllCanvasSelection();
+      setEditorMode("preview");
+      tryUnlockOrientation();
+    };
+    const headerMoreMenu = (
+      <HeaderMoreMenu alwaysShow={phl}>
+        <HeaderZoomGroup
+          className="justify-center"
+          onZoomOut={handleZoomOut}
+          onZoomIn={handleZoomIn}
+          field={
+            <ZoomPctField
+              percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
+              onCommit={handleZoomSet}
+            />
+          }
+        />
+        {editorMode === "preview" && (
+          <button
+            type="button"
+            onClick={() => setIsPrintPreview((v) => !v)}
+            title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
+            aria-pressed={isPrintPreview}
+            className={`flex h-11 items-center justify-center border px-1.5 text-xs font-medium transition ${
+              isPrintPreview
+                ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
+                : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
+            }`}
+          >
+            🖨️ 인쇄 미리보기
+          </button>
+        )}
+        {saveStatusText(persistence.phase, persistence.savedAt).text && (
+          <p className="text-xs tabular-nums text-[var(--color-charcoal)]/60">
+            {saveStatusText(persistence.phase, persistence.savedAt).text}
+          </p>
+        )}
+      </HeaderMoreMenu>
+    );
+    const headerNextButton = isPhotoCountValid ? (
+      <button
+        type="button"
+        onClick={() => handleNextClick(nextUrl, photos)}
+        disabled={isSaving}
+        data-testid="next-step-button"
+        className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:relative ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1 ph:after:content-[''] phl:px-3 phl:text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
+          isSaving
+            ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
+            : "bg-[var(--color-charcoal)] hover:opacity-90"
+        }`}
+      >
+        {isGeneratingPrintFiles
+          ? "인쇄 파일 만드는 중..."
+          : isSaving
+            ? "사진 올리는 중..."
+            : "다음"}
+      </button>
+    ) : (
+      <button
+        type="button"
+        disabled
+        className="flex h-8 min-w-[68px] shrink-0 cursor-not-allowed items-center justify-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70 max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm phl:px-3 phl:text-[13px]"
+      >
+        다음
+      </button>
+    );
+    const headerSaveControls = (
+      <SaveControls
+        phase={persistence.phase}
+        savedAt={persistence.savedAt}
+        errorMessage={persistence.errorMessage}
+        onSave={persistence.saveNow}
+      />
+    );
+    const phlEditTrailing = phlEdit ? (
+      <>
+        <TouchZoomControls
+          inline
+          percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
+          isFit={manualZoomPct === null}
+          onZoomOut={handleZoomOut}
+          onZoomIn={handleZoomIn}
+          onFit={handleZoomReset}
+        />
+        {headerMoreMenu}
+        <button
+          type="button"
+          onClick={goBackToPreview}
+          aria-label="미리보기로 돌아가기"
+          title="미리보기로 돌아가기"
+          data-testid="back-to-preview"
+          className="relative flex h-9 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-[13px] font-medium text-[var(--color-charcoal)]/85 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none"
+        >
+          <span aria-hidden="true">←</span>
+          <span>미리보기</span>
+        </button>
+        {headerSaveControls}
+        {headerNextButton}
+      </>
+    ) : null;
+
     return (
       <main
         // 57차(2): 손가락 기기는 visualViewport로 잰 실제 보이는 높이(--app-vh)를 써요(없으면 100dvh). 마우스 PC는 예전 h-dvh 그대로예요.
@@ -18760,6 +18896,7 @@ function UploadPageContent() {
             return `/upload?${q.toString()}`;
           })()}
         />
+        {!phlEdit && (
         <header
           className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur max-md:relative max-md:z-40 max-md:has-[[data-testid=header-more-panel]]:z-[45]"
         >
@@ -18767,7 +18904,7 @@ function UploadPageContent() {
               (세로폭만, 가로는 그대로 넓히지말고)" — 좁은 화면에서 버튼들이 여러 줄로
               줄바꿈될 때 줄 사이 세로 간격만 넉넉하게(gap-y-1.5 -> gap-y-3) 늘리고, 한
               줄 안의 버튼 간 가로 간격(gap-x-1.5)은 그대로 둠. */}
-          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5 max-lg:flex-nowrap max-sm:gap-x-1 phl:gap-y-0 phl:py-0">
+          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5 max-lg:flex-nowrap max-sm:gap-x-1 php:py-1 phl:min-h-10 phl:gap-y-0 phl:py-0">
             {/* 2026-11(19번째 라운드), 혜민님 요청: "미리보기" 버튼을 화면 맨 왼쪽 위로 옮기고
                 "← 미리보기로 돌아가기"로 바꿔주세요. 기존 "←" 뒤로가기(router.back, 편집기를
                 아예 나가는 동작)와 자리가 겹쳐서 하나로 합쳤어요 — 같은 맨 왼쪽 자리에
@@ -18779,14 +18916,10 @@ function UploadPageContent() {
             {editorMode === "edit" && photos.length > 0 ? (
               <button
                 type="button"
-                onClick={() => {
-                  clearAllCanvasSelection();
-                  setEditorMode("preview");
-                  tryUnlockOrientation();
-                }}
+                onClick={goBackToPreview}
                 aria-label="미리보기로 돌아가기"
                 title="미리보기로 돌아가기"
-                className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:min-w-11 max-lg:justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:justify-center motion-reduce:transition-none"
+                className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-xs font-medium text-[var(--color-charcoal)]/70 ph:text-sm ph:text-[var(--color-charcoal)]/85 phl:h-10! transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:min-w-11 max-lg:justify-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:justify-center motion-reduce:transition-none"
               >
                 <span aria-hidden="true">←</span>
                 {/* 57차: 좁은 화면에서도 화살표만 덩그러니 있지 않고 짧은 글자가 같이 보여요(편집 중 ←=미리보기로, 미리보기 중 ←=편집기 나가기가 한눈에 구분돼요). */}
@@ -18799,19 +18932,21 @@ function UploadPageContent() {
                 onClick={() => router.back()}
                 aria-label="편집기 나가기 (이전 화면으로)"
                 title="편집기 나가기 (이전 화면으로)"
-                className="flex h-8 w-8 shrink-0 items-center justify-center whitespace-nowrap max-md:w-auto max-md:gap-1 max-md:px-2 max-md:text-xs max-md:font-medium text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:w-11 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 motion-reduce:transition-none"
+                className="flex h-8 w-8 shrink-0 items-center justify-center whitespace-nowrap max-md:w-auto max-md:gap-1 max-md:px-2 max-md:text-xs max-md:font-medium text-[var(--color-charcoal)]/60 ph:w-auto! ph:gap-1 ph:px-2 ph:text-sm ph:font-medium ph:text-[var(--color-charcoal)]/85 phl:h-10! transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:w-11 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 motion-reduce:transition-none"
               >
                 <span aria-hidden="true">←</span>
-                <span className="md:hidden">나가기</span>
+                <span className={phl ? "" : "md:hidden"}>나가기</span>
               </button>
             )}
-            <a href="/" className="shrink-0 max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center">
-              <img src="/logo.svg" alt="Keepic" className="h-6 w-auto phl:h-5" />
+            {!phl && (
+            <a href="/" className="shrink-0 max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center php:ml-2">
+              <img src="/logo.svg" alt="Keepic" className="h-6 w-auto php:h-[17px] phl:h-5" />
             </a>
+            )}
             {/* 2026-10-04, 혜민님 요청(항목4): "Keepic 제목 없는 포토북 <- 제목없는포토북
                 문구 삭제" — 표지 제목을 아직 안 정했을 때 뜨던 "제목 없는 포토북" 자리표시
                 문구를 없앴어요. 제목을 이미 정했다면(coverTitle) 로고 옆에 그대로 보여줘요. */}
-            {coverTitle.trim() && (
+            {coverTitle.trim() && !phl && (
               <span
                 title={coverTitle.trim()}
                 className="min-w-0 max-w-[40vw] truncate text-sm font-medium text-[var(--color-charcoal)]/80 sm:max-w-xs max-lg:max-w-none max-lg:flex-1"
@@ -18826,8 +18961,8 @@ function UploadPageContent() {
                     aria-label="편집하기")로 편집 모드에 들어가요. 편집 중엔 페이지를 바꾸지
                     않고도 미리보기로 돌아갈 수 있어야 해서, 같은 자리에 작은 "완료" 버튼만
                     남겨뒀어요(편집 중일 때만 보임). */}
-              <div className="ml-auto flex flex-wrap items-center gap-1.5 max-lg:shrink-0 max-lg:flex-nowrap max-sm:gap-1">
-                {editorMode === "preview" && (
+              <div className="ml-auto flex flex-wrap items-center gap-1.5 max-lg:shrink-0 max-lg:flex-nowrap max-sm:gap-1 phl:gap-1">
+                {editorMode === "preview" && !phl && (
                   <button
                     type="button"
                     onClick={() => setIsPrintPreview((v) => !v)}
@@ -18841,6 +18976,7 @@ function UploadPageContent() {
                     🖨️ 인쇄 미리보기
                   </button>
                 )}
+                {!phl && (
                 <HeaderZoomGroup
                   className="max-md:hidden"
                   onZoomOut={handleZoomOut}
@@ -18852,78 +18988,17 @@ function UploadPageContent() {
                     />
                   }
                 />
-                {/* 44차: 폭 768px 미만에서는 화면 배율·인쇄 미리보기·저장 상태 글자를 "더보기"로 묶어요(저장·다음은 그대로 바깥). */}
-                <HeaderMoreMenu>
-                  <HeaderZoomGroup
-                    className="justify-center"
-                    onZoomOut={handleZoomOut}
-                    onZoomIn={handleZoomIn}
-                    field={
-                      <ZoomPctField
-                        percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
-                        onCommit={handleZoomSet}
-                      />
-                    }
-                  />
-                  {editorMode === "preview" && (
-                    <button
-                      type="button"
-                      onClick={() => setIsPrintPreview((v) => !v)}
-                      title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
-                      aria-pressed={isPrintPreview}
-                      className={`flex h-11 items-center justify-center border px-1.5 text-xs font-medium transition ${
-                        isPrintPreview
-                          ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                          : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-                      }`}
-                    >
-                      🖨️ 인쇄 미리보기
-                    </button>
-                  )}
-                  {saveStatusText(persistence.phase, persistence.savedAt).text && (
-                    <p className="text-xs tabular-nums text-[var(--color-charcoal)]/60">
-                      {saveStatusText(persistence.phase, persistence.savedAt).text}
-                    </p>
-                  )}
-                </HeaderMoreMenu>
-                <SaveControls
-                  phase={persistence.phase}
-                  savedAt={persistence.savedAt}
-                  errorMessage={persistence.errorMessage}
-                  onSave={persistence.saveNow}
-                />
-                {isPhotoCountValid ? (
-                  <button
-                    type="button"
-                    onClick={() => handleNextClick(nextUrl, photos)}
-                    disabled={isSaving}
-                    data-testid="next-step-button"
-                    className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
-                      isSaving
-                        ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
-                        : "bg-[var(--color-charcoal)] hover:opacity-90"
-                    }`}
-                  >
-                    {isGeneratingPrintFiles
-                      ? "인쇄 파일 만드는 중..."
-                      : isSaving
-                        ? "사진 올리는 중..."
-                        : "다음"}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled
-                    className="flex h-8 min-w-[68px] shrink-0 cursor-not-allowed items-center justify-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70 max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11"
-                  >
-                    다음
-                  </button>
                 )}
+                {/* 44차: 폭 768px 미만에서는 화면 배율·인쇄 미리보기·저장 상태 글자를 "더보기"로 묶어요(저장·다음은 그대로 바깥). 58차: 폰 가로에서는 폭과 상관없이 항상 "···"로 묶어요. */}
+                {headerMoreMenu}
+                {headerSaveControls}
+                {headerNextButton}
               </div>
               </>
             )}
           </div>
         </header>
+        )}
         {showRotateNotice && (
           <RotateNotice
             onBackToPreview={() => {
@@ -19332,6 +19407,7 @@ function UploadPageContent() {
                         </span>
                       </button>
                     )}
+                    {!phl && (
                     <TouchZoomControls
                       percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
                       isFit={manualZoomPct === null}
@@ -19339,17 +19415,18 @@ function UploadPageContent() {
                       onZoomIn={handleZoomIn}
                       onFit={handleZoomReset}
                     />
+                    )}
                   {selectedPageKey === "cover" ? (
-                    <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5">
+                    <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5 phl:px-0 phl:pb-0">
                       <div className="flex min-h-0 flex-1 flex-row gap-2" style={{ containerType: "inline-size" }}>
                         {editorMode === "edit" && (
-                        <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2.5 max-lg:relative max-lg:z-40 -ml-2.5 lg:-ml-[18px] lg:pr-0">
+                        <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2.5 max-lg:relative max-lg:z-40 -ml-2.5 phl:ml-0 phl:pl-0 lg:-ml-[18px] lg:pr-0">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
                               (2026-09-23, 이전엔 전부 한 화면에 세로로 나열돼 있었어요).
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto lg:overflow-visible">
+                          <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto phl:w-[52px] lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
@@ -19368,7 +19445,7 @@ function UploadPageContent() {
                                     : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                 }`}
                               >
-                                <MenuTabIcon name={tab.icon} className="h-5 w-5" />
+                                <MenuTabIcon name={tab.icon} className="h-5 w-5 phl:h-[18px] phl:w-[18px]" />
                                 <span className="whitespace-nowrap">{tab.label}</span>
                               </button>
                             ))}
@@ -19774,7 +19851,7 @@ function UploadPageContent() {
                         </div>
                         )}
                         <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${portraitSheetOpen ? "php:pb-[calc(var(--app-vh,100dvh)*0.42)]" : ""}`}>
-                        {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
+                        {editorMode === "edit" && <EditCommandBar items={editCommandItems} trailing={phlEditTrailing} />}
                         <CanvasStage
                           aspect={coverTotalWmm / coverTotalHmm}
                           manualPct={manualZoomPct}
@@ -20251,10 +20328,10 @@ function UploadPageContent() {
                       ];
                       const textStaticGuidesY = [0, 50, 100, trimYPct, 100 - trimYPct, safetyYPct, 100 - safetyYPct];
                       return (
-                        <div className="flex h-full min-h-0 flex-col px-2 pb-2">
+                        <div className="flex h-full min-h-0 flex-col px-2 pb-2 phl:px-0 phl:pb-0">
                           <div className="flex min-h-0 flex-1 flex-row gap-2" style={{ containerType: "inline-size" }}>
                             {editorMode === "edit" && (
-                            <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2 max-lg:relative max-lg:z-40 -ml-2 lg:-ml-4 lg:pr-0">
+                            <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2 max-lg:relative max-lg:z-40 -ml-2 phl:ml-0 phl:pl-0 lg:-ml-4 lg:pr-0">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
                                   아이콘으로 골라요. 예전엔 배경만 항상 펼쳐져 있고 사진·스티커
                                   추가는 캔버스에 마우스를 올려야만 보이는 숨은 버튼이었는데,
@@ -20262,7 +20339,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto lg:overflow-visible">
+                              <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto phl:w-[52px] lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
@@ -20285,7 +20362,7 @@ function UploadPageContent() {
                                         : "text-[var(--color-charcoal)]/60 hover:bg-[var(--color-ivory)]"
                                     }`}
                                   >
-                                    <MenuTabIcon name={tab.icon} className="h-5 w-5" />
+                                    <MenuTabIcon name={tab.icon} className="h-5 w-5 phl:h-[18px] phl:w-[18px]" />
                                     <span className="whitespace-nowrap">{tab.label}</span>
                                   </button>
                                 ))}
@@ -20615,7 +20692,7 @@ function UploadPageContent() {
                             </div>
                             )}
                             <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${portraitSheetOpen ? "php:pb-[calc(var(--app-vh,100dvh)*0.42)]" : ""}`}>
-                            {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
+                            {editorMode === "edit" && <EditCommandBar items={editCommandItems} trailing={phlEditTrailing} />}
                             {editorMode === "edit" && isIntroView && (
                               <div data-intro-info className="flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-1 pb-1.5 pt-2">
                                 <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/70">
