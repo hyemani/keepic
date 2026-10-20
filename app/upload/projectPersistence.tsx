@@ -343,10 +343,10 @@ export function SaveControls({
           disabled={phase !== "error"}
           onClick={onSave}
           title={phase === "error" ? `${errorMessage || "저장하지 못했어요."} 눌러서 다시 시도해요.` : undefined}
-          className={`whitespace-nowrap text-xs max-lg:tabular-nums [@media(pointer:coarse)]:tabular-nums max-md:pointer-events-none max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center ph:h-9! ${tone} ${phase === "error" ? "underline" : "cursor-default"}`}
+          className={`whitespace-nowrap text-xs max-lg:tabular-nums [@media(pointer:coarse)]:tabular-nums max-md:pointer-events-none max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center ph:h-9! phl:h-8! phl:w-4 ${tone} ${phase === "error" ? "underline" : "cursor-default"}`}
         >
           <span className="max-md:sr-only phl:sr-only">{text}</span>
-          <span aria-hidden="true" className={`hidden h-2.5 w-2.5 rounded-full max-md:block phl:block ${phase === "error" ? "bg-red-600" : phase === "saving" ? "bg-[var(--color-charcoal)]/40" : phase === "dirty" ? "bg-amber-500" : "bg-emerald-600"}`} />
+          <span aria-hidden="true" className={`hidden h-2.5 w-2.5 rounded-full max-md:block phl:block phl:h-2 phl:w-2 ${phase === "error" ? "bg-red-600" : phase === "saving" ? "bg-[var(--color-charcoal)]/40" : phase === "dirty" ? "bg-amber-500" : "bg-emerald-600"}`} />
         </button>
       )}
       <button
@@ -355,7 +355,7 @@ export function SaveControls({
         onClick={onSave}
         disabled={phase === "saving"}
         title="저장 (Ctrl+S / ⌘S)"
-        className="flex h-8 min-w-[52px] shrink-0 items-center justify-center border border-[var(--color-charcoal)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-60 max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:relative ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1 ph:after:content-[''] phl:px-3 phl:text-[13px] motion-reduce:transition-none"
+        className="flex h-8 min-w-[52px] shrink-0 items-center justify-center border border-[var(--color-charcoal)] bg-white px-2.5 text-xs font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-60 max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:relative ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1 ph:after:content-[''] phl:h-8! phl:px-[11px] phl:text-[13px] phl:after:-inset-y-[7px] motion-reduce:transition-none"
       >
         저장
       </button>

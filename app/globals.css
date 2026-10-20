@@ -19,6 +19,8 @@
 @custom-variant php (@media (pointer: coarse) and (orientation: portrait) and (max-width: 599.98px));
 
 :root {
+  /* 59차: 폰 가로 편집 명령 줄 아이콘 한 칸 폭(간격). 아주 좁은 폰(폭 700px 미만)은 오른쪽 묶음과 같이 들어가게 36px. */
+  --cmd-w: 42px;
   --color-ivory: #FFFFFF;
   --color-charcoal: #2B2B2B;
   /* 보라 -> 파랑 그라데이션 톤. --color-sky는 텍스트/테두리/옅은 배경 등
@@ -231,5 +233,12 @@ body {
   [data-side-panel] :is(input:not([type="range"], [type="checkbox"], [type="radio"], [type="color"], [type="file"], [type="button"]), textarea, select),
   header :is(input:not([type="range"], [type="checkbox"], [type="radio"], [type="color"], [type="file"]), select) {
     font-size: 16px;
+  }
+}
+
+/* 59차: 아주 좁은 폰(가로 폭 700px 미만)은 편집 명령 줄 아이콘 간격을 36px로 줄여서 오른쪽 묶음과 함께 한 줄에 들어가요. */
+@media (max-width: 699.98px) {
+  :root {
+    --cmd-w: 36px;
   }
 }

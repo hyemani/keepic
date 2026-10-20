@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
+import { Fragment, Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
@@ -11910,7 +11910,7 @@ function EditCommandIcon({ name }: { name: EditCommandIconName }) {
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
     "aria-hidden": true,
-    className: "shrink-0",
+    className: "shrink-0 phl:h-7 phl:w-7 phl:[stroke-width:1.75]",
   };
   switch (name) {
     case "undo":
@@ -11975,7 +11975,7 @@ function EditCommandIcon({ name }: { name: EditCommandIconName }) {
 // 평소 폭(태블릿·데스크톱)에서는 예전과 똑같이 전부 보여요. 터치 기기(좁은 화면·pointer: coarse)에서는 버튼을 44px 높이로 키워요.
 const EDIT_BAR_MORE_IDS = ["copy", "cut", "paste", "center"];
 const EDIT_BAR_BTN =
-  "flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent max-lg:h-11 max-lg:px-2.5 max-lg:text-xs [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-xs phl:h-10 phl:min-w-11 phl:justify-center phl:px-2 motion-reduce:transition-none";
+  "flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent max-lg:h-11 max-lg:px-2.5 max-lg:text-xs [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-xs phl:relative phl:h-11! phl:w-[var(--cmd-w,42px)]! phl:min-w-0! phl:justify-center phl:px-0! phl:after:absolute phl:after:inset-y-0 phl:after:inset-x-[calc((var(--cmd-w,42px)-44px)/2)] phl:after:content-[''] motion-reduce:transition-none";
 
 // 58차: trailing = 폰 가로 편집에서 상단바를 없애고 이 줄 오른쪽 끝에 붙이는 묶음(배율·····미리보기·저장·다음). 없으면(대부분) 예전 그대로예요.
 function EditCommandBar({ items, trailing }: { items: EditCommandItem[]; trailing?: ReactNode }) {
@@ -11996,10 +11996,14 @@ function EditCommandBar({ items, trailing }: { items: EditCommandItem[]; trailin
   const iconButtons = (
     <>
       {inline.map((it) => (
-        <button key={it.id} type="button" title={it.title} aria-label={it.label} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
-          <EditCommandIcon name={it.icon} />
-          <span className="phl:hidden">{it.label}</span>
-        </button>
+        <Fragment key={it.id}>
+          <button type="button" title={it.title} aria-label={it.label} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
+            <EditCommandIcon name={it.icon} />
+            <span className="phl:hidden">{it.label}</span>
+          </button>
+          {/* 59차: 폰 가로에서만 보이는 얇은 구분선 — 되돌리기·다시 | 복사·잘라내기·붙여넣기 | 가운데맞춤·재배치 */}
+          {(it.id === "redo" || it.id === "paste") && <span aria-hidden="true" className="mx-0.5 hidden h-5 w-px shrink-0 bg-[var(--color-hairline)] phl:block" />}
+        </Fragment>
       ))}
       {more.length > 0 && <EditBarMoreMenu items={more} btnClass={EDIT_BAR_BTN} renderIcon={(n) => <EditCommandIcon name={n as EditCommandIconName} />} />}
     </>
@@ -12015,8 +12019,8 @@ function EditCommandBar({ items, trailing }: { items: EditCommandItem[]; trailin
         onMouseDown={(e) => e.stopPropagation()}
         className="relative z-30 flex h-11 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white pl-0 pr-2 -ml-2"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{iconButtons}</div>
-        <div data-testid="edit-bar-trailing" className="flex shrink-0 items-center gap-1 pl-1">
+        <div className="flex min-w-0 flex-1 items-center gap-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{iconButtons}</div>
+        <div data-testid="edit-bar-trailing" className="flex shrink-0 items-center gap-0.5 pl-1">
           {trailing}
         </div>
       </div>
@@ -18612,7 +18616,7 @@ function UploadPageContent() {
         onClick={() => handleNextClick(nextUrl, photos)}
         disabled={isSaving}
         data-testid="next-step-button"
-        className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:relative ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1 ph:after:content-[''] phl:px-3 phl:text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
+        className={`flex h-8 min-w-[68px] shrink-0 items-center justify-center px-2.5 text-xs font-medium text-white transition max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:relative ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1 ph:after:content-[''] phl:h-8! phl:px-[11px] phl:text-[13px] phl:after:-inset-y-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
           isSaving
             ? "cursor-not-allowed bg-[var(--color-hairline)] text-white/70"
             : "bg-[var(--color-charcoal)] hover:opacity-90"
@@ -18628,7 +18632,7 @@ function UploadPageContent() {
       <button
         type="button"
         disabled
-        className="flex h-8 min-w-[68px] shrink-0 cursor-not-allowed items-center justify-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70 max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm phl:px-3 phl:text-[13px]"
+        className="flex h-8 min-w-[68px] shrink-0 cursor-not-allowed items-center justify-center bg-[var(--color-hairline)] px-2.5 text-xs font-medium text-white/70 max-sm:min-w-[52px] max-lg:h-11 [@media(pointer:coarse)]:h-11 ph:h-9! ph:min-w-0 ph:px-3.5 ph:text-sm phl:h-8! phl:px-[11px] phl:text-[13px]"
       >
         다음
       </button>
@@ -18658,7 +18662,7 @@ function UploadPageContent() {
           aria-label="미리보기로 돌아가기"
           title="미리보기로 돌아가기"
           data-testid="back-to-preview"
-          className="relative flex h-9 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-[13px] font-medium text-[var(--color-charcoal)]/85 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-[''] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none"
+          className="relative flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-1 text-[13px] font-medium text-[var(--color-charcoal)]/85 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none"
         >
           <span aria-hidden="true">←</span>
           <span>미리보기</span>

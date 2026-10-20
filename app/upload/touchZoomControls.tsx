@@ -20,7 +20,7 @@ export function TouchZoomControls({
 }) {
   if (inline) {
     const ib =
-      "flex h-9 min-w-9 items-center justify-center px-1 text-base leading-none text-[var(--color-charcoal)]/80 transition active:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none";
+      "relative flex h-8 min-w-7 items-center justify-center px-0 text-base leading-none after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-[''] text-[var(--color-charcoal)]/80 transition active:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none";
     return (
       <div data-touch-zoom data-touch-zoom-inline role="group" aria-label="화면 확대·축소" className="flex shrink-0 items-center">
         <button type="button" onClick={onZoomOut} aria-label="축소" className={ib}>
@@ -31,7 +31,7 @@ export function TouchZoomControls({
           onClick={onFit}
           aria-label={isFit ? "지금 화면에 맞춤 상태예요" : "화면에 맞추기"}
           title="누르면 한 화면에 전체가 보이게 맞춰요"
-          className={`${ib} min-w-[56px] text-xs tabular-nums ${isFit ? "text-[var(--color-charcoal)]/60" : "font-medium text-[var(--color-sky)]"}`}
+          className={`${ib} min-w-[52px] text-xs tabular-nums ${isFit ? "text-[var(--color-charcoal)]/60" : "font-medium text-[var(--color-sky)]"}`}
         >
           {isFit ? `맞춤 ${percent}%` : `${percent}%`}
         </button>

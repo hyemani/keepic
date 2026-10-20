@@ -52,7 +52,7 @@ export function HeaderMoreMenu({ children, alwaysShow = false }: { children: Rea
         aria-expanded={open}
         aria-controls={open ? popId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-11 min-w-11 items-center justify-center gap-1 border border-[var(--color-hairline)] bg-white px-2 text-xs font-medium text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ph:relative ph:h-9 ph:w-9 ph:min-w-0 ph:border-0 ph:bg-transparent ph:px-0 ph:text-lg ph:leading-none ph:text-[var(--color-charcoal)] ph:after:absolute ph:after:-inset-y-1 ph:after:inset-x-0 ph:after:content-[''] motion-reduce:transition-none"
+        className="flex h-11 min-w-11 items-center justify-center gap-1 border border-[var(--color-hairline)] bg-white px-2 text-xs font-medium text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] ph:relative ph:h-9 ph:w-9 phl:h-8! phl:w-8! ph:min-w-0 ph:border-0 ph:bg-transparent ph:px-0 ph:text-lg ph:leading-none ph:text-[var(--color-charcoal)] ph:after:absolute ph:after:-inset-y-1 ph:after:inset-x-0 phl:after:-inset-1.5 ph:after:content-[''] motion-reduce:transition-none"
       >
         <span aria-hidden="true">⋯</span>
       </button>
