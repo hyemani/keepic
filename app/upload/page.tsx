@@ -13170,7 +13170,9 @@ function UploadPageContent() {
   const compactEditor = useCompactEditor();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-  useDrawerDismiss(compactEditor && drawerOpen, closeDrawer);
+  // 59차: 폰 가로에서는 패널이 캔버스 옆에 붙어 있어서, 캔버스를 눌러도(사진·글상자 선택) 패널이 닫히지 않아요.
+  const phoneLandscapeForDrawer = useTouchLayout().phoneLandscape;
+  useDrawerDismiss(compactEditor && drawerOpen, closeDrawer, !phoneLandscapeForDrawer);
   // "텍스트" 탭의 "+ 글상자 추가" 버튼이 왼쪽/오른쪽 페이지 중 어디에 넣을지 기억해두는
   // 작은 토글이에요(2026-09-27, 버튼 두 개를 하나로 합치면서 추가).
   // "레이아웃" 탭 상태 — 적용 범위(왼쪽/오른쪽/펼침면 전체)와 개수 필터, 그리고 사진
@@ -16213,10 +16215,13 @@ function UploadPageContent() {
     // 없으면 편집기 안쪽 가장자리에 붙어요.
     const rawHalfGap = displayW > 0 ? displayW / 2 + 8 : undefined;
     const maxHalfGap = containerW > 0 ? Math.max(0, containerW / 2 - 22) : undefined;
-    const halfGap =
-      rawHalfGap !== undefined && maxHalfGap !== undefined
+    // 59차: 폰 가로에서 패널이 열려 있으면 펼침면이 남은 폭을 거의 꽉 채워서 화살표가 들어갈 옆자리가 없어요 — 위아래 빈 띠(아래쪽 모서리)로 내려요.
+    const halfGap = phlDockOpen
+      ? undefined
+      : rawHalfGap !== undefined && maxHalfGap !== undefined
         ? Math.min(rawHalfGap, maxHalfGap)
         : rawHalfGap;
+    const dockArrowCls = phlDockOpen ? "phl:top-auto! phl:bottom-1.5! phl:translate-y-0! phl:h-8! phl:w-8! phl:after:absolute phl:after:-inset-1.5 phl:after:content-['']" : "";
     // 2026-10-04, 혜민님 요청(항목12): "편집하기 메뉴에서 오른쪽으로 화살표를 넘기면
     // 미리보기 창으로 이동하는 오류... 편집메뉴에서의 화살표는 편집메뉴 자체에서 이전,
     // 다음페이지이동할수있는 버튼입니다" — editorMode는 "선택된 페이지가 편집모드를 켠
@@ -16245,7 +16250,7 @@ function UploadPageContent() {
           style={halfGap !== undefined ? { left: `calc(50% - ${halfGap}px)`, transform: "translate(-100%, -50%)" } : undefined}
           className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "left-1 -translate-y-1/2 sm:left-2"
-          }`}
+          } ${dockArrowCls}`}
         >
           ‹
         </button>
@@ -16264,7 +16269,7 @@ function UploadPageContent() {
           style={halfGap !== undefined ? { left: `calc(50% + ${halfGap}px)`, transform: "translateY(-50%)" } : undefined}
           className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "right-1 -translate-y-1/2 sm:right-2"
-          }`}
+          } ${dockArrowCls}`}
         >
           ›
         </button>
@@ -17140,6 +17145,9 @@ function UploadPageContent() {
   const showRotateNotice = editorMode === "edit" && touchLayout.phonePortrait && !portraitEditOk && photos.length > 0;
   // 폰 세로로 계속할 때는 패널이 아래에서 올라오는 시트(화면 높이의 42% 이하)라서, 열려 있는 동안 캔버스를 그만큼 위로 줄여 펼침면이 시트에 안 가려져요.
   const portraitSheetOpen = editorMode === "edit" && touchLayout.phonePortrait && compactEditor && drawerOpen && !!(selectedPageKey === "cover" ? activeCoverEditTab : activeEditTab);
+  // 59차: 폰 가로 편집에서 패널이 열려 있으면 캔버스를 패널 폭만큼 오른쪽으로 밀어서(= 남은 자리에 다시 맞춰서) 펼침면이 패널에 안 가려져요.
+  const phlDockOpen = editorMode === "edit" && touchLayout.phoneLandscape && compactEditor && drawerOpen && !!(selectedPageKey === "cover" ? activeCoverEditTab : activeEditTab);
+  const phlDockMl = phlDockOpen ? "ml-[var(--phl-panel-w)]" : "";
   useCanvasTouchGestures(canvasGestureRef, {
     enabled: touchCoarse,
     getZoomPct: () => currentZoomPctRef.current,
@@ -19459,7 +19467,7 @@ function UploadPageContent() {
                               activeCoverEditTab==="..." 조건이라 내용은 안 보였지만, 빈
                               칸만 224px 차지하고 있던 걸 없앰). */}
                           {activeCoverEditTab && (
-                          <SidePanelShell drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer}>
+                          <SidePanelShell drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer} title={COVER_EDIT_TABS.find((t) => t.id === activeCoverEditTab)?.label}>
                           {activeCoverEditTab === "theme" && (
                             // 2026-10-04, 혜민님 요청: "표지테마 상단에 문구삭제" — 위
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
@@ -19865,6 +19873,7 @@ function UploadPageContent() {
                           widthMm={coverTotalWmm}
                           onActualSizePercentChange={setActualSizePercent}
                           overlay={editorMode === "edit" ? renderPageNavArrows : undefined}
+                          className={phlDockMl}
                         >
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
@@ -20376,7 +20385,7 @@ function UploadPageContent() {
                                   조건이라 null이면 어차피 안 보이지만, 빈 칸만 224px를
                                   차지하고 있던 걸 없앰(closing 태그를 건드리지 않는 안전한
                                   방식으로, 폭만 조건부로 바꿈). */}
-                              <SidePanelShell open={!!activeEditTab} drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer}>
+                              <SidePanelShell open={!!activeEditTab} drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer} title={EDIT_TABS.find((t) => t.id === activeEditTab)?.label}>
                             {activeEditTab === "text" && (
                               <div className="mb-1.5 border-b border-[var(--color-hairline)] pb-2">
                                 {/* 2026-10(13번째 라운드) — 탭 3개 비율을 11번째 라운드 이전과 같은
@@ -20698,7 +20707,7 @@ function UploadPageContent() {
                             <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${portraitSheetOpen ? "php:pb-[calc(var(--app-vh,100dvh)*0.42)]" : ""}`}>
                             {editorMode === "edit" && <EditCommandBar items={editCommandItems} trailing={phlEditTrailing} />}
                             {editorMode === "edit" && isIntroView && (
-                              <div data-intro-info className="flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-1 pb-1.5 pt-2">
+                              <div data-intro-info className={`flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-1 pb-1.5 pt-2 ${phlDockMl}`}>
                                 <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/70">
                                   <span className="shrink-0">발행일</span>
                                   <input
@@ -20728,7 +20737,7 @@ function UploadPageContent() {
                               const stray = unprintedStrayOf(i, spread);
                               if (stray.count === 0) return null;
                               return (
-                                <div data-unprinted-stray className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1.5 pt-2 text-xs text-[var(--color-charcoal)]/70">
+                                <div data-unprinted-stray className={`flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1.5 pt-2 text-xs text-[var(--color-charcoal)]/70 ${phlDockMl}`}>
                                   <span>인쇄되지 않는 면에 자동으로 들어간 항목 {stray.count}개가 남아 있어요(인쇄에는 나오지 않아요).</span>
                                   <button
                                     type="button"
@@ -20750,6 +20759,7 @@ function UploadPageContent() {
                               widthMm={guideSpreadWorkMm}
                               onActualSizePercentChange={setActualSizePercent}
                               overlay={editorMode === "edit" ? renderPageNavArrows : undefined}
+                              className={phlDockMl}
                             >
                             <div
                               className={

@@ -19,6 +19,7 @@ export function SidePanelShell({
   open = true,
   drawerOpen = true,
   onClose,
+  title,
   children,
 }: {
   open?: boolean;
@@ -26,6 +27,8 @@ export function SidePanelShell({
   // 데스크톱(lg~)은 이 값과 상관없이 예전 그대로예요(폭 232px 고정, 캔버스 옆 자리).
   drawerOpen?: boolean;
   onClose?: () => void;
+  // 59차: 폰에서만 맨 윗줄(36px)에 "제목 + ✕"로 보여줘요. 태블릿·데스크톱은 예전 그대로예요.
+  title?: string;
   children: ReactNode;
 }) {
   return (
@@ -36,23 +39,26 @@ export function SidePanelShell({
         open
           ? "flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:w-[232px] lg:shrink-0 [&>*]:min-w-0"
           : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
-      } max-lg:absolute max-lg:bottom-0 max-lg:left-full max-lg:top-0 max-lg:z-40 max-lg:w-[296px] max-lg:max-w-[calc(100vw-72px)] max-lg:border-r max-lg:border-[var(--color-hairline)] max-lg:bg-white max-lg:p-2 max-lg:shadow-[8px_0_24px_-12px_rgba(0,0,0,0.35)] php:top-auto php:h-auto php:max-h-[calc(var(--app-vh,100dvh)*0.42)] php:w-[calc(var(--app-vw,100vw)-60px)] php:max-w-none php:border-t php:pb-[max(8px,env(safe-area-inset-bottom))] php:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.35)] ${
+      } max-lg:absolute max-lg:bottom-0 max-lg:left-full max-lg:top-0 max-lg:z-40 max-lg:w-[296px] max-lg:max-w-[calc(100vw-72px)] max-lg:border-r max-lg:border-[var(--color-hairline)] max-lg:bg-white max-lg:p-2 max-lg:shadow-[8px_0_24px_-12px_rgba(0,0,0,0.35)] phl:top-11! phl:w-[var(--phl-panel-w)]! phl:max-w-none! phl:border-t phl:border-[var(--color-hairline)] phl:shadow-none! php:top-auto php:h-auto php:max-h-[calc(var(--app-vh,100dvh)*0.42)] php:w-[calc(var(--app-vw,100vw)-60px)] php:max-w-none php:border-t php:pb-[max(8px,env(safe-area-inset-bottom))] php:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.35)] ${
         drawerOpen && open ? "" : "max-lg:hidden"
       }`}
     >
       {onClose && (
-        <button
-          type="button"
-          data-drawer-close
-          onClick={onClose}
-          aria-label="패널 닫기"
-          className="mb-1 hidden h-11 shrink-0 items-center justify-end gap-1 px-2 text-xs text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] max-lg:flex motion-reduce:transition-none"
-        >
-          닫기
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </button>
+        <div data-panel-head className="hidden shrink-0 max-lg:flex ph:sticky ph:top-[-8px] ph:z-10 ph:-mx-2 ph:-mt-2 ph:mb-2 ph:h-9 ph:items-center ph:justify-between ph:gap-2 ph:bg-white ph:px-2 ph:shadow-[0_1px_0_var(--color-hairline)]">
+          {title && <span className="hidden min-w-0 truncate text-[13px] font-semibold text-[var(--color-charcoal)] ph:block">{title}</span>}
+          <button
+            type="button"
+            data-drawer-close
+            onClick={onClose}
+            aria-label="패널 닫기"
+            className="mb-1 flex h-11 flex-1 shrink-0 items-center justify-end gap-1 px-2 text-xs text-[var(--color-charcoal)]/60 transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ph:relative ph:mb-0 ph:h-8 ph:flex-none ph:px-1.5 ph:after:absolute ph:after:-inset-1.5 ph:after:content-['']"
+          >
+            <span className="ph:sr-only">닫기</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden className="ph:h-[18px] ph:w-[18px]">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
       )}
       {children}
     </div>

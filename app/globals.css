@@ -19,6 +19,8 @@
 @custom-variant php (@media (pointer: coarse) and (orientation: portrait) and (max-width: 599.98px));
 
 :root {
+  /* 59차: 폰 가로 편집에서 패널이 캔버스 왼쪽에 붙어 차지하는 폭(화면 폭의 38%, 최대 320px). 캔버스는 나머지 자리에 다시 맞춰져요. */
+  --phl-panel-w: min(320px, calc(var(--app-vw, 100vw) * 0.38));
   /* 59차: 폰 가로 편집 명령 줄 아이콘 한 칸 폭(간격). 아주 좁은 폰(폭 700px 미만)은 오른쪽 묶음과 같이 들어가게 36px. */
   --cmd-w: 42px;
   --color-ivory: #FFFFFF;
@@ -236,9 +238,29 @@ body {
   }
 }
 
-/* 59차: 아주 좁은 폰(가로 폭 700px 미만)은 편집 명령 줄 아이콘 간격을 36px로 줄여서 오른쪽 묶음과 함께 한 줄에 들어가요. */
+/* 59차: 폰 가로 편집 패널이 열릴 때 살짝(150ms) 나타나요. 움직임 줄이기 설정이면 바로 떠요. */
 @media (max-width: 699.98px) {
   :root {
     --cmd-w: 36px;
+  }
+}
+@keyframes phl-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 599.98px) {
+  [data-side-panel][data-drawer-open="true"] {
+    animation: phl-panel-in 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-side-panel][data-drawer-open="true"] {
+    animation: none !important;
   }
 }

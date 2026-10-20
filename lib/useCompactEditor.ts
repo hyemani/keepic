@@ -18,7 +18,8 @@ export function useCompactEditor(): boolean {
 }
 
 // 서랍이 열려 있을 때: Esc 또는 왼쪽 메뉴·서랍 바깥을 누르면 닫아요(캔버스 터치는 막지 않고 그대로 동작해요).
-export function useDrawerDismiss(active: boolean, onClose: () => void) {
+// 59차: outsidePointer=false면 바깥을 눌러도 닫지 않아요(폰 가로는 패널이 캔버스 옆에 붙어 있어서, 캔버스에서 사진·글상자를 골라도 패널이 그대로 떠 있어야 해요 — 닫기 ✕·메뉴 다시 누르기·Esc로만 닫혀요).
+export function useDrawerDismiss(active: boolean, onClose: () => void, outsidePointer = true) {
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
@@ -33,10 +34,10 @@ export function useDrawerDismiss(active: boolean, onClose: () => void) {
       onClose();
     };
     window.addEventListener("keydown", onKey);
-    window.addEventListener("pointerdown", onDown, true);
+    if (outsidePointer) window.addEventListener("pointerdown", onDown, true);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onDown, true);
     };
-  }, [active, onClose]);
+  }, [active, onClose, outsidePointer]);
 }
