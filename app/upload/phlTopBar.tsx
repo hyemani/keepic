@@ -51,7 +51,7 @@ export function PhlTopBar({
     el?.scrollIntoView({ inline: "nearest", block: "nearest" });
   }, [activeId, panelOpen]);
   const toolBtn =
-    "relative flex h-full shrink-0 items-center whitespace-nowrap px-3 [@media(max-width:700px)]:px-2 text-[14px] font-medium leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none";
+    "relative flex h-full min-w-11 shrink-0 items-center justify-center whitespace-nowrap px-3 [@media(max-width:700px)]:px-2 text-[14px] font-medium leading-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none";
   return (
     <div
       role="toolbar"
