@@ -220,7 +220,7 @@ export function BackgroundPanel({
           )
         ) : null}
       </div>
-      <div data-bg-list className={`max-h-[calc(100vh-21rem)] min-h-[8rem] ${NESTED_SCROLL}`}>
+      <div data-bg-list className={`max-h-[calc(100vh-21rem)] min-h-[8rem] ph:max-h-none! ph:min-h-0! ${NESTED_SCROLL}`}>
         {tab === "solid" ? (
           renderColorChart({
             activeColor: solidNow,
@@ -255,20 +255,20 @@ export function BackgroundPanel({
                   }`}
                 >
                   <BackgroundThumb spec={spec} pageMm={pageMm} />
-                  <span className="block truncate bg-white px-1 py-0.5 text-[10px] text-[var(--color-charcoal)]/70">{asCurrent ? `현재 배경 · ${p.label}` : p.label}</span>
+                  <span className="block truncate bg-white px-1 py-0.5 text-[10px] ph:text-xs text-[var(--color-charcoal)]/70">{asCurrent ? `현재 배경 · ${p.label}` : p.label}</span>
                 </button>
               );
             };
             return (
               <div className="flex flex-col gap-2">
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5 ph:grid-cols-3! ph:gap-1!">
                   {hiddenCurrent ? renderItem(hiddenCurrent, true) : null}
                   {byGroup("default").map((p) => renderItem(p))}
                 </div>
                 {kids.length ? (
                   <section data-bg-section="kids" className="flex flex-col gap-1">
-                    <h3 className="text-[11px] font-medium text-[var(--color-charcoal)]/70">키즈·성장앨범용</h3>
-                    <div className="grid grid-cols-2 gap-1.5">{kids.map((p) => renderItem(p))}</div>
+                    <h3 className="text-[11px] ph:text-xs font-medium text-[var(--color-charcoal)]/70">키즈·성장앨범용</h3>
+                    <div className="grid grid-cols-2 gap-1.5 ph:grid-cols-3! ph:gap-1!">{kids.map((p) => renderItem(p))}</div>
                   </section>
                 ) : null}
               </div>

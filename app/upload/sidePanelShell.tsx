@@ -70,14 +70,14 @@ export function SidePanelShell({
 // 224 - 스크롤바 자리 15 - 오른쪽 여백 4 → 2026-13에 232px 전체 폭으로 바뀜). 탭 높이 34px · 모서리 0 · 탭 사이 간격 0 ·
 // 글자 12px(medium) · 선택됨 = 검정(차콜) 바탕+흰 글자 · 섹션 사이 간격 6px(gap-1.5).
 // 모든 메뉴가 아래 상수/부품만 가져다 써서 크기가 메뉴마다 달라지지 않아요.
-export const PANEL_STACK = "flex flex-col gap-1.5"; // 탭 아래 첫 내용·섹션 사이 간격 6px
+export const PANEL_STACK = "flex flex-col gap-1.5 ph:gap-2"; // 탭 아래 첫 내용·섹션 사이 간격 6px
 export const SETTING_BOX = "border border-[var(--color-hairline)] bg-white p-2"; // 설정 상자 안쪽 여백 8px
 export const NESTED_SCROLL = "overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"; // 패널 안쪽 스크롤 목록(스크롤바 자리를 아예 안 만들어서 폭 고정)
 
 // 탭 줄: 칸 수만큼 똑같이 나눠요(grid). 선택 여부·글자 길이와 상관없이 칸 폭/높이가 안 변해요.
 export const SEG_TAB_ROW = "grid grid-cols-3";
 export const segTabClass = (active: boolean) =>
-  `box-border flex h-[34px] [@media(pointer:coarse)]:h-11 min-w-0 items-center justify-center whitespace-nowrap px-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35 ${
+  `box-border flex h-[34px] [@media(pointer:coarse)]:h-11 min-w-0 items-center justify-center whitespace-nowrap px-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35 ph:h-8! ph:text-[13px] ph:relative ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-[''] ${
     active
       ? "bg-[var(--color-charcoal)] text-white"
       : "bg-[var(--color-ivory)] text-[var(--color-charcoal)]/60 hover:text-[var(--color-charcoal)]"
@@ -131,5 +131,5 @@ export function SegTabs({
 
 // 패널 안 "실행 버튼" 공통 규격: 높이 34px · 글자 12px · 아이콘 20px · 아이콘-글자 간격 6px.
 export const ACTION_BUTTON_BASE =
-  "flex h-[34px] [@media(pointer:coarse)]:h-11 w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium leading-none transition disabled:cursor-not-allowed disabled:opacity-40";
+  "flex h-[34px] [@media(pointer:coarse)]:h-11 w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ph:h-8! ph:text-[13px] ph:relative ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-['']";
 export const SECONDARY_ACTION_BUTTON_CLASS = `${ACTION_BUTTON_BASE} border border-[var(--color-hairline)] bg-white px-2 text-[var(--color-charcoal)] hover:bg-[var(--color-ivory)]`;

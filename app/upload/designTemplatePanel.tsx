@@ -378,7 +378,7 @@ function DesignCard({
       >
         <DesignThumb scene={scene} sceneKey={sceneKey} />
         <span data-design-card-name className="flex min-w-0 items-center gap-1 px-0.5 pb-0.5 pt-1">
-          <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[var(--color-charcoal)]">{name}</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[var(--color-charcoal)] ph:text-xs">{name}</span>
           {trailing ? <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">{trailing}</span> : null}
           {(chips ?? []).map((c, i) => (
             <span key={i} data-design-chip className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ background: c }} aria-hidden />
@@ -470,7 +470,7 @@ export function DesignPanel({
       </svg>
     </button>
   );
-  const gridCls = "grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1";
+  const gridCls = "grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1 ph:grid-cols-3! ph:gap-1!";
   const emptyMsg = (what: string) => (
     <p className="px-0.5 py-3 text-center text-[11px] text-[var(--color-charcoal)]/50">이 조건에 맞는 {what}가 아직 없어요.</p>
   );
@@ -521,7 +521,7 @@ export function DesignPanel({
         aria-label="디자인 스타일"
         value={style}
         onChange={(e) => onStyleFilterChange(e.target.value)}
-        className="box-border h-8 [@media(pointer:coarse)]:h-11 w-full min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
+        className="box-border h-8 [@media(pointer:coarse)]:h-11 ph:h-8! w-full min-w-0 border border-[var(--color-hairline)] bg-white px-2 text-xs text-[var(--color-charcoal)]"
       >
         <option value="all">스타일: 전체</option>
         {styles.map((x) => (
@@ -530,7 +530,7 @@ export function DesignPanel({
           </option>
         ))}
       </select>
-      <div className="flex items-baseline justify-end px-0.5 text-[11px] text-[var(--color-charcoal)]/60">
+      <div className="flex items-baseline justify-end px-0.5 text-[11px] text-[var(--color-charcoal)]/60 ph:text-xs">
         <span data-design-count>{count}종</span>
       </div>
       {kind === "theme" ? (
@@ -591,7 +591,7 @@ export function DesignPanel({
             data-single-spread-toggle
             aria-expanded={singleOpen}
             onClick={() => setSingleOpen((v) => !v)}
-            className="flex h-8 [@media(pointer:coarse)]:h-11 w-full items-center justify-between px-0.5 text-left text-[11px] font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-charcoal)]"
+            className="relative flex h-8 [@media(pointer:coarse)]:h-11 ph:h-8! ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-[''] w-full items-center justify-between px-0.5 text-left text-[11px] ph:text-xs font-medium text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-charcoal)]"
           >
             <span>이 펼침면만 바꾸기</span>
             <span className="flex items-center gap-1 font-normal text-[var(--color-charcoal)]/50">

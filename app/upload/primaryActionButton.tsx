@@ -10,7 +10,7 @@ import type { ChangeEvent, ReactNode } from "react";
 export const PRIMARY_ACTION_BUTTON_CLASS =
   "flex h-[34px] w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md " +
   "bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-3 text-center text-xs font-semibold " +
-  "leading-none text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90";
+  "leading-none text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90 ph:h-8 ph:text-[13px]";
 
 // 눌러서 바로 실행하는 버튼(예: 사진 변경 — 선택창 열기)이에요.
 export function PrimaryActionButton({

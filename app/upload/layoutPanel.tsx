@@ -164,7 +164,7 @@ export function LayoutPanel({
         value={target}
         onChange={onTargetChange}
       />
-      <div className="grid grid-cols-4 gap-px bg-[var(--color-hairline)] text-[11px]" role="group" aria-label="사진 칸 개수">
+      <div className="grid grid-cols-4 gap-px bg-[var(--color-hairline)] text-[11px] ph:text-[13px]" role="group" aria-label="사진 칸 개수">
         {LAYOUT_COUNT_FILTERS.map((f) => (
           <button
             key={String(f.id)}
@@ -173,7 +173,7 @@ export function LayoutPanel({
             aria-pressed={filter === f.id}
             onClick={() => onFilterChange(f.id)}
             title={`${countOf(f.id)}개`}
-            className={`flex min-h-[30px] [@media(pointer:coarse)]:min-h-11 items-center justify-center whitespace-nowrap px-1 font-medium transition ${
+            className={`flex min-h-[30px] [@media(pointer:coarse)]:min-h-11 ph:min-h-8! ph:relative ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-[''] items-center justify-center whitespace-nowrap px-1 font-medium transition ${
               f.id === "6+" ? "col-span-2" : ""
             } ${
               filter === f.id
@@ -186,11 +186,11 @@ export function LayoutPanel({
         ))}
       </div>
       {message ? (
-        <p className="bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] break-keep text-[var(--color-charcoal)]/70">{message}</p>
+        <p className="bg-[var(--color-ivory)] px-1.5 py-2 text-[11px] ph:text-xs break-keep text-[var(--color-charcoal)]/70">{message}</p>
       ) : null}
       <div
         data-layout-list
-        className={`grid gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-15rem)] ${isCover ? "grid-cols-1" : "grid-cols-2"}`}
+        className={`grid gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-15rem)] ph:max-h-none! ph:gap-1! ${isCover ? "grid-cols-1 ph:grid-cols-2!" : "grid-cols-2 ph:grid-cols-3!"}`}
       >
         {visible.map((t) => {
           const selected = isSelected(t);

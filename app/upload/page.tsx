@@ -1123,10 +1123,10 @@ function ColorChartPicker({
     // 1) "색 직접 선택 메뉴는 제일 상단에 가로폭에 맞춰서 배치해주세요" — 맨 위로 옮기고 w-full로.
     // 2) "색상조합을 컬러칩으로 만들어주세요. 낱개의 박스배치말고 가로여백을 없애주세요"
     //    — 카테고리별로 색상들을 gap 없이 붙여서 하나의 이어진 컬러칩 띠로 그림(참고 이미지처럼).
-    <div className="flex w-full flex-col gap-2.5">
+    <div className="flex w-full flex-col gap-2.5 ph:gap-2">
       <label
         title="색 직접 선택"
-        className="relative flex h-9 w-full cursor-pointer items-center gap-1.5 overflow-hidden border border-dashed border-[var(--color-charcoal)]/40 px-2 text-[11px] text-[var(--color-charcoal)]/60"
+        className="relative flex h-9 ph:h-8 w-full cursor-pointer items-center gap-1.5 overflow-hidden border border-dashed border-[var(--color-charcoal)]/40 px-2 text-[11px] ph:text-xs text-[var(--color-charcoal)]/60"
       >
         <span
           className="h-4 w-4 shrink-0 border border-[var(--color-hairline)]"
@@ -1142,7 +1142,7 @@ function ColorChartPicker({
       </label>
       {SPREAD_BACKGROUND_CHART.map((group) => (
         <div key={group.category} className="flex flex-col gap-1">
-          <span className="text-[11px] text-[var(--color-charcoal)]/50">{group.category}</span>
+          <span className="text-[11px] ph:text-xs text-[var(--color-charcoal)]/50">{group.category}</span>
           <div className="flex w-full overflow-hidden border border-[var(--color-hairline)]">
             {group.colors.map((preset) => (
               <button
@@ -3690,11 +3690,11 @@ function ToolbarLabeledButton({
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
-      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
+      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none ph:relative ph:w-10 ph:gap-0 ph:rounded-md ph:px-0 ph:py-1 ph:after:absolute ph:after:-inset-x-0.5 ph:after:-inset-y-1.5 ph:after:content-[''] transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
         danger ? "text-red-500" : active ? "bg-[var(--color-ivory)] text-[var(--color-charcoal)]" : "text-[var(--color-charcoal)]/80"
       }`}
     >
-      <LayerIcon name={icon} className="h-5 w-5" />
+      <LayerIcon name={icon} className="h-5 w-5 ph:h-[18px] ph:w-[18px]" />
       <span>{label}</span>
     </button>
   );
@@ -3789,7 +3789,7 @@ function StackOrderToolbar({
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15"
+      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15 ph:gap-0 ph:rounded-xl ph:px-1 ph:py-1"
       // 2026-11(18번째 라운드 19차), 혜민님 요청("편집패널이 위쪽 상단에 배치되어있는데
       // 하단쪽에 배치되는게 좋을거같아요") — "화면 하단 공간 부족" fallback(flip, 박스가
       // 페이지 밑바닥에 가까울 때만 위로 띄움)은 그대로 안 건드렸어요. 바꾼 건
@@ -4114,7 +4114,7 @@ function TablePanelControls({ onAdd }: { onAdd: (rows: number, cols: number) => 
       <button
         type="button"
         onClick={() => onAdd(rows, cols)}
-        className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
+        className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 ph:relative ph:min-h-8! ph:py-1.5 ph:text-[13px] ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-[''] text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
       >
         + 표 추가
       </button>
@@ -8038,7 +8038,7 @@ function ImageBoxPanel({
                           </p>
                         )}
                         {lib.length > 0 && onAddLibraryPhoto && (
-                          <div className={`grid max-h-[max(264px,calc(100dvh-340px))] grid-cols-3 gap-1.5 ${NESTED_SCROLL}`}>
+                          <div className={`grid max-h-[max(264px,calc(100dvh-340px))] grid-cols-3 gap-1.5 ph:max-h-none! ph:grid-cols-4! ph:gap-1! ${NESTED_SCROLL}`}>
                             {lib.map((lp, li) => {
                               const orderIndex = managed.findIndex((m) => m.url === lp.url);
                               return (
@@ -12529,14 +12529,14 @@ function CategoryTabbedGrid({
           {emptyMessage}
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5 ph:[grid-template-columns:repeat(auto-fill,minmax(44px,1fr))]! ph:gap-1!">
           {visibleItems.map((item) => (
             <button
               key={item.id}
               type="button"
               title={item.label}
               onClick={() => onItemClick(item)}
-              className="flex h-10 w-10 items-center justify-center border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)]"
+              className="flex h-10 w-10 items-center justify-center border border-transparent p-1 transition hover:border-[var(--color-hairline)] hover:bg-[var(--color-ivory)] ph:aspect-square ph:h-auto! ph:w-full!"
             >
               <img src={item.url} alt={item.label} className="h-full w-full object-contain" />
             </button>
@@ -19724,7 +19724,7 @@ function UploadPageContent() {
                                       ? handleAddBackCoverTextBox()
                                       : handleAddCoverTextBox()
                                   }
-                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
+                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 ph:relative ph:min-h-8! ph:py-1.5 ph:text-[13px] ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-[''] text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
                                   + 텍스트 추가
                                 </button>
@@ -20452,7 +20452,7 @@ function UploadPageContent() {
                                 <button
                                   type="button"
                                   onClick={() => handleAddTextBox(i, i === 0 ? "right" : "left")}
-                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
+                                  className="rounded-md bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-xs font-medium [@media(pointer:coarse)]:min-h-11 ph:relative ph:min-h-8! ph:py-1.5 ph:text-[13px] ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-[''] text-white shadow-sm shadow-[var(--color-brand-purple)]/20 transition hover:opacity-90"
                                 >
                                   + 텍스트 추가
                                 </button>
