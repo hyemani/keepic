@@ -7,7 +7,8 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 // (md:hidden) 예전 상단바와 똑같아요. 항목들은 메뉴를 열었을 때만 그려서 화면 안에 같은 입력칸이 두 개 생기지 않아요.
 // 닫기: 버튼 다시 누르기·Esc·바깥 누르기 — 닫히면 포커스는 "더보기" 버튼으로 돌아와요.
 // 58차: alwaysShow = 폰 가로 화면에서는 폭이 768px 이상이어도 "···"를 보여줘요(상단바를 없앤 자리에 배율 등을 묶어요). 기본(false)은 예전 그대로예요.
-export function HeaderMoreMenu({ children, alwaysShow = false }: { children: ReactNode; alwaysShow?: boolean }) {
+// 60차: panelClassName = 폰 가로 편집처럼 메뉴가 길 때 폭·최대 높이를 바꾸는 용도예요(없으면 예전 그대로).
+export function HeaderMoreMenu({ children, alwaysShow = false, panelClassName }: { children: ReactNode; alwaysShow?: boolean; panelClassName?: string }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popId = useId();
@@ -62,7 +63,7 @@ export function HeaderMoreMenu({ children, alwaysShow = false }: { children: Rea
           role="group"
           aria-label="더보기"
           data-testid="header-more-panel"
-          className="absolute right-0 top-full z-50 mt-1 flex w-[240px] max-w-[calc(100vw-16px)] flex-col gap-2 border border-[var(--color-hairline)] bg-white p-2 shadow-lg"
+          className={`absolute right-0 top-full z-50 mt-1 flex w-[240px] max-w-[calc(100vw-16px)] flex-col gap-2 border border-[var(--color-hairline)] bg-white p-2 shadow-lg ${panelClassName ?? ""}`}
         >
           {children}
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
+import { Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
@@ -150,6 +150,7 @@ import { isIOSLike, tryLockLandscape, tryUnlockOrientation, useCoarsePointer, us
 import { useCanvasTouchGestures } from "@/lib/useCanvasTouchGestures";
 import { computeCanvasFit } from "@/lib/canvasFit";
 import { useFloatingToolbarClamp } from "./floatingToolbarClamp";
+import { PhlTopBar, PHL_BAR_ICON_BTN } from "./phlTopBar";
 import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
 import {
   PhotoLayoutTemplate,
@@ -11899,7 +11900,7 @@ type EditClipboardItem =
   | { kind: "text"; box: TextBoxDef; ref: TextBoxRef }
   | { kind: "image"; box: ImageBoxDef; where: BarImageWhere };
 
-function EditCommandIcon({ name }: { name: EditCommandIconName }) {
+function EditCommandIcon({ name, className }: { name: EditCommandIconName; className?: string }) {
   const common = {
     width: 14,
     height: 14,
@@ -11910,7 +11911,7 @@ function EditCommandIcon({ name }: { name: EditCommandIconName }) {
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
     "aria-hidden": true,
-    className: "shrink-0 phl:h-7 phl:w-7 phl:[stroke-width:1.75]",
+    className: className ?? "shrink-0 phl:h-7 phl:w-7 phl:[stroke-width:1.75]",
   };
   switch (name) {
     case "undo":
@@ -11977,14 +11978,14 @@ const EDIT_BAR_MORE_IDS = ["copy", "cut", "paste", "center"];
 const EDIT_BAR_BTN =
   "flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent max-lg:h-11 max-lg:px-2.5 max-lg:text-xs [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-xs phl:relative phl:h-11! phl:w-[var(--cmd-w,42px)]! phl:min-w-0! phl:justify-center phl:px-0! phl:after:absolute phl:after:inset-y-0 phl:after:inset-x-[calc((var(--cmd-w,42px)-44px)/2)] phl:after:content-[''] motion-reduce:transition-none";
 
-// 58차: trailing = 폰 가로 편집에서 상단바를 없애고 이 줄 오른쪽 끝에 붙이는 묶음(배율·····미리보기·저장·다음). 없으면(대부분) 예전 그대로예요.
-function EditCommandBar({ items, trailing }: { items: EditCommandItem[]; trailing?: ReactNode }) {
+// 60차: 폰 가로 편집에서는 이 줄을 아예 안 그려요(위쪽 도구 줄 PhlTopBar가 대신하고, 복사·잘라내기·붙여넣기·중앙맞춤은 선택한 요소 옆 툴바와 "···"로 옮겼어요).
+function EditCommandBar({ items }: { items: EditCommandItem[] }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     const el = barRef.current;
     if (!el) return;
-    const update = () => setNarrow(el.clientWidth < 520 && !el.hasAttribute("data-has-trailing"));
+    const update = () => setNarrow(el.clientWidth < 520);
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -11993,39 +11994,6 @@ function EditCommandBar({ items, trailing }: { items: EditCommandItem[]; trailin
   const showMore = narrow;
   const inline = showMore ? items.filter((it) => !EDIT_BAR_MORE_IDS.includes(it.id)) : items;
   const more = showMore ? items.filter((it) => EDIT_BAR_MORE_IDS.includes(it.id)) : [];
-  const iconButtons = (
-    <>
-      {inline.map((it) => (
-        <Fragment key={it.id}>
-          <button type="button" title={it.title} aria-label={it.label} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
-            <EditCommandIcon name={it.icon} />
-            <span className="phl:hidden">{it.label}</span>
-          </button>
-          {/* 59차: 폰 가로에서만 보이는 얇은 구분선 — 되돌리기·다시 | 복사·잘라내기·붙여넣기 | 가운데맞춤·재배치 */}
-          {(it.id === "redo" || it.id === "paste") && <span aria-hidden="true" className="mx-0.5 hidden h-5 w-px shrink-0 bg-[var(--color-hairline)] phl:block" />}
-        </Fragment>
-      ))}
-      {more.length > 0 && <EditBarMoreMenu items={more} btnClass={EDIT_BAR_BTN} renderIcon={(n) => <EditCommandIcon name={n as EditCommandIconName} />} />}
-    </>
-  );
-  if (trailing) {
-    return (
-      <div
-        ref={barRef}
-        role="toolbar"
-        aria-label="편집 명령"
-        data-testid="edit-command-bar"
-        data-has-trailing=""
-        onMouseDown={(e) => e.stopPropagation()}
-        className="relative z-30 flex h-11 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white pl-0 pr-2 -ml-2"
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{iconButtons}</div>
-        <div data-testid="edit-bar-trailing" className="flex shrink-0 items-center gap-0.5 pl-1">
-          {trailing}
-        </div>
-      </div>
-    );
-  }
   return (
     <div
       ref={barRef}
@@ -12042,7 +12010,7 @@ function EditCommandBar({ items, trailing }: { items: EditCommandItem[]; trailin
       {inline.map((it) => (
         <button key={it.id} type="button" title={it.title} aria-label={it.label} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
           <EditCommandIcon name={it.icon} />
-          <span className="phl:hidden">{it.label}</span>
+          <span>{it.label}</span>
         </button>
       ))}
       {more.length > 0 && <EditBarMoreMenu items={more} btnClass={EDIT_BAR_BTN} renderIcon={(n) => <EditCommandIcon name={n as EditCommandIconName} />} />}
@@ -16202,7 +16170,66 @@ function UploadPageContent() {
   // overlay prop으로 넘겨서, 캔버스 자체(측정 래퍼) 기준으로 뜨게 해요 — 예전엔 아이콘
   // 메뉴+속성 패널까지 포함한 훨씬 넓은 바깥 영역 기준으로 떠 있어서, 화살표가 패널
   // 쪽까지 넘어와 보이는 문제가 있었어요(혜민님 확인, "화살표가 패널까지 보이는부분").
+  // 60차: 폰 가로 편집 위쪽 줄의 "‹ 2-3 페이지 ›"와 캔버스 아래 모서리 작은 글자("2 페이지" "3 페이지")에 쓰는 이름이에요.
+  // 표지는 뒤표지(왼쪽)·앞표지(오른쪽), 첫 내지 펼침면은 오른쪽 1페이지만(왼쪽은 인쇄 안 되는 빈 면), 그다음은 2-3, 4-5…, 마지막은 소개 페이지예요.
+  function phlPageNavLabel(key: typeof selectedPageKey): string {
+    if (key === "cover") return "표지";
+    if (key === "intro") return "소개 페이지";
+    if (customSpreads[key]?.intro) return "소개 페이지";
+    return `${formatSpreadPageLabel(key)} 페이지`;
+  }
+  function phlCornerLabels(key: typeof selectedPageKey): { left: string | null; right: string | null } {
+    if (key === "cover") return { left: "뒤표지", right: "앞표지" };
+    if (key === "intro" || customSpreads[key]?.intro) return { left: "소개 페이지", right: null };
+    if (key === 0) return { left: null, right: "1 페이지" };
+    return { left: `${2 * key} 페이지`, right: `${2 * key + 1} 페이지` };
+  }
+  // 60차: 폰 가로 편집 캔버스 둘레 — 펼침면 양옆(바깥 여백)에 큰 ‹ ›, 아래 모서리에 페이지 이름이에요. 패널이 열려 있으면 ‹ ›는 위쪽 줄로 올라가서 여기엔 안 그려요(자리를 펼침면에 줘요).
+  // 이 요소들은 CanvasStage 바깥 여백(마진)에 걸쳐 그려서 펼침면을 가리지 않아요.
+  function renderPhlStageOverlay(displayW: number) {
+    const idx = pageOrder.findIndex((k) => k === selectedPageKey);
+    const goTo = (key: typeof selectedPageKey) => {
+      setSelectedPageKey(key);
+      setEditorModeState({ forPageKey: key, mode: "edit" });
+    };
+    const labels = phlCornerLabels(selectedPageKey);
+    const half = displayW > 0 ? displayW / 2 : 0;
+    const labelCls = "absolute top-full mt-[3px] whitespace-nowrap text-[13px] leading-none tabular-nums text-[var(--color-charcoal)]/60";
+    const chevron = "pointer-events-auto absolute top-1/2 z-30 flex h-14 w-10 -translate-y-1/2 items-center justify-center text-[var(--color-charcoal)] transition-opacity active:opacity-60 disabled:opacity-20 after:absolute after:-inset-y-1 after:inset-x-0 after:content-[''] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none";
+    return (
+      <>
+        {!phlDockOpen && (
+          <>
+            <button type="button" aria-label="이전 페이지" data-phl-chevron="prev" disabled={idx <= 0} onClick={() => idx > 0 && goTo(pageOrder[idx - 1])} className={`${chevron} -left-10`}>
+              <svg width="16" height="28" viewBox="0 0 16 28" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M13 2 3 14l10 12" />
+              </svg>
+            </button>
+            <button type="button" aria-label="다음 페이지" data-phl-chevron="next" disabled={idx < 0 || idx >= pageOrder.length - 1} onClick={() => idx >= 0 && idx < pageOrder.length - 1 && goTo(pageOrder[idx + 1])} className={`${chevron} -right-10`}>
+              <svg width="16" height="28" viewBox="0 0 16 28" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 2l10 12L3 26" />
+              </svg>
+            </button>
+          </>
+        )}
+        <div data-testid="phl-page-labels" className="pointer-events-none absolute inset-x-0 top-full h-0">
+          {labels.left && (
+            <span data-phl-label="left" className={labelCls} style={{ left: `max(0px, calc(50% - ${half}px))` }}>
+              {labels.left}
+            </span>
+          )}
+          {labels.right && (
+            <span data-phl-label="right" className={labelCls} style={{ right: `max(0px, calc(50% - ${half}px))` }}>
+              {labels.right}
+            </span>
+          )}
+        </div>
+      </>
+    );
+  }
+
   function renderPageNavArrows(displayW: number, containerW: number = 0) {
+    if (editorMode === "edit" && touchLayout.phoneLandscape) return renderPhlStageOverlay(displayW);
     // 책이 캔버스 안에서 가로로 가운데 정렬돼 있어서(2026-09-27), 화살표는
     // measureRef 가장자리가 아니라 "책 실제 폭의 절반 + 여백"만큼 중앙에서 떨어진
     // 자리에 둬요 — 그래야 줌 배율이 달라져도 항상 책 바로 옆에 붙어요. displayW를
@@ -16215,13 +16242,7 @@ function UploadPageContent() {
     // 없으면 편집기 안쪽 가장자리에 붙어요.
     const rawHalfGap = displayW > 0 ? displayW / 2 + 8 : undefined;
     const maxHalfGap = containerW > 0 ? Math.max(0, containerW / 2 - 22) : undefined;
-    // 59차: 폰 가로에서 패널이 열려 있으면 펼침면이 남은 폭을 거의 꽉 채워서 화살표가 들어갈 옆자리가 없어요 — 위아래 빈 띠(아래쪽 모서리)로 내려요.
-    const halfGap = phlDockOpen
-      ? undefined
-      : rawHalfGap !== undefined && maxHalfGap !== undefined
-        ? Math.min(rawHalfGap, maxHalfGap)
-        : rawHalfGap;
-    const dockArrowCls = phlDockOpen ? "phl:top-auto! phl:bottom-1.5! phl:translate-y-0! phl:h-8! phl:w-8! phl:after:absolute phl:after:-inset-1.5 phl:after:content-['']" : "";
+    const halfGap = rawHalfGap !== undefined && maxHalfGap !== undefined ? Math.min(rawHalfGap, maxHalfGap) : rawHalfGap;
     // 2026-10-04, 혜민님 요청(항목12): "편집하기 메뉴에서 오른쪽으로 화살표를 넘기면
     // 미리보기 창으로 이동하는 오류... 편집메뉴에서의 화살표는 편집메뉴 자체에서 이전,
     // 다음페이지이동할수있는 버튼입니다" — editorMode는 "선택된 페이지가 편집모드를 켠
@@ -16250,7 +16271,7 @@ function UploadPageContent() {
           style={halfGap !== undefined ? { left: `calc(50% - ${halfGap}px)`, transform: "translate(-100%, -50%)" } : undefined}
           className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "left-1 -translate-y-1/2 sm:left-2"
-          } ${dockArrowCls}`}
+          }`}
         >
           ‹
         </button>
@@ -16269,7 +16290,7 @@ function UploadPageContent() {
           style={halfGap !== undefined ? { left: `calc(50% + ${halfGap}px)`, transform: "translateY(-50%)" } : undefined}
           className={`pointer-events-auto absolute top-1/2 z-30 flex h-9 w-9 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-white/90 text-base shadow-sm backdrop-blur transition hover:bg-white disabled:opacity-30 ${
             halfGap !== undefined ? "" : "right-1 -translate-y-1/2 sm:right-2"
-          } ${dockArrowCls}`}
+          }`}
         >
           ›
         </button>
@@ -17068,6 +17089,9 @@ function UploadPageContent() {
   function handleBarRelayout() {
     if (selectedPageKey === "cover") setActiveCoverEditTab("layout");
     else if (typeof selectedPageKey === "number" && isAiAuto) setActiveEditTab("layout");
+    else return;
+    // 60차: 폰 가로에서는 패널이 닫혀 있을 수 있어서(위쪽 줄의 ✕로 닫은 뒤) 재배치하기를 누르면 레이아웃 패널이 바로 열려요. 마우스 PC는 서랍 상태를 안 봐서 달라지는 게 없어요.
+    setDrawerOpen(true);
   }
 
   function buildEditCommandItems(): EditCommandItem[] {
@@ -17148,6 +17172,9 @@ function UploadPageContent() {
   // 59차: 폰 가로 편집에서 패널이 열려 있으면 캔버스를 패널 폭만큼 오른쪽으로 밀어서(= 남은 자리에 다시 맞춰서) 펼침면이 패널에 안 가려져요.
   const phlDockOpen = editorMode === "edit" && touchLayout.phoneLandscape && compactEditor && drawerOpen && !!(selectedPageKey === "cover" ? activeCoverEditTab : activeEditTab);
   const phlDockMl = phlDockOpen ? "ml-[var(--phl-panel-w)]" : "";
+  // 60차: 폰 가로 편집 캔버스 무대의 바깥 여백 — 패널 닫힘: 좌우 40px(큰 ‹ ›가 들어갈 자리)·아래 20px(페이지 이름 자리), 패널 열림: 왼쪽은 패널 폭+8px, 오른쪽 12px. 이 여백이 CanvasStage "맞춤" 계산의 바깥이라 펼침면은 이 안에 꽉 차게 맞춰져요.
+  const phlStageCls =
+    editorMode === "edit" && touchLayout.phoneLandscape ? (phlDockOpen ? "ml-[calc(var(--phl-panel-w)+8px)] mr-3 mb-5" : "mx-10 mb-5") : "";
   useCanvasTouchGestures(canvasGestureRef, {
     enabled: touchCoarse,
     getZoomPct: () => currentZoomPctRef.current,
@@ -18653,31 +18680,121 @@ function UploadPageContent() {
         onSave={persistence.saveNow}
       />
     );
-    const phlEditTrailing = phlEdit ? (
-      <>
-        <TouchZoomControls
-          inline
-          percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)}
-          isFit={manualZoomPct === null}
-          onZoomOut={handleZoomOut}
-          onZoomIn={handleZoomIn}
-          onFit={handleZoomReset}
-        />
-        {headerMoreMenu}
-        <button
-          type="button"
-          onClick={goBackToPreview}
-          aria-label="미리보기로 돌아가기"
-          title="미리보기로 돌아가기"
-          data-testid="back-to-preview"
-          className="relative flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-1 text-[13px] font-medium text-[var(--color-charcoal)]/85 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none"
-        >
-          <span aria-hidden="true">←</span>
-          <span>미리보기</span>
-        </button>
-        {headerSaveControls}
-        {headerNextButton}
-      </>
+    // 60차: 폰 가로 편집 화면 위쪽 도구 줄(PhlTopBar) — 예전 편집 명령 줄·왼쪽 아이콘 막대·"미리보기·저장·다음·배율····" 묶음을 한 줄로 합쳤어요.
+    const phlIdx = pageOrder.findIndex((k) => k === selectedPageKey);
+    const phlGoToPage = (key: (typeof pageOrder)[number]) => {
+      setSelectedPageKey(key);
+      setEditorModeState({ forPageKey: key, mode: "edit" });
+    };
+    const phlIsCover = selectedPageKey === "cover";
+    const phlTools = phlIsCover ? COVER_EDIT_TABS : EDIT_TABS.filter((tab) => tab.id !== "layout" || isAiAuto);
+    const phlActiveTool = phlIsCover ? activeCoverEditTab : activeEditTab;
+    // 왼쪽 아이콘 막대가 하던 일과 똑같아요: 열린 도구를 다시 누르면 닫고, 아니면 그 도구로 열어요.
+    const onPhlTool = (id: string) => {
+      if (compactEditor && drawerOpen && phlActiveTool === id) setDrawerOpen(false);
+      else {
+        if (phlIsCover) setActiveCoverEditTab(id as CoverEditTabId);
+        else setActiveEditTab(id as EditTabId);
+        setDrawerOpen(true);
+      }
+    };
+    const phlMenuBtn =
+      "flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-md border border-[var(--color-hairline)] bg-white px-2 text-[13px] font-medium text-[var(--color-charcoal)] transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-white motion-reduce:transition-none";
+    const phlItem = (id: string) => editCommandItems.find((it) => it.id === id);
+    const phlMoreMenu = phlEdit ? (
+      <HeaderMoreMenu alwaysShow panelClassName="w-[272px]! max-h-[calc(var(--app-vh,100dvh)-58px)] overflow-y-auto">
+        <div role="group" aria-label="미리보기" className="grid grid-cols-2 gap-1.5">
+          <button type="button" onClick={goBackToPreview} className={phlMenuBtn}>
+            ← 미리보기
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              goBackToPreview();
+              setIsPrintPreview(true);
+            }}
+            title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 미리보기를 열어요"
+            className={phlMenuBtn}
+          >
+            🖨️ 인쇄 미리보기
+          </button>
+        </div>
+        <div role="group" aria-label="화면 배율" className="flex items-center justify-between gap-1.5">
+          <HeaderZoomGroup
+            onZoomOut={handleZoomOut}
+            onZoomIn={handleZoomIn}
+            field={<ZoomPctField percent={Math.round(actualSizePercent ?? manualZoomPct ?? 100)} onCommit={handleZoomSet} />}
+          />
+          <button
+            type="button"
+            onClick={handleZoomReset}
+            aria-pressed={manualZoomPct === null}
+            title="누르면 한 화면에 전체가 보이게 맞춰요"
+            className={`${phlMenuBtn} shrink-0 ${manualZoomPct === null ? "text-[var(--color-charcoal)]/50" : "text-[var(--color-sky)]"}`}
+          >
+            맞춤
+          </button>
+        </div>
+        <div role="group" aria-label="선택한 요소 편집" className="grid grid-cols-2 gap-1.5">
+          {["copy", "cut", "paste", "center"].map((id) => {
+            const it = phlItem(id);
+            if (!it) return null;
+            return (
+              <button key={id} type="button" title={it.title} aria-label={`${it.label}`} disabled={it.disabled} onClick={it.onClick} className={phlMenuBtn}>
+                <EditCommandIcon name={it.icon} className="h-[18px] w-[18px] shrink-0 [stroke-width:1.75]" />
+                <span>{it.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        {phlDockOpen && (
+          <div role="group" aria-label="저장과 다음" className="grid grid-cols-2 gap-1.5">
+            <button type="button" onClick={persistence.saveNow} disabled={persistence.phase === "saving"} className={phlMenuBtn}>
+              저장
+            </button>
+            <button type="button" onClick={() => handleNextClick(nextUrl, photos)} disabled={isSaving || !isPhotoCountValid} className={`${phlMenuBtn} border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white hover:bg-[var(--color-charcoal)] disabled:hover:bg-[var(--color-charcoal)]`}>
+              다음
+            </button>
+          </div>
+        )}
+        {saveStatusText(persistence.phase, persistence.savedAt).text && (
+          <p className="text-xs tabular-nums text-[var(--color-charcoal)]/60">{saveStatusText(persistence.phase, persistence.savedAt).text}</p>
+        )}
+      </HeaderMoreMenu>
+    ) : null;
+    const phlTopBarEl = phlEdit ? (
+      <PhlTopBar
+        tools={phlTools}
+        activeId={phlActiveTool}
+        panelOpen={phlDockOpen}
+        onTool={onPhlTool}
+        onClosePanel={closeDrawer}
+        onBack={goBackToPreview}
+        history={["undo", "redo"].map((id) => {
+          const it = phlItem(id);
+          if (!it) return null;
+          return (
+            <button key={id} type="button" title={it.title} aria-label={it.label} disabled={it.disabled} onClick={it.onClick} className={`${PHL_BAR_ICON_BTN} w-9`}>
+              <EditCommandIcon name={it.icon} className="h-7 w-7 shrink-0 [stroke-width:1.75]" />
+            </button>
+          );
+        })}
+        relayout={{ disabled: !canBarRelayout(), onClick: handleBarRelayout }}
+        nav={{
+          label: phlPageNavLabel(selectedPageKey),
+          prevDisabled: phlIdx <= 0,
+          nextDisabled: phlIdx < 0 || phlIdx >= pageOrder.length - 1,
+          onPrev: () => phlIdx > 0 && phlGoToPage(pageOrder[phlIdx - 1]),
+          onNext: () => phlIdx >= 0 && phlIdx < pageOrder.length - 1 && phlGoToPage(pageOrder[phlIdx + 1]),
+        }}
+        trailing={
+          <>
+            {headerSaveControls}
+            {headerNextButton}
+          </>
+        }
+        more={phlMoreMenu}
+      />
     ) : null;
 
     return (
@@ -18908,6 +19025,7 @@ function UploadPageContent() {
             return `/upload?${q.toString()}`;
           })()}
         />
+        {phlTopBarEl}
         {!phlEdit && (
         <header
           className="shrink-0 border-b border-[var(--color-hairline)] bg-[var(--color-ivory)]/95 backdrop-blur max-md:relative max-md:z-40 max-md:has-[[data-testid=header-more-panel]]:z-[45]"
@@ -19430,7 +19548,7 @@ function UploadPageContent() {
                     )}
                   {selectedPageKey === "cover" ? (
                     <div className="flex h-full min-h-0 flex-col px-2.5 pb-2.5 phl:px-0 phl:pb-0">
-                      <div className="flex min-h-0 flex-1 flex-row gap-2" style={{ containerType: "inline-size" }}>
+                      <div className="flex min-h-0 flex-1 flex-row gap-2 phl:gap-0" style={{ containerType: "inline-size" }}>
                         {editorMode === "edit" && (
                         <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2.5 max-lg:relative max-lg:z-40 -ml-2.5 phl:ml-0 phl:pl-0 lg:-ml-[18px] lg:pr-0">
                           {/* 표지도 내지처럼 왼쪽 아이콘 메뉴로 골라요 — 사진/제목/배경/텍스트박스
@@ -19438,7 +19556,7 @@ function UploadPageContent() {
                               2026-09-26: 바깥 p-2.5 패딩만큼 왼쪽으로 당겨서(-ml-2.5) 아이콘이
                               화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                               구분선(lg:border-r)을 그음. */}
-                          <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto phl:w-[52px] lg:overflow-visible">
+                          <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto phl:hidden lg:overflow-visible">
                             {COVER_EDIT_TABS.map((tab) => (
                               <button
                                 key={tab.id}
@@ -19863,7 +19981,7 @@ function UploadPageContent() {
                         </div>
                         )}
                         <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${portraitSheetOpen ? "php:pb-[calc(var(--app-vh,100dvh)*0.42)]" : ""}`}>
-                        {editorMode === "edit" && <EditCommandBar items={editCommandItems} trailing={phlEditTrailing} />}
+                        {editorMode === "edit" && !phlEdit && <EditCommandBar items={editCommandItems} />}
                         <CanvasStage
                           aspect={coverTotalWmm / coverTotalHmm}
                           manualPct={manualZoomPct}
@@ -19873,7 +19991,7 @@ function UploadPageContent() {
                           widthMm={coverTotalWmm}
                           onActualSizePercentChange={setActualSizePercent}
                           overlay={editorMode === "edit" ? renderPageNavArrows : undefined}
-                          className={phlDockMl}
+                          className={phlStageCls}
                         >
                         {/* 뒤표지·책등·앞표지를 하나의 표지 펼침면으로 보고 그려요. 안내선은
                             패널마다 따로 그리지 않고, 이 바깥 컨테이너 하나에 펼침면 전체 기준
@@ -20342,7 +20460,7 @@ function UploadPageContent() {
                       const textStaticGuidesY = [0, 50, 100, trimYPct, 100 - trimYPct, safetyYPct, 100 - safetyYPct];
                       return (
                         <div className="flex h-full min-h-0 flex-col px-2 pb-2 phl:px-0 phl:pb-0">
-                          <div className="flex min-h-0 flex-1 flex-row gap-2" style={{ containerType: "inline-size" }}>
+                          <div className="flex min-h-0 flex-1 flex-row gap-2 phl:gap-0" style={{ containerType: "inline-size" }}>
                             {editorMode === "edit" && (
                             <div data-edit-sidebar="true" className="flex shrink-0 flex-row gap-2 border-r border-[var(--color-hairline)] pl-2 max-lg:relative max-lg:z-40 -ml-2 phl:ml-0 phl:pl-0 lg:-ml-4 lg:pr-0">
                               {/* 왼쪽 아이콘 메뉴 — 사진/배경/표지변경/스티커/손글씨스티커/텍스트를
@@ -20352,7 +20470,7 @@ function UploadPageContent() {
                                   2026-09-26: 바깥 p-2 패딩만큼 왼쪽으로 당겨서(-ml-2) 아이콘이
                                   화면 맨 왼쪽에 붙게 하고(스위트북 참고), 캔버스와의 경계에 세로
                                   구분선(lg:border-r)을 그음. */}
-                              <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto phl:w-[52px] lg:overflow-visible">
+                              <div className="flex w-12 shrink-0 flex-col gap-0 overflow-y-auto phl:hidden lg:overflow-visible">
                                 {/* "레이아웃" 탭은 사진 1장=이미지박스 1개 구조를 쓰는 "AI 맞춤
                                     레이아웃" 상품에서만 의미가 있어요(다른 고정 템플릿 상품은
                                     격자 칸 방식이라 이 기능이 적용되지 않아요). */}
@@ -20705,7 +20823,7 @@ function UploadPageContent() {
                             </div>
                             )}
                             <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${portraitSheetOpen ? "php:pb-[calc(var(--app-vh,100dvh)*0.42)]" : ""}`}>
-                            {editorMode === "edit" && <EditCommandBar items={editCommandItems} trailing={phlEditTrailing} />}
+                            {editorMode === "edit" && !phlEdit && <EditCommandBar items={editCommandItems} />}
                             {editorMode === "edit" && isIntroView && (
                               <div data-intro-info className={`flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-1 pb-1.5 pt-2 ${phlDockMl}`}>
                                 <label className="flex items-center gap-1.5 text-xs text-[var(--color-charcoal)]/70">
@@ -20759,7 +20877,7 @@ function UploadPageContent() {
                               widthMm={guideSpreadWorkMm}
                               onActualSizePercentChange={setActualSizePercent}
                               overlay={editorMode === "edit" ? renderPageNavArrows : undefined}
-                              className={phlDockMl}
+                              className={phlStageCls}
                             >
                             <div
                               className={

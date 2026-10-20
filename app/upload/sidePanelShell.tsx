@@ -39,12 +39,12 @@ export function SidePanelShell({
         open
           ? "flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:w-[232px] lg:shrink-0 [&>*]:min-w-0"
           : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
-      } max-lg:absolute max-lg:bottom-0 max-lg:left-full max-lg:top-0 max-lg:z-40 max-lg:w-[296px] max-lg:max-w-[calc(100vw-72px)] max-lg:border-r max-lg:border-[var(--color-hairline)] max-lg:bg-white max-lg:p-2 max-lg:shadow-[8px_0_24px_-12px_rgba(0,0,0,0.35)] phl:top-11! phl:w-[var(--phl-panel-w)]! phl:max-w-none! phl:border-t phl:border-[var(--color-hairline)] phl:shadow-none! php:top-auto php:h-auto php:max-h-[calc(var(--app-vh,100dvh)*0.42)] php:w-[calc(var(--app-vw,100vw)-60px)] php:max-w-none php:border-t php:pb-[max(8px,env(safe-area-inset-bottom))] php:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.35)] ${
+      } max-lg:absolute max-lg:bottom-0 max-lg:left-full max-lg:top-0 max-lg:z-40 max-lg:w-[296px] max-lg:max-w-[calc(100vw-72px)] max-lg:border-r max-lg:border-[var(--color-hairline)] max-lg:bg-white max-lg:p-2 max-lg:shadow-[8px_0_24px_-12px_rgba(0,0,0,0.35)] phl:top-0! phl:w-[var(--phl-panel-w)]! phl:max-w-none! phl:border-t-0 phl:shadow-none! php:top-auto php:h-auto php:max-h-[calc(var(--app-vh,100dvh)*0.42)] php:w-[calc(var(--app-vw,100vw)-60px)] php:max-w-none php:border-t php:pb-[max(8px,env(safe-area-inset-bottom))] php:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.35)] ${
         drawerOpen && open ? "" : "max-lg:hidden"
       }`}
     >
       {onClose && (
-        <div data-panel-head className="hidden shrink-0 max-lg:flex ph:sticky ph:top-[-8px] ph:z-10 ph:-mx-2 ph:-mt-2 ph:mb-2 ph:h-9 ph:items-center ph:justify-between ph:gap-2 ph:bg-white ph:px-2 ph:shadow-[0_1px_0_var(--color-hairline)]">
+        <div data-panel-head className="hidden shrink-0 max-lg:flex phl:hidden ph:sticky ph:top-[-8px] ph:z-10 ph:-mx-2 ph:-mt-2 ph:mb-2 ph:h-9 ph:items-center ph:justify-between ph:gap-2 ph:bg-white ph:px-2 ph:shadow-[0_1px_0_var(--color-hairline)]">
           {title && <span className="hidden min-w-0 truncate text-[13px] font-semibold text-[var(--color-charcoal)] ph:block">{title}</span>}
           <button
             type="button"
