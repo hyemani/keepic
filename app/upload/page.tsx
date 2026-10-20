@@ -19010,16 +19010,18 @@ function UploadPageContent() {
 
         <div className="flex w-full min-h-0 flex-1 flex-col bg-[var(--color-hairline)]/15 pl-0 pr-2 pb-4 pt-0 sm:pr-1.5 lg:pr-2 phl:pb-0 phl:pr-0 php:pb-[max(8px,env(safe-area-inset-bottom))]">
           {photos.length === 0 && (
-            <div className="mx-auto flex max-w-md flex-col items-center gap-1.5 py-16 text-center">
-              <p className="text-[var(--color-charcoal)]/70 break-keep">
+            // 58차: 폰에서는 글이 화면 가장자리에 잘리지 않게 좌우 여백(20px)을 두고 줄바꿈해요. 아래 button 도 키픽 버튼(다음과 같은 진한 회색)으로 맞췄어요. 마우스 PC·태블릿은 예전 그대로예요.
+            <div data-testid="upload-empty" className="mx-auto flex max-w-md flex-col items-center gap-1.5 py-16 text-center ph:w-full ph:max-w-none ph:gap-5 ph:px-5 ph:pb-10 ph:pt-[12vh]">
+              <p className="text-[var(--color-charcoal)]/70 break-keep ph:w-full ph:min-w-0 ph:text-[15px] ph:leading-relaxed ph:[overflow-wrap:anywhere] ph:[text-wrap:balance]">
                 {isAiAuto
                   ? "사진을 올리면 AI가 개수와 비율에 맞춰 자동으로 배치해드려요."
                   : `이 디자인은 정확히 사진 ${requiredCount}장이 필요해요.`}
               </p>
-              <label className="inline-block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-sm font-medium text-white transition hover:opacity-90">
+              <label className="inline-block cursor-pointer bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-2 py-2 text-sm font-medium text-white transition hover:opacity-90 ph:inline-flex ph:min-h-12 ph:items-center ph:justify-center ph:bg-none ph:bg-[var(--color-charcoal)] ph:px-8 ph:text-[15px]">
                 사진 선택하기
                 <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
               </label>
+              <p className="hidden text-[13px] text-[var(--color-charcoal)]/50 break-keep ph:block">여러 장을 한 번에 고를 수 있어요.</p>
             </div>
           )}
           {photos.length > 0 && (

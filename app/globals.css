@@ -5,6 +5,15 @@
   0%, 20% { transform: rotate(0deg); }
   60%, 100% { transform: rotate(-90deg); }
 }
+/* 58차: 폰 화면(손가락 + 짧은 쪽 600px 미만, 가로·세로 모두). ph:처럼 써요. phl:/php:보다 먼저 등록해서 두 방향 전용 값이 이걸 덮어써요. 마우스 PC·태블릿에는 해당 없어요. */
+@custom-variant ph {
+  @media (pointer: coarse) and (max-width: 599.98px) {
+    @slot;
+  }
+  @media (pointer: coarse) and (max-height: 599.98px) {
+    @slot;
+  }
+}
 @custom-variant phl (@media (pointer: coarse) and (orientation: landscape) and (max-height: 599.98px));
 /* 57차(2): 폰을 세로로 든 화면(손가락 + 폭 600px 미만 + 세로). php:처럼 써요. 마우스 PC에는 해당 없어요. */
 @custom-variant php (@media (pointer: coarse) and (orientation: portrait) and (max-width: 599.98px));
