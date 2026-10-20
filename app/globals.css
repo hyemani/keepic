@@ -6,6 +6,8 @@
   60%, 100% { transform: rotate(-90deg); }
 }
 @custom-variant phl (@media (pointer: coarse) and (orientation: landscape) and (max-height: 599.98px));
+/* 57차(2): 폰을 세로로 든 화면(손가락 + 폭 600px 미만 + 세로). php:처럼 써요. 마우스 PC에는 해당 없어요. */
+@custom-variant php (@media (pointer: coarse) and (orientation: portrait) and (max-width: 599.98px));
 
 :root {
   --color-ivory: #FFFFFF;
@@ -194,5 +196,31 @@ body {
   .sel-frame,
   .sel-pill {
     display: none !important;
+  }
+}
+
+/* 57차(2): 손가락 기기 편집기 보강(iOS Safari). 마우스 PC에는 해당 없어요. */
+@media (pointer: coarse) {
+  /* 캔버스 위에서 손가락을 끌 때 바깥 페이지가 같이 밀리거나(고무줄 효과) 새로고침 당겨짐이 생기지 않게 해요. */
+  html:has([data-editor-shell]),
+  body:has([data-editor-shell]) {
+    overscroll-behavior: none;
+  }
+  /* 캔버스를 길게 눌렀을 때 뜨는 "이미지 저장·복사" 메뉴와 글자 선택 돋보기를 막아요(글 입력 칸은 그대로 입력돼요). */
+  [data-canvas-stage] {
+    -webkit-touch-callout: none;
+  }
+  [data-canvas-stage] img {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+}
+
+/* 폰(짧은 쪽 600px 미만)에서 패널 안 입력 칸이 16px보다 작으면 iOS가 칸을 누를 때 화면을 확대해요 — 패널·상단바 칸만 16px로(캔버스 위 글상자는 디자인 글자 크기 그대로). */
+@media (pointer: coarse) and (max-width: 599.98px), (pointer: coarse) and (max-height: 599.98px) {
+  [data-side-panel] :is(input:not([type="range"], [type="checkbox"], [type="radio"], [type="color"], [type="file"], [type="button"]), textarea, select),
+  header :is(input:not([type="range"], [type="checkbox"], [type="radio"], [type="color"], [type="file"]), select) {
+    font-size: 16px;
   }
 }

@@ -504,7 +504,7 @@ export function DesignPanel({
           )}
         </section>
         {notice ? (
-          <p data-design-notice role="status" aria-live="polite" className="pointer-events-none sticky bottom-1 z-10 bg-[var(--color-charcoal)] px-2 py-1.5 text-[11px] text-white shadow-lg">
+          <p data-design-notice role="status" aria-live="polite" className="pointer-events-none sticky bottom-[max(4px,env(safe-area-inset-bottom))] z-10 bg-[var(--color-charcoal)] px-2 py-1.5 text-[11px] text-white shadow-lg">
             {notice}
           </p>
         ) : null}
@@ -630,7 +630,7 @@ export function DesignPanel({
           data-design-notice
           role="status"
           aria-live="polite"
-          className="pointer-events-none sticky bottom-1 z-10 bg-[var(--color-charcoal)] px-2 py-1.5 text-[11px] text-white shadow-lg"
+          className="pointer-events-none sticky bottom-[max(4px,env(safe-area-inset-bottom))] z-10 bg-[var(--color-charcoal)] px-2 py-1.5 text-[11px] text-white shadow-lg"
         >
           {notice}
         </p>

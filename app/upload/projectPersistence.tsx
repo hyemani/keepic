@@ -345,8 +345,8 @@ export function SaveControls({
           title={phase === "error" ? `${errorMessage || "저장하지 못했어요."} 눌러서 다시 시도해요.` : undefined}
           className={`whitespace-nowrap text-xs max-lg:tabular-nums [@media(pointer:coarse)]:tabular-nums max-md:pointer-events-none max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center ${tone} ${phase === "error" ? "underline" : "cursor-default"}`}
         >
-          <span className="max-md:sr-only">{text}</span>
-          <span aria-hidden="true" className={`hidden h-2.5 w-2.5 rounded-full max-md:block ${phase === "error" ? "bg-red-600" : phase === "saving" ? "bg-[var(--color-charcoal)]/40" : phase === "dirty" ? "bg-amber-500" : "bg-emerald-600"}`} />
+          <span className="max-md:sr-only phl:sr-only">{text}</span>
+          <span aria-hidden="true" className={`hidden h-2.5 w-2.5 rounded-full max-md:block phl:block ${phase === "error" ? "bg-red-600" : phase === "saving" ? "bg-[var(--color-charcoal)]/40" : phase === "dirty" ? "bg-amber-500" : "bg-emerald-600"}`} />
         </button>
       )}
       <button

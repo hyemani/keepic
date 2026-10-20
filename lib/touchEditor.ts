@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 // 터치 기기(폰·태블릿) 편집 지원용 작은 도구 모음(57차). 데스크톱(마우스)에서는 전부 "해당 없음"으로 나와서
 // 예전 화면·동작이 그대로예요.
@@ -34,13 +34,110 @@ export type TouchLayout = {
   phoneLandscape: boolean;
 };
 
+// 57차(2): 실제 iPhone Safari에서는 "미디어쿼리 하나"만 믿으면 어긋날 수 있어서(회전 직후 크기가 옛날 값으로 남음,
+// screen.orientation 없음, 주소창 때문에 높이가 계속 바뀜) 여러 신호를 함께 보고, 회전·크기 변화 뒤에도 몇 번 더 다시 재요.
+// 비트: 1=손가락 기기, 2=폰 크기, 4=세로.
+const MOBILE_UA = /iPhone|iPod|Android.*Mobile|Mobile.*Android/i;
+
+function readPhoneBits(): number {
+  if (typeof window === "undefined") return 0;
+  const mm = (q: string) => {
+    try {
+      return window.matchMedia(q).matches;
+    } catch {
+      return false;
+    }
+  };
+  // 손가락 기기: pointer: coarse 이거나(대부분), 폰 UA(iPhone 등)이면서 마우스 기기가 아닐 때.
+  const coarse = mm("(pointer: coarse)") || (MOBILE_UA.test(navigator.userAgent) && !mm("(hover: hover) and (pointer: fine)"));
+  // 폰 크기: 화면(screen) 짧은 쪽 또는 지금 창 짧은 쪽이 600px 미만. iOS는 screen.width/height가 회전해도 안 바뀌어서 min()으로 봐요.
+  const vv = window.visualViewport;
+  const iw = Math.round(vv?.width ?? window.innerWidth) || window.innerWidth;
+  const ih = Math.round(vv?.height ?? window.innerHeight) || window.innerHeight;
+  const screenShort = Math.min(window.screen?.width || 9999, window.screen?.height || 9999);
+  const winShort = Math.min(iw || 9999, ih || 9999, window.innerWidth || 9999, window.innerHeight || 9999);
+  // 폭이 넉넉한 태블릿(820x1180 등)은 화면 짧은 쪽도 창 짧은 쪽도 600 이상이라 폰이 아니에요.
+  const phone = coarse && (screenShort < 600 || winShort < 600);
+  // 세로 = 창 높이가 폭 이상. (orientation 미디어쿼리와 같은 뜻인데, iOS는 회전 직후 쿼리가 늦게 갱신될 수 있어서 실제 크기로 봐요.)
+  const portrait = window.innerWidth > 0 && window.innerHeight > 0 ? window.innerHeight >= window.innerWidth : mm("(orientation: portrait)");
+  return (coarse ? 1 : 0) | (phone ? 2 : 0) | (portrait ? 4 : 0);
+}
+
+function subscribePhoneBits(cb: () => void) {
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  // iOS는 회전/주소창 변화 직후 크기를 옛날 값으로 알려주는 일이 있어서, 이벤트 뒤에 짧게 몇 번 더 다시 재요.
+  const kick = () => {
+    cb();
+    [120, 350, 800].forEach((ms) => timers.push(setTimeout(cb, ms)));
+  };
+  const mqs = ["(pointer: coarse)", "(orientation: portrait)", "(max-width: 599.98px)", "(max-height: 599.98px)"].map((q) => window.matchMedia(q));
+  mqs.forEach((m) => m.addEventListener("change", kick));
+  window.addEventListener("resize", kick);
+  window.addEventListener("orientationchange", kick);
+  window.visualViewport?.addEventListener("resize", kick);
+  return () => {
+    mqs.forEach((m) => m.removeEventListener("change", kick));
+    window.removeEventListener("resize", kick);
+    window.removeEventListener("orientationchange", kick);
+    window.visualViewport?.removeEventListener("resize", kick);
+    timers.forEach(clearTimeout);
+  };
+}
+
 export function useTouchLayout(): TouchLayout {
-  const coarse = useCoarsePointer();
-  const portrait = usePortrait();
-  const shortSide = useShortSide600();
-  // 폰 = 손가락 + (폭 600 미만이거나 높이 600 미만). 태블릿(820x1180 / 1180x820)은 둘 다 600 이상이라 제외돼요.
-  const phone = coarse && shortSide;
+  const bits = useSyncExternalStore(subscribePhoneBits, readPhoneBits, () => 0);
+  const coarse = (bits & 1) !== 0;
+  const phone = (bits & 2) !== 0;
+  const portrait = (bits & 4) !== 0;
   return { coarse, phone, phonePortrait: phone && portrait, phoneLandscape: phone && !portrait };
+}
+
+/** iPhone·iPad(Safari 계열)인지. iPadOS는 Mac처럼 보여서 터치 점 개수로도 봐요. */
+export function isIOSLike(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+/**
+ * 손가락 기기에서 "지금 실제로 보이는 높이"를 CSS 변수(--app-vh, --app-vw)로 알려줘요.
+ * iOS Safari는 주소창·도구막대가 나왔다 들어갔다 하면서 100vh/innerHeight가 실제와 달라지는데,
+ * visualViewport(진짜로 보이는 영역)는 그걸 따라가요. 핀치로 페이지가 확대돼 있으면 배율(scale)로 보정해서 레이아웃 높이로 돌려놔요.
+ * 마우스 PC에서는 아무것도 안 해서(변수를 안 만들어요) 예전 화면 그대로예요.
+ */
+export function useVisualViewportVars(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const root = document.documentElement;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const apply = () => {
+      const vv = window.visualViewport;
+      const scale = vv?.scale && vv.scale > 0 ? vv.scale : 1;
+      const h = Math.round((vv?.height ?? window.innerHeight) * scale);
+      const w = Math.round((vv?.width ?? window.innerWidth) * scale);
+      if (h > 0) root.style.setProperty("--app-vh", `${h}px`);
+      if (w > 0) root.style.setProperty("--app-vw", `${w}px`);
+    };
+    const kick = () => {
+      apply();
+      // 회전 직후 iOS는 옛날 크기를 알려주는 일이 있어서 몇 번 더 재요.
+      [120, 350, 800].forEach((ms) => timers.push(setTimeout(apply, ms)));
+    };
+    apply();
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", kick);
+    vv?.addEventListener("scroll", apply);
+    window.addEventListener("resize", kick);
+    window.addEventListener("orientationchange", kick);
+    return () => {
+      vv?.removeEventListener("resize", kick);
+      vv?.removeEventListener("scroll", apply);
+      window.removeEventListener("resize", kick);
+      window.removeEventListener("orientationchange", kick);
+      timers.forEach(clearTimeout);
+      root.style.removeProperty("--app-vh");
+      root.style.removeProperty("--app-vw");
+    };
+  }, [enabled]);
 }
 
 /** 두 손가락 사이 거리 */

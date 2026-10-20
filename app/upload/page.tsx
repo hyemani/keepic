@@ -146,7 +146,7 @@ import { splitUploadFiles } from "@/lib/frameUpload";
 import { chooseLibraryTarget, libraryHintOf, parseCanvasId, type LibraryClickTarget, type LibraryHint, type SlotScope } from "@/lib/librarySlotTarget";
 import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
 import { useCompactEditor, useDrawerDismiss } from "@/lib/useCompactEditor";
-import { tryLockLandscape, tryUnlockOrientation, useCoarsePointer, useTouchLayout } from "@/lib/touchEditor";
+import { isIOSLike, tryLockLandscape, tryUnlockOrientation, useCoarsePointer, useTouchLayout, useVisualViewportVars } from "@/lib/touchEditor";
 import { useCanvasTouchGestures } from "@/lib/useCanvasTouchGestures";
 import { computeCanvasFit } from "@/lib/canvasFit";
 import { useFloatingToolbarClamp } from "./floatingToolbarClamp";
@@ -11975,7 +11975,7 @@ function EditCommandIcon({ name }: { name: EditCommandIconName }) {
 // 평소 폭(태블릿·데스크톱)에서는 예전과 똑같이 전부 보여요. 터치 기기(좁은 화면·pointer: coarse)에서는 버튼을 44px 높이로 키워요.
 const EDIT_BAR_MORE_IDS = ["copy", "cut", "paste", "center"];
 const EDIT_BAR_BTN =
-  "flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent max-lg:h-11 max-lg:px-2.5 max-lg:text-xs [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-xs motion-reduce:transition-none";
+  "flex h-6 shrink-0 items-center gap-1 px-1.5 text-[11px] leading-none text-[var(--color-charcoal)]/80 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent max-lg:h-11 max-lg:px-2.5 max-lg:text-xs [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-2.5 [@media(pointer:coarse)]:text-xs phl:h-10 phl:min-w-11 phl:justify-center phl:px-2 motion-reduce:transition-none";
 
 function EditCommandBar({ items }: { items: EditCommandItem[] }) {
   const barRef = useRef<HTMLDivElement>(null);
@@ -12001,14 +12001,14 @@ function EditCommandBar({ items }: { items: EditCommandItem[] }) {
       // 캔버스 바깥 영역의 mousedown(선택 해제)이 이 바에서는 일어나지 않게 막아요 — 안 그러면
       // 버튼을 누르기 직전에 선택이 풀려서 복사/잘라내기/중앙맞춤이 대상을 못 찾아요.
       onMouseDown={(e) => e.stopPropagation()}
-      className={`flex h-8 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 -ml-2 max-lg:h-12 [@media(pointer:coarse)]:h-12 phl:h-11 ${
+      className={`flex h-8 shrink-0 items-center gap-0.5 whitespace-nowrap border-b border-[var(--color-hairline)] bg-white px-1 -ml-2 max-lg:h-12 [@media(pointer:coarse)]:h-12 phl:h-10 ${
         showMore ? "relative z-30 overflow-visible" : "overflow-x-auto"
       }`}
     >
       {inline.map((it) => (
-        <button key={it.id} type="button" title={it.title} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
+        <button key={it.id} type="button" title={it.title} aria-label={it.label} disabled={it.disabled} onClick={it.onClick} className={EDIT_BAR_BTN}>
           <EditCommandIcon name={it.icon} />
-          <span>{it.label}</span>
+          <span className="phl:hidden">{it.label}</span>
         </button>
       ))}
       {more.length > 0 && <EditBarMoreMenu items={more} btnClass={EDIT_BAR_BTN} renderIcon={(n) => <EditCommandIcon name={n as EditCommandIconName} />} />}
@@ -17082,11 +17082,17 @@ function UploadPageContent() {
   // 폰 세로로 편집에 들어오면 "가로로 돌려주세요" 안내(57차). "세로 화면으로 계속하기"를 누르면 이번 접속 동안 다시 안 떠요.
   const touchLayout = useTouchLayout();
   const [portraitEditOk, setPortraitEditOk] = useState(false);
+  // 57차(2): 실제 보이는 높이(visualViewport)를 CSS 변수로 알려줘서 iOS Safari 주소창이 나왔다 들어가도 편집기 높이가 맞게 해요(손가락 기기만).
+  useVisualViewportVars(touchCoarse);
+  // 폰 가로 미리보기에서 페이지 목록을 잠깐 띄우는 스위치(57차 2)
+  const [stripOpen, setStripOpen] = useState(false);
   // 폰 가상 키보드가 열리면(안드로이드 Chrome 등) 화면 높이가 키보드만큼 줄어든 걸로 취급해서 캔버스가 남은 자리에 다시 맞춰져요 —
   // 글을 치는 상자가 키보드 뒤에 가려지지 않게 하려는 거예요. 이 편집 화면에서만, 손가락 기기에서만 켜고 나가면 원래대로 돌려요.
   // (iOS Safari는 이 설정을 무시해요 — 실제 기기에서 확인 필요.)
   useEffect(() => {
     if (!touchCoarse) return;
+    // iOS(Safari)는 이 설정을 무시하는데, 화면이 떠 있는 동안 viewport 태그를 고치면 크기를 다시 재면서 어긋나는 일이 있어서 iOS에서는 건드리지 않아요.
+    if (isIOSLike()) return;
     const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
     if (!meta) return;
     const old = meta.content;
@@ -17095,7 +17101,11 @@ function UploadPageContent() {
       meta.content = old;
     };
   }, [touchCoarse]);
+  // "세로 화면으로 계속하기"는 이 편집 한 번 동안만 기억해요 — 미리보기로 나갔다가 다시 편집하기에 들어오거나, 폰을 가로로 눕혔다가 다시 세우면(어떤 길로 들어오든) 안내가 다시 떠요.
+  if ((editorMode !== "edit" || !touchLayout.phonePortrait) && portraitEditOk) setPortraitEditOk(false);
   const showRotateNotice = editorMode === "edit" && touchLayout.phonePortrait && !portraitEditOk && photos.length > 0;
+  // 폰 세로로 계속할 때는 패널이 아래에서 올라오는 시트(화면 높이의 42% 이하)라서, 열려 있는 동안 캔버스를 그만큼 위로 줄여 펼침면이 시트에 안 가려져요.
+  const portraitSheetOpen = editorMode === "edit" && touchLayout.phonePortrait && compactEditor && drawerOpen && !!(selectedPageKey === "cover" ? activeCoverEditTab : activeEditTab);
   useCanvasTouchGestures(canvasGestureRef, {
     enabled: touchCoarse,
     getZoomPct: () => currentZoomPctRef.current,
@@ -18523,7 +18533,12 @@ function UploadPageContent() {
     }
 
     return (
-      <main className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)]">
+      <main
+        // 57차(2): 손가락 기기는 visualViewport로 잰 실제 보이는 높이(--app-vh)를 써요(없으면 100dvh). 마우스 PC는 예전 h-dvh 그대로예요.
+        data-editor-shell
+        data-phone-layout={touchLayout.phone ? (touchLayout.phonePortrait ? "portrait" : "landscape") : "no"}
+        className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)] [@media(pointer:coarse)]:h-[var(--app-vh,100dvh)] [@media(pointer:coarse)]:overscroll-none"
+      >
         {emptySlotGate && (
           <EmptySlotDialog
             groups={emptySlotGate.groups}
@@ -18752,7 +18767,7 @@ function UploadPageContent() {
               (세로폭만, 가로는 그대로 넓히지말고)" — 좁은 화면에서 버튼들이 여러 줄로
               줄바꿈될 때 줄 사이 세로 간격만 넉넉하게(gap-y-1.5 -> gap-y-3) 늘리고, 한
               줄 안의 버튼 간 가로 간격(gap-x-1.5)은 그대로 둠. */}
-          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5 max-lg:flex-nowrap max-sm:gap-x-1 phl:py-0.5">
+          <div className="relative mx-auto flex flex-wrap items-center gap-x-1.5 gap-y-3 px-1.5 py-2 sm:px-1.5 max-lg:flex-nowrap max-sm:gap-x-1 phl:gap-y-0 phl:py-0">
             {/* 2026-11(19번째 라운드), 혜민님 요청: "미리보기" 버튼을 화면 맨 왼쪽 위로 옮기고
                 "← 미리보기로 돌아가기"로 바꿔주세요. 기존 "←" 뒤로가기(router.back, 편집기를
                 아예 나가는 동작)와 자리가 겹쳐서 하나로 합쳤어요 — 같은 맨 왼쪽 자리에
@@ -18791,7 +18806,7 @@ function UploadPageContent() {
               </button>
             )}
             <a href="/" className="shrink-0 max-lg:flex max-lg:h-11 max-lg:items-center [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:items-center">
-              <img src="/logo.svg" alt="Keepic" className="h-6 w-auto" />
+              <img src="/logo.svg" alt="Keepic" className="h-6 w-auto phl:h-5" />
             </a>
             {/* 2026-10-04, 혜민님 요청(항목4): "Keepic 제목 없는 포토북 <- 제목없는포토북
                 문구 삭제" — 표지 제목을 아직 안 정했을 때 뜨던 "제목 없는 포토북" 자리표시
@@ -18919,7 +18934,7 @@ function UploadPageContent() {
           />
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto phl:overflow-hidden">
         {isPdfLibTestMode && (
           <section className="mx-auto w-full max-w-5xl shrink-0 px-1.5 pt-4 sm:px-10">
             <div className="mt-4 border border-dashed border-[var(--color-charcoal)]/30 bg-white/60 p-2">
@@ -18993,7 +19008,7 @@ function UploadPageContent() {
           </section>
         )}
 
-        <div className="flex w-full min-h-0 flex-1 flex-col bg-[var(--color-hairline)]/15 pl-0 pr-2 pb-4 pt-0 sm:pr-1.5 lg:pr-2">
+        <div className="flex w-full min-h-0 flex-1 flex-col bg-[var(--color-hairline)]/15 pl-0 pr-2 pb-4 pt-0 sm:pr-1.5 lg:pr-2 phl:pb-0 phl:pr-0 php:pb-[max(8px,env(safe-area-inset-bottom))]">
           {photos.length === 0 && (
             <div className="mx-auto flex max-w-md flex-col items-center gap-1.5 py-16 text-center">
               <p className="text-[var(--color-charcoal)]/70 break-keep">
@@ -19017,7 +19032,7 @@ function UploadPageContent() {
               // "편집칸"(속성 패널, 아래 세 곳: 288px에서 224px로 축소)을 줄여야 하는
               // 거였음. 전체 폭은 다시 lg:max-w-none으로 꽉 채움(2026-10-01의
               // lg:w-2/3는 되돌림).
-              className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 lg:max-w-none lg:flex-row"
+              className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-2 phl:relative phl:gap-0 lg:max-w-none lg:flex-row"
               // 57차: 손가락 기기는 폰을 가로로 눕히면 화면 높이가 390px 안팎이라 420px 바닥값이 캔버스를 화면 밖으로 밀어냈어요 — 터치 기기만 0으로.
               style={{ minHeight: touchCoarse ? 0 : 420 }}
             >
@@ -19034,7 +19049,7 @@ function UploadPageContent() {
                   스크롤돼요. */}
               {editorMode === "preview" && (
               <div
-                className="mt-3 flex min-h-0 shrink-0 items-center gap-2 lg:mt-0 lg:h-full lg:w-28 lg:flex-none lg:flex-col lg:items-stretch lg:border-r lg:border-[var(--color-hairline)] lg:pr-2"
+                className="mt-3 flex min-h-0 shrink-0 items-center gap-2 php:gap-1 php:border-t php:border-[var(--color-hairline)] php:bg-white php:px-1 phl:pointer-events-none phl:absolute phl:inset-0 phl:z-40 phl:mt-0 php:order-last php:mt-0 lg:mt-0 lg:h-full lg:w-28 lg:flex-none lg:flex-col lg:items-stretch lg:border-r lg:border-[var(--color-hairline)] lg:pr-2"
               >
                 <button
                   type="button"
@@ -19047,13 +19062,18 @@ function UploadPageContent() {
                   // 2026-10-01, 혜민님 요청: "페이지 상단과 하단에있는 화살표에 박스와
                   // 선은 없애고 아이콘만 남겨주세요" — 테두리·배경을 빼고 화살표 글자만
                   // 남김.
-                  className="flex h-8 w-8 shrink-0 items-center justify-center [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 phl:pointer-events-auto phl:absolute phl:left-2 phl:top-1/2 phl:-translate-y-1/2 phl:rounded-full phl:border phl:border-[var(--color-hairline)] phl:bg-white/90 phl:shadow-sm lg:w-full"
                   aria-label="이전 페이지"
                 >
                   ‹
                 </button>
                 <div
-                  className="flex min-h-0 flex-1 gap-2 overflow-x-auto bg-white p-2 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto"
+                  onClick={() => setStripOpen(false)}
+                  className={`flex min-h-0 flex-1 gap-2 overflow-x-auto bg-white p-2 php:py-1.5 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto ${
+                    stripOpen
+                      ? "phl:pointer-events-auto phl:absolute phl:right-2 phl:top-14 phl:w-[min(72vw,640px)] phl:flex-none phl:border phl:border-[var(--color-hairline)] phl:shadow-lg"
+                      : "phl:hidden"
+                  }`}
                   // 이 줄 바로 위(표지·내지 캔버스 테두리)를 없앴더니, 여기 남아있던
                   // border-t가 허공에 떠 있는 선처럼 보이고, 기본 스크롤바까지 겹쳐서
                   // "박스 안에 또 박스"처럼 보인다는 피드백(2026-09-26)에 따라 border-t를
@@ -19231,14 +19251,26 @@ function UploadPageContent() {
                   // 2026-10-01, 혜민님 요청: "페이지 상단과 하단에있는 화살표에 박스와
                   // 선은 없애고 아이콘만 남겨주세요" — 테두리·배경을 빼고 화살표 글자만
                   // 남김.
-                  className="flex h-8 w-8 shrink-0 items-center justify-center [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 lg:w-full"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-base text-[var(--color-charcoal)]/70 transition hover:text-[var(--color-charcoal)] disabled:opacity-30 phl:pointer-events-auto phl:absolute phl:right-2 phl:top-1/2 phl:-translate-y-1/2 phl:rounded-full phl:border phl:border-[var(--color-hairline)] phl:bg-white/90 phl:shadow-sm lg:w-full"
                   aria-label="다음 페이지"
                 >
                   ›
                 </button>
-                <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50 lg:text-center">
+                <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50 phl:hidden lg:text-center">
                   {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
                 </span>
+                {/* 57차(2): 폰 가로에서는 페이지 목록이 세로 공간을 차지하지 않게 접고, 이 작은 "페이지 N/M" 버튼을 누르면 목록이 캔버스 위에 떠요. */}
+                <button
+                  type="button"
+                  onClick={() => setStripOpen((v) => !v)}
+                  aria-expanded={stripOpen}
+                  aria-label="페이지 목록 열고 닫기"
+                  data-phl-pager
+                  className="pointer-events-auto absolute right-2 top-1 hidden h-11 items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white/90 px-3 text-xs tabular-nums text-[var(--color-charcoal)]/70 shadow-sm phl:flex"
+                >
+                  페이지 {pageOrder.findIndex((k) => k === selectedPageKey) + 1}/{pageOrder.length}
+                  <span aria-hidden="true">{stripOpen ? "▴" : "▾"}</span>
+                </button>
               </div>
               )}
               {/* 인쇄 미리보기 버튼은 상단바 "미리보기" 옆 보조 버튼으로 옮겼어요(2026-09).
@@ -19739,7 +19771,7 @@ function UploadPageContent() {
                           )}
                         </div>
                         )}
-                        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${portraitSheetOpen ? "php:pb-[calc(var(--app-vh,100dvh)*0.42)]" : ""}`}>
                         {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
                         <CanvasStage
                           aspect={coverTotalWmm / coverTotalHmm}
@@ -20580,7 +20612,7 @@ function UploadPageContent() {
                               </SidePanelShell>
                             </div>
                             )}
-                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                            <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${portraitSheetOpen ? "php:pb-[calc(var(--app-vh,100dvh)*0.42)]" : ""}`}>
                             {editorMode === "edit" && <EditCommandBar items={editCommandItems} />}
                             {editorMode === "edit" && isIntroView && (
                               <div data-intro-info className="flex shrink-0 flex-wrap items-end gap-x-3 gap-y-1 px-1 pb-1.5 pt-2">
