@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
+import { Suspense, createContext, useContext, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { productConfig, ProductName } from "@/lib/productConfig";
@@ -3668,34 +3668,44 @@ function LayerIcon({ name, className }: { name: LayerIconName; className?: strin
 // 없이 이동+크기조절만 하니까). 박스 자신의 위치 기준(부모가 이미
 // xPct/yPct/widthPct/heightPct로 자리잡은 박스 div) 바로 아래(또는 위)에 CSS로만
 // 붙어서, 실제 화면 좌표를 따로 재지 않아도 항상 그 박스 가까이에 보여요.
+// 60차: 폰 가로 편집에서만 값이 있어요 — 복사하기·잘라내기·붙여넣기·중앙맞춤(예전 편집 명령 줄 항목)을 선택한 요소 옆 떠있는 툴바에 같이 보여주려고 page가 내려줘요.
+// 마우스 PC·태블릿·폰 세로는 null이라 툴바가 예전 그대로예요.
+const PhlSelectionCtx = createContext<EditCommandItem[] | null>(null);
+
 function ToolbarLabeledButton({
   title,
   label,
   icon,
+  iconNode,
   onClick,
   danger,
   active,
   ariaLabel,
+  disabled,
 }: {
   title: string;
   label: string;
-  icon: LayerIconName;
+  icon?: LayerIconName;
+  // 60차: LayerIcon에 없는 아이콘(복사·잘라내기 등)을 직접 넘길 때 써요.
+  iconNode?: ReactNode;
   ariaLabel?: string;
   onClick: () => void;
   danger?: boolean;
   active?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       title={title}
       aria-label={ariaLabel}
+      disabled={disabled}
       onClick={onClick}
-      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none ph:relative ph:w-10 ph:gap-0 ph:rounded-md ph:px-0 ph:py-1 ph:after:absolute ph:after:-inset-x-0.5 ph:after:-inset-y-1.5 ph:after:content-[''] transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none ${
+      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none ph:relative ph:w-10 ph:gap-0 ph:rounded-md ph:px-0 ph:py-1 ph:after:absolute ph:after:-inset-x-0.5 ph:after:-inset-y-1.5 ph:after:content-[''] phl:w-auto phl:min-w-[44px] phl:px-1.5 phl:text-[13px] phl:gap-[3px] phl:after:-inset-x-0 phl:after:-inset-y-1 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent motion-reduce:transition-none ${
         danger ? "text-red-500" : active ? "bg-[var(--color-ivory)] text-[var(--color-charcoal)]" : "text-[var(--color-charcoal)]/80"
       }`}
     >
-      <LayerIcon name={icon} className="h-5 w-5 ph:h-[18px] ph:w-[18px]" />
+      {iconNode ?? (icon ? <LayerIcon name={icon} className="h-5 w-5 ph:h-[18px] ph:w-[18px]" /> : null)}
       <span>{label}</span>
     </button>
   );
@@ -3781,6 +3791,7 @@ function StackOrderToolbar({
   // 43차: 화면(보이는 캔버스 영역) 밖으로 잘리지 않게 위치 보정 — 좁으면 두 줄로 줄바꿈해요(버튼은 그대로 다 있어요).
   const rootRef = useRef<HTMLDivElement>(null);
   useFloatingToolbarClamp(rootRef, { fillsFrame, flip, extraClearPx });
+  const phlExtras = useContext(PhlSelectionCtx);
 
   return (
     <div
@@ -3790,7 +3801,7 @@ function StackOrderToolbar({
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15 ph:gap-0 ph:rounded-xl ph:px-1 ph:py-1"
+      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15 ph:gap-0 ph:rounded-xl ph:px-1 ph:py-1 phl:px-0.5 phl:py-0.5 phl:[&>*+*]:border-l phl:[&>*+*]:border-[var(--color-hairline)]"
       // 2026-11(18번째 라운드 19차), 혜민님 요청("편집패널이 위쪽 상단에 배치되어있는데
       // 하단쪽에 배치되는게 좋을거같아요") — "화면 하단 공간 부족" fallback(flip, 박스가
       // 페이지 밑바닥에 가까울 때만 위로 띄움)은 그대로 안 건드렸어요. 바꾼 건
@@ -3824,6 +3835,20 @@ function StackOrderToolbar({
           <ToolbarLabeledButton title="맨 뒤로" label="맨뒤" icon="back" onClick={() => onStackAction("back")} />
         </>
       )}
+      {phlExtras &&
+        phlExtras
+          .filter((it) => ["copy", "cut", "paste", "center"].includes(it.id))
+          .map((it) => (
+            <ToolbarLabeledButton
+              key={it.id}
+              title={it.title}
+              label={it.id === "copy" ? "복사" : it.label}
+              ariaLabel={it.label}
+              iconNode={<EditCommandIcon name={it.icon} className="h-[18px] w-[18px] shrink-0 [stroke-width:1.75]" />}
+              disabled={it.disabled}
+              onClick={it.onClick}
+            />
+          ))}
       {mediaKind !== "text" && onFit && (
         <ToolbarLabeledButton title="맞춤(사진 위치 초기화)" label="맞춤" icon="fit" onClick={onFit} />
       )}
@@ -18798,6 +18823,7 @@ function UploadPageContent() {
     ) : null;
 
     return (
+      <PhlSelectionCtx.Provider value={phlEdit ? editCommandItems : null}>
       <main
         // 57차(2): 손가락 기기는 visualViewport로 잰 실제 보이는 높이(--app-vh)를 써요(없으면 100dvh). 마우스 PC는 예전 h-dvh 그대로예요.
         data-editor-shell
@@ -21285,6 +21311,7 @@ function UploadPageContent() {
         )}
         </div>
       </main>
+      </PhlSelectionCtx.Provider>
     );
   }
 
