@@ -607,7 +607,7 @@ export function PhotoEditPanel({
     ),
     filter: (
       <div className={SECTION_BOX}>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           {PHOTO_FILTER_OPTIONS.map((opt) => {
             const active = (filter.id === opt.id && filter.strength > 0) || (opt.id === "original" && (filter.id === "original" || filter.strength <= 0));
             return (

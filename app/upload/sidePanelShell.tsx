@@ -13,11 +13,15 @@ import type { ReactNode } from "react";
 //   똑같이 캔버스 위에 가로 폭 전체로 쌓여요.
 // - 가로로 넘치는 건 숨기고(overflow-x-hidden), 자식은 min-w-0이라 긴 글/설정이 패널을 넓히지
 //   못해요 (글은 줄바꿈).
+//
+// 62차: 폭은 화면에 따라 232~280px(clamp(232px, 22vw, 280px)) — 데스크톱(1440)은 280, 태블릿 가로(1180)는 260, 1024는 232예요.
+// 안쪽 여백은 데스크톱 12px·폰 8px, 접으면(collapsed) 폭 0으로 들어가고 캔버스가 그만큼 다시 맞춰져요.
 export const SIDE_PANEL_WIDTH_PX = 232;
 
 export function SidePanelShell({
   open = true,
   drawerOpen = true,
+  collapsed = false,
   onClose,
   title,
   children,
@@ -26,6 +30,8 @@ export function SidePanelShell({
   // 43차: 폭 1024px 미만(태블릿 세로)에서만 의미 있어요 — 패널은 캔버스 위에 뜨는 서랍이고, false면 숨겨요.
   // 데스크톱(lg~)은 이 값과 상관없이 예전 그대로예요(폭 232px 고정, 캔버스 옆 자리).
   drawerOpen?: boolean;
+  // 62차: 데스크톱·태블릿 가로(1024px~)에서 패널을 접어 캔버스를 넓게 써요(이번 접속 동안만 기억). 서랍(1024px 미만)·폰은 상관없어요.
+  collapsed?: boolean;
   onClose?: () => void;
   // 59차: 폰에서만 맨 윗줄(36px)에 "제목 + ✕"로 보여줘요. 태블릿·데스크톱은 예전 그대로예요.
   title?: string;
@@ -37,11 +43,11 @@ export function SidePanelShell({
       data-drawer-open={drawerOpen ? "true" : "false"}
       className={`${
         open
-          ? "flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:w-[232px] lg:shrink-0 [&>*]:min-w-0"
+          ? "flex min-h-0 min-w-0 flex-col overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:w-[clamp(232px,22vw,280px)] lg:shrink-0 lg:p-3 [&>*]:min-w-0"
           : "flex min-h-0 flex-col overflow-hidden lg:w-0 lg:shrink-0"
       } max-lg:absolute max-lg:bottom-0 max-lg:left-full max-lg:top-0 max-lg:z-40 max-lg:w-[296px] max-lg:max-w-[calc(100vw-72px)] max-lg:border-r max-lg:border-[var(--color-hairline)] max-lg:bg-white max-lg:p-2 max-lg:shadow-[8px_0_24px_-12px_rgba(0,0,0,0.35)] phl:top-0! phl:w-[var(--phl-panel-w)]! phl:max-w-none! phl:border-t-0 phl:shadow-none! php:top-auto php:h-auto php:max-h-[calc(var(--app-vh,100dvh)*0.42)] php:w-[calc(var(--app-vw,100vw)-60px)] php:max-w-none php:border-t php:pb-[max(8px,env(safe-area-inset-bottom))] php:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.35)] ${
         drawerOpen && open ? "" : "max-lg:hidden"
-      }`}
+      } ${collapsed ? "lg:invisible lg:w-0! lg:overflow-hidden! lg:p-0!" : ""}`}
     >
       {onClose && (
         // 61차: 폰에서 가상 키보드가 올라온 동안만 보이는 맨 위 줄(globals.css의 html[data-kb="open"] 규칙) — 글 칸이 패널 맨 위로 오고, "완료"가 키보드를 내려요.
@@ -147,3 +153,22 @@ export function SegTabs({
 export const ACTION_BUTTON_BASE =
   "flex h-[34px] [@media(pointer:coarse)]:h-11 w-full cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ph:h-8! ph:text-[13px] ph:relative ph:after:absolute ph:after:inset-x-0 ph:after:-inset-y-1.5 ph:after:content-['']";
 export const SECONDARY_ACTION_BUTTON_CLASS = `${ACTION_BUTTON_BASE} border border-[var(--color-hairline)] bg-white px-2 text-[var(--color-charcoal)] hover:bg-[var(--color-ivory)]`;
+
+// 62차: 왼쪽 아이콘 메뉴 맨 아래 "패널 접기/펴기" 버튼(1024px~). 44px 이상 눌림 영역, 화살표가 접힌 방향을 보여줘요.
+export function PanelCollapseButton({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      data-testid="panel-collapse"
+      aria-label={collapsed ? "왼쪽 패널 펼치기" : "왼쪽 패널 접기"}
+      aria-expanded={!collapsed}
+      title={collapsed ? "패널 펼치기" : "패널 접기 — 사진을 더 크게 봐요"}
+      onClick={onToggle}
+      className="mt-auto hidden h-11 w-full shrink-0 items-center justify-center text-[var(--color-charcoal)]/60 transition-colors hover:bg-[var(--color-ivory)] hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] motion-reduce:transition-none lg:flex"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={collapsed ? "rotate-180" : ""}>
+        <path d="M15 6l-6 6 6 6" />
+      </svg>
+    </button>
+  );
+}

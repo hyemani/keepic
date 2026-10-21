@@ -20,7 +20,7 @@
 
 :root {
   /* 59차: 폰 가로 편집에서 패널이 캔버스 왼쪽에 붙어 차지하는 폭(화면 폭의 38%, 최대 320px). 캔버스는 나머지 자리에 다시 맞춰져요. */
-  --phl-panel-w: min(320px, calc(var(--app-vw, 100vw) * 0.38));
+  --phl-panel-w: clamp(224px, calc(var(--app-vw, 100vw) * 0.3), 264px);
   /* 59차: 폰 가로 편집 명령 줄 아이콘 한 칸 폭(간격). 아주 좁은 폰(폭 700px 미만)은 오른쪽 묶음과 같이 들어가게 36px. */
   --cmd-w: 42px;
   --color-ivory: #FFFFFF;

@@ -156,7 +156,7 @@ import { computeCanvasFit } from "@/lib/canvasFit";
 import { findFramePhoto, findPhotoFrame, frameHoleOf, groupStackUpdates, syncFramePhoto, touchesGeometry, type DocMm } from "@/lib/photoFrameGroup";
 import { useFloatingToolbarClamp } from "./floatingToolbarClamp";
 import { PhlTopBar, PHL_BAR_ICON_BTN } from "./phlTopBar";
-import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
+import { SidePanelShell, PanelCollapseButton, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
 import {
   PhotoLayoutTemplate,
   LayoutApplyRange,
@@ -13371,6 +13371,8 @@ function UploadPageContent() {
   // 데스크톱(1024px~)은 이 값을 쓰지 않아서 예전과 똑같아요.
   const compactEditor = useCompactEditor();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // 62차: 데스크톱·태블릿 가로에서 왼쪽 상세 패널을 접었는지(이번 접속 동안만, 저장 안 해요).
+  const [sidePanelCollapsed, setSidePanelCollapsed] = useState(false);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   // 59차: 폰 가로에서는 패널이 캔버스 옆에 붙어 있어서, 캔버스를 눌러도(사진·글상자 선택) 패널이 닫히지 않아요.
   const phoneLandscapeForDrawer = useTouchLayout().phoneLandscape;
@@ -20042,13 +20044,14 @@ function UploadPageContent() {
                                 <span className="whitespace-nowrap">{tab.label}</span>
                               </button>
                             ))}
+                            <PanelCollapseButton collapsed={sidePanelCollapsed} onToggle={() => setSidePanelCollapsed((v) => !v)} />
                           </div>
                           {/* 2026-10-02: 탭을 하나도 안 골랐으면(접힌 상태) 패널 자체를
                               안 그려서 폭을 0으로 접어요(안엔 대부분 어차피
                               activeCoverEditTab==="..." 조건이라 내용은 안 보였지만, 빈
                               칸만 224px 차지하고 있던 걸 없앰). */}
                           {activeCoverEditTab && (
-                          <SidePanelShell drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer} title={COVER_EDIT_TABS.find((t) => t.id === activeCoverEditTab)?.label}>
+                          <SidePanelShell collapsed={sidePanelCollapsed} drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer} title={COVER_EDIT_TABS.find((t) => t.id === activeCoverEditTab)?.label}>
                           {activeCoverEditTab === "theme" && (
                             // 2026-10-04, 혜민님 요청: "표지테마 상단에 문구삭제" — 위
                             // 설명 문단을 UI에서 없앴어요(테마를 고르면 무슨 일이 일어나는지는
@@ -20974,13 +20977,14 @@ function UploadPageContent() {
                                     <span className="whitespace-nowrap">{tab.label}</span>
                                   </button>
                                 ))}
+                                <PanelCollapseButton collapsed={sidePanelCollapsed} onToggle={() => setSidePanelCollapsed((v) => !v)} />
                               </div>
                               {/* 2026-10-02: 탭을 하나도 안 골랐으면(접힌 상태) 패널 폭을
                                   0으로 접어요 — 안쪽 내용은 전부 activeEditTab==="..."
                                   조건이라 null이면 어차피 안 보이지만, 빈 칸만 224px를
                                   차지하고 있던 걸 없앰(closing 태그를 건드리지 않는 안전한
                                   방식으로, 폭만 조건부로 바꿈). */}
-                              <SidePanelShell open={!!activeEditTab} drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer} title={EDIT_TABS.find((t) => t.id === activeEditTab)?.label}>
+                              <SidePanelShell open={!!activeEditTab} collapsed={sidePanelCollapsed} drawerOpen={!compactEditor || drawerOpen} onClose={closeDrawer} title={EDIT_TABS.find((t) => t.id === activeEditTab)?.label}>
                             {activeEditTab === "text" && (
                               <div className="mb-1.5 border-b border-[var(--color-hairline)] pb-2">
                                 {/* 2026-10(13번째 라운드) — 탭 3개 비율을 11번째 라운드 이전과 같은
