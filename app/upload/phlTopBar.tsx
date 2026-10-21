@@ -78,8 +78,10 @@ export function PhlTopBar({
         )}
         {history}
       </div>
-      <div ref={toolsRef} data-testid="phl-bar-tools" className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [mask-image:linear-gradient(to_right,transparent,#000_10px,#000_calc(100%-10px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex h-full min-w-full items-stretch justify-evenly">
+      {/* 62차: 도구 글자 줄은 옆으로 밀어서 보고(양 끝 12px는 옅게 사라지는 가장자리라, 그 자리를 안쪽 여백으로 비워 둬서 글자가 반쯤 잘려 보이지 않아요),
+          눈에 띄는 "재배치하기"는 줄 밖(오른쪽)에 따로 고정해요 — 좁은 폰·패널이 열려 페이지 이동이 자리를 차지해도 항상 통째로 보여요. */}
+      <div ref={toolsRef} data-testid="phl-bar-tools" className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [mask-image:linear-gradient(to_right,transparent,#000_12px,#000_calc(100%-12px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex h-full min-w-full items-stretch justify-evenly px-3">
           {tools.map((t) => {
             const active = panelOpen && activeId === t.id;
             return (
@@ -96,17 +98,19 @@ export function PhlTopBar({
               </button>
             );
           })}
-          <button
-            type="button"
-            data-phl-tool="relayout"
-            disabled={relayout.disabled}
-            onClick={relayout.onClick}
-            title="재배치하기 — 레이아웃 패널을 열어 사진을 다시 배치해요"
-            className={`${toolBtn} font-semibold text-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35`}
-          >
-            재배치하기
-          </button>
         </div>
+      </div>
+      <div data-testid="phl-bar-relayout" className="flex shrink-0 items-stretch">
+        <button
+          type="button"
+          data-phl-tool="relayout"
+          disabled={relayout.disabled}
+          onClick={relayout.onClick}
+          title="재배치하기 — 레이아웃 패널을 열어 사진을 다시 배치해요"
+          className={`${toolBtn} font-semibold text-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35`}
+        >
+          재배치하기
+        </button>
       </div>
       <div data-testid="edit-bar-trailing" className="flex shrink-0 items-center gap-1 pl-1">
         {panelOpen ? (
@@ -114,7 +118,7 @@ export function PhlTopBar({
             <button type="button" aria-label="이전 페이지" disabled={nav.prevDisabled} onClick={nav.onPrev} className={`${PHL_BAR_ICON_BTN} w-8 text-[24px] leading-none`}>
               ‹
             </button>
-            <span aria-live="polite" className="flex min-w-[72px] items-center justify-center whitespace-nowrap text-[13px] tabular-nums text-[var(--color-charcoal)]/80">
+            <span aria-live="polite" className="flex min-w-[64px] items-center justify-center whitespace-nowrap text-[13px] tabular-nums text-[var(--color-charcoal)]/80">
               {nav.label}
             </span>
             <button type="button" aria-label="다음 페이지" disabled={nav.nextDisabled} onClick={nav.onNext} className={`${PHL_BAR_ICON_BTN} w-8 text-[24px] leading-none`}>
