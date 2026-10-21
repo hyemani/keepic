@@ -42,6 +42,7 @@ import {
   effectiveZOrder,
   nextTopZOrder,
   computeZOrderUpdates,
+  sortStackedBoxes,
   isStickerImageBox,
   StackKind,
   StackOrderAction,
@@ -137,6 +138,7 @@ import {
   PhotoReplaceDialog,
   PhotoToolIcon,
   type PhotoEditSection,
+  type PhotoPanelActions,
   type ReplaceLibraryPhoto,
 } from "./photoEditPanels";
 import { PrimaryFileButton } from "./primaryActionButton";
@@ -151,6 +153,7 @@ import { useKeyboardWriting } from "./keyboardWriting";
 import { isIOSLike, tryLockLandscape, tryUnlockOrientation, useCoarsePointer, useTouchLayout, useVisualViewportVars } from "@/lib/touchEditor";
 import { useCanvasTouchGestures } from "@/lib/useCanvasTouchGestures";
 import { computeCanvasFit } from "@/lib/canvasFit";
+import { findFramePhoto, findPhotoFrame, frameHoleOf, groupStackUpdates, syncFramePhoto, touchesGeometry, type DocMm } from "@/lib/photoFrameGroup";
 import { useFloatingToolbarClamp } from "./floatingToolbarClamp";
 import { PhlTopBar, PHL_BAR_ICON_BTN } from "./phlTopBar";
 import { SidePanelShell, SEG_TAB_ROW, SegTabs, SECONDARY_ACTION_BUTTON_CLASS, PANEL_STACK, NESTED_SCROLL, segTabClass } from "./sidePanelShell";
@@ -3684,7 +3687,10 @@ function ToolbarLabeledButton({
   active,
   ariaLabel,
   disabled,
+  wide,
 }: {
+  // 62차: 사진 빠른 툴바(사진 편집·사진 교체·삭제 3개)용 — 글자 4자가 들어가도록 조금 더 넓은 칸(누르는 영역 44px 이상).
+  wide?: boolean;
   title: string;
   label: string;
   icon?: LayerIconName;
@@ -3703,7 +3709,7 @@ function ToolbarLabeledButton({
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
-      className={`flex w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[10.5px] leading-none ph:relative ph:w-10 ph:gap-0 ph:rounded-md ph:px-0 ph:py-1 ph:after:absolute ph:after:-inset-x-0.5 ph:after:-inset-y-1.5 ph:after:content-[''] phl:w-auto phl:min-w-[44px] phl:px-1.5 phl:text-[13px] phl:gap-[3px] phl:after:-inset-x-0 phl:after:-inset-y-1 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent motion-reduce:transition-none ${
+      className={`flex ${wide ? "min-h-[44px] min-w-[60px] px-2 text-[12px] ph:min-w-[56px]! ph:text-[13px]!" : "w-12 px-1.5 text-[10.5px] ph:w-10 ph:px-0"} flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 leading-none ph:relative ph:gap-0 ph:rounded-md ph:py-1 ph:after:absolute ph:after:-inset-x-0.5 ph:after:-inset-y-1.5 ph:after:content-[''] phl:w-auto phl:min-w-[44px] phl:px-1.5 phl:text-[13px] phl:gap-[3px] phl:after:-inset-x-0 phl:after:-inset-y-1 transition hover:bg-[var(--color-ivory)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent motion-reduce:transition-none ${
         danger ? "text-red-500" : active ? "bg-[var(--color-ivory)] text-[var(--color-charcoal)]" : "text-[var(--color-charcoal)]/80"
       }`}
     >
@@ -3753,7 +3759,10 @@ function StackOrderToolbar({
   onBorderChange,
   suppressed = false,
   extraClearPx = 0,
+  quick,
 }: {
+  // 62차: 사진(폴라로이드 포함) 빠른 툴바 — [사진 편집][사진 교체][삭제] 세 개만 한 줄로 보여줘요. 나머지(맨앞·맨뒤·복사·확대·회전·좌우·투명도·테두리…)는 왼쪽 "사진 편집" 패널에 있어요.
+  quick?: { editLabel: string; editTitle: string; onEdit: () => void; replaceLabel: string; replaceTitle: string; onReplace: () => void; replaceIcon?: ReactNode; editIcon?: ReactNode };
   // 크기 조절·회전을 끄는 동안은 툴바를 숨겨요(mm 알약·회전 손잡이와 겹치지 않게). 레이아웃/열린 패널 상태는 그대로 유지돼요.
   suppressed?: boolean;
   // 회전 손잡이가 툴바 쪽(위/아래)으로 튀어나올 때 그만큼 더 띄워요(px).
@@ -3799,6 +3808,7 @@ function StackOrderToolbar({
     <div
       ref={rootRef}
       data-floating-toolbar
+      data-quick-toolbar={quick ? "true" : undefined}
       // 캔버스의 드래그·선택 로직(onMouseDown)이 부모 박스에 달려있어서, 여기서 누른
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
@@ -3825,6 +3835,14 @@ function StackOrderToolbar({
         visibility: suppressed ? "hidden" : undefined,
       }}
     >
+      {quick ? (
+        <>
+          <ToolbarLabeledButton wide title={quick.editTitle} ariaLabel={quick.editTitle} label={quick.editLabel} icon="edit" iconNode={quick.editIcon} onClick={quick.onEdit} />
+          <ToolbarLabeledButton wide title={quick.replaceTitle} ariaLabel={quick.replaceTitle} label={quick.replaceLabel} iconNode={quick.replaceIcon} onClick={quick.onReplace} />
+          {onDelete && <ToolbarLabeledButton wide title="삭제" ariaLabel="삭제" label="삭제" icon="delete" onClick={onDelete} danger />}
+        </>
+      ) : (
+      <>
       {mediaKind === "photo" && onUpload && (
         <ToolbarLabeledButton title="사진 올리기" label="올리기" icon="upload" ariaLabel="사진 올리기" onClick={onUpload} />
       )}
@@ -3837,7 +3855,7 @@ function StackOrderToolbar({
           <ToolbarLabeledButton title="맨 뒤로" label="맨뒤" icon="back" onClick={() => onStackAction("back")} />
         </>
       )}
-      {phlExtras &&
+      {phlExtras && mediaKind === "text" &&
         phlExtras
           .filter((it) => ["copy", "cut", "paste", "center"].includes(it.id))
           .map((it) => (
@@ -3993,6 +4011,8 @@ function StackOrderToolbar({
       )}
       {mediaKind === "photo" && onToggleEdit && (
         <ToolbarLabeledButton title="편집(사진 위치 조정)" label="편집" icon="edit" active={editActive} onClick={onToggleEdit} />
+      )}
+      </>
       )}
     </div>
   );
@@ -7524,7 +7544,11 @@ type ImageBoxOverlayHandle = {
   setCompareOriginal: (on: boolean) => void;
   resetPhotoPosition: () => void;
   toggleFlip: () => void;
+  // 완료(바뀐 것을 적용하고 사진 위치 조정 모드를 끝내요 — 실행취소 한 번).
   exitPhotoEditMode: () => void;
+  // 62차: 취소(들어오기 전 상태 그대로 되돌리고 끝내요) / 밖에서 이 박스의 사진 위치 조정 모드로 들어가요(폴라로이드 틀의 "사진 편집"이 안쪽 사진 칸을 열 때).
+  cancelPhotoEditMode: () => void;
+  enterPhotoEditMode: () => void;
   // 왼쪽 "사진" 편집 메뉴에서도 "스프레드 전체 채우기"를 쓸 수 있도록(2026-09 요청 —
   // 캔버스 위 버튼만으로는 왼쪽 패널에서 찾을 수 없다는 피드백을 받아서 추가).
   fillSpread: () => void;
@@ -7629,6 +7653,7 @@ function ImageBoxPanel({
   libraryHint,
   usedUrls,
   lowResMinPx,
+  photoExtra,
 }: {
   // 사진박스를 선택하고 사진 위치 조정 모드(더블클릭)에도 들어가 있는지 — 이때만
   // "선택한 사진박스" 화면(확대/축소/반전/초기화/완료)을 보여줘요.
@@ -7645,8 +7670,8 @@ function ImageBoxPanel({
   onFrameChange: (boxId: string, changes: Partial<ImageBoxDef>) => void;
   onAddPhotoFile: (e: React.ChangeEvent<HTMLInputElement>) => void;
   // 사진 편집(사진 변경 / 위치·크롭 / 필터 / 보정) — 구역 선택값과 "사진 변경" 선택창 열기.
-  photoEditSection: PhotoEditSection;
-  onPhotoEditSectionChange: (section: PhotoEditSection) => void;
+  photoEditSection: PhotoEditSection | null;
+  onPhotoEditSectionChange: (section: PhotoEditSection | null) => void;
   onRequestPhotoReplace: (boxId: string) => void;
   // "전체 사진 관리" 섹션 — 내지에만 있어요. 이 값을 넘기지 않으면(표지) 섹션 자체가
   // 렌더되지 않아요.
@@ -7659,6 +7684,8 @@ function ImageBoxPanel({
   usedUrls?: ReadonlySet<string>;
   // 올린 사진 목록에서 "저해상도" 표시를 할 기준(짧은 변 px) — 없으면 표시하지 않아요.
   lowResMinPx?: number;
+  // 62차: "사진 편집" 패널의 묶음 항목(앞뒤 순서·복사·삭제 등)과 폴라로이드 안쪽 사진 칸 id.
+  photoExtra?: { actions: PhotoPanelActions; groupPhotoId?: string; onEnterInner: () => void };
 }) {
   const canFrame = !!frameTargetBox;
   // 사진 편집(변경·크롭·필터·보정)은 진짜 사진(스티커·빈 프레임 제외)에만 있어요.
@@ -7699,21 +7726,6 @@ function ImageBoxPanel({
           {/* 2026-11, 혜민님 요청("사진 변경 / 위치·크롭 / 필터 / 보정") — 예전엔 여기 확대/축소/반전/초기화/완료 아이콘 몇 개뿐이었어요
               (글자 11px·28px 버튼). 이제 PhotoEditPanel(맨 위 "사진 변경" + 4개 구역)이 같은 기능을 24px 아이콘·13px 글자·
               40px 이상 버튼으로 모두 가지고 있어요. */}
-          <div className="border border-[var(--color-brand-purple)]/30 bg-[var(--color-brand-purple)]/5 p-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="whitespace-nowrap text-[12px] font-semibold text-[var(--color-brand-purple)]">사진 위치 조정 중</p>
-              <button
-                type="button"
-                title="완료 (박스 조절 모드로 돌아가기)"
-                aria-label="완료"
-                onClick={() => activeBoxId && handlesRef.current.get(activeBoxId)?.exitPhotoEditMode()}
-                className="flex min-h-[34px] items-center gap-1 bg-[var(--color-charcoal)] px-3 text-[12px] font-medium text-white"
-              >
-                <PhotoToolIcon name="check" className="h-5 w-5 shrink-0" />
-                <span className="whitespace-nowrap">완료</span>
-              </button>
-            </div>
-          </div>
           {frameTargetBox && !isStickerImageBox(frameTargetBox) ? (
             <PhotoEditPanel
               box={frameTargetBox}
@@ -7722,6 +7734,10 @@ function ImageBoxPanel({
               onRequestReplace={() => onRequestPhotoReplace(frameTargetBox.id)}
               section={photoEditSection}
               onSectionChange={onPhotoEditSectionChange}
+              actions={photoExtra?.actions}
+              editing
+              onDone={() => activeBoxId && handlesRef.current.get(activeBoxId)?.exitPhotoEditMode()}
+              onCancel={() => activeBoxId && handlesRef.current.get(activeBoxId)?.cancelPhotoEditMode()}
             />
           ) : null}
         </>
@@ -7806,6 +7822,9 @@ function ImageBoxPanel({
                 onRequestReplace={() => onRequestPhotoReplace(frameTargetBox.id)}
                 section={photoEditSection}
                 onSectionChange={onPhotoEditSectionChange}
+                actions={photoExtra?.actions}
+                mode={photoExtra?.groupPhotoId ? "group" : "photo"}
+                onStartEdit={photoExtra?.groupPhotoId ? photoExtra.onEnterInner : undefined}
               />
             ) : effectiveTab === "frame" && frameTargetBox ? (
               // 캔버스에서 사진박스를 선택했을 때 뜨는 StackOrderToolbar의 "테두리"
@@ -8222,6 +8241,13 @@ const ImageBoxOverlay = forwardRef<
     docMm?: { w: number; h: number };
     // "사진 변경" — 이 박스의 사진을 라이브러리/새 업로드로 바꾸는 선택창을 상위에서 열어요(사진 위치 조정 도구 막대의 첫 버튼).
     onRequestPhotoReplace?: () => void;
+    // 62차: 빠른 툴바의 "사진 편집" — 왼쪽 "사진 편집" 패널을 열어 달라고 상위에 알려요(이 박스는 같이 사진 위치 조정 모드로 들어가요).
+    onRequestPhotoEdit?: () => void;
+    // 62차: 폴라로이드 틀(스티커)일 때만 — 안쪽 사진 칸 정보. 틀을 한 번 누르면 전체(틀+사진)가 선택되고, 안쪽 사진 영역을 두 번 누르거나 "사진 편집"을 누르면 onEnterInnerEdit 로 안쪽 사진 편집에 들어가요.
+    frameGroup?: { photoId: string; photoEmpty: boolean; hole: [number, number, number, number]; innerEditing: boolean } | null;
+    onEnterInnerEdit?: () => void;
+    // 62차: 사진 위치 조정 "한 번의 편집"(들어옴→완료/취소) 시작·끝을 상위에 알려서 실행취소 기록을 한 단계로 묶어요. 취소는 상위가 들어오기 전 박스 전체를 그대로 되돌려요.
+    onEditSession?: (event: "begin" | "commit" | "commit-quiet" | "cancel", boxBefore: ImageBoxDef) => void;
     // 빈 칸 도구 막대의 "사진 올리기"로 고른 파일들(42차) — 첫 사진은 이 칸, 나머지는 사진 목록에만. 안 넘기면 첫 사진만 이 칸에 넣어요.
     onUploadFiles?: (files: File[]) => void;
   }
@@ -8244,6 +8270,10 @@ const ImageBoxOverlay = forwardRef<
     onUploadFiles,
     docMm,
     onRequestPhotoReplace,
+    onRequestPhotoEdit,
+    frameGroup,
+    onEnterInnerEdit,
+    onEditSession,
   },
   ref
 ) {
@@ -8271,7 +8301,37 @@ const ImageBoxOverlay = forwardRef<
   // 눌러야 했는데, 2026-09-22부터 포토샵/일러스트레이터처럼 "내용물(사진)을 한 번 더
   // 클릭(더블클릭)하면 들어가는" 방식으로 바꿨어요 — 박스 자체를 조절할 땐 항상 박스
   // 모드, 사진 위치를 만지고 싶을 때만 더블클릭으로 들어가요.
-  const [photoEditMode, setPhotoEditMode] = useState(false);
+  const [photoEditMode, setPhotoEditModeRaw] = useState(false);
+  // 62차: 사진 위치 조정 모드는 "한 번의 편집"이에요 — 들어올 때의 박스를 기억해 두었다가, 완료(적용)·취소(복원) 때 상위에 알려서 실행취소를 한 단계로 묶어요.
+  // 두 번 연달아 들어오는 호출(터치 두 번 탭 + 브라우저 더블클릭)은 한 번으로 합쳐요.
+  const editEntryRef = useRef<ImageBoxDef | null>(null);
+  const lastEnterAtRef = useRef(0);
+  const boxLatestRef = useRef(box);
+  useEffect(() => {
+    boxLatestRef.current = box;
+  });
+  const onEditSessionRef = useRef(onEditSession);
+  useEffect(() => {
+    onEditSessionRef.current = onEditSession;
+  });
+  const editingRef = useRef(false);
+  const beginEdit = () => {
+    if (editingRef.current) return;
+    editingRef.current = true;
+    lastEnterAtRef.current = Date.now();
+    editEntryRef.current = { ...boxLatestRef.current };
+    onEditSessionRef.current?.("begin", editEntryRef.current);
+    setPhotoEditModeRaw(true);
+  };
+  // quiet: 선택이 풀려서/화면이 바뀌어서 저절로 끝날 때 — 적용(완료)하되 상위가 선택을 다시 바꾸지 않게 해요.
+  const endEdit = (commit: boolean, quiet = false) => {
+    if (!editingRef.current) return;
+    editingRef.current = false;
+    const entry = editEntryRef.current;
+    editEntryRef.current = null;
+    setPhotoEditModeRaw(false);
+    if (entry) onEditSessionRef.current?.(commit ? (quiet ? "commit-quiet" : "commit") : "cancel", entry);
+  };
   const [isPanning, setIsPanning] = useState(false);
   const [boxSizePx, setBoxSizePx] = useState({ w: 1, h: 1 });
   // 장식 프레임(box.frameDecor, lib/frameDecorations.ts) — 박스 실제 px 크기로 "그림 설계도"를
@@ -8426,12 +8486,29 @@ const ImageBoxOverlay = forwardRef<
         // 값(위치·확대)은 그대로 두고 모드만 끝내요. 캡처 단계에서 먼저 받고 전파를 막아서
         // 전역 ESC 처리(선택 해제)가 같이 일어나지 않게 해요.
         e.stopPropagation();
-        setPhotoEditMode(false);
+        endEdit(true);
       }
     }
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [photoEditMode]);
+
+  // 62차: 이 박스가 선택에서 풀리면(빈 곳을 누름 등) 진행 중이던 사진 위치 조정은 "완료"로 마무리해요.
+  useEffect(() => {
+    if (!isActive && editingRef.current) endEdit(true, true);
+  }, [isActive]);
+  // 화면(페이지)이 바뀌어 이 박스가 사라질 때 진행 중이던 편집은 완료로 마무리해요(실행취소 기록이 멈춘 채 남지 않게).
+  useEffect(
+    () => () => {
+      if (editingRef.current) {
+        editingRef.current = false;
+        const entry = editEntryRef.current;
+        editEntryRef.current = null;
+        if (entry) onEditSessionRef.current?.("commit-quiet", entry);
+      }
+    },
+    []
+  );
 
   // 부모(왼쪽 "사진" 편집 메뉴)에게 지금 이 박스가 사진 위치 조정 모드인지 알려줘요.
   useEffect(() => {
@@ -8465,7 +8542,7 @@ const ImageBoxOverlay = forwardRef<
     }
     // 스테일 상태 정리: 이전에 이 박스가 사진 위치 조정 모드였는데 비활성 상태를 거쳐
     // 다시 선택된 거라면, 박스 모드로 확실히 되돌려요.
-    if (photoEditMode) setPhotoEditMode(false);
+    if (photoEditMode) endEdit(true, true);
     // Alt-드래그 복사(2026-09-28): 지금 위치에 사본을 하나 남겨두고, 이 박스는 그대로
     // 평소처럼 드래그를 시작해요(onChange가 바뀔 필요 없이 그대로 이 박스 id를
     // 움직이니 훨씬 단순해요) — 결과적으로 원본이 제자리에 남고 든 손 쪽(드래그되는
@@ -8503,7 +8580,10 @@ const ImageBoxOverlay = forwardRef<
     // 이유가 없어요 — 선택만 하고 끝나요(42차: 예전엔 여기서 파일 선택창이 열렸어요.
     // 파일 선택은 도구 막대의 "사진 올리기"에서만).
     if (!box.url) return;
-    setPhotoEditMode((v) => !v);
+    // 터치 두 번 탭(합성 더블클릭)과 브라우저가 따로 보내는 더블클릭이 연달아 와도 한 번만 처리해요.
+    if (Date.now() - lastEnterAtRef.current < 450) return;
+    if (editingRef.current) endEdit(true);
+    else beginEdit();
   }
 
   useEffect(() => {
@@ -8573,8 +8653,10 @@ const ImageBoxOverlay = forwardRef<
         0,
         box.innerScale ?? 1
       );
-      const dxPct = ((e.clientX - panStart.current.mouseX) / photoAreaPx.w) * 100;
-      const dyPct = ((e.clientY - panStart.current.mouseY) / photoAreaPx.h) * 100;
+      // 62차: 박스가 돌아가 있으면 손가락·마우스 이동을 박스 자신의 가로·세로 축으로 바꿔서 써요 — 사진이 손가락을 자연스럽게 따라와요.
+      const local = toBoxLocalDelta(e.clientX - panStart.current.mouseX, e.clientY - panStart.current.mouseY, box.rotation ?? 0);
+      const dxPct = (local.dx / photoAreaPx.w) * 100;
+      const dyPct = (local.dy / photoAreaPx.h) * 100;
       const nextOffsetX = clampImageBoxInnerOffset(panStart.current.offsetX + dxPct, photoAreaPx.w, rect.width);
       const nextOffsetY = clampImageBoxInnerOffset(panStart.current.offsetY + dyPct, photoAreaPx.h, rect.height);
       onChange({ innerOffsetXPct: nextOffsetX, innerOffsetYPct: nextOffsetY });
@@ -8588,7 +8670,7 @@ const ImageBoxOverlay = forwardRef<
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isPanning, photoAreaPx, orientedNat.w, orientedNat.h, box.innerScale]);
+  }, [isPanning, photoAreaPx, orientedNat.w, orientedNat.h, box.innerScale, box.rotation]);
 
   // 모서리 4개(가로·세로 동시) + 변 4개(한쪽만), 텍스트박스와 똑같은 8방향 손잡이예요
   // ("포토샵처럼 박스 조절이 가능해야 한다"는 요청, 2026-09-22). 왼쪽/위쪽 손잡이는
@@ -8849,6 +8931,24 @@ const ImageBoxOverlay = forwardRef<
     onChange({ innerOffsetXPct: 0, innerOffsetYPct: 0, innerScale: 1 });
   }
 
+  // 62차: 사진 위치 조정 중 손가락 두 개 벌리기/오므리기 — 캔버스 확대가 아니라 이 사진의 확대(1~3배)로 써요(useCanvasTouchGestures 가 이벤트로 알려줘요).
+  const zoomToRef = useRef(handleZoomTo);
+  useEffect(() => {
+    zoomToRef.current = handleZoomTo;
+  });
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    let base = 1;
+    const onPinch = (ev: Event) => {
+      const d = (ev as CustomEvent<{ phase: "start" | "move"; ratio: number }>).detail;
+      if (d.phase === "start") base = boxLatestRef.current.innerScale ?? 1;
+      else zoomToRef.current(base * d.ratio);
+    };
+    el.addEventListener("keepic-inner-pinch", onPinch);
+    return () => el.removeEventListener("keepic-inner-pinch", onPinch);
+  }, []);
+
   // 스티커는 사진처럼 안(crop) 확대가 아니라 박스(틀) 자체를 원본 비율 그대로 키우고
   // 줄여요(모서리 손잡이로 조절하는 것과 같은 결과 — 2026-09-26 "편집툴 확대/축소"
   // 요청을 스티커에도 적용하면서, 스티커는 사진과 다른 방식이 필요해서 따로 만들었어요).
@@ -8883,7 +8983,11 @@ const ImageBoxOverlay = forwardRef<
     setCompareOriginal,
     resetPhotoPosition: handleResetPhotoPosition,
     toggleFlip: () => onChange({ flipX: !box.flipX }),
-    exitPhotoEditMode: () => setPhotoEditMode(false),
+    exitPhotoEditMode: () => endEdit(true),
+    cancelPhotoEditMode: () => endEdit(false),
+    enterPhotoEditMode: () => {
+      if (!isSticker && boxLatestRef.current.url) beginEdit();
+    },
     fillSpread: handleFillSpread,
   }));
 
@@ -8906,6 +9010,7 @@ const ImageBoxOverlay = forwardRef<
     <div
       ref={boxRef}
       data-image-box-id={box.id}
+      data-photo-editing={photoEditMode ? "true" : undefined}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       // 2026-09-28, 혜민님 요청(스위트북 비교, "점선이 위로 보여야"): 예전엔 일반
@@ -8962,9 +9067,41 @@ const ImageBoxOverlay = forwardRef<
         // 모양(clip-path) 박스: 예전엔 이 루트에 clipPath 를 걸어서, 모양 밖으로 걸친 크기 손잡이·레이어 툴바가 같이
         // 잘리고 클릭도 안 됐어요(구름·아치·육각형·하트 등은 손잡이가 전부 모양 밖). 이제 사진/테두리는 각자 같은 clipPath 로
         // 자르고, 클릭 영역만 아래 hit-layer(같은 clipPath)가 맡아요 — 루트는 pointer-events:none, 손잡이·툴바는 auto.
-        pointerEvents: cssClipPath ? "none" : undefined,
+        pointerEvents: cssClipPath || frameGroup?.innerEditing ? "none" : undefined,
       }}
     >
+      {/* 62차: 폴라로이드 틀 — 틀 전체(테두리·장식·안쪽 사진 영역)를 한 번 누르면 틀+사진이 함께 선택돼 옮기고·키우고·돌릴 수 있어요. 안쪽 사진 영역을 두 번 누르면(터치: 두 번 탭) 틀은 그대로 두고 안의 사진만 고쳐요.
+          안쪽 사진을 고치는 동안(innerEditing)은 이 틀이 눌림을 아예 받지 않고(pointer-events:none), 사진 칸이 눌림을 받아요 — 틀을 지우거나 맨 뒤로 보내지 않아도 돼요. */}
+      {frameGroup && !frameGroup.innerEditing ? (
+        <div
+          data-polaroid-window
+          className="absolute"
+          style={{
+            left: `${frameGroup.hole[0] * 100}%`,
+            top: `${frameGroup.hole[1] * 100}%`,
+            width: `${(frameGroup.hole[2] - frameGroup.hole[0]) * 100}%`,
+            height: `${(frameGroup.hole[3] - frameGroup.hole[1]) * 100}%`,
+          }}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onSelect();
+            onEnterInnerEdit?.();
+          }}
+        />
+      ) : null}
+      {frameGroup?.innerEditing ? (
+        <div
+          data-polaroid-window-outline
+          className="pointer-events-none absolute outline outline-2 outline-[var(--color-brand-purple)]"
+          style={{
+            left: `${frameGroup.hole[0] * 100}%`,
+            top: `${frameGroup.hole[1] * 100}%`,
+            width: `${(frameGroup.hole[2] - frameGroup.hole[0]) * 100}%`,
+            height: `${(frameGroup.hole[3] - frameGroup.hole[1]) * 100}%`,
+          }}
+        />
+      ) : null}
       {cssClipPath ? (
         <div className="absolute inset-0" style={{ clipPath: cssClipPath, pointerEvents: "auto" }} />
       ) : null}
@@ -9229,7 +9366,8 @@ const ImageBoxOverlay = forwardRef<
           onFlipX={() => onChange({ flipX: !box.flipX })}
           onFlipY={() => onChange({ flipY: !box.flipY })}
           onRotate={() => onChange({ photoRotation: (photoTurn + 90) % 360, innerOffsetXPct: 0, innerOffsetYPct: 0 })}
-          onDone={() => setPhotoEditMode(false)}
+          onDone={() => endEdit(true)}
+          onCancel={() => endEdit(false)}
         />
       )}
       {/* 더블클릭으로 "사진 위치 조정 중" 모드에 들어가면 바로 아래에 확대/축소·반전·
@@ -9267,7 +9405,39 @@ const ImageBoxOverlay = forwardRef<
               // 띄워요.
               flip={box.yPct + box.heightPct > 80}
               fillsFrame={box.yPct <= 2 && box.yPct + box.heightPct >= 98}
-              mediaKind={isSticker ? "sticker" : "photo"}
+              mediaKind={isSticker && !frameGroup ? "sticker" : "photo"}
+              quick={
+                isSticker && !frameGroup
+                  ? undefined
+                  : frameGroup
+                    ? {
+                        editLabel: frameGroup.photoEmpty ? "사진 올리기" : "사진 편집",
+                        editTitle: frameGroup.photoEmpty ? "사진 올리기 — 이 폴라로이드에 사진을 넣어요" : "사진 편집 — 틀은 그대로 두고 안의 사진만 고쳐요",
+                        onEdit: () => {
+                          onEnterInnerEdit?.();
+                          onRequestPhotoEdit?.();
+                        },
+                        replaceLabel: "사진 교체",
+                        replaceTitle: "사진 교체 — 안의 사진을 다른 사진으로 바꿔요",
+                        onReplace: () => onRequestPhotoReplace?.(),
+                        replaceIcon: <PhotoToolIcon name="replace" className="h-5 w-5 ph:h-[18px] ph:w-[18px]" />,
+                      }
+                    : {
+                        editLabel: box.url ? "사진 편집" : "사진 올리기",
+                        editTitle: box.url ? "사진 편집 — 위치·크기·회전·테두리 등을 왼쪽 패널에서 고쳐요" : "사진 올리기",
+                        onEdit: () => {
+                          if (!box.url) emptyFrameFileInputRef.current?.click();
+                          else {
+                            beginEdit();
+                            onRequestPhotoEdit?.();
+                          }
+                        },
+                        replaceLabel: box.url ? "사진 교체" : "사진 고르기",
+                        replaceTitle: box.url ? "사진 교체 — 이 칸의 사진을 다른 사진으로 바꿔요" : "사진 고르기 — 올려 둔 사진에서 골라 넣어요",
+                        onReplace: () => onRequestPhotoReplace?.(),
+                        replaceIcon: <PhotoToolIcon name="replace" className="h-5 w-5 ph:h-[18px] ph:w-[18px]" />,
+                      }
+              }
               onDelete={onDelete}
               onStackAction={onStackAction}
               // "맞춤"(사진 위치 초기화)·"편집"(사진 위치 조정 모드 토글)은 크롭 개념이 없는
@@ -9281,7 +9451,7 @@ const ImageBoxOverlay = forwardRef<
               onRotationChange={(deg) => onChange({ rotation: deg })}
               onFlip={() => onChange({ flipX: !box.flipX })}
               editActive={photoEditMode}
-              onToggleEdit={isSticker ? undefined : () => setPhotoEditMode((v) => !v)}
+              onToggleEdit={isSticker ? undefined : () => (editingRef.current ? endEdit(true) : beginEdit())}
               opacity={box.opacity ?? 1}
               onOpacityChange={(v) => onChange({ opacity: v })}
               borderWidthPx={box.borderWidthPx ?? 0}
@@ -9323,7 +9493,19 @@ function ImageBoxLayer({
   docMm,
   onRequestPhotoReplace,
   onUploadToFrame,
+  onRequestPhotoEdit,
+  onEnterInnerEdit,
+  onEditSession,
+  onDocMm,
+  activePhotoEditing = false,
 }: {
+  // 62차: 사진 빠른 툴바 "사진 편집"(왼쪽 패널 열기) / 폴라로이드 틀의 "사진 편집"·안쪽 더블클릭(안쪽 사진 편집 진입) / 사진 위치 조정 한 번의 편집 시작·끝 / 영역 실제 크기(mm) 알림.
+  onRequestPhotoEdit?: (boxId: string) => void;
+  onEnterInnerEdit?: (frameId: string, photoId: string) => void;
+  onEditSession?: (boxId: string, event: "begin" | "commit" | "commit-quiet" | "cancel", boxBefore: ImageBoxDef) => void;
+  onDocMm?: (mm: DocMm) => void;
+  // 지금 선택된 박스가 사진 위치 조정 모드인지(폴라로이드 틀이 눌림을 사진 칸에 넘겨줄 때를 알려고 써요).
+  activePhotoEditing?: boolean;
   boxes: ImageBoxDef[];
   // 빈 칸 도구 막대 "사진 올리기"(42차) — 박스 id와 고른 파일들.
   onUploadToFrame?: (boxId: string, files: File[]) => void;
@@ -9362,9 +9544,23 @@ function ImageBoxLayer({
 }) {
   // 사진 추가·스티커 추가 버튼은 2026-09-19부터 캔버스 위 숨은 버튼이 아니라 왼쪽
   // 아이콘 메뉴("사진"/"스티커" 탭)로 옮겨졌어요 — 이 레이어는 이제 박스 렌더링만 해요.
+  const docW = docMm?.w;
+  const docH = docMm?.h;
+  useEffect(() => {
+    if (docW && docH) onDocMm?.({ w: docW, h: docH });
+  }, [docW, docH, onDocMm]);
   return (
     <>
-      {boxes.map((box, index) => (
+      {boxes.map((box, index) => {
+        // 62차: 폴라로이드(틀 스티커 + 구멍 안 사진 칸) 짝 찾기 — 저장 데이터는 그대로고 화면에서 매번 계산해요.
+        const holeFrac = frameHoleOf(box);
+        const framePhoto = holeFrac ? findFramePhoto(box, boxes, docMm) : undefined;
+        const photoFrame = !holeFrac && !isStickerImageBox(box) ? findPhotoFrame(box, boxes, docMm) : undefined;
+        const frameGroup =
+          holeFrac && framePhoto
+            ? { photoId: framePhoto.id, photoEmpty: !framePhoto.url, hole: holeFrac, innerEditing: activePhotoEditing && framePhoto.id === activeBoxId }
+            : null;
+        return (
         <ImageBoxOverlay
           key={box.id}
           ref={(instance) => registerBoxRef?.(box.id, instance)}
@@ -9380,13 +9576,18 @@ function ImageBoxLayer({
           guidesX={guidesX}
           guidesY={guidesY}
           siblingTargets={siblingTargets}
-          zIndex={box.id === activeBoxId ? SELECTED_BOX_Z_INDEX : effectiveZOrder("image", box.zOrder, index)}
+          zIndex={box.id === activeBoxId && !photoFrame ? SELECTED_BOX_Z_INDEX : effectiveZOrder("image", box.zOrder, index)}
           onStackAction={onStackAction ? (action) => onStackAction(box.id, action) : undefined}
           docMm={docMm}
-          onRequestPhotoReplace={onRequestPhotoReplace ? () => onRequestPhotoReplace(box.id) : undefined}
+          onRequestPhotoReplace={onRequestPhotoReplace ? () => onRequestPhotoReplace(framePhoto ? framePhoto.id : box.id) : undefined}
           onUploadFiles={onUploadToFrame ? (files) => onUploadToFrame(box.id, files) : undefined}
+          onRequestPhotoEdit={onRequestPhotoEdit ? () => onRequestPhotoEdit(box.id) : undefined}
+          frameGroup={frameGroup}
+          onEnterInnerEdit={frameGroup && onEnterInnerEdit ? () => onEnterInnerEdit(box.id, frameGroup.photoId) : undefined}
+          onEditSession={onEditSession ? (event, before) => onEditSession(box.id, event, before) : undefined}
         />
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -12996,7 +13197,8 @@ function UploadPageContent() {
   // 같은 패턴, 2026-09).
   function selectCoverImageBox(target: "front" | "back", boxId: string, knownBox?: ImageBoxDef) {
     setActiveTextBox(null);
-    setCoverImageBoxPhotoEditActive(false);
+    // 62차: 이미 선택된 같은 박스를 다시 누른 것(사진 위치 조정 중 끌기 시작 등)이면 "사진 위치 조정 중" 표시를 끄지 않아요(패널의 완료·취소가 사라지던 문제).
+    if (!(activeCoverImageBox && activeCoverImageBox.target === target && activeCoverImageBox.boxId === boxId)) setCoverImageBoxPhotoEditActive(false);
     setActiveCoverImageBox({ target, boxId });
     setBackCoverLogoSelected(false);
     setActiveTableBox(null);
@@ -13123,9 +13325,11 @@ function UploadPageContent() {
   // (2026-09-28, 혜민님 요청: "표지편집툴과 내지편집툴을 동일하게 제작해주세요").
   const [photoTopTab, setPhotoTopTab] = useState<"add" | "frame" | "edit">("add");
   // "사진 편집" 패널의 구역(사진 변경 / 위치·크롭 / 필터 / 보정) — 표지·내지 패널이 같이 써요.
-  const [photoEditSection, setPhotoEditSection] = useState<PhotoEditSection>("crop");
+  const [photoEditSection, setPhotoEditSection] = useState<PhotoEditSection | null>("position");
   // "사진 변경" 선택창이 열려 있는 이미지박스 id(없으면 닫힘) — 사진 위치 조정 도구 막대와 왼쪽 패널 둘 다 여기로 열어요.
   const [photoReplaceBoxId, setPhotoReplaceBoxId] = useState<string | null>(null);
+  // 62차: 이미지박스 영역(내지 펼침면 / 앞표지 칸 / 뒤표지 칸)의 실제 가로·세로(mm) — 폴라로이드(틀+사진 칸)가 함께 움직일 때 회전 계산에 써요. ImageBoxLayer 가 알려줘요.
+  const imageBoxDocMmRef = useRef<{ spread?: DocMm; front?: DocMm; back?: DocMm }>({});
   // "미리보기"(보기만) / "편집"(실제 수정 가능) 두 화면을 분리해요. 페이지를 새로 고를
   // 때마다 항상 미리보기부터 보여주고, 미리보기 위에 마우스를 올리면 "편집하기"가 뜨고
   // 그걸 눌러야 편집 화면으로 들어가요. (useEffect 대신 렌더 중 비교 — React가 권장하는
@@ -14167,7 +14371,7 @@ function UploadPageContent() {
     setActiveTextBox(null);
     setMultiImageSelection(null);
     setMultiTextSelection(null);
-    setImageBoxPhotoEditActive(false);
+    if (!(activeImageBox && activeImageBox.spreadIndex === spreadIndex && activeImageBox.boxId === boxId)) setImageBoxPhotoEditActive(false);
     setActiveImageBox({ spreadIndex, boxId });
     setActiveTableBox(null);
     setSpineTitleSelected(false);
@@ -14611,9 +14815,8 @@ function UploadPageContent() {
     setCustomSpreads((prev) =>
       prev.map((s, i) => {
         if (i !== spreadIndex) return s;
-        return {
-          ...s,
-          imageBoxes: (s.imageBoxes ?? []).map((b) => {
+        const oldBoxes = s.imageBoxes ?? [];
+        const nextBoxes = oldBoxes.map((b) => {
             if (b.id !== boxId) return b;
             const merged = { ...b, ...clearLayoutIdOnMove(changes) };
             // 끌어서 옮기다가 박스 중심이 인쇄 안 되는 면으로 넘어가면 인쇄되는 면 안쪽에서 멈춰요(크기 조절이면 그 변경만 무시해요).
@@ -14626,7 +14829,11 @@ function UploadPageContent() {
               return pullBoxIntoPrinted(spreadIndex, s, merged);
             }
             return merged;
-          }),
+          });
+        // 62차: 폴라로이드 틀을 옮기고·키우고·돌리면 그 안의 사진 칸도 같이 따라가요(같은 setState 안이라 실행취소 한 번).
+        return {
+          ...s,
+          imageBoxes: touchesGeometry(changes) ? syncFramePhoto(oldBoxes, nextBoxes, boxId, imageBoxDocMmRef.current.spread) : nextBoxes,
         };
       })
     );
@@ -15325,7 +15532,10 @@ function UploadPageContent() {
   }
 
   function handleCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
-    setCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b)));
+    setCoverImageBoxes((prev) => {
+      const next = prev.map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b));
+      return touchesGeometry(changes) ? syncFramePhoto(prev, next, boxId, imageBoxDocMmRef.current.front) : next;
+    });
   }
   // ---- 사진 변경 (2026-11, 혜민님 요청 "사진 변경 버튼") ----
   // 선택한 사진박스의 "사진만" 다른 사진(이미 올린 사진 또는 새로 올린 사진)으로 바꿔요. 박스 위치·크기·회전·
@@ -15526,7 +15736,11 @@ function UploadPageContent() {
   }
 
   function handleDeleteCoverImageBox(boxId: string) {
-    setCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
+    setCoverImageBoxes((prev) => {
+      const t = prev.find((b) => b.id === boxId);
+      const partner = t && frameHoleOf(t) ? findFramePhoto(t, prev, imageBoxDocMmRef.current.front) : undefined;
+      return prev.filter((b) => b.id !== boxId && b.id !== partner?.id);
+    });
     setActiveCoverImageBox((prev) => (prev && prev.target === "front" && prev.boxId === boxId ? null : prev));
   }
   // Alt-드래그 복사(2026-09-28) — handleAltDuplicateImageBox(스프레드용)와 같은 원리예요.
@@ -15534,10 +15748,17 @@ function UploadPageContent() {
     setCoverImageBoxes((prev) => [...prev, { ...box, id: crypto.randomUUID() }]);
   }
   function handleBackCoverImageBoxChange(boxId: string, changes: Partial<ImageBoxDef>) {
-    setBackCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b)));
+    setBackCoverImageBoxes((prev) => {
+      const next = prev.map((b) => (b.id === boxId ? { ...b, ...clearLayoutIdOnMove(changes) } : b));
+      return touchesGeometry(changes) ? syncFramePhoto(prev, next, boxId, imageBoxDocMmRef.current.back) : next;
+    });
   }
   function handleDeleteBackCoverImageBox(boxId: string) {
-    setBackCoverImageBoxes((prev) => prev.filter((b) => b.id !== boxId));
+    setBackCoverImageBoxes((prev) => {
+      const t = prev.find((b) => b.id === boxId);
+      const partner = t && frameHoleOf(t) ? findFramePhoto(t, prev, imageBoxDocMmRef.current.back) : undefined;
+      return prev.filter((b) => b.id !== boxId && b.id !== partner?.id);
+    });
     setActiveCoverImageBox((prev) => (prev && prev.target === "back" && prev.boxId === boxId ? null : prev));
   }
   function handleAltDuplicateBackCoverImageBox(box: ImageBoxDef) {
@@ -16131,12 +16352,17 @@ function UploadPageContent() {
   }
 
   function handleDeleteImageBox(spreadIndex: number, boxId: string) {
+    // 62차: 폴라로이드(틀+사진 칸)는 한 덩어리라 틀을 지우면 안의 사진 칸도 같이 지워요(한 번의 실행취소로 같이 돌아와요).
+    const spreadBoxes = customSpreads[spreadIndex]?.imageBoxes ?? [];
+    const target = spreadBoxes.find((b) => b.id === boxId);
+    const partner = target && frameHoleOf(target) ? findFramePhoto(target, spreadBoxes, imageBoxDocMmRef.current.spread) : undefined;
+    const removeIds = new Set<string>([boxId, ...(partner ? [partner.id] : [])]);
     // "AI 맞춤 레이아웃"에서 박스 자체의 ✕ 버튼으로 지울 때도, 반대 방향으로
     // "전체 사진 목록"의 사진 목록이 계속 남아있지 않도록 짝이 되는 사진도 같이 지워요.
     if (isAiAuto) {
-      const removedUrl = customSpreads[spreadIndex]?.imageBoxes?.find((b) => b.id === boxId)?.url;
-      if (removedUrl) {
-        setPhotos((prev) => prev.filter((p) => p.url !== removedUrl));
+      const removedUrls = new Set(spreadBoxes.filter((b) => removeIds.has(b.id)).map((b) => b.url).filter(Boolean));
+      if (removedUrls.size > 0) {
+        setPhotos((prev) => prev.filter((p) => !removedUrls.has(p.url)));
       }
     }
     setCustomSpreads((prev) =>
@@ -16144,8 +16370,8 @@ function UploadPageContent() {
         i === spreadIndex
           ? {
               ...s,
-              imageBoxes: (s.imageBoxes ?? []).filter((b) => b.id !== boxId),
-              imageBoxOrder: getSpreadImageBoxOrder(s).filter((id) => id !== boxId),
+              imageBoxes: (s.imageBoxes ?? []).filter((b) => !removeIds.has(b.id)),
+              imageBoxOrder: getSpreadImageBoxOrder(s).filter((id) => !removeIds.has(id)),
             }
           : s
       )
@@ -16159,10 +16385,33 @@ function UploadPageContent() {
   // 텍스트박스는 왼쪽/오른쪽 낱장이 따로 있지만, 화면에서 이 셋은 이미 같은 자리에
   // 겹쳐 보이는 하나의 무리라(z-25/z-30이 스프레드 전체 기준으로 비교되던 예전 구조와
   // 같아요) 왼쪽+오른쪽 텍스트박스를 합쳐서 "이 스프레드의 텍스트 전체"로 취급해요.
+  // 62차: boxId 가 폴라로이드 틀(또는 그 사진 칸)이고 맨 앞/맨 뒤 요청이면 둘을 함께 옮기는 zOrder 변경 목록, 아니면 null.
+  function groupStackFor(images: ImageBoxDef[], texts: TextBoxDef[], kind: StackKind, boxId: string, action: StackOrderAction, doc?: DocMm) {
+    if (kind !== "image" || (action !== "front" && action !== "back")) return null;
+    const self = images.find((b) => b.id === boxId);
+    if (!self) return null;
+    const frame = frameHoleOf(self) ? self : findPhotoFrame(self, images, doc);
+    const photo = frame ? (frame === self ? findFramePhoto(frame, images, doc) : self) : undefined;
+    if (!frame || !photo) return null;
+    const all = sortStackedBoxes(images, texts).map((it) => ({ id: it.id, z: it.z, kind: it.kind }));
+    return groupStackUpdates(all, frame.id, photo.id, action).map((u) => ({ id: u.id, z: u.z, kind: (all.find((a) => a.id === u.id)?.kind ?? "image") as StackKind }));
+  }
   function applySpreadStackAction(spreadIndex: number, kind: StackKind, boxId: string, action: StackOrderAction) {
     const spread = customSpreads[spreadIndex];
     if (!spread) return;
     const texts = [...(spread.textBoxesLeft ?? []), ...(spread.textBoxesRight ?? [])];
+    // 62차: 폴라로이드 한 덩어리는 틀이 항상 사진 칸 바로 위에 있게 같이 옮겨요(맨 앞/맨 뒤).
+    const grp = groupStackFor(spread.imageBoxes ?? [], texts, kind, boxId, action, imageBoxDocMmRef.current.spread);
+    if (grp) {
+      for (const u of grp) {
+        if (u.kind === "image") handleImageBoxChange(spreadIndex, u.id, { zOrder: u.z });
+        else {
+          const side = (spread.textBoxesLeft ?? []).some((b) => b.id === u.id) ? "left" : "right";
+          handleTextBoxChange(spreadIndex, side, u.id, { zOrder: u.z });
+        }
+      }
+      return;
+    }
     const updates = computeZOrderUpdates(spread.imageBoxes ?? [], texts, kind, boxId, action);
     for (const u of updates) {
       if (u.kind === "image") {
@@ -16183,6 +16432,17 @@ function UploadPageContent() {
   function applyCoverStackAction(target: "front" | "back", kind: StackKind, boxId: string, action: StackOrderAction) {
     const images = target === "front" ? coverImageBoxes : backCoverImageBoxes;
     const texts = target === "front" ? coverTextBoxes : backCoverTextBoxes;
+    const grp = groupStackFor(images, texts, kind, boxId, action, target === "front" ? imageBoxDocMmRef.current.front : imageBoxDocMmRef.current.back);
+    if (grp) {
+      for (const u of grp) {
+        if (target === "front") {
+          if (u.kind === "image") handleCoverImageBoxChange(u.id, { zOrder: u.z });
+          else handleCoverTextBoxChange(u.id, { zOrder: u.z });
+        } else if (u.kind === "image") handleBackCoverImageBoxChange(u.id, { zOrder: u.z });
+        else handleBackCoverTextBoxChange(u.id, { zOrder: u.z });
+      }
+      return;
+    }
     const updates = computeZOrderUpdates(images, texts, kind, boxId, action);
     for (const u of updates) {
       if (target === "front") {
@@ -16359,6 +16619,9 @@ function UploadPageContent() {
   const [canvasFitToken, setCanvasFitToken] = useState(0);
   const undoStackRef = useRef<string[]>([]);
   const redoStackRef = useRef<string[]>([]);
+  // 62차: 사진 위치 조정(폴라로이드 안쪽 사진 편집 포함)은 "한 번의 편집"이에요 — 들어와서 완료할 때까지 실행취소 기록을 쌓지 않고 두었다가, 완료하면 한 단계로 묶어 쌓고, 취소하면 아무것도 안 쌓아요.
+  const historyHoldRef = useRef<{ base: string; boxId: string; mode: "active" | "commit" | "cancel" } | null>(null);
+  const [historyTick, setHistoryTick] = useState(0);
   const isRestoringHistoryRef = useRef(false);
   // 52차 — 제목을 쓰는 동안(이번 편집 중) 제목 칸을 옮기거나 크기·글자 크기·사진을 바꾸면, 우리가 자동으로 정한 자리·글자색·판만 다시 맞춰요(사용자가 직접 바꾼 값은 그대로).
   useEffect(() => {
@@ -16678,6 +16941,19 @@ function UploadPageContent() {
   // isRestoringHistoryRef로 표시해서 다시 쌓지 않아요.
   useEffect(() => {
     const snap = buildHistorySnapshot();
+    const hold = historyHoldRef.current;
+    if (hold) {
+      lastHistorySnapshotRef.current = snap;
+      if (hold.mode === "active") return;
+      historyHoldRef.current = null;
+      if (hold.mode === "commit" && snap !== hold.base) {
+        undoStackRef.current.push(hold.base);
+        if (undoStackRef.current.length > HISTORY_LIMIT) undoStackRef.current.shift();
+        redoStackRef.current = [];
+      }
+      syncHistoryAvail();
+      return;
+    }
     if (isRestoringHistoryRef.current) {
       isRestoringHistoryRef.current = false;
       lastHistorySnapshotRef.current = snap;
@@ -16713,6 +16989,7 @@ function UploadPageContent() {
     lastHistorySnapshotRef.current = snap;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    historyTick,
     designThemeId,
     designCoverId,
     customSpreads,
@@ -16848,7 +17125,20 @@ function UploadPageContent() {
     },
   });
 
+  // 62차: 사진 위치 조정 중에 실행취소·다시실행을 누르면 그 편집을 "취소"로 끝내요(들어오기 전 상태로).
+  function cancelHeldPhotoEdit(): boolean {
+    const h = historyHoldRef.current;
+    if (!h) return false;
+    const handle = imageBoxHandlesRef.current.get(h.boxId) ?? coverImageBoxHandlesRef.current.get(h.boxId);
+    if (handle) handle.cancelPhotoEditMode();
+    else {
+      historyHoldRef.current = null;
+      syncHistoryAvail();
+    }
+    return true;
+  }
   function handleUndo() {
+    if (cancelHeldPhotoEdit()) return;
     flushPendingHistoryBurst();
     const prevSnap = undoStackRef.current.pop();
     if (prevSnap === undefined) return;
@@ -16859,6 +17149,7 @@ function UploadPageContent() {
   }
 
   function handleRedo() {
+    if (cancelHeldPhotoEdit()) return;
     flushPendingHistoryBurst();
     const nextSnap = redoStackRef.current.pop();
     if (nextSnap === undefined) return;
@@ -16867,6 +17158,80 @@ function UploadPageContent() {
     syncHistoryAvail();
     restoreHistorySnapshot(nextSnap);
   }
+
+  // ---- 62차: 사진 위치 조정 "한 번의 편집"(완료/취소) + 폴라로이드 안쪽 사진 편집 ----
+  function restoreImageBoxWholesale(boxId: string, before: ImageBoxDef) {
+    const f = findImageBoxById(boxId);
+    if (!f) return;
+    if (f.scope === "front") setCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? before : b)));
+    else if (f.scope === "back") setBackCoverImageBoxes((prev) => prev.map((b) => (b.id === boxId ? before : b)));
+    else {
+      const idx = f.scope;
+      setCustomSpreads((prev) => prev.map((s, i) => (i === idx ? { ...s, imageBoxes: (s.imageBoxes ?? []).map((b) => (b.id === boxId ? before : b)) } : s)));
+    }
+  }
+  function boxListOfScope(scope: "front" | "back" | number): { list: ImageBoxDef[]; doc?: DocMm } {
+    if (scope === "front") return { list: coverImageBoxes, doc: imageBoxDocMmRef.current.front };
+    if (scope === "back") return { list: backCoverImageBoxes, doc: imageBoxDocMmRef.current.back };
+    return { list: customSpreads[scope]?.imageBoxes ?? [], doc: imageBoxDocMmRef.current.spread };
+  }
+  function selectBoxInScope(scope: "front" | "back" | number, box: ImageBoxDef) {
+    if (typeof scope === "number") selectImageBox(scope, box.id, box);
+    else selectCoverImageBox(scope, box.id, box);
+  }
+  function handlePhotoEditSession(boxId: string, event: "begin" | "commit" | "commit-quiet" | "cancel", before: ImageBoxDef) {
+    if (event === "begin") {
+      flushPendingHistoryBurst();
+      historyHoldRef.current = { base: lastHistorySnapshotRef.current ?? buildHistorySnapshot(), boxId, mode: "active" };
+      return;
+    }
+    if (event === "cancel") restoreImageBoxWholesale(boxId, before);
+    const hold = historyHoldRef.current;
+    if (hold && hold.boxId === boxId) hold.mode = event === "cancel" ? "cancel" : "commit";
+    setHistoryTick((t) => t + 1);
+    // 완료·취소 뒤에는 폴라로이드 안의 사진이 아니라 폴라로이드 "전체"가 선택된 상태로 돌아와요.
+    if (event === "commit" || event === "cancel") {
+      const f = findImageBoxById(boxId);
+      if (f) {
+        const { list, doc } = boxListOfScope(f.scope);
+        const frame = findPhotoFrame(f.box, list, doc);
+        if (frame) selectBoxInScope(f.scope, frame);
+      }
+    }
+  }
+  // 폴라로이드 틀의 "사진 편집" / 안쪽 사진 영역 더블클릭(더블탭): 틀은 그대로 두고 안쪽 사진 칸을 선택해 사진 위치 조정 모드로 들어가요.
+  function enterInnerPhotoEdit(scope: "front" | "back" | number, photoId: string) {
+    const { list } = boxListOfScope(scope);
+    const photo = list.find((b) => b.id === photoId);
+    if (!photo) return;
+    if (!photo.url) {
+      setPhotoReplaceBoxId(photoId);
+      return;
+    }
+    selectBoxInScope(scope, photo);
+    const handles = typeof scope === "number" ? imageBoxHandlesRef : coverImageBoxHandlesRef;
+    handles.current.get(photoId)?.enterPhotoEditMode();
+  }
+  // 빠른 툴바 "사진 편집": 왼쪽 "사진 편집" 상세 패널을 바로 열어요(선택은 그대로).
+  function openPhotoEditPanel(scope: "cover" | "spread") {
+    if (scope === "cover") {
+      setActiveCoverEditTab("photo");
+      setCoverPhotoTopTab("edit");
+    } else {
+      setActiveEditTab("photo");
+      setPhotoTopTab("edit");
+    }
+    setDrawerOpen(true);
+  }
+  const setSpreadDocMm = useCallback((mm: DocMm) => {
+    imageBoxDocMmRef.current.spread = mm;
+  }, []);
+  const setFrontDocMm = useCallback((mm: DocMm) => {
+    imageBoxDocMmRef.current.front = mm;
+  }, []);
+  const setBackDocMm = useCallback((mm: DocMm) => {
+    imageBoxDocMmRef.current.back = mm;
+  }, []);
 
   // 텍스트박스가 표지/뒤표지/내지 중 어디 속해있는지에 상관없이 "지금 활성화된 자리에
   // 새 박스를 하나 더 넣기"를 할 수 있게 해줘요(붙여넣기용).
@@ -17124,6 +17489,44 @@ function UploadPageContent() {
     else return;
     // 60차: 폰 가로에서는 패널이 닫혀 있을 수 있어서(위쪽 줄의 ✕로 닫은 뒤) 재배치하기를 누르면 레이아웃 패널이 바로 열려요. 마우스 PC는 서랍 상태를 안 봐서 달라지는 게 없어요.
     setDrawerOpen(true);
+  }
+
+  // 62차: "사진 편집" 패널에 내려주는 묶음 항목(앞뒤 순서·복사·잘라내기·붙여넣기·중앙맞춤·복제·삭제)과 폴라로이드 안쪽 사진 칸 id.
+  function buildPhotoExtra(where: { scope: "spread"; i: number } | { scope: "cover"; target: "front" | "back" }, box: ImageBoxDef | undefined) {
+    if (!box) return undefined;
+    const sel = getBarSelection();
+    const hasSel = !!sel;
+    const list = where.scope === "spread" ? customSpreads[where.i]?.imageBoxes ?? [] : where.target === "back" ? backCoverImageBoxes : coverImageBoxes;
+    const doc = where.scope === "spread" ? imageBoxDocMmRef.current.spread : where.target === "back" ? imageBoxDocMmRef.current.back : imageBoxDocMmRef.current.front;
+    const photo = frameHoleOf(box) ? findFramePhoto(box, list, doc) : undefined;
+    const actions: PhotoPanelActions = {
+      onStack: (a) => (where.scope === "spread" ? applySpreadStackAction(where.i, "image", box.id, a) : applyCoverStackAction(where.target, "image", box.id, a)),
+      copy: { onClick: () => void handleBarCopy(), disabled: !hasSel },
+      cut: { onClick: handleBarCut, disabled: !hasSel },
+      paste: { onClick: handleBarPaste, disabled: !getBarPasteTarget() },
+      center: { onClick: handleBarCenter, disabled: !getBarCenterMode() },
+      duplicate: {
+        onClick: () => {
+          if (where.scope === "spread") handleDuplicateActiveImageBox(false);
+          else {
+            const copy: ImageBoxDef = { ...box, id: crypto.randomUUID(), xPct: Math.max(0, Math.min(96 - box.widthPct, box.xPct + 4)), yPct: Math.max(0, Math.min(96 - box.heightPct, box.yPct + 4)) };
+            if (where.target === "back") setBackCoverImageBoxes((prev) => [...prev, copy]);
+            else setCoverImageBoxes((prev) => [...prev, copy]);
+            selectCoverImageBox(where.target, copy.id, copy);
+          }
+        },
+      },
+      onDelete: () => {
+        if (where.scope === "spread") handleDeleteImageBox(where.i, box.id);
+        else if (where.target === "back") handleDeleteBackCoverImageBox(box.id);
+        else handleDeleteCoverImageBox(box.id);
+      },
+    };
+    return {
+      actions,
+      groupPhotoId: photo?.id,
+      onEnterInner: () => photo && enterInnerPhotoEdit(where.scope === "spread" ? where.i : where.target, photo.id),
+    };
   }
 
   function buildEditCommandItems(): EditCommandItem[] {
@@ -19742,6 +20145,10 @@ function UploadPageContent() {
                               libraryHint={libraryHintOf(libraryTargetForCover())}
                               usedUrls={usedPhotoUrls()}
                               lowResMinPx={requiredMinPx / 2}
+                              photoExtra={(() => {
+                                const t = activeCoverImageBox ? (activeCoverImageBox.target === "back" ? backCoverImageBoxes : coverImageBoxes).find((b) => b.id === activeCoverImageBox.boxId) : undefined;
+                                return buildPhotoExtra({ scope: "cover", target: activeCoverImageBox?.target ?? "front" }, t);
+                              })()}
                             />
                           )}
                           {activeCoverEditTab === "sticker" && (
@@ -20103,6 +20510,11 @@ function UploadPageContent() {
                                   back: ((coverBackPct / 100) * coverTotalWmm) / coverTotalHmm,
                                 })}
                                 onPhotoEditModeChange={setCoverImageBoxPhotoEditActive}
+                                onRequestPhotoEdit={() => openPhotoEditPanel("cover")}
+                                onEnterInnerEdit={(_frameId, photoId) => enterInnerPhotoEdit("back", photoId)}
+                                onEditSession={handlePhotoEditSession}
+                                onDocMm={setBackDocMm}
+                                activePhotoEditing={activeCoverImageBox?.target === "back" && coverImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
                                   else coverImageBoxHandlesRef.current.delete(boxId);
@@ -20280,6 +20692,11 @@ function UploadPageContent() {
                                   back: ((coverBackPct / 100) * coverTotalWmm) / coverTotalHmm,
                                 })}
                                 onPhotoEditModeChange={setCoverImageBoxPhotoEditActive}
+                                onRequestPhotoEdit={() => openPhotoEditPanel("cover")}
+                                onEnterInnerEdit={(_frameId, photoId) => enterInnerPhotoEdit("front", photoId)}
+                                onEditSession={handlePhotoEditSession}
+                                onDocMm={setFrontDocMm}
+                                activePhotoEditing={activeCoverImageBox?.target === "front" && coverImageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) coverImageBoxHandlesRef.current.set(boxId, handle);
                                   else coverImageBoxHandlesRef.current.delete(boxId);
@@ -20712,6 +21129,10 @@ function UploadPageContent() {
                                     onUploadMore: handleFileSelect,
                                     onRemovePhoto: handleRemovePhoto,
                                   }}
+                                  photoExtra={buildPhotoExtra(
+                                    { scope: "spread", i },
+                                    activeImageBox?.spreadIndex === i ? (spread.imageBoxes ?? []).find((b) => b.id === activeImageBox.boxId) : undefined
+                                  )}
                                 />
                               )}
                               {activeEditTab === "layout" && (() => {
@@ -21190,6 +21611,11 @@ function UploadPageContent() {
                                 onRequestPhotoReplace={setPhotoReplaceBoxId}
                                 onUploadToFrame={(id, files) => handleUploadToFrame(id, files)}
                                 onPhotoEditModeChange={setImageBoxPhotoEditActive}
+                                onRequestPhotoEdit={() => openPhotoEditPanel("spread")}
+                                onEnterInnerEdit={(_frameId, photoId) => enterInnerPhotoEdit(i, photoId)}
+                                onEditSession={handlePhotoEditSession}
+                                onDocMm={setSpreadDocMm}
+                                activePhotoEditing={activeImageBox?.spreadIndex === i && imageBoxPhotoEditActive}
                                 registerBoxRef={(boxId, handle) => {
                                   if (handle) imageBoxHandlesRef.current.set(boxId, handle);
                                   else imageBoxHandlesRef.current.delete(boxId);

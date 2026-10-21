@@ -12,7 +12,11 @@ import { isDragTarget, touchDistance } from "@/lib/touchEditor";
 const SLOP_PX = 8;
 const SNAP_TO_FIT_RATIO = 1.06;
 
-type Mode = "none" | "pending" | "drag" | "pan" | "pinch" | "ignore";
+type Mode = "none" | "pending" | "drag" | "pan" | "pinch" | "innerpinch" | "ignore";
+
+// 62차: 두 번 탭(더블탭) 판정 — 아이폰 사파리는 touch-action:none 인 영역에서 더블클릭을 안 보내서 직접 만들어 보내요.
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_PX = 32;
 
 export type CanvasGestureOptions = {
   enabled: boolean;
@@ -63,6 +67,9 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
     let stage: HTMLElement | null = null;
     let dragMouseDown = false;
     let pinch = { dist: 1, pct: 100, fit: null as number | null, lastMidX: 0, lastMidY: 0 };
+    let innerBox: Element | null = null;
+    let innerDist = 1;
+    let lastTap: { t: number; x: number; y: number } | null = null;
     let raf = 0;
     let pending: { pct: number; x: number; y: number } | null = null;
 
@@ -108,6 +115,16 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
         endDrag(lastX, lastY);
         stage = st;
         vp = st.querySelector<HTMLElement>("[data-canvas-viewport]");
+        // 사진 위치 조정 중인 사진 위에서 두 손가락: 캔버스가 아니라 그 사진을 확대·축소해요.
+        const inner = (e.touches[0].target as Element | null)?.closest?.('[data-photo-editing="true"]') ?? null;
+        if (inner) {
+          innerBox = inner;
+          innerDist = Math.max(1, touchDistance(e.touches[0], e.touches[1]));
+          inner.dispatchEvent(new CustomEvent("keepic-inner-pinch", { detail: { phase: "start", ratio: 1 } }));
+          mode = "innerpinch";
+          e.preventDefault();
+          return;
+        }
         const o = optsRef.current;
         const fit = o.getFitPct(st);
         if (fit === null) {
@@ -145,6 +162,14 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
 
     const onMove = (e: TouchEvent) => {
       if (mode === "none" || mode === "ignore") return;
+      if (mode === "innerpinch") {
+        if (e.touches.length < 2) return;
+        e.preventDefault();
+        innerBox?.dispatchEvent(
+          new CustomEvent("keepic-inner-pinch", { detail: { phase: "move", ratio: touchDistance(e.touches[0], e.touches[1]) / innerDist } })
+        );
+        return;
+      }
       if (mode === "pinch") {
         if (e.touches.length < 2) return;
         e.preventDefault();
@@ -192,6 +217,29 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
     };
 
     const onEnd = (e: TouchEvent) => {
+      if (mode === "pending" && e.touches.length === 0) {
+        // 움직이지 않은 한 번 탭이 사진 칸 위에서 연달아 두 번이면 더블클릭을 만들어 보내요(사진 위치 조정 들어가기/나가기).
+        const t = e.changedTouches[0];
+        const el = target;
+        if (t && el?.closest?.("[data-image-box-id]")) {
+          const now = Date.now();
+          if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+            lastTap = null;
+            el.dispatchEvent(
+              new MouseEvent("dblclick", { bubbles: true, cancelable: true, view: window, clientX: t.clientX, clientY: t.clientY, detail: 2 })
+            );
+          } else lastTap = { t: now, x: t.clientX, y: t.clientY };
+        } else lastTap = null;
+      }
+      if (mode === "innerpinch") {
+        mode = e.touches.length === 0 ? "none" : "ignore";
+        innerBox = null;
+        if (e.touches.length === 0) {
+          stage = null;
+          target = null;
+        }
+        return;
+      }
       if (mode === "drag") {
         e.preventDefault(); // 끌기 뒤에 브라우저가 가짜 클릭을 보내지 않게
         const t = e.changedTouches[0];
