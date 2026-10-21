@@ -2696,7 +2696,7 @@ function TextBoxRichEditor({
       )}
       {isEmpty && (
         <div
-          className={`pointer-events-none absolute inset-0 select-none ${emptyHintSubtle ? "opacity-50" : "opacity-40"}`}
+          className={`kb-empty-hint pointer-events-none absolute inset-0 select-none ${emptyHintSubtle ? "opacity-50" : "opacity-40"}`}
           style={{
             fontFamily: box.fontFamily,
             fontSize: emptyHintSubtle ? `calc(${screenFontSizeCss(box.fontScale)} * 0.45)` : screenFontSizeCss(box.fontScale),
@@ -3801,7 +3801,7 @@ function StackOrderToolbar({
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15 ph:gap-0 ph:rounded-xl ph:px-1 ph:py-1 phl:px-0.5 phl:py-0.5 phl:[&>*+*]:border-l phl:[&>*+*]:border-[var(--color-hairline)]"
+      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15 ph:gap-0 ph:rounded-xl ph:border ph:border-[var(--color-hairline)] ph:shadow-[0_1px_2px_rgba(0,0,0,0.06)] ph:shadow-black/[0.06] ph:px-1 ph:py-1 phl:px-0.5 phl:py-0.5 phl:[&>*+*]:border-l phl:[&>*+*]:border-[var(--color-hairline)]"
       // 2026-11(18번째 라운드 19차), 혜민님 요청("편집패널이 위쪽 상단에 배치되어있는데
       // 하단쪽에 배치되는게 좋을거같아요") — "화면 하단 공간 부족" fallback(flip, 박스가
       // 페이지 밑바닥에 가까울 때만 위로 띄움)은 그대로 안 건드렸어요. 바꾼 건
