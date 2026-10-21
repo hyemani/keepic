@@ -44,6 +44,20 @@ export function SidePanelShell({
       }`}
     >
       {onClose && (
+        // 61차: 폰에서 가상 키보드가 올라온 동안만 보이는 맨 위 줄(globals.css의 html[data-kb="open"] 규칙) — 글 칸이 패널 맨 위로 오고, "완료"가 키보드를 내려요.
+        <div data-kb-head className="sticky top-[-8px] z-10 -mx-2 -mt-2 mb-1 hidden h-9 shrink-0 items-center justify-between gap-2 bg-white px-2 shadow-[0_1px_0_var(--color-hairline)]">
+          <span className="min-w-0 truncate text-[13px] font-semibold text-[var(--color-charcoal)]">{title ?? "편집"}</span>
+          <button
+            type="button"
+            data-testid="kb-done"
+            onClick={() => (document.activeElement as HTMLElement | null)?.blur?.()}
+            className="relative flex h-8 shrink-0 items-center rounded-md bg-[var(--color-charcoal)] px-3 text-[13px] font-semibold text-white transition-colors active:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-sky)] after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] motion-reduce:transition-none"
+          >
+            완료
+          </button>
+        </div>
+      )}
+      {onClose && (
         <div data-panel-head className="hidden shrink-0 max-lg:flex phl:hidden ph:sticky ph:top-[-8px] ph:z-10 ph:-mx-2 ph:-mt-2 ph:mb-2 ph:h-9 ph:items-center ph:justify-between ph:gap-2 ph:bg-white ph:px-2 ph:shadow-[0_1px_0_var(--color-hairline)]">
           {title && <span className="hidden min-w-0 truncate text-[13px] font-semibold text-[var(--color-charcoal)] ph:block">{title}</span>}
           <button

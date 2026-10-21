@@ -279,4 +279,30 @@ body {
     color: #8e8e93 !important;
     opacity: 1 !important;
   }
+  /* 키보드가 올라온 동안(<html data-kb="open">, lib/softKeyboard.ts): 패널 맨 위 줄에 "완료"를 보여주고, 예전 닫기 줄은 숨겨요. */
+  html[data-kb="open"] [data-kb-head] {
+    display: flex;
+  }
+  html[data-kb="open"] [data-panel-head] {
+    display: none !important;
+  }
+}
+/* 2) 폰 가로 글쓰기 모드: 위쪽 도구 줄·페이지 이동 화살표·떠있는 툴바를 숨겨서 남는 자리를 글상자 캔버스와 패널이 써요. 키보드가 내려가면 전부 돌아와요. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 599.98px) {
+  html[data-kb="open"] [data-testid="phl-topbar"],
+  html[data-kb="open"] [data-phl-chevron],
+  html[data-kb="open"] [data-phl-label],
+  html[data-kb="open"] [data-floating-toolbar] {
+    display: none !important;
+  }
+  /* 폰 가로 "텍스트" 패널: 서체 → 내용 → (크기·색 등) → 텍스트 스타일 저장 순서(참고 제품과 같은 배치). 키보드 여부와 상관없이 글상자를 고르면 이 순서예요. */
+  [data-text-style-panel] > [data-ts-font] {
+    order: -3;
+  }
+  [data-text-style-panel] > [data-ts-content] {
+    order: -2;
+  }
+  [data-text-style-panel] > [data-ts-presets] {
+    order: 3;
+  }
 }

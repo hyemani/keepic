@@ -146,6 +146,8 @@ import { splitUploadFiles } from "@/lib/frameUpload";
 import { chooseLibraryTarget, libraryHintOf, parseCanvasId, type LibraryClickTarget, type LibraryHint, type SlotScope } from "@/lib/librarySlotTarget";
 import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
 import { useCompactEditor, useDrawerDismiss } from "@/lib/useCompactEditor";
+import { useSoftKeyboard } from "@/lib/softKeyboard";
+import { useKeyboardWriting } from "./keyboardWriting";
 import { isIOSLike, tryLockLandscape, tryUnlockOrientation, useCoarsePointer, useTouchLayout, useVisualViewportVars } from "@/lib/touchEditor";
 import { useCanvasTouchGestures } from "@/lib/useCanvasTouchGestures";
 import { computeCanvasFit } from "@/lib/canvasFit";
@@ -4952,7 +4954,7 @@ function TextStyleFieldsPanel({
 
   return (
     <>
-      <div>
+      <div data-ts-font>
         <label className="mb-1 block text-[10px] text-[var(--color-charcoal)]/60">서체</label>
         {/* 2026-10(11번째 라운드), 혜민님 요청(6개 아이콘 목록에 텍스트선이 없음) —
             텍스트선(outline) 토글·색 스와치를 이 줄에서 없앴어요. strokeColor/
@@ -6985,6 +6987,7 @@ function TextBoxToolbar({
           정렬/배경 등 "꾸밈" 값만 이름 붙여 저장했다가, 다른 텍스트박스(표지 제목·
           책등·일반 글상자 어디든, 다른 페이지 포함)에 그대로 적용해요. 내용(text)은
           저장/적용 어느 쪽도 건드리지 않아요. */}
+      <div data-ts-presets>
       <StylePresetSection<TextStylePreset>
         label="텍스트 스타일"
         presets={textStylePresets}
@@ -7001,7 +7004,8 @@ function TextBoxToolbar({
         onApply={(preset) => onChange({ ...preset.style, runs: undefined })}
         onDelete={(id) => setTextStylePresets(deleteTextStylePreset(id))}
       />
-      <div>
+      </div>
+      <div data-ts-content>
         <div className="mb-1 flex items-center justify-between">
           <label className="block text-sm font-medium text-[var(--color-charcoal)]/70">
             내용
@@ -7043,9 +7047,10 @@ function TextBoxToolbar({
         </div>
         <textarea
           value={contentValue}
+          data-text-content-field={box.id}
           onChange={(e) => onContentChange(e.target.value)}
           rows={2}
-          className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)]"
+          className="w-full resize-none border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-base outline-none focus:border-[var(--color-sky)] phl:min-h-[72px]"
         />
       </div>
       {/* 2026-11-9차 5번째 라운드, 혜민님 버그 리포트("표안 글꼴 수정패널 처음
@@ -16338,7 +16343,9 @@ function UploadPageContent() {
   // canvasZoom(줌 배율)로 되돌아가요.
   const [actualSizePercent, setActualSizePercent] = useState<number | null>(null);
   const currentZoomPctRef = useRef(100);
+  const manualZoomPctRef = useRef<number | null>(null);
   useLayoutEffect(() => {
+    manualZoomPctRef.current = manualZoomPct;
     currentZoomPctRef.current = actualSizePercent ?? manualZoomPct ?? 100;
   });
   // 편집 영역 높이는 이제(2026-09-23) 상단바 높이를 JS로 재서 calc()로 빼는 방식 대신,
@@ -17172,6 +17179,19 @@ function UploadPageContent() {
   const [portraitEditOk, setPortraitEditOk] = useState(false);
   // 57차(2): 실제 보이는 높이(visualViewport)를 CSS 변수로 알려줘서 iOS Safari 주소창이 나왔다 들어가도 편집기 높이가 맞게 해요(손가락 기기만).
   useVisualViewportVars(touchCoarse);
+  // 61차: 폰 가상 키보드가 올라오면(iOS는 레이아웃을 안 줄이고 보이는 영역만 줄여요) 편집 화면을 키보드 위 "보이는 영역"에 그대로 고정해요(자세한 건 lib/softKeyboard.ts).
+  const softKb = useSoftKeyboard(touchLayout.phone && editorMode === "edit");
+  // 폰을 가로로 눕히고 글을 치는 중(키보드 위로 120~190px만 남음): 위쪽 도구 줄을 숨기고, 글 칸이 패널 맨 위·글상자가 캔버스에 크게 보이게 해요.
+  const phlWriting = softKb.open && touchLayout.phoneLandscape;
+  useKeyboardWriting({
+    active: softKb.open && touchLayout.phone,
+    zoom: touchLayout.phoneLandscape,
+    getManualPct: () => manualZoomPctRef.current,
+    getActualPct: () => currentZoomPctRef.current,
+    setManualPct: setManualZoomPct,
+    zoomMin: ZOOM_PCT_MIN,
+    zoomMax: ZOOM_PCT_MAX,
+  });
   // 폰 가로 미리보기에서 페이지 목록을 잠깐 띄우는 스위치(57차 2)
   const [stripOpen, setStripOpen] = useState(false);
   // 폰 가상 키보드가 열리면(안드로이드 Chrome 등) 화면 높이가 키보드만큼 줄어든 걸로 취급해서 캔버스가 남은 자리에 다시 맞춰져요 —
@@ -18828,8 +18848,22 @@ function UploadPageContent() {
         // 57차(2): 손가락 기기는 visualViewport로 잰 실제 보이는 높이(--app-vh)를 써요(없으면 100dvh). 마우스 PC는 예전 h-dvh 그대로예요.
         data-editor-shell
         data-phone-layout={touchLayout.phone ? (touchLayout.phonePortrait ? "portrait" : "landscape") : "no"}
+        data-kb={softKb.open ? "open" : undefined}
+        // 61차: 키보드가 열려 있는 동안만 "보이는 영역(visualViewport)" 자리에 고정해요. 닫히면 style이 없어져서 예전 배치 그대로예요.
+        style={softKb.open ? { position: "fixed", top: softKb.top, left: softKb.left, width: softKb.width, height: softKb.height } : undefined}
         className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)] [@media(pointer:coarse)]:h-[var(--app-vh,100dvh)] [@media(pointer:coarse)]:overscroll-none"
       >
+        {phlWriting && !phlDockOpen && (
+          // 61차: 패널 없이 캔버스에서 직접 글을 칠 때(키보드가 올라온 동안) 키보드를 내리는 "완료" 버튼이에요. 패널이 열려 있으면 패널 맨 위 줄의 "완료"를 써요.
+          <button
+            type="button"
+            data-testid="kb-done-floating"
+            onClick={() => (document.activeElement as HTMLElement | null)?.blur?.()}
+            className="absolute right-[max(8px,env(safe-area-inset-right))] top-1 z-[100002] flex h-8 items-center rounded-md bg-[var(--color-charcoal)] px-3 text-[13px] font-semibold text-white shadow-[0_1px_2px_rgba(0,0,0,0.12)] transition-colors active:bg-black after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] motion-reduce:transition-none"
+          >
+            완료
+          </button>
+        )}
         {emptySlotGate && (
           <EmptySlotDialog
             groups={emptySlotGate.groups}
