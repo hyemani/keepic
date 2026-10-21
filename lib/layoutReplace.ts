@@ -62,6 +62,22 @@ export function recipesFromLayout(layout: DesignPageLayout, side: ReplaceSide, g
   });
 }
 
+// 여러 칸이 같이 쓰는 그림자·색 띠(forSlots 가 2칸 이상인 글상자): 칸 개수가 바뀌어도 "칸들을 감싸는 띠"라는 뜻은 그대로라서,
+// 새 칸들의 바깥 네모에 옛 띠가 칸들 바깥으로 나와 있던 여백(mm)을 그대로 주어 다시 만들어요.
+type Group = { t: DesignText; margin: { l: number; t: number; r: number; b: number } };
+export function groupsFromLayout(layout: DesignPageLayout, side: ReplaceSide, g: DesignGeo): Group[] {
+  const out: Group[] = [];
+  for (const t of layout.texts) {
+    if (!t.forSlots || t.forSlots.length < 2 || !t.forSlots.every((k) => k.split("~")[0] === side)) continue;
+    const rects = t.forSlots.map((k) => layout.slots[Number(k.split("~")[1])]).filter(Boolean).map((sl) => rectMm(sl, g));
+    if (rects.length < 2) continue;
+    const u = { x0: Math.min(...rects.map((r) => r.cx - r.w / 2)), y0: Math.min(...rects.map((r) => r.cy - r.h / 2)), x1: Math.max(...rects.map((r) => r.cx + r.w / 2)), y1: Math.max(...rects.map((r) => r.cy + r.h / 2)) };
+    const tr = rectMm(t, g);
+    out.push({ t, margin: { l: u.x0 - (tr.cx - tr.w / 2), t: u.y0 - (tr.cy - tr.h / 2), r: tr.cx + tr.w / 2 - u.x1, b: tr.cy + tr.h / 2 - u.y1 } });
+  }
+  return out;
+}
+
 const rot2 = (x: number, y: number, deg: number) => {
   const a = rad(deg);
   return { x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a) };
@@ -277,5 +293,38 @@ export function planThemeReplace(inp: ReplaceInput): ReplacePlan | null {
       addTexts.push({ side, box: tb });
     }
   });
+  // 여러 칸을 감싸는 띠 다시 만들기(이 면 자신의 디자인만)
+  for (const side of inp.sides) {
+    const did = designIds[side];
+    const lay = did ? inp.layoutOf(did, side) : null;
+    const mine = inp.cells.map((c, j) => ({ c, j })).filter(({ j }) => inp.sideOfCell(j) === side);
+    if (!did || !lay || mine.length === 0) continue;
+    const mm = mine.map(({ c }) => ({
+      x0: (c.xPct / 100) * inp.docMm.w,
+      y0: (c.yPct / 100) * inp.docMm.h,
+      x1: ((c.xPct + c.widthPct) / 100) * inp.docMm.w,
+      y1: ((c.yPct + c.heightPct) / 100) * inp.docMm.h,
+    }));
+    const off = inp.sideOffsetMm(side);
+    const u = { x0: Math.min(...mm.map((r) => r.x0)), y0: Math.min(...mm.map((r) => r.y0)), x1: Math.max(...mm.map((r) => r.x1)), y1: Math.max(...mm.map((r) => r.y1)) };
+    groupsFromLayout(lay, side, inp.g).forEach((gr, gi) => {
+      const x0 = Math.max(off, u.x0 - gr.margin.l);
+      const y0 = Math.max(0, u.y0 - gr.margin.t);
+      const x1 = Math.min(off + inp.g.W, u.x1 + gr.margin.r);
+      const y1 = Math.min(inp.g.H, u.y1 + gr.margin.b);
+      addTexts.push({
+        side,
+        box: {
+          ...gr.t,
+          id: designItemId(did, side, "t", REPLACE_ITEM_N0 + 100 + gi),
+          xPct: r3(((x0 - off) / inp.g.W) * 100),
+          yPct: r3((y0 / inp.g.H) * 100),
+          widthPct: r3(((x1 - x0) / inp.g.W) * 100),
+          heightPct: r3(((y1 - y0) / inp.g.H) * 100),
+          forSlots: mine.map((_, k) => slotKey(side, k)),
+        },
+      });
+    });
+  }
   return { slotPatches, removeBoxIds, removeTextIds, addStickers, addTexts, designIds };
 }
