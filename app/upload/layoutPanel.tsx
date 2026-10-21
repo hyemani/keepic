@@ -138,6 +138,7 @@ export function LayoutPanel({
   filter,
   onFilterChange,
   message,
+  scopeLabel,
 }: {
   targets: LayoutTargetOption[];
   target: string;
@@ -151,6 +152,7 @@ export function LayoutPanel({
   filter: LayoutCountFilter;
   onFilterChange: (f: LayoutCountFilter) => void;
   message?: string | null;
+  scopeLabel?: string; // 63차: "적용 범위: 2-3 페이지 펼침면" 처럼 지금 눌렀을 때 바뀌는 범위를 한 줄로 알려줘요
 }) {
   const visible = templates.filter((t) => matchesLayoutCountFilter(t.photoCount, filter));
   const isCover = frame.kind === "cover";
@@ -164,6 +166,11 @@ export function LayoutPanel({
         value={target}
         onChange={onTargetChange}
       />
+      {scopeLabel ? (
+        <p data-layout-scope className="truncate px-0.5 text-[11px] font-medium text-[var(--color-charcoal)]/70 ph:text-xs" title={scopeLabel}>
+          {scopeLabel}
+        </p>
+      ) : null}
       <div className="grid grid-cols-4 gap-px bg-[var(--color-hairline)] text-[11px] ph:text-[13px]" role="group" aria-label="사진 칸 개수">
         {LAYOUT_COUNT_FILTERS.map((f) => (
           <button

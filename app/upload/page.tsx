@@ -207,7 +207,8 @@ import {
   sideOfDesignItem,
 } from "@/lib/designTemplates";
 import { linkLayoutDecoration, slotKey } from "@/lib/designSlotLink";
-import { stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
+import { makeLegacyLinker, stripOrphanDecorationCoverSide, stripOrphanDecorationSpread } from "@/lib/orphanDecoration";
+import { planThemeReplace } from "@/lib/layoutReplace";
 import { countUnusedLibraryPhotos, findEmptyPhotoSlots, type EmptySlotGroup } from "@/lib/emptyPhotoSlots";
 import { cleanEmptySlotsOnCover, cleanEmptySlotsOnSpread } from "@/lib/emptySlotCleanup";
 import { EmptySlotDialog } from "./emptySlotDialog";
@@ -15073,6 +15074,46 @@ function UploadPageContent() {
     return clampedSlots;
   }
 
+  // 63차(혜민님 요청 4번): 레이아웃 패널에서 레이아웃을 고르면 "기존 구성 위에 추가"가 아니라 "이 범위의 구성 교체"예요.
+  // 이 면의 디자인(테마)이 사진 칸마다 만든 장식(폴라로이드·필름 틀, 테이프, 그림자 띠)만 지우고 새 칸 모양대로 다시 만들어요(lib/layoutReplace.ts).
+  // 배경·서체·페이지 장식(칸에 안 딸린 것)·직접 넣은 글/스티커는 그대로예요. 디자인이 없는 면이면 null → 예전 동작 그대로.
+  function buildInnerLayoutReplaceOpts(spread: SpreadDef, range: LayoutApplyRange, template: PhotoLayoutTemplate) {
+    const pageMm = computeInnerPageWorkMm();
+    const g = innerDesignGeo(pageMm);
+    const sides: ("left" | "right")[] = range === "spread" ? ["left", "right"] : [range];
+    const cells = placeInnerTemplateSlots(template, range);
+    const plan = planThemeReplace({
+      sides,
+      boxes: spread.imageBoxes ?? [],
+      texts: { left: spread.textBoxesLeft, right: spread.textBoxesRight },
+      g,
+      docMm: { w: pageMm * 2, h: pageMm },
+      sideOffsetMm: (sd) => (sd === "right" ? pageMm : 0),
+      cells,
+      sideOfCell: (i) => (range !== "spread" ? range : cells[i].xPct + cells[i].widthPct / 2 < 50 ? "left" : "right"),
+      layoutOf: (id, sd) => {
+        const d = findInnerDesign(id);
+        return d && (sd === "left" || sd === "right") ? linkLayoutDecoration(d[sd](g), sd) : null;
+      },
+      legacy: makeLegacyLinker("inner", { pageWorkMm: pageMm, bleedMm: printFileSpec.innerTrimBleedMm }),
+    });
+    if (!plan) return null;
+    return {
+      slotPatches: plan.slotPatches,
+      finalizeSpread: (s: SpreadDef): SpreadDef => {
+        const rm = plan.removeBoxIds;
+        const next: SpreadDef = { ...s, imageBoxes: [...(s.imageBoxes ?? []).filter((b) => !rm.has(b.id)), ...plan.addStickers] };
+        if (rm.size > 0 && s.imageBoxOrder) next.imageBoxOrder = s.imageBoxOrder.filter((id) => !rm.has(id));
+        for (const sd of sides) {
+          const key = sd === "left" ? "textBoxesLeft" : "textBoxesRight";
+          const adds = plan.addTexts.filter((a) => a.side === sd).map((a) => a.box);
+          if (plan.removeTextIds.size > 0 || adds.length > 0) next[key] = [...(s[key] ?? []).filter((t) => !plan.removeTextIds.has(t.id)), ...adds];
+        }
+        return next;
+      },
+    };
+  }
+
   function applyLayoutTemplate(
     spreadIndex: number,
     rangeReq: LayoutApplyRange,
@@ -15101,6 +15142,14 @@ function UploadPageContent() {
     if (scopedRange === null) return;
     if (scopedRange !== rangeReq && template.scope === "spread") return;
     const range: LayoutApplyRange = scopedRange;
+    // 63차: 패널에서 직접 고른 경우(opts 없음)만 — 테마가 만든 칸 장식을 교체해요. 디자인 적용·앨범 테마(opts 있음)는 예전 흐름 그대로예요.
+    if (!opts) {
+      const ro = buildInnerLayoutReplaceOpts(spread, range, template);
+      if (ro) {
+        applyLayoutTemplate(spreadIndex, rangeReq, template, selectedIds, ro);
+        return;
+      }
+    }
     // 2026-09-27 재확인: "레이아웃을 바꿀때마다 겹치는 오류 확인됩니다. 레이아웃을
     // 바꾸면 선택한 레이아웃 자체가 바뀌어야합니다. 추가되는게 아니고요." — 이 면이
     // 아직 옛날 방식 그리드(spread.left/right, 사진이 여러 장인 템플릿)로 사진을
@@ -15184,7 +15233,7 @@ function UploadPageContent() {
           layoutTemplateId: template.id,
           // 디자인(감성 필기체 등)이 기울여 둔 사진이면 다른 레이아웃·디자인으로 바꿀 때 그 "디자인 기울기"만 풀어요(새 디자인이 기울이면 patch가 다시 정해요).
           // 사용자가 직접 돌린 각도(designRotation과 다른 값)는 지켜요 — 디자인을 바꿔도 사진 회전이 멋대로 돌아가지 않게요.
-          ...(existing.layoutTemplateId?.startsWith("design:") && (existing.rotation ?? 0) === (existing.designRotation ?? 0)
+          ...((existing.layoutTemplateId?.startsWith("design:") || existing.designRotation !== undefined) && (existing.rotation ?? 0) === (existing.designRotation ?? 0)
             ? { rotation: undefined, designRotation: undefined }
             : {}),
         };
@@ -15335,6 +15384,40 @@ function UploadPageContent() {
     return placeCoverSlots(template, target, { panelMm: cd.panelMm, bleedMm: cd.bleedMm });
   }
 
+  // 63차: 표지 버전 — 앞표지/뒤표지 한 판 안에서 테마가 칸마다 만든 장식만 교체해요(내지 buildInnerLayoutReplaceOpts 참고).
+  function buildCoverLayoutReplaceOpts(target: "front" | "back", template: PhotoLayoutTemplate) {
+    const cd = computeCoverDesignDims();
+    const g = coverDesignGeo(target, cd.panelMm, cd.bleedMm);
+    const boxes = target === "front" ? coverImageBoxes : backCoverImageBoxes;
+    const texts = target === "front" ? coverTextBoxes : backCoverTextBoxes;
+    const cells = placeCoverTemplateSlots(target, template);
+    const plan = planThemeReplace({
+      sides: [target],
+      boxes,
+      texts: { [target]: texts },
+      g,
+      docMm: { w: g.W, h: g.H },
+      sideOffsetMm: () => 0,
+      cells,
+      sideOfCell: () => target,
+      layoutOf: (id, sd) => {
+        const d = findCoverDesign(id);
+        return d && (sd === "front" || sd === "back") ? linkLayoutDecoration(d[sd](g), sd) : null;
+      },
+      legacy: makeLegacyLinker("cover", undefined, { panelMm: cd.panelMm, bleedMm: cd.bleedMm }),
+    });
+    if (!plan) return null;
+    return {
+      slotPatches: plan.slotPatches,
+      fromLayoutClick: true,
+      finalizeBoxes: (list: ImageBoxDef[]) => [...list.filter((b) => !plan.removeBoxIds.has(b.id)), ...plan.addStickers],
+      mergeTexts: (prev: TextBoxDef[]) =>
+        plan.removeTextIds.size > 0 || plan.addTexts.length > 0
+          ? [...prev.filter((t) => !plan.removeTextIds.has(t.id)), ...plan.addTexts.map((a) => a.box)]
+          : prev,
+    };
+  }
+
   function applyCoverLayoutTemplate(
     target: "front" | "back",
     template: PhotoLayoutTemplate,
@@ -15346,9 +15429,17 @@ function UploadPageContent() {
       mergeTexts?: (prev: TextBoxDef[]) => TextBoxDef[];
       fitOrientation?: boolean; // 디자인 적용용: 사진 가로·세로에 맞는 칸으로(lib/photoSlotFit.ts). 안 넘기면 예전과 같아요.
       syncLegacyPhoto?: boolean; // 예전 방식 표지 사진 1장을 이미지 크기 읽기를 기다리지 않고 바로 첫 칸으로 이어받아요
+      fromLayoutClick?: boolean; // 63차: 패널에서 직접 고른 레이아웃 교체(테마 칸 장식 교체 + 사용자가 돌린 사진 각도 보존 + 제목 자동 판단은 예전 그대로)
       onResult?: (r: { extraPhotos: number; slots: number }) => void;
     }
   ) {
+    if (!opts) {
+      const ro = buildCoverLayoutReplaceOpts(target, template);
+      if (ro) {
+        applyCoverLayoutTemplate(target, template, selectedIds, ro);
+        return;
+      }
+    }
     const isFront = target === "front";
     // 2026-09-27, 혜민님 요청 — 내지와 같은 이유로 표지 스티커도 레이아웃 대상에서 빼요.
     const existingBoxesRaw = isFront ? coverImageBoxes : backCoverImageBoxes;
@@ -15382,7 +15473,7 @@ function UploadPageContent() {
     // 51차(혜민님 요청): 목록 레이아웃을 앞표지에 적용할 때, "아직 글자가 없고 처음 그대로인" 빈 제목 칸만 사진과 안 겹치는 자리(문구 영역 위쪽·여백 띠)로 옮겨요.
     // 사진 칸은 그대로예요(줄이거나 옮기지 않아요). 제목을 쓴 표지·칸을 옮기거나 크기를 바꾼 표지는 건드리지 않아요. 자리가 없으면(꽉 채우기·2단·격자 등) 그대로 두고, 글자를 쓸 때 읽기 쉬운 서식을 줘요.
     let titlePlan: CoverTitlePlan | null = null;
-    if (isFront && !opts && !selectedIds && coverPanelTemplates().some((t) => t.id === template.id)) {
+    if (isFront && (!opts || opts.fromLayoutClick) && !selectedIds && coverPanelTemplates().some((t) => t.id === template.id)) {
       const fd = { panelMm: capDims.panelMm, bleedMm: capDims.bleedMm };
       const autoYs = coverTitleAutoYSet(coverPanelTemplates(), fd, coverTitleFontSizePt, coverTitleLineHeightEm);
       if (
@@ -15434,6 +15525,7 @@ function UploadPageContent() {
             heightPct: clamped.heightPct,
             layoutTemplateId: template.id,
             ...(existing.layoutTemplateId?.startsWith("design:") ? { rotation: undefined } : {}),
+            ...(existing.designRotation !== undefined && (existing.rotation ?? 0) === existing.designRotation ? { rotation: undefined, designRotation: undefined } : {}),
             // 46차 "프레임형"(48차에 없앰)으로 이미 입혀진 테두리는 다른 구성으로 바꿀 때 같이 풀어요.
             ...(existing.layoutTemplateId === "cover-1-frame" ? { borderWidthPx: undefined, borderColor: undefined } : {}),
           };
@@ -15458,7 +15550,16 @@ function UploadPageContent() {
       // 돌려보내요(내지 applyLayoutTemplate와 같은 방식 — 예전엔 남는 사진 박스가 옛 자리에 겹쳐 남았어요).
       const extraLibraryPhotos = extraBoxes.filter((b) => b.url).map(boxToLibraryPhoto);
       const placed = opts?.slotPatches
-        ? placedRaw.map((b, i) => (opts.slotPatches?.[i] ? { ...b, ...opts.slotPatches[i] } : b))
+        ? placedRaw.map((b, i) => {
+            const patch = opts.slotPatches?.[i];
+            if (!patch) return b;
+            const merged = { ...b, ...patch };
+            if (!opts.fromLayoutClick) return merged;
+            // 63차: 사용자가 직접 돌린 사진 각도는 지키고, 디자인이 준 기울기만 designRotation 에 기억해요(내지와 같은 규칙)
+            const userRotated = b.rotation !== undefined && b.rotation !== 0;
+            if (userRotated && patch.rotation !== undefined) return { ...merged, rotation: b.rotation, designRotation: undefined };
+            return patch.rotation !== undefined ? { ...merged, designRotation: patch.rotation } : merged;
+          })
         : placedRaw;
       opts?.onResult?.({ extraPhotos: extraLibraryPhotos.length, slots: template.slots.length });
       setCoverLayoutApplyMessage(
@@ -20221,6 +20322,7 @@ function UploadPageContent() {
                                 filter={layoutCountFilter}
                                 onFilterChange={setLayoutCountFilter}
                                 message={coverLayoutApplyMessage}
+                                scopeLabel={`적용 범위: ${target === "front" ? "앞표지" : "뒤표지"}`}
                               />
                             );
                           })()}
@@ -21181,6 +21283,15 @@ function UploadPageContent() {
                                     filter={layoutCountFilter}
                                     onFilterChange={setLayoutCountFilter}
                                     message={layoutApplyMessage}
+                                    scopeLabel={
+                                      isIntroView
+                                        ? "적용 범위: 소개 페이지"
+                                        : range === "spread"
+                                          ? `적용 범위: ${formatSpreadPageLabel(i)} 페이지 펼침면`
+                                          : range === "left"
+                                            ? `적용 범위: ${2 * i} 페이지 (왼쪽 면만)`
+                                            : `적용 범위: ${2 * i + 1} 페이지 (오른쪽 면만)`
+                                    }
                                   />
                                 );
                               })()}
