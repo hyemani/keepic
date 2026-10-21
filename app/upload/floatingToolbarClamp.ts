@@ -24,6 +24,7 @@ export function useFloatingToolbarClamp(ref: RefObject<HTMLElement | null>, opts
       el.style.maxWidth = `${Math.floor(availW)}px`;
       el.style.marginLeft = "0px";
       el.style.marginTop = "0px";
+      el.style.marginBottom = "0px";
       const r = el.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) return;
       let dx = 0;
@@ -47,7 +48,10 @@ export function useFloatingToolbarClamp(ref: RefObject<HTMLElement | null>, opts
         }
       }
       el.style.marginLeft = `${Math.round(dx * 10) / 10}px`;
-      el.style.marginTop = `${Math.round(dy * 10) / 10}px`;
+      // 62차: 박스 위쪽에 뜨는 툴바(flip)·박스 안 아래(fillsFrame)는 bottom 기준으로 놓여 있어서 marginTop 은 위치를 못 옮겨요 — marginBottom 을 반대로 줘서 옮겨요(큰 사진이 위에 있을 때 툴바가 화면 밖으로 나가던 문제).
+      const bottomAnchored = el.style.bottom !== "" && el.style.top === "";
+      if (bottomAnchored) el.style.marginBottom = `${Math.round(-dy * 10) / 10}px`;
+      else el.style.marginTop = `${Math.round(dy * 10) / 10}px`;
     };
     run();
     const stage = el.closest("[data-canvas-stage]");
