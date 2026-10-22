@@ -25,7 +25,7 @@ export default function StickyOrderBar({
 
       {/* PC: 화면을 스크롤해도 우측 하단에 계속 떠 있는 작은 동그란(pill) 버튼 */}
       {desktopFloating && (
-        <div className="fixed bottom-6 right-6 z-50 hidden sm:block">
+        <div className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-[max(1.5rem,env(safe-area-inset-right))] z-50 hidden sm:block">
           <Link
             href={href}
             className="block whitespace-nowrap rounded-full bg-[linear-gradient(135deg,var(--color-brand-purple),var(--color-sky))] px-6 py-3.5 text-center text-sm font-medium text-white shadow-[0_10px_25px_-8px_rgba(45,55,72,0.45)] transition hover:opacity-90"

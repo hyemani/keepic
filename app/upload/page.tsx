@@ -1,5 +1,6 @@
 "use client";
 
+import { safeBack } from "@/lib/safeBack";
 import { Suspense, createContext, useContext, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -19631,7 +19632,7 @@ function UploadPageContent() {
             ) : (
               <button
                 type="button"
-                onClick={() => router.back()}
+                onClick={() => safeBack(router)}
                 aria-label="편집기 나가기 (이전 화면으로)"
                 title="편집기 나가기 (이전 화면으로)"
                 className="flex h-8 w-8 shrink-0 items-center justify-center whitespace-nowrap max-md:w-auto max-md:gap-1 max-md:px-2 max-md:text-xs max-md:font-medium text-[var(--color-charcoal)]/60 ph:w-auto! ph:gap-1 ph:px-2 ph:text-sm ph:font-medium ph:text-[var(--color-charcoal)]/85 phl:h-10! transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--color-sky)] max-lg:h-11 max-lg:w-11 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 motion-reduce:transition-none"
@@ -21906,7 +21907,7 @@ function UploadPageContent() {
       <header className="mx-auto flex max-w-6xl items-center gap-2 px-1.5 py-2 sm:px-10">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => safeBack(router)}
           aria-label="뒤로가기"
           className="flex h-9 w-9 items-center justify-center text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
         >

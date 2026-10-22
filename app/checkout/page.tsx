@@ -1,5 +1,6 @@
 "use client";
 
+import { safeBack } from "@/lib/safeBack";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
@@ -163,7 +164,7 @@ export default function CheckoutPage() {
       <header className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-8 sm:px-10">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => safeBack(router)}
           aria-label="뒤로가기"
           className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-charcoal)]/60 transition hover:bg-[var(--color-hairline)]/30 hover:text-[var(--color-charcoal)]"
         >

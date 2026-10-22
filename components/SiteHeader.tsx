@@ -46,7 +46,7 @@ export default function SiteHeader({
   }, [overlayHero]);
 
   const headerClassName = overlayHero
-    ? `fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+    ? `fixed inset-x-0 top-0 z-50 pl-[var(--sa-l)] pr-[var(--sa-r)] transition-colors duration-300 ${
         scrolled
           ? "border-b border-[var(--color-hairline)] bg-white/95 backdrop-blur-sm"
           : "border-b border-transparent bg-transparent"
