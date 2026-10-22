@@ -378,7 +378,7 @@ function DesignCard({
       >
         <DesignThumb scene={scene} sceneKey={sceneKey} />
         <span data-design-card-name className="flex min-w-0 items-center gap-1 px-0.5 pb-0.5 pt-1">
-          <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[var(--color-charcoal)] ph:text-xs">{name}</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[var(--color-charcoal)] ph:text-xs phl:text-[13px] phl:leading-tight phl:break-keep phl:whitespace-normal! phl:overflow-visible!">{name}</span>
           {trailing ? <span className="shrink-0 text-[10px] text-[var(--color-charcoal)]/50">{trailing}</span> : null}
           {(chips ?? []).map((c, i) => (
             <span key={i} data-design-chip className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ background: c }} aria-hidden />
@@ -470,7 +470,7 @@ export function DesignPanel({
       </svg>
     </button>
   );
-  const gridCls = "grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1 ph:grid-cols-3! ph:gap-1!";
+  const gridCls = "grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1 ph:grid-cols-3! phl:grid-cols-2! ph:gap-1!";
   const emptyMsg = (what: string) => (
     <p className="px-0.5 py-3 text-center text-[11px] text-[var(--color-charcoal)]/50">이 조건에 맞는 {what}가 아직 없어요.</p>
   );

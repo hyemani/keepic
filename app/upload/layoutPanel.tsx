@@ -197,7 +197,7 @@ export function LayoutPanel({
       ) : null}
       <div
         data-layout-list
-        className={`grid gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-15rem)] ph:max-h-none! ph:gap-1! ${isCover ? "grid-cols-1 ph:grid-cols-2!" : "grid-cols-2 ph:grid-cols-3!"}`}
+        className={`grid gap-1.5 ${NESTED_SCROLL} max-h-[calc(100vh-15rem)] ph:max-h-none! ph:gap-1! ${isCover ? "grid-cols-1 ph:grid-cols-2!" : "grid-cols-2 ph:grid-cols-3! phl:grid-cols-2!"}`}
       >
         {visible.map((t) => {
           const selected = isSelected(t);
