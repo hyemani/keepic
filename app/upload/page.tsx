@@ -12116,7 +12116,7 @@ function renderPage(
 // ---- 공통 편집 명령바(2026-11, 19번째 라운드) ----
 // 캔버스 바로 위(속성 패널 오른쪽 경계에서 시작)에 붙는 얇은 가로 명령바예요. 사진·텍스트가
 // 선택돼 있지 않아도 항상 같은 자리에 보이고, 지금 할 수 없는 명령은 비활성(흐리게)이에요.
-type EditCommandIconName = "undo" | "redo" | "copy" | "cut" | "paste" | "center" | "relayout";
+type EditCommandIconName = "undo" | "redo" | "copy" | "cut" | "paste" | "center";
 type EditCommandItem = {
   id: string;
   label: string;
@@ -12186,21 +12186,12 @@ function EditCommandIcon({ name, className }: { name: EditCommandIconName; class
           <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
         </svg>
       );
-    case "center":
+    default:
       return (
         <svg {...common}>
           <path d="M12 3v18" />
           <path d="M3 12h18" />
           <rect x="7" y="7" width="10" height="10" rx="1" />
-        </svg>
-      );
-    default:
-      return (
-        <svg {...common}>
-          <rect x="3" y="3" width="7" height="7" />
-          <rect x="14" y="3" width="7" height="7" />
-          <rect x="3" y="14" width="7" height="7" />
-          <rect x="14" y="14" width="7" height="7" />
         </svg>
       );
   }
@@ -17581,21 +17572,6 @@ function UploadPageContent() {
     }
   }
 
-  // 재배치하기 — 편집 중 페이지에 사진을 다시 배치하는 "레이아웃" 패널(템플릿을 고르면
-  // applyLayoutTemplate / applyCoverLayoutTemplate이 기존 규칙대로 안전영역 안에 사진을
-  // 재배치)을 바로 열어줘요. 따로 "한 번에 재배치" 함수는 원래 없어서 새 배치 로직은 만들지
-  // 않았어요.
-  function canBarRelayout() {
-    return selectedPageKey === "cover" || (typeof selectedPageKey === "number" && isAiAuto);
-  }
-  function handleBarRelayout() {
-    if (selectedPageKey === "cover") setActiveCoverEditTab("layout");
-    else if (typeof selectedPageKey === "number" && isAiAuto) setActiveEditTab("layout");
-    else return;
-    // 60차: 폰 가로에서는 패널이 닫혀 있을 수 있어서(위쪽 줄의 ✕로 닫은 뒤) 재배치하기를 누르면 레이아웃 패널이 바로 열려요. 마우스 PC는 서랍 상태를 안 봐서 달라지는 게 없어요.
-    setDrawerOpen(true);
-  }
-
   // 62차: "사진 편집" 패널에 내려주는 묶음 항목(앞뒤 순서·복사·잘라내기·붙여넣기·중앙맞춤·복제·삭제)과 폴라로이드 안쪽 사진 칸 id.
   function buildPhotoExtra(where: { scope: "spread"; i: number } | { scope: "cover"; target: "front" | "back" }, box: ImageBoxDef | undefined) {
     if (!box) return undefined;
@@ -17643,7 +17619,6 @@ function UploadPageContent() {
       { id: "cut", label: "잘라내기", icon: "cut", title: "잘라내기 (Ctrl+X) — 선택한 텍스트·사진·스티커 하나", disabled: !sel, onClick: handleBarCut },
       { id: "paste", label: "붙여넣기", icon: "paste", title: "붙여넣기 (Ctrl+V)", disabled: !getBarPasteTarget(), onClick: handleBarPaste },
       { id: "center", label: "중앙맞춤", icon: "center", title: "중앙맞춤 — 하나 선택: 페이지 정중앙 / 여러 개 선택: 선택한 것들의 가운데로", disabled: !getBarCenterMode(), onClick: handleBarCenter },
-      { id: "relayout", label: "재배치하기", icon: "relayout", title: "재배치하기 — 레이아웃 패널을 열어 사진을 다시 배치해요", disabled: !canBarRelayout(), onClick: handleBarRelayout },
     ];
   }
 
@@ -19337,7 +19312,6 @@ function UploadPageContent() {
             </button>
           );
         })}
-        relayout={{ disabled: !canBarRelayout(), onClick: handleBarRelayout }}
         nav={{
           label: phlPageNavLabel(selectedPageKey),
           prevDisabled: phlIdx <= 0,

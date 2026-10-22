@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 // 60차: 폰을 가로로 눕힌 "편집" 화면 전용 위쪽 도구 줄이에요(혜민님이 보내주신 모바일 포토북 편집기 참고 화면 배치).
 // 예전의 상단 로고 줄·왼쪽 아이콘 세로 막대·편집 명령 줄을 이 한 줄(높이 46px)로 합쳤어요.
-//   패널 닫힘:  [←] [↶][↷]   디자인 레이아웃 사진 스티커 손글씨 텍스트 배경 재배치하기   ● [저장][다음] [···]
+//   패널 닫힘:  [←] [↶][↷]   디자인 레이아웃 사진 스티커 손글씨 텍스트 배경   ● [저장][다음] [···]
 //   패널 열림:  [✕] [↶][↷]   (같은 도구 글자들, 지금 도구는 진하게+밑줄)             [‹ 2-3 페이지 ›] [···]
 // 글자 도구가 한 줄에 다 안 들어가는 아주 좁은 폰(예: 667px)에서는 도구 글자들 부분만 옆으로 밀어서 보고, 양 끝 묶음(왼쪽/오른쪽)은 고정이에요.
 // 마우스 PC·태블릿·폰 세로에서는 이 컴포넌트를 아예 그리지 않아요(page.tsx에서 phlEdit일 때만).
@@ -23,7 +23,6 @@ export function PhlTopBar({
   onClosePanel,
   onBack,
   history,
-  relayout,
   nav,
   trailing,
   more,
@@ -36,7 +35,6 @@ export function PhlTopBar({
   onBack: () => void;
   // 되돌리기·다시 버튼(아이콘은 page.tsx의 편집 아이콘을 그대로 써요)
   history: ReactNode;
-  relayout: { disabled: boolean; onClick: () => void };
   nav: { label: string; prevDisabled: boolean; nextDisabled: boolean; onPrev: () => void; onNext: () => void };
   // 패널이 닫혀 있을 때 오른쪽 끝에 보이는 저장 상태 점·저장·다음
   trailing: ReactNode;
@@ -78,8 +76,8 @@ export function PhlTopBar({
         )}
         {history}
       </div>
-      {/* 62차: 도구 글자 줄은 옆으로 밀어서 보고(양 끝 12px는 옅게 사라지는 가장자리라, 그 자리를 안쪽 여백으로 비워 둬서 글자가 반쯤 잘려 보이지 않아요),
-          눈에 띄는 "재배치하기"는 줄 밖(오른쪽)에 따로 고정해요 — 좁은 폰·패널이 열려 페이지 이동이 자리를 차지해도 항상 통째로 보여요. */}
+      {/* 62차: 도구 글자 줄은 옆으로 밀어서 보고(양 끝 12px는 옅게 사라지는 가장자리라, 그 자리를 안쪽 여백으로 비워 둬서 글자가 반쯤 잘려 보이지 않아요).
+          65차: 따로 고정해 두던 "재배치하기" 버튼은 "레이아웃" 메뉴와 같은 기능이라 지웠어요. */}
       <div ref={toolsRef} data-testid="phl-bar-tools" className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [mask-image:linear-gradient(to_right,transparent,#000_12px,#000_calc(100%-12px),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex h-full min-w-full items-stretch justify-evenly px-3">
           {tools.map((t) => {
@@ -99,18 +97,6 @@ export function PhlTopBar({
             );
           })}
         </div>
-      </div>
-      <div data-testid="phl-bar-relayout" className="flex shrink-0 items-stretch">
-        <button
-          type="button"
-          data-phl-tool="relayout"
-          disabled={relayout.disabled}
-          onClick={relayout.onClick}
-          title="재배치하기 — 레이아웃 패널을 열어 사진을 다시 배치해요"
-          className={`${toolBtn} font-semibold text-[var(--color-sky)] disabled:cursor-not-allowed disabled:opacity-35`}
-        >
-          재배치하기
-        </button>
       </div>
       <div data-testid="edit-bar-trailing" className="flex shrink-0 items-center gap-1 pl-1">
         {panelOpen ? (
