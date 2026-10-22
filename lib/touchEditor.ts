@@ -147,6 +147,57 @@ export function useVisualViewportVars(enabled: boolean) {
   }, [enabled]);
 }
 
+/**
+ * 64차: 가로로 눕힌 iPhone(노치·다이내믹 아일랜드)은 env(safe-area-inset-left/right)를 "양쪽 모두 노치 쪽 값"으로 알려주는 경우가 있어서,
+ * 그대로 쓰면 노치 반대쪽이 쓸데없이 비어요. 양쪽 값이 (거의) 같을 때만 window.orientation으로 노치가 있는 쪽을 알아내
+ * <html data-notch="left|right">로 표시하면, globals.css가 반대쪽 여백을 10px 이하로 줄여요.
+ * window.orientation: 90 = 폰을 시계 반대 방향으로 눕힘(노치 왼쪽), -90 = 시계 방향(노치 오른쪽). 값이 없거나 양쪽이 다르면(이미 정확함) 아무것도 안 해요.
+ * 점검: <html data-notch>, window.__keepicSafeArea로 확인해요.
+ */
+export function useNotchSide(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const root = document.documentElement;
+    const probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)";
+    document.body.appendChild(probe);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const apply = () => {
+      try {
+        const cs = getComputedStyle(probe);
+        const l = parseFloat(cs.paddingLeft) || 0;
+        const r = parseFloat(cs.paddingRight) || 0;
+        const ori = (window as unknown as { orientation?: number }).orientation;
+        const landscape = window.innerWidth > window.innerHeight;
+        if (landscape && l > 0 && r > 0 && Math.abs(l - r) <= 2 && (ori === 90 || ori === -90)) {
+          root.setAttribute("data-notch", ori === 90 ? "left" : "right");
+        } else {
+          root.removeAttribute("data-notch");
+        }
+        // 점검용(화면에는 안 나와요): 마지막으로 잰 안전 영역 값과 판단
+        (window as unknown as { __keepicSafeArea?: unknown }).__keepicSafeArea = { l, r, orientation: ori ?? null, landscape, notch: root.getAttribute("data-notch"), t: Date.now() };
+      } catch {
+        root.removeAttribute("data-notch");
+      }
+    };
+    const kick = () => {
+      apply();
+      [120, 400, 900].forEach((ms) => timers.push(setTimeout(apply, ms)));
+    };
+    apply();
+    window.addEventListener("resize", kick);
+    window.addEventListener("orientationchange", kick);
+    return () => {
+      window.removeEventListener("resize", kick);
+      window.removeEventListener("orientationchange", kick);
+      timers.forEach(clearTimeout);
+      probe.remove();
+      root.removeAttribute("data-notch");
+    };
+  }, [enabled]);
+}
+
 /** 두 손가락 사이 거리 */
 export function touchDistance(a: { clientX: number; clientY: number }, b: { clientX: number; clientY: number }) {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);

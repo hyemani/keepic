@@ -60,7 +60,7 @@ export function PhlTopBar({
       data-panel-open={panelOpen ? "true" : "false"}
       onMouseDown={(e) => e.stopPropagation()}
       style={{ height: PHL_BAR_H }}
-      className="relative z-40 flex shrink-0 items-stretch border-b border-[var(--color-hairline)] bg-[#F8F8F8] pl-[max(4px,env(safe-area-inset-left))] pr-[max(8px,env(safe-area-inset-right))]"
+      className="relative z-40 -ml-[var(--ed-l)] -mr-[var(--ed-r)] flex shrink-0 items-stretch border-b border-[var(--color-hairline)] bg-[#F8F8F8] pl-[max(4px,var(--sa-l))] pr-[max(8px,var(--sa-r))]"
     >
       <div data-testid="phl-bar-left" className="flex shrink-0 items-stretch">
         {panelOpen ? (

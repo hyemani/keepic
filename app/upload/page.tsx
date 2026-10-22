@@ -151,7 +151,7 @@ import { centerBoxAt, slotPhotoPatch } from "@/lib/photoSlotInsert";
 import { useCompactEditor, useDrawerDismiss } from "@/lib/useCompactEditor";
 import { useSoftKeyboard } from "@/lib/softKeyboard";
 import { useKeyboardWriting } from "./keyboardWriting";
-import { isIOSLike, tryLockLandscape, tryUnlockOrientation, useCoarsePointer, useTouchLayout, useVisualViewportVars } from "@/lib/touchEditor";
+import { isIOSLike, tryLockLandscape, tryUnlockOrientation, useCoarsePointer, useNotchSide, useTouchLayout, useVisualViewportVars } from "@/lib/touchEditor";
 import { useCanvasTouchGestures } from "@/lib/useCanvasTouchGestures";
 import { computeCanvasFit } from "@/lib/canvasFit";
 import { findFramePhoto, findPhotoFrame, frameHoleOf, groupStackUpdates, syncFramePhoto, touchesGeometry, type DocMm } from "@/lib/photoFrameGroup";
@@ -17685,6 +17685,7 @@ function UploadPageContent() {
   const touchLayout = useTouchLayout();
   // 57차(2): 실제 보이는 높이(visualViewport)를 CSS 변수로 알려줘서 iOS Safari 주소창이 나왔다 들어가도 편집기 높이가 맞게 해요(손가락 기기만).
   useVisualViewportVars(touchCoarse);
+  useNotchSide(touchCoarse);
   // 61차: 폰 가상 키보드가 올라오면(iOS는 레이아웃을 안 줄이고 보이는 영역만 줄여요) 편집 화면을 키보드 위 "보이는 영역"에 그대로 고정해요(자세한 건 lib/softKeyboard.ts).
   const softKb = useSoftKeyboard(touchLayout.phone && editorMode === "edit");
   // 폰을 가로로 눕히고 글을 치는 중(키보드 위로 120~190px만 남음): 위쪽 도구 줄을 숨기고, 글 칸이 패널 맨 위·글상자가 캔버스에 크게 보이게 해요.
@@ -19362,7 +19363,7 @@ function UploadPageContent() {
         data-kb={softKb.open ? "open" : undefined}
         // 61차: 키보드가 열려 있는 동안만 "보이는 영역(visualViewport)" 자리에 고정해요. 닫히면 style이 없어져서 예전 배치 그대로예요.
         style={softKb.open ? { position: "fixed", top: softKb.top, left: softKb.left, width: softKb.width, height: softKb.height } : undefined}
-        className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] text-[var(--color-charcoal)] [@media(pointer:coarse)]:h-[var(--app-vh,100dvh)] [@media(pointer:coarse)]:overscroll-none"
+        className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] pb-[var(--sa-b)] pl-[var(--ed-l)] pr-[var(--ed-r)] pt-[var(--sa-t)] text-[var(--color-charcoal)] php:pb-0! [@media(pointer:coarse)]:h-[var(--app-vh,100dvh)] [@media(pointer:coarse)]:overscroll-none"
       >
         {phlWriting && !phlDockOpen && (
           // 61차: 패널 없이 캔버스에서 직접 글을 칠 때(키보드가 올라온 동안) 키보드를 내리는 "완료" 버튼이에요. 패널이 열려 있으면 패널 맨 위 줄의 "완료"를 써요.

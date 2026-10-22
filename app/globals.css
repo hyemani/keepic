@@ -23,6 +23,15 @@
   --phl-panel-w: clamp(256px, calc(var(--app-vw, 100vw) * 0.3), 264px);
   /* 59차: 폰 가로 편집 명령 줄 아이콘 한 칸 폭(간격). 아주 좁은 폰(폭 700px 미만)은 오른쪽 묶음과 같이 들어가게 36px. */
   --cmd-w: 42px;
+  /* 64차: iPhone 노치·홈 바 안전 영역(viewport-fit=cover일 때만 0이 아님). 마우스 PC·태블릿·viewport-fit 없는 브라우저는 0. */
+  --sa-t: env(safe-area-inset-top, 0px);
+  --sa-r: env(safe-area-inset-right, 0px);
+  --sa-b: env(safe-area-inset-bottom, 0px);
+  --sa-l: env(safe-area-inset-left, 0px);
+  /* 편집기 껍데기가 실제로 비우는 좌우 여백. 가로로 눕힌 iPhone이 양쪽 다 같은 값(노치 쪽 값)을 알려주는 경우를 위해, useNotchSide가
+     노치가 있는 쪽을 알아내면(html[data-notch]) 반대쪽은 작게만 비워서 그쪽 화면을 꽉 써요. */
+  --ed-l: var(--sa-l);
+  --ed-r: var(--sa-r);
   --color-ivory: #FFFFFF;
   --color-charcoal: #2B2B2B;
   /* 보라 -> 파랑 그라데이션 톤. --color-sky는 텍스트/테두리/옅은 배경 등
@@ -34,10 +43,25 @@
   --color-hairline: #D6E2EC;
 }
 
+html[data-notch="left"] { --ed-r: min(var(--sa-r), 10px); }
+html[data-notch="right"] { --ed-l: min(var(--sa-l), 10px); }
+
 body {
+  /* 64차: 일반 페이지(랜딩·상품·장바구니·결제 등)는 노치 쪽 안전 여백만큼 body 안쪽을 비워서 내용이 노치 밑으로 안 들어가요. 편집기는 직접 비워요. */
+  padding-left: var(--sa-l);
+  padding-right: var(--sa-r);
   background: var(--color-ivory);
   color: var(--color-charcoal);
   font-family: "Pretendard", sans-serif;
+}
+
+body:has([data-keepic-editor]) {
+  padding-left: 0;
+  padding-right: 0;
+}
+/* 64차: 키보드가 올라온 동안은 홈 바 자리가 키보드에 가려지니까 아래 안전 여백을 빼요. */
+html[data-kb="open"] [data-editor-shell] {
+  padding-bottom: 0 !important;
 }
 
 /* 메인 서체 — 여러 후보 중 골라주신 "차이 활짝체"예요. 배너 제목처럼

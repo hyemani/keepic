@@ -1,9 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Keepic | 사진으로 만드는 나만의 앨범",
   description: "사진을 고르면, 앨범과 액자로 완성해드립니다.",
+};
+
+// 64차: 홈 화면 앱(iOS "홈 화면에 추가")·사파리 가로 화면에서 노치 옆 안전 영역까지 화면을 꽉 쓰도록 viewport-fit=cover를 켜요.
+// 대신 노치·홈 바가 가리는 자리는 globals.css의 body 안쪽 여백(env(safe-area-inset-*))과 편집기 껍데기 여백이 비워 줘요. 마우스 PC·태블릿은 안전 영역이 0이라 그대로예요.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
