@@ -63,13 +63,14 @@ export function RotateNotice({ onBackToPreview, onContinue }: { onBackToPreview:
 
 // 64차: 편집하다가 폰이 세로가 됐을 때(전체 화면 안내는 접속 한 번뿐이라) 대신 보여주는 작은 알림이에요.
 // 화면을 가리지 않고(pointer-events는 이 알림 자체에만), 몇 초 뒤 저절로 사라지며, 눌러서 바로 닫을 수도 있어요.
+// 위치는 왼쪽 아래: 위쪽엔 헤더(로고·저장·다음), 오른쪽 아래엔 확대·축소 상자가 있고, 패널(시트)이 열리면 시트가 위에 덮어요.
 export function RotateChip({ onClose }: { onClose: () => void }) {
   return (
     <div
       data-testid="rotate-chip"
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 top-[max(8px,env(safe-area-inset-top))] z-[70] flex justify-center px-4"
+      className="pointer-events-none fixed bottom-[max(12px,calc(env(safe-area-inset-bottom)+8px))] left-[max(12px,env(safe-area-inset-left))] z-30 flex"
     >
       <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--color-charcoal)]/90 py-1 pl-3.5 pr-1 text-[13px] text-white shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
         <span className="break-keep">가로로 돌리면 더 편해요</span>
