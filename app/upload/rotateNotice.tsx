@@ -60,3 +60,30 @@ export function RotateNotice({ onBackToPreview, onContinue }: { onBackToPreview:
     </div>
   );
 }
+
+// 64차: 편집하다가 폰이 세로가 됐을 때(전체 화면 안내는 접속 한 번뿐이라) 대신 보여주는 작은 알림이에요.
+// 화면을 가리지 않고(pointer-events는 이 알림 자체에만), 몇 초 뒤 저절로 사라지며, 눌러서 바로 닫을 수도 있어요.
+export function RotateChip({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      data-testid="rotate-chip"
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-0 top-[max(8px,env(safe-area-inset-top))] z-[70] flex justify-center px-4"
+    >
+      <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-[var(--color-charcoal)]/90 py-1 pl-3.5 pr-1 text-[13px] text-white shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+        <span className="break-keep">가로로 돌리면 더 편해요</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="알림 닫기"
+          className="relative flex h-7 w-7 items-center justify-center rounded-full text-white/80 active:bg-white/15 after:absolute after:-inset-2 after:content-['']"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}

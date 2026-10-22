@@ -22,7 +22,8 @@ import {
 } from "./projectPersistence";
 import { HeaderMoreMenu, HeaderZoomGroup } from "./headerOverflow";
 import { TouchZoomControls } from "./touchZoomControls";
-import { RotateNotice } from "./rotateNotice";
+import { RotateNotice, RotateChip } from "./rotateNotice";
+import { useRotateNotice } from "@/lib/orientationGuard";
 import { EditBarMoreMenu } from "./editBarMore";
 import {
   albumTemplates,
@@ -17682,7 +17683,6 @@ function UploadPageContent() {
   const touchCoarse = useCoarsePointer();
   // 폰 세로로 편집에 들어오면 "가로로 돌려주세요" 안내(57차). "세로 화면으로 계속하기"를 누르면 이번 접속 동안 다시 안 떠요.
   const touchLayout = useTouchLayout();
-  const [portraitEditOk, setPortraitEditOk] = useState(false);
   // 57차(2): 실제 보이는 높이(visualViewport)를 CSS 변수로 알려줘서 iOS Safari 주소창이 나왔다 들어가도 편집기 높이가 맞게 해요(손가락 기기만).
   useVisualViewportVars(touchCoarse);
   // 61차: 폰 가상 키보드가 올라오면(iOS는 레이아웃을 안 줄이고 보이는 영역만 줄여요) 편집 화면을 키보드 위 "보이는 영역"에 그대로 고정해요(자세한 건 lib/softKeyboard.ts).
@@ -17715,9 +17715,14 @@ function UploadPageContent() {
       meta.content = old;
     };
   }, [touchCoarse]);
-  // "세로 화면으로 계속하기"는 이 편집 한 번 동안만 기억해요 — 미리보기로 나갔다가 다시 편집하기에 들어오거나, 폰을 가로로 눕혔다가 다시 세우면(어떤 길로 들어오든) 안내가 다시 떠요.
-  if ((editorMode !== "edit" || !touchLayout.phonePortrait) && portraitEditOk) setPortraitEditOk(false);
-  const showRotateNotice = editorMode === "edit" && touchLayout.phonePortrait && !portraitEditOk && photos.length > 0;
+  // 64차: 가로 안내는 lib/orientationGuard.ts가 정해요 — 세로가 0.7초 넘게 안정적일 때만, 키보드·글 칸 포커스·크기 변화 직후(1.2초)에는 안 띄우고,
+  // 전체 화면 안내는 접속 한 번에 "세로로 편집에 처음 들어올 때"만, 그 뒤에는 작은 알림 한 줄만 보여줘요. "세로 화면으로 계속하기"는 편집을 떠났다 다시 들어올 때까지 기억해요.
+  const rotateNotice = useRotateNotice({
+    enabled: touchLayout.phone,
+    active: touchLayout.phone && editorMode === "edit" && photos.length > 0,
+    keyboardOpen: softKb.open,
+  });
+  const showRotateNotice = rotateNotice.kind === "full";
   // 폰 세로로 계속할 때는 패널이 아래에서 올라오는 시트(화면 높이의 42% 이하)라서, 열려 있는 동안 캔버스를 그만큼 위로 줄여 펼침면이 시트에 안 가려져요.
   const portraitSheetOpen = editorMode === "edit" && touchLayout.phonePortrait && compactEditor && drawerOpen && !!(selectedPageKey === "cover" ? activeCoverEditTab : activeEditTab);
   // 59차: 폰 가로 편집에서 패널이 열려 있으면 캔버스를 패널 폭만큼 오른쪽으로 밀어서(= 남은 자리에 다시 맞춰서) 펼침면이 패널에 안 가려져요.
@@ -19701,9 +19706,10 @@ function UploadPageContent() {
               clearAllCanvasSelection();
               setEditorMode("preview");
             }}
-            onContinue={() => setPortraitEditOk(true)}
+            onContinue={rotateNotice.continueInPortrait}
           />
         )}
+        {rotateNotice.kind === "chip" && <RotateChip onClose={rotateNotice.dismissChip} />}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto phl:overflow-hidden">
         {isPdfLibTestMode && (

@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
+import { isTextEntryElement } from "./softKeyboard";
 
 // 터치 기기(폰·태블릿) 편집 지원용 작은 도구 모음(57차). 데스크톱(마우스)에서는 전부 "해당 없음"으로 나와서
 // 예전 화면·동작이 그대로예요.
@@ -39,6 +40,8 @@ export type TouchLayout = {
 // 비트: 1=손가락 기기, 2=폰 크기, 4=세로.
 const MOBILE_UA = /iPhone|iPod|Android.*Mobile|Mobile.*Android/i;
 
+let lastPortraitRead = { w: 0, portrait: false, known: false };
+
 function readPhoneBits(): number {
   if (typeof window === "undefined") return 0;
   const mm = (q: string) => {
@@ -59,7 +62,11 @@ function readPhoneBits(): number {
   // 폭이 넉넉한 태블릿(820x1180 등)은 화면 짧은 쪽도 창 짧은 쪽도 600 이상이라 폰이 아니에요.
   const phone = coarse && (screenShort < 600 || winShort < 600);
   // 세로 = 창 높이가 폭 이상. (orientation 미디어쿼리와 같은 뜻인데, iOS는 회전 직후 쿼리가 늦게 갱신될 수 있어서 실제 크기로 봐요.)
-  const portrait = window.innerWidth > 0 && window.innerHeight > 0 ? window.innerHeight >= window.innerWidth : mm("(orientation: portrait)");
+  let portrait = window.innerWidth > 0 && window.innerHeight > 0 ? window.innerHeight >= window.innerWidth : mm("(orientation: portrait)");
+  // 64차: 글 칸에 포커스가 있는 동안(키보드가 높이를 줄여 알려줄 수 있어요) 폭이 그대로면 방향이 바뀐 게 아니라서 직전 판단을 그대로 써요.
+  const focusedEntry = isTextEntryElement(document.activeElement);
+  if (focusedEntry && lastPortraitRead.w === window.innerWidth && lastPortraitRead.known) portrait = lastPortraitRead.portrait;
+  else lastPortraitRead = { w: window.innerWidth, portrait, known: true };
   return (coarse ? 1 : 0) | (phone ? 2 : 0) | (portrait ? 4 : 0);
 }
 
