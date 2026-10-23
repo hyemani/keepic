@@ -23,8 +23,8 @@ import {
 } from "./projectPersistence";
 import { HeaderMoreMenu, HeaderZoomGroup } from "./headerOverflow";
 import { TouchZoomControls } from "./touchZoomControls";
-import { RotateNotice, RotateChip } from "./rotateNotice";
-import { useRotateNotice } from "@/lib/orientationGuard";
+import { EditOrientationChooser, EditOrientationMenuRow, RotateToLandscapeHint, RotateToast } from "./orientationChooser";
+import { getEditOrientation, useEditOrientation, type EditOrientation } from "@/lib/editOrientation";
 import { EditBarMoreMenu } from "./editBarMore";
 import {
   albumTemplates,
@@ -3816,7 +3816,8 @@ function StackOrderToolbar({
       // 마우스 이벤트가 위로 새서 박스가 같이 끌리지 않도록 막아요.
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15 ph:gap-0 ph:rounded-xl ph:border ph:border-[var(--color-hairline)] ph:shadow-[0_1px_2px_rgba(0,0,0,0.06)] ph:shadow-black/[0.06] ph:px-1 ph:py-1 phl:px-0.5 phl:py-0.5 phl:[&>*+*]:border-l phl:[&>*+*]:border-[var(--color-hairline)]"
+      className="absolute left-1/2 z-[100001] flex -translate-x-1/2 flex-wrap items-center justify-center gap-1 whitespace-nowrap rounded-2xl bg-white px-2 py-1.5 text-[var(--color-charcoal)] shadow-lg shadow-black/15 ph:gap-0 ph:rounded-xl ph:border ph:border-[var(--color-hairline)] ph:shadow-[0_1px_2px_rgba(0,0,0,0.06)] ph:shadow-black/[0.06] ph:px-1 ph:py-1 phl:px-0.5 phl:py-0.5 phl:[&>*+*]:border-l phl:[&>*+*]:border-[var(--color-hairline)] php:max-w-[216px]!"
+      // 66차: 폰 세로에서는 한 줄에 5칸까지만(9칸이면 5+4로 반듯하게) — 예전엔 폭에 맞춰 7+2로 갈라져 툴바가 두 개 겹쳐 쌓인 것처럼 보였어요.
       // 2026-11(18번째 라운드 19차), 혜민님 요청("편집패널이 위쪽 상단에 배치되어있는데
       // 하단쪽에 배치되는게 좋을거같아요") — "화면 하단 공간 부족" fallback(flip, 박스가
       // 페이지 밑바닥에 가까울 때만 위로 띄움)은 그대로 안 건드렸어요. 바꾼 건
@@ -13433,7 +13434,9 @@ function UploadPageContent() {
   const showGuidelines = true;
   const showInnerSafetyGuide = true;
   const showInnerBindingGuide = true;
-  const [isPrintPreview, setIsPrintPreview] = useState(false);
+  // 66차: "미리보기"가 곧 "인쇄 미리보기"예요 — 예전엔 "···" 더보기 안에 숨은 "🖨️ 인쇄 미리보기"를 한 번 더 눌러야 인쇄됐을 때 모습(재단선 안쪽만 종이처럼, 안내선 없음)이 보였는데,
+  // 이제 미리보기 화면 자체가 그 모습이에요. 편집 화면(editorMode === "edit")에서는 예전처럼 안내선(도련·재단·안전선)이 보여요. 저장되는 앨범 자료에는 영향이 없어요(보이는 방식만 달라요).
+  const isPrintPreview = editorMode === "preview" && photos.length > 0;
   // 표지 편집 화면 전용 안내선 켜기/끄기예요(뒤표지·책등·앞표지를 하나의 펼침면으로 보고
   // 계산해요 — 도련선/재단선은 펼침면 전체 기준, 안전영역은 뒤표지·책등·앞표지 각각 기준,
   // 책등 경계는 접힘 위치 전용 안내선이에요). 네 가지를 따로 켜고 끌 수 있어요.
@@ -17692,14 +17695,56 @@ function UploadPageContent() {
       meta.content = old;
     };
   }, [touchCoarse]);
-  // 64차: 가로 안내는 lib/orientationGuard.ts가 정해요 — 세로가 0.7초 넘게 안정적일 때만, 키보드·글 칸 포커스·크기 변화 직후(1.2초)에는 안 띄우고,
-  // 전체 화면 안내는 접속 한 번에 "세로로 편집에 처음 들어올 때"만, 그 뒤에는 작은 알림 한 줄만 보여줘요. "세로 화면으로 계속하기"는 편집을 떠났다 다시 들어올 때까지 기억해요.
-  const rotateNotice = useRotateNotice({
-    enabled: touchLayout.phone,
-    active: touchLayout.phone && editorMode === "edit" && photos.length > 0,
-    keyboardOpen: softKb.open,
-  });
-  const showRotateNotice = rotateNotice.kind === "full";
+  // 66차: 편집 방향 고르기(폰만). "편집하기"를 누르면 처음 한 번 "세로로/가로로 편집하기"를 물어보고, 고른 건 이번 접속 동안 기억해서 다시 묻지 않아요(lib/editOrientation.ts).
+  // 예전의 "휴대폰을 가로로 돌려주세요" 전체 화면 안내와 작은 알림(lib/orientationGuard.ts)은 없앴어요 — 세로 편집이 되니 막지 않고 고르게 해요.
+  // 태블릿·PC는 선택창 없이 바로 편집에 들어가요.
+  const [editOrient, setEditOrient] = useEditOrientation();
+  const [orientStep, setOrientStep] = useState<null | "choose" | "wait">(null);
+  const [rotateToast, setRotateToast] = useState(false);
+  const enterEditNow = (lockLandscape = false) => {
+    setOrientStep(null);
+    setEditorMode("edit");
+    // 편집하기 진입 시엔 항상 접힌(아무 탭도 안 고른) 상태로 시작.
+    setActiveEditTab(null);
+    setActiveCoverEditTab(null);
+    // 가로로 편집하기를 골랐을 때만 가로 고정을 "시도"해요(iOS 등 대부분은 안 되고, 안 돼도 조용히 넘어가요).
+    if (lockLandscape) void tryLockLandscape();
+  };
+  const applyOrient = (v: EditOrientation) => {
+    if (v === "portrait") enterEditNow();
+    else if (touchLayout.phoneLandscape) enterEditNow(true);
+    else setOrientStep("wait");
+  };
+  const requestEdit = () => {
+    if (!touchLayout.phone) return enterEditNow();
+    const saved = getEditOrientation(); // 누른 순간의 기억을 바로 읽어요(화면 값이 한 박자 늦어도 안 틀려요)
+    if (!saved) return setOrientStep("choose");
+    applyOrient(saved);
+  };
+  const pickOrient = (v: EditOrientation) => {
+    setEditOrient(v);
+    applyOrient(v);
+  };
+  // "폰을 가로로 돌려주세요" 안내 중에 폰이 가로가 되면(0.35초 안정된 뒤, 키보드가 없을 때만) 자동으로 편집이 시작돼요. 크기 변화·키보드 같은 순간적인 변화로는 아무것도 막지 않아요.
+  useEffect(() => {
+    if (orientStep !== "wait" || !touchLayout.phoneLandscape || softKb.open) return;
+    const t = setTimeout(() => enterEditNow(true), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orientStep, touchLayout.phoneLandscape, softKb.open]);
+  // 편집 중 ··· 메뉴에서 "가로"로 바꿨는데 아직 세로면 가벼운 안내만 잠깐 보여줘요(화면을 막지 않아요).
+  useEffect(() => {
+    if (!rotateToast) return;
+    const t = setTimeout(() => setRotateToast(false), 5000);
+    return () => clearTimeout(t);
+  }, [rotateToast]);
+  const changeEditOrient = (v: EditOrientation) => {
+    setEditOrient(v);
+    setRotateToast(v === "landscape" && !touchLayout.phoneLandscape);
+  };
+  const orientMenuRow = touchLayout.phone ? (
+    <EditOrientationMenuRow value={editOrient} onChange={changeEditOrient} className="flex h-11 items-center justify-center border border-[var(--color-hairline)] bg-white px-2 text-[13px] font-medium text-[var(--color-charcoal)] transition active:bg-[var(--color-ivory)]" />
+  ) : null;
   // 폰 세로로 계속할 때는 패널이 아래에서 올라오는 시트(화면 높이의 42% 이하)라서, 열려 있는 동안 캔버스를 그만큼 위로 줄여 펼침면이 시트에 안 가려져요.
   const portraitSheetOpen = editorMode === "edit" && touchLayout.phonePortrait && compactEditor && drawerOpen && !!(selectedPageKey === "cover" ? activeCoverEditTab : activeEditTab);
   // 59차: 폰 가로 편집에서 패널이 열려 있으면 캔버스를 패널 폭만큼 오른쪽으로 밀어서(= 남은 자리에 다시 맞춰서) 펼침면이 패널에 안 가려져요.
@@ -18180,7 +18225,6 @@ function UploadPageContent() {
   // 안내창의 "이동": 그 펼침면(또는 표지)을 편집 화면으로 열고 첫 빈 칸을 골라 둬요.
   function jumpToEmptySlot(g: EmptySlotGroup) {
     setEmptySlotGate(null);
-    setIsPrintPreview(false);
     if (g.target.kind === "cover") {
       setSelectedPageKey("cover");
       setEditorModeState({ forPageKey: "cover", mode: "edit" });
@@ -19156,21 +19200,7 @@ function UploadPageContent() {
             />
           }
         />
-        {editorMode === "preview" && (
-          <button
-            type="button"
-            onClick={() => setIsPrintPreview((v) => !v)}
-            title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
-            aria-pressed={isPrintPreview}
-            className={`flex h-11 items-center justify-center border px-1.5 text-xs font-medium transition ${
-              isPrintPreview
-                ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-            }`}
-          >
-            🖨️ 인쇄 미리보기
-          </button>
-        )}
+        {orientMenuRow}
         {saveStatusText(persistence.phase, persistence.savedAt).text && (
           <p className="text-xs tabular-nums text-[var(--color-charcoal)]/60">
             {saveStatusText(persistence.phase, persistence.savedAt).text}
@@ -19236,20 +19266,9 @@ function UploadPageContent() {
     const phlItem = (id: string) => editCommandItems.find((it) => it.id === id);
     const phlMoreMenu = phlEdit ? (
       <HeaderMoreMenu alwaysShow panelClassName="w-[272px]! max-h-[calc(var(--app-vh,100dvh)-58px)] overflow-y-auto">
-        <div role="group" aria-label="미리보기" className="grid grid-cols-2 gap-1.5">
+        <div role="group" aria-label="미리보기" className="grid grid-cols-1 gap-1.5">
           <button type="button" onClick={goBackToPreview} className={phlMenuBtn}>
             ← 미리보기
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              goBackToPreview();
-              setIsPrintPreview(true);
-            }}
-            title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 미리보기를 열어요"
-            className={phlMenuBtn}
-          >
-            🖨️ 인쇄 미리보기
           </button>
         </div>
         <div role="group" aria-label="화면 배율" className="flex items-center justify-between gap-1.5">
@@ -19290,6 +19309,7 @@ function UploadPageContent() {
             </button>
           </div>
         )}
+        {orientMenuRow}
         {saveStatusText(persistence.phase, persistence.savedAt).text && (
           <p className="text-xs tabular-nums text-[var(--color-charcoal)]/60">{saveStatusText(persistence.phase, persistence.savedAt).text}</p>
         )}
@@ -19601,7 +19621,7 @@ function UploadPageContent() {
                 <span aria-hidden="true">←</span>
                 {/* 57차: 좁은 화면에서도 화살표만 덩그러니 있지 않고 짧은 글자가 같이 보여요(편집 중 ←=미리보기로, 미리보기 중 ←=편집기 나가기가 한눈에 구분돼요). */}
                 <span className="max-md:hidden">미리보기로 돌아가기</span>
-                <span className="md:hidden">미리보기</span>
+                <span className="md:hidden">미리보기로</span>
               </button>
             ) : (
               <button
@@ -19639,20 +19659,6 @@ function UploadPageContent() {
                     않고도 미리보기로 돌아갈 수 있어야 해서, 같은 자리에 작은 "완료" 버튼만
                     남겨뒀어요(편집 중일 때만 보임). */}
               <div className="ml-auto flex flex-wrap items-center gap-1.5 max-lg:shrink-0 max-lg:flex-nowrap max-sm:gap-1 phl:gap-1">
-                {editorMode === "preview" && !phl && (
-                  <button
-                    type="button"
-                    onClick={() => setIsPrintPreview((v) => !v)}
-                    title="인쇄됐을 때 모습(재단선·안내선 숨김)으로 전환해요"
-                    className={`flex h-8 min-w-[68px] items-center justify-center border px-1.5 text-xs font-medium transition max-lg:h-11 [@media(pointer:coarse)]:h-11 max-md:hidden ${
- isPrintPreview
-                        ? "border-[var(--color-charcoal)] bg-[var(--color-charcoal)] text-white"
-                        : "border-[var(--color-hairline)] bg-white text-[var(--color-charcoal)]/70 hover:bg-[var(--color-ivory)]"
-                    }`}
-                  >
-                    🖨️ 인쇄 미리보기
-                  </button>
-                )}
                 {!phl && (
                 <HeaderZoomGroup
                   className="max-md:hidden"
@@ -19667,6 +19673,31 @@ function UploadPageContent() {
                 />
                 )}
                 {/* 44차: 폭 768px 미만에서는 화면 배율·인쇄 미리보기·저장 상태 글자를 "더보기"로 묶어요(저장·다음은 그대로 바깥). 58차: 폰 가로에서는 폭과 상관없이 항상 "···"로 묶어요. */}
+                {/* 66차: 폰 가로 미리보기에서는 "페이지 N/M"과 "편집하기"를 책 위가 아니라 이 줄에 둬요(책이 가려지지 않아요). 책 아무 데나 눌러도 편집이 시작되는 건 그대로예요. */}
+                {phl && editorMode === "preview" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setStripOpen((v) => !v)}
+                      aria-expanded={stripOpen}
+                      aria-label="페이지 목록 열고 닫기"
+                      data-phl-pager
+                      className="relative flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--color-hairline)] bg-white px-3 text-xs tabular-nums text-[var(--color-charcoal)]/70 after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']"
+                    >
+                      페이지 {pageOrder.findIndex((k) => k === selectedPageKey) + 1}/{pageOrder.length}
+                      <span aria-hidden="true">{stripOpen ? "▴" : "▾"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={requestEdit}
+                      aria-label="편집하기"
+                      data-phl-edit
+                      className="relative flex h-8 shrink-0 items-center whitespace-nowrap bg-[var(--color-charcoal)] px-3 text-[13px] font-medium text-white after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']"
+                    >
+                      ✏️ 편집하기
+                    </button>
+                  </>
+                )}
                 {headerMoreMenu}
                 {headerSaveControls}
                 {headerNextButton}
@@ -19676,16 +19707,17 @@ function UploadPageContent() {
           </div>
         </header>
         )}
-        {showRotateNotice && (
-          <RotateNotice
-            onBackToPreview={() => {
-              clearAllCanvasSelection();
-              setEditorMode("preview");
+        {orientStep === "choose" && <EditOrientationChooser onPick={pickOrient} onClose={() => setOrientStep(null)} />}
+        {orientStep === "wait" && (
+          <RotateToLandscapeHint
+            onUsePortrait={() => {
+              setEditOrient("portrait");
+              enterEditNow();
             }}
-            onContinue={rotateNotice.continueInPortrait}
+            onClose={() => setOrientStep(null)}
           />
         )}
-        {rotateNotice.kind === "chip" && <RotateChip onClose={rotateNotice.dismissChip} />}
+        {rotateToast && !touchLayout.phoneLandscape && editorMode === "edit" && <RotateToast />}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto phl:overflow-hidden">
         {isPdfLibTestMode && (
@@ -20014,21 +20046,10 @@ function UploadPageContent() {
                 <span className="shrink-0 text-xs text-[var(--color-charcoal)]/50 phl:hidden lg:text-center">
                   {pageOrder.findIndex((k) => k === selectedPageKey) + 1} / {pageOrder.length}
                 </span>
-                {/* 57차(2): 폰 가로에서는 페이지 목록이 세로 공간을 차지하지 않게 접고, 이 작은 "페이지 N/M" 버튼을 누르면 목록이 캔버스 위에 떠요. */}
-                <button
-                  type="button"
-                  onClick={() => setStripOpen((v) => !v)}
-                  aria-expanded={stripOpen}
-                  aria-label="페이지 목록 열고 닫기"
-                  data-phl-pager
-                  className="pointer-events-auto absolute right-2 top-1 hidden h-11 items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-white/90 px-3 text-xs tabular-nums text-[var(--color-charcoal)]/70 shadow-sm phl:flex"
-                >
-                  페이지 {pageOrder.findIndex((k) => k === selectedPageKey) + 1}/{pageOrder.length}
-                  <span aria-hidden="true">{stripOpen ? "▴" : "▾"}</span>
-                </button>
+                {/* 57차(2): 폰 가로에서는 페이지 목록이 세로 공간을 차지하지 않게 접어요. 66차: 그걸 여는 "페이지 N/M" 버튼은 책을 가리지 않게 위쪽 줄(헤더)로 옮겼어요. */}
               </div>
               )}
-              {/* 인쇄 미리보기 버튼은 상단바 "미리보기" 옆 보조 버튼으로 옮겼어요(2026-09).
+              {/* 66차: 별도 "인쇄 미리보기" 버튼은 없앴어요 — 미리보기 화면이 곧 인쇄 미리보기예요.
                   텍스트박스 바깥(빈 곳)을 누르면 선택이 풀려요 — TextBoxOverlay 쪽 mousedown은
                   stopPropagation으로 여기까지 안 올라와서, 박스 자체를 누른 경우는 안 풀려요.
                   2026-09 화면 배치 개편: 왼쪽 페이지 목록은 하단 바(아래 BottomPageBar)로
@@ -20066,21 +20087,13 @@ function UploadPageContent() {
                     {editorMode === "preview" && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditorMode("edit");
-                          setIsPrintPreview(false);
-                          // 편집하기 진입 시엔 항상 접힌(아무 탭도 안 고른) 상태로 시작.
-                          setActiveEditTab(null);
-                          setActiveCoverEditTab(null);
-                          // 폰이면 가로 고정을 "시도"만 해요(iOS 등 대부분은 안 되고, 안 돼도 조용히 넘어가요 — 안내 화면이 따로 있어요).
-                          if (touchLayout.phone) void tryLockLandscape();
-                        }}
+                        onClick={requestEdit}
                         aria-label="편집하기"
                         data-preview-edit-overlay
                         className="group pointer-events-auto absolute inset-0 z-30 flex cursor-pointer items-center justify-center [@media(pointer:coarse)]:touch-none [@media(pointer:coarse)]:items-end [@media(pointer:coarse)]:justify-start [@media(pointer:coarse)]:pb-3 [@media(pointer:coarse)]:pl-3"
                       >
                         {/* 57차: 손가락 기기는 마우스를 올릴 수 없어서 "편집하기"가 항상 보여요(44px 이상). 마우스 PC는 예전처럼 올렸을 때만 떠요. */}
-                        <span className="pointer-events-none bg-black/60 px-2.5 py-2.5 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100 [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:bg-[var(--color-charcoal)] [@media(pointer:coarse)]:px-5 [@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:shadow-lg">
+                        <span className="pointer-events-none bg-black/60 px-2.5 py-2.5 text-sm font-medium text-white opacity-0 transition phl:hidden! group-hover:opacity-100 [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:bg-[var(--color-charcoal)] [@media(pointer:coarse)]:px-5 [@media(pointer:coarse)]:opacity-100 [@media(pointer:coarse)]:shadow-lg">
                           ✏️ 편집하기
                         </span>
                       </button>
@@ -20562,9 +20575,20 @@ function UploadPageContent() {
                             똑같은 패턴으로, 인쇄 미리보기(isPrintPreview, 도련 잘림을 실제
                             인쇄와 똑같이 보여줘야 함)는 그대로 overflow-hidden을 유지하고,
                             편집 화면에서만 overflow-visible로 바꿨어요. */}
+                        {/* 66차: 미리보기 = 인쇄 미리보기라서, 표지도 내지처럼 재단선 안쪽만 꽉 차게 보여줘요(바깥 도련 부분은 잘려요). 바깥 상자가 자르고, 안쪽 표지 상자를 키워요. 편집 화면은 그대로예요. */}
+                        <div className={isPrintPreview ? "mt-4 overflow-hidden" : "mt-4"}>
                         <div
-                          className={`relative mt-4 flex w-full border border-[var(--color-hairline)] bg-white ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
-                          style={{ aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`, containerType: "size", ["--page-w" as string]: `${coverBackPct}cqw`, textRendering: "geometricPrecision", WebkitTextSizeAdjust: "none" }}
+                          className={`relative flex w-full border border-[var(--color-hairline)] bg-white ${isPrintPreview ? "overflow-hidden" : "overflow-visible"}`}
+                          style={{
+                            aspectRatio: `${coverTotalWmm} / ${coverTotalHmm}`,
+                            containerType: "size",
+                            ["--page-w" as string]: `${coverBackPct}cqw`,
+                            textRendering: "geometricPrecision",
+                            WebkitTextSizeAdjust: "none",
+                            ...(isPrintPreview
+                              ? { transform: `scale(${100 / (100 - 2 * coverBleedXPct)}, ${100 / (100 - 2 * coverBleedYPct)})`, transformOrigin: "center center" }
+                              : {}),
+                          }}
                         >
                           <div
                             data-lib-canvas="cover:back"
@@ -20879,6 +20903,8 @@ function UploadPageContent() {
                             />
                           </div>
 
+                          {!isPrintPreview && (
+                          <>
                           <CoverGuideBox left={0} right={100} top={0} bottom={100} variant="dashed" />
                           <CoverGuideBox
                             left={coverBleedXPct}
@@ -20901,10 +20927,13 @@ function UploadPageContent() {
                             bottom={coverSafetyBottomPct}
                             variant="dotted"
                           />
+                          </>
+                          )}
                           {/* 안내선(도련선/재단선/안전영역)은 2026-09-23부터 편집 화면에서 항상 표시돼요
                               (예전엔 체크박스로 껐다 켤 수 있었는데, 혜민님 요청으로 토글을 없애고 늘
                               보이게 했어요 — 필요하면 "미리보기"로 전환해서 안내선 없는 최종 모습을
                               확인하면 돼요). 책등 경계는 위 패널 테두리(항상 표시)만으로 보여줘요. */}
+                        </div>
                         </div>
                         </CanvasStage>
                         </div>
@@ -21460,12 +21489,12 @@ function UploadPageContent() {
                             <div
                               className={
                                 isPrintPreview
-                                  ? "relative mx-auto w-full bg-[var(--color-charcoal)]/[0.07] p-2 sm:p-12"
+                                  ? "relative mx-auto w-full bg-[var(--color-charcoal)]/[0.07] p-2 sm:p-12 ph:bg-transparent! ph:p-0! ph:shadow-[0_6px_18px_-6px_rgba(0,0,0,0.35)]"
                                   : ""
                               }
                             >
                               {isPrintPreview && (
-                                <div className="pointer-events-none absolute inset-8 bg-white shadow-[0_25px_55px_-12px_rgba(0,0,0,0.5)] sm:inset-12" />
+                                <div className="pointer-events-none absolute inset-8 bg-white shadow-[0_25px_55px_-12px_rgba(0,0,0,0.5)] sm:inset-12 ph:hidden" />
                               )}
                               <div
                                 // 2026-11(18번째 라운드 19차), 혜민님 버그 리포트("선택박스
