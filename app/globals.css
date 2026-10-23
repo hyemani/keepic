@@ -59,6 +59,46 @@ body:has([data-keepic-editor]) {
   padding-left: 0;
   padding-right: 0;
 }
+/* 67차(가로 고정 시험판): lib/rotatedShell.ts 가 <html data-rot-lock="90|-90">을 켠 동안만 편집 화면(<body> 전체)을 90도 돌려서
+   "폭=실제 높이, 높이=실제 폭"인 가로 화면처럼 보여줘요. 표시가 없으면(= 시험판 꺼짐) 아래 규칙은 하나도 안 맞아서 아무 영향이 없어요.
+   (max-aspect-ratio: 1/1)은 "실제 창이 세로일 때만"이라는 안전장치예요(실제로 가로가 되면 표시가 남아 있어도 안 돌아가요).
+   ※ 이 블록의 미디어쿼리에는 width/height/orientation을 쓰지 않아요(postcss/rotLockMedia.cjs 가 그런 쿼리를 두 벌로 만들기 때문). */
+@media (max-aspect-ratio: 1/1) {
+  html[data-rot-lock] {
+    overflow: hidden;
+  }
+  html[data-rot-lock] body {
+    position: fixed;
+    top: 0;
+    left: 0;
+    margin: 0;
+    width: var(--rot-rh, 100dvh);
+    height: var(--rot-rw, 100dvw);
+    overflow: hidden;
+    transform-origin: 0 0;
+  }
+  /* +90: 폰을 시계 반대 방향으로 눕힘(window.orientation 90). 안전 여백: 세로 기준 위(노치)→왼쪽, 아래(홈 바)→오른쪽, 오른쪽→위, 왼쪽→아래. */
+  html[data-rot-lock="90"] body {
+    transform: translateX(var(--rot-rw, 100dvw)) rotate(90deg);
+  }
+  html[data-rot-lock="90"] {
+    --sa-l: env(safe-area-inset-top, 0px);
+    --sa-r: env(safe-area-inset-bottom, 0px);
+    --sa-t: env(safe-area-inset-right, 0px);
+    --sa-b: env(safe-area-inset-left, 0px);
+  }
+  /* -90: 시계 방향으로 눕힘. 위(노치)→오른쪽, 아래(홈 바)→왼쪽, 오른쪽→아래, 왼쪽→위. */
+  html[data-rot-lock="-90"] body {
+    transform: translateY(var(--rot-rh, 100dvh)) rotate(-90deg);
+  }
+  html[data-rot-lock="-90"] {
+    --sa-l: env(safe-area-inset-bottom, 0px);
+    --sa-r: env(safe-area-inset-top, 0px);
+    --sa-t: env(safe-area-inset-left, 0px);
+    --sa-b: env(safe-area-inset-right, 0px);
+  }
+}
+
 /* 64차: 키보드가 올라온 동안은 홈 바 자리가 키보드에 가려지니까 아래 안전 여백을 빼요. */
 html[data-kb="open"] [data-editor-shell] {
   padding-bottom: 0 !important;

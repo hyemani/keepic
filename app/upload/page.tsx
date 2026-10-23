@@ -25,6 +25,8 @@ import { HeaderMoreMenu, HeaderZoomGroup } from "./headerOverflow";
 import { TouchZoomControls } from "./touchZoomControls";
 import { EditOrientationChooser, EditOrientationMenuRow, RotateToLandscapeHint, RotateToast } from "./orientationChooser";
 import { getEditOrientation, useEditOrientation, type EditOrientation } from "@/lib/editOrientation";
+import { useRotatedShell } from "@/lib/rotatedShell";
+import { RotLockBadge, RotLockMenuRows } from "./rotLockUi";
 import { EditBarMoreMenu } from "./editBarMore";
 import {
   albumTemplates,
@@ -17742,8 +17744,14 @@ function UploadPageContent() {
     setEditOrient(v);
     setRotateToast(v === "landscape" && !touchLayout.phoneLandscape);
   };
+  // 67차: 가로 고정(시험판). 주소에 ?rotlock=1 이 있을 때만 동작해요(없으면 아무것도 안 해요) — lib/rotatedShell.ts
+  const rotLock = useRotatedShell({ editing: editorMode === "edit", landscapeChosen: editOrient === "landscape" });
+  const orientMenuCls = "flex h-11 items-center justify-center border border-[var(--color-hairline)] bg-white px-2 text-[13px] font-medium text-[var(--color-charcoal)] transition active:bg-[var(--color-ivory)]";
   const orientMenuRow = touchLayout.phone ? (
-    <EditOrientationMenuRow value={editOrient} onChange={changeEditOrient} className="flex h-11 items-center justify-center border border-[var(--color-hairline)] bg-white px-2 text-[13px] font-medium text-[var(--color-charcoal)] transition active:bg-[var(--color-ivory)]" />
+    <>
+      <EditOrientationMenuRow value={editOrient} onChange={changeEditOrient} className={orientMenuCls} />
+      <RotLockMenuRows className={orientMenuCls} />
+    </>
   ) : null;
   // 폰 세로로 계속할 때는 패널이 아래에서 올라오는 시트(화면 높이의 42% 이하)라서, 열려 있는 동안 캔버스를 그만큼 위로 줄여 펼침면이 시트에 안 가려져요.
   const portraitSheetOpen = editorMode === "edit" && touchLayout.phonePortrait && compactEditor && drawerOpen && !!(selectedPageKey === "cover" ? activeCoverEditTab : activeEditTab);
@@ -19360,6 +19368,7 @@ function UploadPageContent() {
         style={softKb.open ? { position: "fixed", top: softKb.top, left: softKb.left, width: softKb.width, height: softKb.height } : undefined}
         className="flex h-dvh flex-col overflow-hidden bg-[var(--color-ivory)] pb-[var(--sa-b)] pl-[var(--ed-l)] pr-[var(--ed-r)] pt-[var(--sa-t)] text-[var(--color-charcoal)] php:pb-0! [@media(pointer:coarse)]:h-[var(--app-vh,100dvh)] [@media(pointer:coarse)]:overscroll-none"
       >
+        {rotLock.engaged && <RotLockBadge />}
         {phlWriting && !phlDockOpen && (
           // 61차: 패널 없이 캔버스에서 직접 글을 칠 때(키보드가 올라온 동안) 키보드를 내리는 "완료" 버튼이에요. 패널이 열려 있으면 패널 맨 위 줄의 "완료"를 써요.
           <button
