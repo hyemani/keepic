@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { computePreviewBox, type Rect } from "@/lib/themePreviewLayout";
+import { virtualInner } from "@/lib/rotatedShell";
 
 export const THEME_PREVIEW_ID = "album-theme-preview";
 const CLOSE_DELAY_MS = 200;
@@ -114,7 +115,7 @@ export function ThemePreviewPopover({
     return () => cancelAnimationFrame(id);
   }, []);
   if (typeof document === "undefined") return null;
-  const box = computePreviewBox({ panel: state.panel, anchor: state.anchor, vw: window.innerWidth, vh: window.innerHeight, count, ratio });
+  const box = computePreviewBox({ panel: state.panel, anchor: state.anchor, vw: virtualInner().w, vh: virtualInner().h, count, ratio });
   return createPortal(
     <div
       id={THEME_PREVIEW_ID}

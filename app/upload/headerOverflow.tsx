@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { mediaMatches, subscribeMedia } from "@/lib/rotatedShell";
 
 // 44차: 편집기 상단바 "더보기" — 폭이 아주 좁을 때(768px 미만) 덜 급한 항목(화면 배율·인쇄 미리보기·저장 상태 글자)을
 // 한 메뉴로 묶어요. 저장·다음은 절대 여기로 들어가지 않고 항상 바깥에 보여요. 768px 이상에서는 이 버튼 자체가 안 보여서
@@ -28,17 +29,17 @@ export function HeaderMoreMenu({ children, alwaysShow = false, panelClassName }:
       }
     };
     // 창이 넓어져 이 버튼이 사라지면(768px 이상) 열린 메뉴도 같이 닫아요.
-    const mq = window.matchMedia("(min-width: 768px)");
+    // 67차: 가로 고정(시험판)으로 돌려 보여주는 중에는 가상(눕힌) 화면 폭 기준(mediaMatches/subscribeMedia)이에요.
     const onMq = () => {
-      if (mq.matches && !alwaysShow) setOpen(false);
+      if (mediaMatches("(min-width: 768px)") && !alwaysShow) setOpen(false);
     };
     window.addEventListener("pointerdown", onDown, true);
     window.addEventListener("keydown", onKey, true);
-    mq.addEventListener("change", onMq);
+    const unMq = subscribeMedia("(min-width: 768px)", onMq);
     return () => {
       window.removeEventListener("pointerdown", onDown, true);
       window.removeEventListener("keydown", onKey, true);
-      mq.removeEventListener("change", onMq);
+      unMq();
     };
   }, [open, close, alwaysShow]);
   return (

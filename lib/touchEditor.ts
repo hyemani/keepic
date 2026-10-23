@@ -1,19 +1,17 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { isTextEntryElement } from "./softKeyboard";
+import { isRotated, mediaMatches, subscribeMedia, subscribeRotChange, virtualInner, virtualVisual } from "./rotatedShell";
 
 // 터치 기기(폰·태블릿) 편집 지원용 작은 도구 모음(57차). 데스크톱(마우스)에서는 전부 "해당 없음"으로 나와서
 // 예전 화면·동작이 그대로예요.
 
 function makeMediaHook(query: string) {
-  const subscribe = (cb: () => void) => {
-    const mq = window.matchMedia(query);
-    mq.addEventListener("change", cb);
-    return () => mq.removeEventListener("change", cb);
-  };
+  // 67차: 가로 고정(시험판)으로 돌려 보여주는 중에는 가상(눕힌) 화면 기준으로 판단해요(꺼져 있으면 예전과 똑같이 실제 쿼리).
+  const subscribe = (cb: () => void) => subscribeMedia(query, cb);
   return () =>
     useSyncExternalStore(
       subscribe,
-      () => window.matchMedia(query).matches,
+      () => mediaMatches(query),
       () => false
     );
 }
@@ -46,27 +44,29 @@ function readPhoneBits(): number {
   if (typeof window === "undefined") return 0;
   const mm = (q: string) => {
     try {
-      return window.matchMedia(q).matches;
+      return mediaMatches(q);
     } catch {
       return false;
     }
   };
+  // 67차: 가로 고정(시험판)으로 돌려 보여주는 중이면 가로·세로를 맞바꾼 "가상 화면" 크기를 읽어요(아니면 실제 값 그대로).
+  const vInner = virtualInner();
   // 손가락 기기: pointer: coarse 이거나(대부분), 폰 UA(iPhone 등)이면서 마우스 기기가 아닐 때.
   const coarse = mm("(pointer: coarse)") || (MOBILE_UA.test(navigator.userAgent) && !mm("(hover: hover) and (pointer: fine)"));
   // 폰 크기: 화면(screen) 짧은 쪽 또는 지금 창 짧은 쪽이 600px 미만. iOS는 screen.width/height가 회전해도 안 바뀌어서 min()으로 봐요.
-  const vv = window.visualViewport;
-  const iw = Math.round(vv?.width ?? window.innerWidth) || window.innerWidth;
-  const ih = Math.round(vv?.height ?? window.innerHeight) || window.innerHeight;
+  const vis = virtualVisual();
+  const iw = Math.round(vis.w) || vInner.w;
+  const ih = Math.round(vis.h) || vInner.h;
   const screenShort = Math.min(window.screen?.width || 9999, window.screen?.height || 9999);
-  const winShort = Math.min(iw || 9999, ih || 9999, window.innerWidth || 9999, window.innerHeight || 9999);
+  const winShort = Math.min(iw || 9999, ih || 9999, vInner.w || 9999, vInner.h || 9999);
   // 폭이 넉넉한 태블릿(820x1180 등)은 화면 짧은 쪽도 창 짧은 쪽도 600 이상이라 폰이 아니에요.
   const phone = coarse && (screenShort < 600 || winShort < 600);
   // 세로 = 창 높이가 폭 이상. (orientation 미디어쿼리와 같은 뜻인데, iOS는 회전 직후 쿼리가 늦게 갱신될 수 있어서 실제 크기로 봐요.)
-  let portrait = window.innerWidth > 0 && window.innerHeight > 0 ? window.innerHeight >= window.innerWidth : mm("(orientation: portrait)");
+  let portrait = vInner.w > 0 && vInner.h > 0 ? vInner.h >= vInner.w : mm("(orientation: portrait)");
   // 64차: 글 칸에 포커스가 있는 동안(키보드가 높이를 줄여 알려줄 수 있어요) 폭이 그대로면 방향이 바뀐 게 아니라서 직전 판단을 그대로 써요.
   const focusedEntry = isTextEntryElement(document.activeElement);
-  if (focusedEntry && lastPortraitRead.w === window.innerWidth && lastPortraitRead.known) portrait = lastPortraitRead.portrait;
-  else lastPortraitRead = { w: window.innerWidth, portrait, known: true };
+  if (focusedEntry && lastPortraitRead.w === vInner.w && lastPortraitRead.known) portrait = lastPortraitRead.portrait;
+  else lastPortraitRead = { w: vInner.w, portrait, known: true };
   return (coarse ? 1 : 0) | (phone ? 2 : 0) | (portrait ? 4 : 0);
 }
 
@@ -82,7 +82,9 @@ function subscribePhoneBits(cb: () => void) {
   window.addEventListener("resize", kick);
   window.addEventListener("orientationchange", kick);
   window.visualViewport?.addEventListener("resize", kick);
+  const unRot = subscribeRotChange(kick); // 67차: 시험판이 꺼져 있으면 아무것도 안 달아요
   return () => {
+    unRot();
     mqs.forEach((m) => m.removeEventListener("change", kick));
     window.removeEventListener("resize", kick);
     window.removeEventListener("orientationchange", kick);
@@ -117,10 +119,9 @@ export function useVisualViewportVars(enabled: boolean) {
     const root = document.documentElement;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const apply = () => {
-      const vv = window.visualViewport;
-      const scale = vv?.scale && vv.scale > 0 ? vv.scale : 1;
-      const h = Math.round((vv?.height ?? window.innerHeight) * scale);
-      const w = Math.round((vv?.width ?? window.innerWidth) * scale);
+      const vis = virtualVisual(); // 67차: 돌려 보여주는 중이면 가로·세로를 맞바꾼 값
+      const h = Math.round(vis.h * vis.scale);
+      const w = Math.round(vis.w * vis.scale);
       if (h > 0) root.style.setProperty("--app-vh", `${h}px`);
       if (w > 0) root.style.setProperty("--app-vw", `${w}px`);
     };
@@ -135,7 +136,9 @@ export function useVisualViewportVars(enabled: boolean) {
     vv?.addEventListener("scroll", apply);
     window.addEventListener("resize", kick);
     window.addEventListener("orientationchange", kick);
+    const unRot = subscribeRotChange(kick);
     return () => {
+      unRot();
       vv?.removeEventListener("resize", kick);
       vv?.removeEventListener("scroll", apply);
       window.removeEventListener("resize", kick);
@@ -164,6 +167,8 @@ export function useNotchSide(enabled: boolean) {
     document.body.appendChild(probe);
     const timers: ReturnType<typeof setTimeout>[] = [];
     const apply = () => {
+      // 67차: 가로 고정(시험판)이 돌려 보여주는 중에는 노치 쪽을 그쪽에서 정해요(<html data-notch>) — 여기서 건드리지 않아요.
+      if (isRotated()) return;
       try {
         const cs = getComputedStyle(probe);
         const l = parseFloat(cs.paddingLeft) || 0;
