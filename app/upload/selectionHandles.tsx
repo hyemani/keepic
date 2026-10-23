@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { localRect, virtualInner } from "@/lib/rotatedShell";
 
 export type TextBoxResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
@@ -161,10 +162,11 @@ function SelectionPill({
     const tick = () => {
       const el = frameRef.current;
       if (el) {
-        const r = el.getBoundingClientRect(); // 회전된 박스를 감싸는 축 정렬 사각형
+        const r = localRect(el); // 회전된 박스를 감싸는 축 정렬 사각형(67차: 시험판으로 돌려 보여주는 중이면 가상 좌표)
         let label = `${Math.round(rotation)}°`;
         if (kind === "size") {
-          const cell = el.parentElement?.parentElement?.getBoundingClientRect();
+          const cellEl = el.parentElement?.parentElement;
+          const cell = cellEl ? localRect(cellEl) : undefined;
           label = "";
           if (docW && cell && cell.width > 0) {
             const pxPerMm = cell.width / docW;
@@ -172,7 +174,7 @@ function SelectionPill({
           }
         }
         const pillH = pillRef.current?.offsetHeight ?? 32;
-        const above = r.bottom + PILL_GAP_PX + pillH > window.innerHeight - 8;
+        const above = r.bottom + PILL_GAP_PX + pillH > virtualInner().h - 8;
         const y = above ? r.top - PILL_GAP_PX - pillH - (hasRotate ? PILL_ABOVE_EXTRA_PX : 0) : r.bottom + PILL_GAP_PX;
         const x = r.left + r.width / 2;
         setState((prev) =>

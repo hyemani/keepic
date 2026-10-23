@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { isDragTarget, touchDistance } from "@/lib/touchEditor";
+import { toLocalDelta, toLocalPoint } from "@/lib/rotatedShell";
 
 // 57차: 폰·태블릿 캔버스 손가락 조작. 데스크톱(마우스)은 이 훅이 아무것도 안 해요(enabled=false).
 //
@@ -73,10 +74,14 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
     let raf = 0;
     let pending: { pct: number; x: number; y: number } | null = null;
 
-    const mouse = (type: string, x: number, y: number, el: EventTarget) =>
-      el.dispatchEvent(
-        new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, screenX: x, screenY: y, button: 0, buttons: type === "mouseup" ? 0 : 1 })
+    // 67차: 가로 고정(시험판)으로 화면을 돌려 보여주는 중이면 손가락 좌표(화면 기준)를 "돌리기 전" 좌표로 바꿔서 전달해요 — 끌기 코드는 한 줄도 안 바꿔도
+    // 글상자·사진을 끈 방향이 맞게 움직여요. 돌리는 중이 아니면 toLocalPoint가 값을 그대로 돌려줘서 예전과 똑같아요.
+    const mouse = (type: string, x: number, y: number, el: EventTarget) => {
+      const lp = toLocalPoint(x, y);
+      return el.dispatchEvent(
+        new MouseEvent(type, { bubbles: true, cancelable: true, view: window, clientX: lp.x, clientY: lp.y, screenX: lp.x, screenY: lp.y, button: 0, buttons: type === "mouseup" ? 0 : 1 })
       );
+    };
     const endDrag = (x: number, y: number) => {
       if (!dragMouseDown) return;
       dragMouseDown = false;
@@ -178,8 +183,9 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
         const midX = (a.clientX + b.clientX) / 2,
           midY = (a.clientY + b.clientY) / 2;
         if (vp) {
-          vp.scrollLeft -= midX - pinch.lastMidX;
-          vp.scrollTop -= midY - pinch.lastMidY;
+          const d = toLocalDelta(midX - pinch.lastMidX, midY - pinch.lastMidY); // 67차: 돌려 보여주는 중이면 화면 이동량을 가상 좌표로
+          vp.scrollLeft -= d.dx;
+          vp.scrollTop -= d.dy;
         }
         pinch.lastMidX = midX;
         pinch.lastMidY = midY;
@@ -209,8 +215,9 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
         mouse("mousemove", t.clientX, t.clientY, window);
       } else if (mode === "pan" && vp) {
         e.preventDefault();
-        vp.scrollLeft -= t.clientX - lastX;
-        vp.scrollTop -= t.clientY - lastY;
+        const d = toLocalDelta(t.clientX - lastX, t.clientY - lastY); // 67차: 돌려 보여주는 중이면 화면 이동량을 가상 좌표로
+        vp.scrollLeft -= d.dx;
+        vp.scrollTop -= d.dy;
       }
       lastX = t.clientX;
       lastY = t.clientY;
@@ -225,8 +232,9 @@ function attachGestures(root: HTMLElement, optsRef: { current: CanvasGestureOpti
           const now = Date.now();
           if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < DOUBLE_TAP_PX) {
             lastTap = null;
+            const lp = toLocalPoint(t.clientX, t.clientY); // 67차: 돌려 보여주는 중이면 가상 좌표로(아니면 그대로)
             el.dispatchEvent(
-              new MouseEvent("dblclick", { bubbles: true, cancelable: true, view: window, clientX: t.clientX, clientY: t.clientY, detail: 2 })
+              new MouseEvent("dblclick", { bubbles: true, cancelable: true, view: window, clientX: lp.x, clientY: lp.y, detail: 2 })
             );
           } else lastTap = { t: now, x: t.clientX, y: t.clientY };
         } else lastTap = null;

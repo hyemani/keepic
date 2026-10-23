@@ -21,6 +21,7 @@ import {
 import { usePhotoFilterThumbs } from "./photoEditHooks";
 import { PrimaryActionButton } from "./primaryActionButton";
 import { ACTION_BUTTON_BASE, PANEL_STACK, SECONDARY_ACTION_BUTTON_CLASS, SegTabs } from "./sidePanelShell";
+import { localRect, virtualInner } from "@/lib/rotatedShell";
 
 /** 이미지박스 컴포넌트가 밖으로 열어주는 동작 중 이 패널이 쓰는 것들(ImageBoxOverlayHandle 의 부분집합). */
 export type PhotoEditHandle = {
@@ -1027,14 +1028,16 @@ export function PhotoPositionToolbar({
     const bar = ref.current;
     const anchor = anchorRef.current;
     if (!bar || !anchor) return;
-    const a = anchor.getBoundingClientRect();
+    // 67차: 가로 고정(시험판)으로 돌려 보여주는 중이면 화면 좌표를 가상(돌리기 전) 좌표로 바꿔요(아니면 예전과 똑같은 값).
+    const vi = virtualInner();
+    const a = localRect(anchor);
     const stageEl = anchor.closest("[data-canvas-stage]") as HTMLElement | null;
-    const sr = stageEl ? stageEl.getBoundingClientRect() : null;
+    const sr = stageEl ? localRect(stageEl) : null;
     const bounds = {
       left: Math.max(0, sr ? sr.left : 0),
       top: Math.max(0, sr ? sr.top : 0),
-      right: Math.min(window.innerWidth, sr ? sr.right : window.innerWidth),
-      bottom: Math.min(window.innerHeight, sr ? sr.bottom : window.innerHeight),
+      right: Math.min(vi.w, sr ? sr.right : vi.w),
+      bottom: Math.min(vi.h, sr ? sr.bottom : vi.h),
     };
     const maxW = Math.max(120, bounds.right - bounds.left - TOOLBAR_EDGE * 2);
     const w = Math.min(bar.offsetWidth, maxW);
