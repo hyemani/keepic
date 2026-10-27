@@ -1,0 +1,350 @@
+{
+ "bg-cobalt-space": {
+  "n": 1,
+  "w": 1536,
+  "h": 1024,
+  "bytes": 60262,
+  "lqip": "data:image/webp;base64,UklGRpIAAABXRUJQVlA4IIYAAAAwBACdASoYABAAPu1iqU2ppaOiMAgBMB2JbACw7Yuu32qWP1GcFuDW2uwA/uMFTZeoigJ/rUCo63Z9fG7D2On/5Kf/eV/TDuBjwbkKno7SYwPUmjgceENGbD7i2RuzQ5nFbmIfIYIhnvg5pWW3ffv56y71KQbZubDmYz2fdmP43oauSOoAAA==",
+  "color": "#2638ee"
+ },
+ "cloud-cobalt": {
+  "n": 2,
+  "w": 560,
+  "h": 278,
+  "bytes": 32074,
+  "trim": {
+   "l": 0.0697,
+   "t": 0.1914,
+   "r": 0.0612,
+   "b": 0.1611
+  }
+ },
+ "cloud-lavender": {
+  "n": 3,
+  "w": 560,
+  "h": 277,
+  "bytes": 30576,
+  "trim": {
+   "l": 0.0586,
+   "t": 0.1709,
+   "r": 0.0579,
+   "b": 0.1729
+  }
+ },
+ "bg-delivery-road": {
+  "n": 4,
+  "w": 1536,
+  "h": 1024,
+  "bytes": 69564,
+  "lqip": "data:image/webp;base64,UklGRpoAAABXRUJQVlA4II4AAAAwBACdASoYABAAPu1iqk2ppaQiMAgBMB2JaACw/fqgPI/oJnEyGaKl9ZAA/ujf9R3A6G5kMXqAeNEsXBU3XhvEyE/q787dFd6mIoGx7ektlpaJmbfQ69wkGZSwL7ONlmPEJn308Lfhmm2W1tNFxj2TMWCesdEuUonVzBSer/h9shA/B43+Ai5saphP7QAA",
+  "color": "#4141c0"
+ },
+ "star-pink": {
+  "n": 5,
+  "w": 200,
+  "h": 188,
+  "bytes": 7642,
+  "trim": {
+   "l": 0.0601,
+   "t": 0.0569,
+   "r": 0.0601,
+   "b": 0.0561
+  }
+ },
+ "sparkle-cream": {
+  "n": 6,
+  "w": 140,
+  "h": 148,
+  "bytes": 3654,
+  "trim": {
+   "l": 0.154,
+   "t": 0.1034,
+   "r": 0.154,
+   "b": 0.0984
+  }
+ },
+ "bg-purple-space": {
+  "n": 7,
+  "w": 1536,
+  "h": 1024,
+  "bytes": 24098,
+  "lqip": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAADwAwCdASoYABAAPu1kqk4ppaQiMAgBMB2JZgCdEf/gPI/1dv/VOpvIAP7os9FunG08BqepMf1d+dv8w2x2Z5Ec4LoBwU1Bapz21SZVmGlG+Hio0rzamndzQrxNL3uzIAAAAA==",
+  "color": "#3a17b4"
+ },
+ "shooting-star": {
+  "n": 8,
+  "w": 560,
+  "h": 232,
+  "bytes": 27122,
+  "trim": {
+   "l": 0.0293,
+   "t": 0.2129,
+   "r": 0.0228,
+   "b": 0.1992
+  }
+ },
+ "planet-pink": {
+  "n": 9,
+  "w": 360,
+  "h": 360,
+  "bytes": 21348,
+  "trim": {
+   "l": 0.1164,
+   "t": 0.126,
+   "r": 0.1164,
+   "b": 0.1069
+  }
+ },
+ "moon-crescent": {
+  "n": 10,
+  "w": 420,
+  "h": 444,
+  "bytes": 19678,
+  "trim": {
+   "l": 0.1116,
+   "t": 0.0885,
+   "r": 0.1005,
+   "b": 0.0789
+  }
+ },
+ "planet-ringed": {
+  "n": 11,
+  "w": 420,
+  "h": 248,
+  "bytes": 21804,
+  "trim": {
+   "l": 0.0534,
+   "t": 0.1016,
+   "r": 0.0456,
+   "b": 0.1016
+  }
+ },
+ "photo-puppy": {
+  "n": 12,
+  "w": 400,
+  "h": 422,
+  "bytes": 31630,
+  "trim": {
+   "l": 0.1576,
+   "t": 0.114,
+   "r": 0.0161,
+   "b": 0.1148
+  }
+ },
+ "photo-friends": {
+  "n": 13,
+  "w": 400,
+  "h": 529,
+  "bytes": 49150,
+  "trim": {
+   "l": 0.2043,
+   "t": 0.1313,
+   "r": 0.201,
+   "b": 0.132
+  }
+ },
+ "milky-way": {
+  "n": 14,
+  "w": 760,
+  "h": 414,
+  "bytes": 44708,
+  "trim": {
+   "l": 0.0475,
+   "t": 0.1201,
+   "r": 0.0443,
+   "b": 0.1377
+  }
+ },
+ "album-open": {
+  "n": 15,
+  "w": 720,
+  "h": 399,
+  "bytes": 29050,
+  "trim": {
+   "l": 0.0241,
+   "t": 0.0957,
+   "r": 0.0241,
+   "b": 0.1123
+  }
+ },
+ "photo-sea": {
+  "n": 16,
+  "w": 400,
+  "h": 521,
+  "bytes": 33720,
+  "trim": {
+   "l": 0.1389,
+   "t": 0.107,
+   "r": 0.138,
+   "b": 0.1077
+  }
+ },
+ "album-closed": {
+  "n": 17,
+  "w": 520,
+  "h": 458,
+  "bytes": 33834,
+  "trim": {
+   "l": 0.0431,
+   "t": 0.1045,
+   "r": 0.0327,
+   "b": 0.0821
+  }
+ },
+ "frame-friends": {
+  "n": 18,
+  "w": 360,
+  "h": 366,
+  "bytes": 25544,
+  "trim": {
+   "l": 0.122,
+   "t": 0.0776,
+   "r": 0.1143,
+   "b": 0.0726
+  }
+ },
+ "frame-puppy": {
+  "n": 19,
+  "w": 360,
+  "h": 357,
+  "bytes": 35694,
+  "trim": {
+   "l": 0.0662,
+   "t": 0.0702,
+   "r": 0.0654,
+   "b": 0.0694
+  }
+ },
+ "star-cream": {
+  "n": 20,
+  "w": 200,
+  "h": 186,
+  "bytes": 7776,
+  "trim": {
+   "l": 0.0457,
+   "t": 0.04,
+   "r": 0.0457,
+   "b": 0.0375
+  }
+ },
+ "goods-mug": {
+  "n": 21,
+  "w": 340,
+  "h": 282,
+  "bytes": 17144,
+  "trim": {
+   "l": 0.1305,
+   "t": 0.1025,
+   "r": 0.0813,
+   "b": 0.082
+  }
+ },
+ "goods-glass": {
+  "n": 22,
+  "w": 320,
+  "h": 360,
+  "bytes": 29526,
+  "trim": {
+   "l": 0.13,
+   "t": 0.105,
+   "r": 0.1292,
+   "b": 0.1034
+  }
+ },
+ "goods-tote": {
+  "n": 23,
+  "w": 360,
+  "h": 484,
+  "bytes": 35940,
+  "trim": {
+   "l": 0.1219,
+   "t": 0.0171,
+   "r": 0.1219,
+   "b": 0.0186
+  }
+ },
+ "goods-calendar": {
+  "n": 24,
+  "w": 360,
+  "h": 369,
+  "bytes": 30656,
+  "trim": {
+   "l": 0.1113,
+   "t": 0.0559,
+   "r": 0.0983,
+   "b": 0.0575
+  }
+ },
+ "goods-poster": {
+  "n": 25,
+  "w": 340,
+  "h": 460,
+  "bytes": 30958,
+  "trim": {
+   "l": 0.1309,
+   "t": 0.0274,
+   "r": 0.1293,
+   "b": 0.0579
+  }
+ },
+ "box-parcel": {
+  "n": 26,
+  "w": 400,
+  "h": 392,
+  "bytes": 33594,
+  "trim": {
+   "l": 0.1405,
+   "t": 0.0633,
+   "r": 0.1398,
+   "b": 0.0561
+  }
+ },
+ "house": {
+  "n": 27,
+  "w": 480,
+  "h": 463,
+  "bytes": 39776,
+  "trim": {
+   "l": 0.0945,
+   "t": 0.0726,
+   "r": 0.093,
+   "b": 0.0692
+  }
+ },
+ "camera": {
+  "n": 28,
+  "w": 380,
+  "h": 270,
+  "bytes": 22172,
+  "trim": {
+   "l": 0.0314,
+   "t": 0.0847,
+   "r": 0.0292,
+   "b": 0.0811
+  }
+ },
+ "girl-photobook": {
+  "n": 29,
+  "w": 360,
+  "h": 985,
+  "bytes": 72790,
+  "trim": {
+   "l": 0.2412,
+   "t": 0.0286,
+   "r": 0.2373,
+   "b": 0.0202
+  }
+ },
+ "heart-pink": {
+  "n": 30,
+  "w": 240,
+  "h": 197,
+  "bytes": 9680,
+  "trim": {
+   "l": 0.0595,
+   "t": 0.1159,
+   "r": 0.0595,
+   "b": 0.0942
+  }
+ }
+}
