@@ -1,49 +1,47 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // 키픽 스토리 시안 — "레이어 목록표"(manifest)
+// 컨셉: "추억이 모여 나만의 우주가 되는 곳" (파랑·보라 우주 + 크림색 별)
 //
 // 이 파일 하나가 스토리 화면의 모든 그림 조각(레이어)을 관리해요.
-// 지금은 src가 null → 코드로 그린 "임시 도형(placeholder)"이 나와요.
-// 일러스트레이터에서 내보낸 파일을 public/story/layers/ 에 넣고, 해당 줄의
-//   src: null   →   src: "/story/layers/cloud-1.svg"
-// 로 바꾸기만 하면 그 조각만 진짜 그림으로 바뀌어요. (자세한 방법은 README.md)
+// art 칸의 이름은 public/story/layers/<이름>.webp 파일이에요 (scripts/optimize-story-art.mjs 가 만들어요).
+// 그림을 바꾸고 싶으면: 같은 이름으로 파일만 교체하거나, 이 줄의 art 이름을 다른 조각 이름으로 바꾸면 돼요.
 //
 // 위치·크기 읽는 법
 //  - space "stage": 화면 전체(가로 100% × 세로 100%) 기준 / "art": 가운데 정사각형 그림 영역 기준.
+//    (장면 3의 art 는 "길 배경 그림 전체" 기준이에요 — 가로는 그림 가로 100%, 세로는 그림 세로 100%)
 //  - cx, cy: 그림의 "가운데 점" 위치(%). 왼쪽 위가 0,0 — 오른쪽 아래가 100,100.
-//  - w: 그림 가로 크기(%). 세로는 ar(가로÷세로 비율)로 자동 계산돼요. 실제 그림 비율에 맞게 ar도 고쳐 주세요.
+//  - w: 그림 가로 크기(%). 세로 비율은 그림 파일에서 자동으로 읽어요(art-manifest.json).
 //  - depth: 스크롤할 때 움직이는 속도. 1 = 화면과 똑같이(기본), 작을수록 멀리 있는 것처럼 느리게, 클수록 가까이 있는 것처럼 빠르게.
-//  - z: 겹치는 순서(클수록 앞).  idle: 가만히 있을 때 움직임(drift 둥실 흐름 / bob 위아래 / twinkle 반짝 / hop 폴짝).
-//  - fill: 가로 화면 끝까지 꽉 채우는 조각(언덕 등). edge 쪽에 붙고 높이는 화면 높이의 h%.
+//  - z: 겹치는 순서(클수록 앞).  idle: 가만히 있을 때 움직임(drift 둥실 흐름 / bob 위아래 / twinkle 반짝).
+//  - label: 화면 낭독기에게 읽어 줄 이름. 없으면 "장식 그림"으로 보고 읽지 않아요.
 // ─────────────────────────────────────────────────────────────────────────────
+import manifest from "./art-manifest.json";
 
-export type PlaceholderKind =
-  | "cloud" | "star" | "moon" | "sun" | "hill" | "card" | "char"
-  | "cover" | "pageLeft" | "pageRight" | "shadow" | "albumClosed"
-  | "house" | "tree" | "bush" | "path" | "heart" | "spark";
+export type ArtName = keyof typeof manifest;
+export const ART = manifest as Record<ArtName, { n: number; w: number; h: number; bytes: number; lqip?: string; color?: string }>;
+export const artSrc = (name: ArtName) => `/story/layers/${name}.webp`;
 
 export type LayerSpec = {
-  /** null = 임시 도형. "/story/layers/이름.svg" (또는 .png)로 바꾸면 진짜 그림으로 교체돼요. */
-  src: string | null;
+  art: ArtName;
   space: "stage" | "art";
   cx: number;
   cy: number;
   w: number;
-  /** 가로÷세로 비율 */
-  ar: number;
   depth: number;
   z: number;
   rot?: number;
-  idle?: "drift" | "bob" | "twinkle" | "hop";
+  idle?: "drift" | "bob" | "twinkle";
   /** 한 번 움직이는 데 걸리는 시간(초) */
   idleSec?: number;
   /** 시작 어긋남(초). 모든 조각이 한꺼번에 같은 박자로 움직이지 않게 해줘요. */
   idleDelay?: number;
   /** 큰 화면에서 이 크기(px)보다 커지지 않게 */
   maxPx?: number;
-  fill?: { edge: "bottom" | "top"; h: number };
-  /** 임시 도형 모양과 색 */
-  ph: { kind: PlaceholderKind; tint?: string; tint2?: string };
-  /** 일러스트레이터 내보내기 안내용 설명(README에 같은 표가 있어요) */
+  /** 흐리게 보이도록 투명도(0~1). 글자 근처 작은 장식을 은은하게 할 때 써요. */
+  opacity?: number;
+  /** 가로로 넓은 화면(PC·폰 가로)에서만 쓰는 다른 위치·크기. 글자가 왼쪽에 놓이는 화면에서 장식이 글자를 가리지 않게 옮길 때 써요. */
+  land?: { cx: number; cy: number; w?: number };
+  label?: string;
   note: string;
 };
 
@@ -51,72 +49,66 @@ const S = "stage" as const;
 const A = "art" as const;
 
 export const LAYERS = {
-  // ───────── 장면 1 · 사진 고르기 (하늘) ─────────
-  "s1-moon": { src: null, space: S, cx: 91, cy: 17, w: 10, ar: 1, depth: 0.2, z: 1, idle: "twinkle", idleSec: 5, maxPx: 110, ph: { kind: "moon", tint: "#FFE98A" }, note: "달" },
-  "s1-star-1": { src: null, space: S, cx: 8, cy: 12, w: 4.5, ar: 1, depth: 0.25, z: 1, idle: "twinkle", idleSec: 2.6, maxPx: 34, ph: { kind: "star", tint: "#FFE27A" }, note: "별(작게)" },
-  "s1-star-2": { src: null, space: S, cx: 30, cy: 22, w: 3.2, ar: 1, depth: 0.25, z: 1, idle: "twinkle", idleSec: 3.1, idleDelay: -1, maxPx: 26, ph: { kind: "star", tint: "#FFFFFF" }, note: "별(아주 작게)" },
-  "s1-star-3": { src: null, space: S, cx: 68, cy: 9, w: 4, ar: 1, depth: 0.25, z: 1, idle: "twinkle", idleSec: 2.9, idleDelay: -0.4, maxPx: 30, ph: { kind: "star", tint: "#FFE27A" }, note: "별" },
-  "s1-star-4": { src: null, space: S, cx: 93, cy: 34, w: 3.4, ar: 1, depth: 0.25, z: 1, idle: "twinkle", idleSec: 3.4, idleDelay: -2, maxPx: 28, ph: { kind: "star", tint: "#FFFFFF" }, note: "별" },
-  "s1-star-5": { src: null, space: S, cx: 6, cy: 38, w: 3.6, ar: 1, depth: 0.25, z: 1, idle: "twinkle", idleSec: 2.7, idleDelay: -1.6, maxPx: 28, ph: { kind: "star", tint: "#FFE27A" }, note: "별" },
-  "s1-cloud-1": { src: null, space: S, cx: 62, cy: 36, w: 30, ar: 2, depth: 0.45, z: 2, idle: "drift", idleSec: 18, maxPx: 320, ph: { kind: "cloud", tint: "#FFFFFF", tint2: "#EDE6FF" }, note: "구름(위쪽, 글자 뒤는 피해 두기)" },
-  "s1-cloud-2": { src: null, space: S, cx: 88, cy: 56, w: 30, ar: 2, depth: 0.55, z: 2, idle: "drift", idleSec: 24, idleDelay: -9, maxPx: 330, ph: { kind: "cloud", tint: "#FFFFFF", tint2: "#FFE3F0" }, note: "구름(오른쪽)" },
-  "s1-cloud-3": { src: null, space: S, cx: 55, cy: 70, w: 24, ar: 2, depth: 0.7, z: 3, idle: "drift", idleSec: 20, idleDelay: -4, maxPx: 270, ph: { kind: "cloud", tint: "#FFF7FB", tint2: "#FFE3F0" }, note: "구름(가운데 아래, 가까운 것)" },
-  "s1-hill-back": { src: null, space: S, cx: 50, cy: 0, w: 100, ar: 3.33, depth: 0.5, z: 4, fill: { edge: "bottom", h: 34 }, ph: { kind: "hill", tint: "#5DBB8F" }, note: "뒷산(가장 멀리, 가로 꽉 채움)" },
-  "s1-hill-mid": { src: null, space: S, cx: 50, cy: 0, w: 100, ar: 3.33, depth: 0.75, z: 5, fill: { edge: "bottom", h: 25 }, ph: { kind: "hill", tint: "#8DD7A9" }, note: "중간 언덕" },
-  "s1-hill-front": { src: null, space: S, cx: 50, cy: 0, w: 100, ar: 3.33, depth: 1, z: 6, fill: { edge: "bottom", h: 15 }, ph: { kind: "hill", tint: "#CDEFD6" }, note: "앞 언덕(장면 2 배경색과 이어져요)" },
-  "s1-card-1": { src: null, space: A, cx: 17, cy: 33, w: 21, ar: 0.8, depth: 1.12, z: 2, rot: -9, idle: "bob", idleSec: 3.6, maxPx: 160, ph: { kind: "card", tint: "#FFD1DC", tint2: "#FF9DB8" }, note: "둥둥 떠 있는 사진 카드 1" },
-  "s1-card-2": { src: null, space: A, cx: 50, cy: 19, w: 23, ar: 0.8, depth: 1.2, z: 2, rot: 4, idle: "bob", idleSec: 4.2, idleDelay: -1.3, maxPx: 176, ph: { kind: "card", tint: "#CDE7FF", tint2: "#8CC3FF" }, note: "사진 카드 2" },
-  "s1-card-3": { src: null, space: A, cx: 83, cy: 35, w: 21, ar: 0.8, depth: 1.1, z: 2, rot: 10, idle: "bob", idleSec: 3.9, idleDelay: -2.2, maxPx: 160, ph: { kind: "card", tint: "#FFF0B3", tint2: "#FFD24D" }, note: "사진 카드 3" },
-  "s1-card-4": { src: null, space: A, cx: 33, cy: 57, w: 19, ar: 0.8, depth: 1.28, z: 3, rot: 6, idle: "bob", idleSec: 3.3, idleDelay: -0.7, maxPx: 142, ph: { kind: "card", tint: "#D9F2D0", tint2: "#7FD08A" }, note: "사진 카드 4" },
-  "s1-card-5": { src: null, space: A, cx: 68, cy: 59, w: 19, ar: 0.8, depth: 1.3, z: 3, rot: -7, idle: "bob", idleSec: 4.5, idleDelay: -1.9, maxPx: 142, ph: { kind: "card", tint: "#E5D4FF", tint2: "#B596FF" }, note: "사진 카드 5" },
-  "s1-char-1": { src: null, space: A, cx: 14, cy: 85, w: 15, ar: 1, depth: 1, z: 5, idle: "hop", idleSec: 2.4, maxPx: 110, ph: { kind: "char", tint: "#FFC9A8", tint2: "#FF8F6B" }, note: "동글이 친구 1(복숭아색)" },
-  "s1-char-2": { src: null, space: A, cx: 88, cy: 87, w: 13, ar: 1, depth: 1, z: 5, idle: "hop", idleSec: 2.8, idleDelay: -1.1, maxPx: 96, ph: { kind: "char", tint: "#BDEBD2", tint2: "#5DBB8F" }, note: "동글이 친구 2(민트색)" },
+  // ───────── 장면 1 · 사진 고르기 (코발트 우주) ─────────
+  "s1-moon": { art: "moon-crescent", space: S, cx: 89, cy: 29, w: 15, depth: 0.2, z: 2, idle: "bob", idleSec: 7, maxPx: 130, note: "초승달" },
+  "s1-planet-ringed": { art: "planet-ringed", space: S, cx: 9, cy: 46, w: 24, land: { cx: 5, cy: 66, w: 14 }, depth: 0.35, z: 2, idle: "bob", idleSec: 6, idleDelay: -2, maxPx: 170, note: "고리 행성(왼쪽)" },
+  "s1-planet-pink": { art: "planet-pink", space: S, cx: 93, cy: 52, w: 15, depth: 0.5, z: 2, idle: "bob", idleSec: 8, idleDelay: -4, maxPx: 110, note: "분홍 행성(오른쪽)" },
+  "s1-star-pink": { art: "star-pink", space: S, cx: 7, cy: 24, w: 7, land: { cx: 48, cy: 10 }, depth: 0.25, z: 2, rot: -12, idle: "twinkle", idleSec: 3.2, maxPx: 56, note: "핑크 별" },
+  "s1-star-cream": { art: "star-cream", space: S, cx: 72, cy: 38, w: 5, depth: 0.25, z: 2, rot: 14, idle: "twinkle", idleSec: 3.6, idleDelay: -1, maxPx: 42, note: "크림 별" },
+  "s1-spark-1": { art: "sparkle-cream", space: S, cx: 12, cy: 9, land: { cx: 54, cy: 8 }, w: 5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 2.6, maxPx: 30, opacity: 0.8, note: "반짝이" },
+  "s1-spark-2": { art: "sparkle-cream", space: S, cx: 5, cy: 28, land: { cx: 4, cy: 88 }, w: 4.5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 3.1, idleDelay: -1.1, maxPx: 28, opacity: 0.8, note: "반짝이" },
+  "s1-spark-3": { art: "sparkle-cream", space: S, cx: 93, cy: 12, w: 4.5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 2.9, idleDelay: -0.5, maxPx: 28, opacity: 0.8, note: "반짝이" },
+  "s1-cloud-1": { art: "cloud-cobalt", space: S, cx: 24, cy: 80, w: 44, depth: 0.55, z: 3, idle: "drift", idleSec: 22, maxPx: 360, note: "코발트 구름(아래 왼쪽)" },
+  "s1-cloud-2": { art: "cloud-lavender", space: S, cx: 80, cy: 86, w: 42, depth: 0.7, z: 3, idle: "drift", idleSec: 26, idleDelay: -9, maxPx: 340, note: "라벤더 구름(아래 오른쪽)" },
+  "s1-photo-friends": { art: "photo-friends", space: A, cx: 21, cy: 48, w: 29, depth: 1.12, z: 4, rot: -9, idle: "bob", idleSec: 3.8, maxPx: 190, note: "떠 있는 사진 1(두 친구)" },
+  "s1-photo-puppy": { art: "photo-puppy", space: A, cx: 50, cy: 17, w: 30, depth: 1.22, z: 4, rot: 3, idle: "bob", idleSec: 4.4, idleDelay: -1.3, maxPx: 200, note: "떠 있는 사진 2(강아지)" },
+  "s1-photo-sea": { art: "photo-sea", space: A, cx: 79, cy: 46, w: 28, depth: 1.1, z: 4, rot: 9, idle: "bob", idleSec: 4.1, idleDelay: -2.2, maxPx: 185, note: "떠 있는 사진 3(바다)" },
+  "s1-camera": { art: "camera", space: A, cx: 49, cy: 76, w: 27, depth: 1.28, z: 5, rot: -5, idle: "bob", idleSec: 3.4, idleDelay: -0.8, maxPx: 180, note: "카메라" },
+  "s1-star-small": { art: "star-pink", space: A, cx: 71, cy: 4, w: 6, depth: 1.3, z: 5, rot: 10, idle: "twinkle", idleSec: 2.8, idleDelay: -0.6, maxPx: 40, note: "사진 옆 작은 별" },
 
-  // ───────── 장면 2 · 앨범으로 만들어져요 ─────────
-  "s2-cloud-1": { src: null, space: S, cx: 10, cy: 12, w: 26, ar: 2, depth: 1, z: 1, idle: "drift", idleSec: 22, maxPx: 300, ph: { kind: "cloud", tint: "#FFFFFF", tint2: "#FFF3E2" }, note: "구름(왼쪽 위)" },
-  "s2-cloud-2": { src: null, space: S, cx: 92, cy: 30, w: 22, ar: 2, depth: 1, z: 1, idle: "drift", idleSec: 26, idleDelay: -10, maxPx: 260, ph: { kind: "cloud", tint: "#FFFFFF", tint2: "#FFF3E2" }, note: "구름(오른쪽)" },
-  "s2-shadow": { src: null, space: A, cx: 50, cy: 94, w: 84, ar: 8, depth: 1, z: 1, ph: { kind: "shadow" }, note: "앨범 아래 그림자" },
-  "s2-page-right": { src: null, space: A, cx: 68, cy: 68, w: 36, ar: 0.75, depth: 1, z: 3, ph: { kind: "pageRight" }, note: "펼친 앨범의 오른쪽 속지" },
-  "s2-page-left": { src: null, space: A, cx: 32, cy: 68, w: 36, ar: 0.75, depth: 1, z: 4, ph: { kind: "pageLeft" }, note: "펼친 앨범의 왼쪽 속지(표지 안쪽 면)" },
-  "s2-cover": { src: null, space: A, cx: 68, cy: 68, w: 36, ar: 0.75, depth: 1, z: 6, ph: { kind: "cover", tint: "#7C6BFF", tint2: "#FFD84D" }, note: "앨범 앞표지" },
-  "s2-card-1": { src: null, space: A, cx: 16, cy: 24, w: 16, ar: 0.8, depth: 1, z: 7, rot: -8, idle: "bob", idleSec: 3.6, maxPx: 130, ph: { kind: "card", tint: "#FFD1DC", tint2: "#FF9DB8" }, note: "날아가는 사진 1" },
-  "s2-card-2": { src: null, space: A, cx: 37, cy: 11, w: 16, ar: 0.8, depth: 1, z: 7, rot: 5, idle: "bob", idleSec: 4.1, idleDelay: -1, maxPx: 130, ph: { kind: "card", tint: "#CDE7FF", tint2: "#8CC3FF" }, note: "날아가는 사진 2" },
-  "s2-card-3": { src: null, space: A, cx: 63, cy: 12, w: 16, ar: 0.8, depth: 1, z: 7, rot: -4, idle: "bob", idleSec: 3.8, idleDelay: -2, maxPx: 130, ph: { kind: "card", tint: "#FFF0B3", tint2: "#FFD24D" }, note: "날아가는 사진 3" },
-  "s2-card-4": { src: null, space: A, cx: 85, cy: 24, w: 16, ar: 0.8, depth: 1, z: 7, rot: 9, idle: "bob", idleSec: 3.4, idleDelay: -0.5, maxPx: 130, ph: { kind: "card", tint: "#D9F2D0", tint2: "#7FD08A" }, note: "날아가는 사진 4" },
-  "s2-card-5": { src: null, space: A, cx: 26, cy: 36, w: 16, ar: 0.8, depth: 1, z: 7, rot: 6, idle: "bob", idleSec: 4.4, idleDelay: -1.6, maxPx: 130, ph: { kind: "card", tint: "#E5D4FF", tint2: "#B596FF" }, note: "날아가는 사진 5" },
-  "s2-card-6": { src: null, space: A, cx: 74, cy: 37, w: 16, ar: 0.8, depth: 1, z: 7, rot: -6, idle: "bob", idleSec: 3.9, idleDelay: -2.4, maxPx: 130, ph: { kind: "card", tint: "#FFE0C2", tint2: "#FFB074" }, note: "날아가는 사진 6" },
-  "s2-spark-1": { src: null, space: A, cx: 8, cy: 52, w: 5, ar: 1, depth: 1, z: 2, idle: "twinkle", idleSec: 2.4, maxPx: 36, ph: { kind: "spark", tint: "#FFD84D" }, note: "반짝이" },
-  "s2-spark-2": { src: null, space: A, cx: 93, cy: 56, w: 4, ar: 1, depth: 1, z: 2, idle: "twinkle", idleSec: 2.9, idleDelay: -1, maxPx: 30, ph: { kind: "spark", tint: "#FF9DB8" }, note: "반짝이" },
-  "s2-spark-3": { src: null, space: A, cx: 50, cy: 40, w: 3.4, ar: 1, depth: 1, z: 2, idle: "twinkle", idleSec: 2.6, idleDelay: -0.6, maxPx: 26, ph: { kind: "spark", tint: "#8CC3FF" }, note: "반짝이" },
+  // ───────── 장면 2 · 앨범으로 만들어져요 (보랏빛 우주) ─────────
+  "s2-planet": { art: "planet-pink", space: S, cx: 91, cy: 9, w: 17, depth: 1, z: 2, idle: "bob", idleSec: 8, maxPx: 110, note: "분홍 행성" },
+  "s2-shooting": { art: "shooting-star", space: S, cx: 14, cy: 8, w: 30, depth: 1, z: 2, rot: -8, idle: "drift", idleSec: 16, maxPx: 240, opacity: 0.9, note: "슈팅스타" },
+  "s2-star-pink": { art: "star-pink", space: S, cx: 8, cy: 92, w: 8, depth: 1, z: 2, rot: -10, idle: "twinkle", idleSec: 3.2, maxPx: 54, note: "핑크 별" },
+  "s2-star-cream": { art: "star-cream", space: S, cx: 93, cy: 90, w: 7, depth: 1, z: 2, rot: 12, idle: "twinkle", idleSec: 3.6, idleDelay: -1, maxPx: 46, note: "크림 별" },
+  "s2-cloud": { art: "cloud-lavender", space: S, cx: 92, cy: 70, w: 30, depth: 1, z: 1, idle: "drift", idleSec: 26, maxPx: 260, opacity: 0.55, note: "라벤더 구름(오른쪽, 흐리게)" },
+  "s2-photo-friends": { art: "photo-friends", space: A, cx: 10.7, cy: 31.6, w: 18, depth: 1, z: 7, rot: -8, idle: "bob", idleSec: 3.6, maxPx: 150, note: "날아가는 사진 1(두 친구) — 시작 자리는 별빛 궤도 위 왼쪽" },
+  "s2-photo-puppy": { art: "photo-puppy", space: A, cx: 88.7, cy: 20.6, w: 18, depth: 1, z: 7, rot: 7, idle: "bob", idleSec: 4.1, idleDelay: -1, maxPx: 150, note: "날아가는 사진 2(강아지)" },
+  "s2-photo-sea": { art: "photo-sea", space: A, cx: 48.5, cy: 17.1, w: 17, depth: 1, z: 7, rot: -3, idle: "bob", idleSec: 3.8, idleDelay: -2, maxPx: 150, note: "날아가는 사진 3(바다)" },
+  "s2-album-closed": { art: "album-closed", space: A, cx: 50, cy: 72, w: 44, depth: 1, z: 4, maxPx: 360, label: "포토앨범", note: "닫힌 앨범(처음과 끝)" },
+  "s2-album-open": { art: "album-open", space: A, cx: 50, cy: 71, w: 88, depth: 1, z: 3, maxPx: 720, note: "펼친 앨범" },
+  "s2-goods-mug": { art: "goods-mug", space: A, cx: 14, cy: 26, w: 17, depth: 1, z: 8, idle: "bob", idleSec: 3.9, idleDelay: -0.4, maxPx: 130, note: "굿즈 1(머그컵)" },
+  "s2-goods-tote": { art: "goods-tote", space: A, cx: 37, cy: 16, w: 15, depth: 1, z: 8, idle: "bob", idleSec: 4.3, idleDelay: -1.4, maxPx: 120, note: "굿즈 2(에코백)" },
+  "s2-goods-calendar": { art: "goods-calendar", space: A, cx: 63, cy: 16, w: 16, depth: 1, z: 8, idle: "bob", idleSec: 3.7, idleDelay: -2.1, maxPx: 125, note: "굿즈 3(캘린더)" },
+  "s2-goods-frame": { art: "frame-puppy", space: A, cx: 86, cy: 26, w: 16, depth: 1, z: 8, idle: "bob", idleSec: 4.5, idleDelay: -0.9, maxPx: 125, note: "굿즈 4(액자)" },
 
-  // ───────── 장면 3 · 집에 도착 ─────────
-  "s3-sun": { src: null, space: S, cx: 88, cy: 30, w: 15, ar: 1, depth: 1, z: 1, idle: "twinkle", idleSec: 6, maxPx: 180, ph: { kind: "sun", tint: "#FFD24D" }, note: "해(노을)" },
-  "s3-cloud-1": { src: null, space: S, cx: 14, cy: 14, w: 28, ar: 2, depth: 1, z: 1, idle: "drift", idleSec: 24, maxPx: 320, ph: { kind: "cloud", tint: "#FFFFFF", tint2: "#FFE3D6" }, note: "구름" },
-  "s3-cloud-2": { src: null, space: S, cx: 60, cy: 8, w: 20, ar: 2, depth: 1, z: 1, idle: "drift", idleSec: 30, idleDelay: -12, maxPx: 230, ph: { kind: "cloud", tint: "#FFFFFF", tint2: "#FFE3D6" }, note: "구름" },
-  "s3-hill-back": { src: null, space: S, cx: 50, cy: 0, w: 100, ar: 3.33, depth: 1, z: 2, fill: { edge: "bottom", h: 52 }, ph: { kind: "hill", tint: "#8DD7A9" }, note: "뒷산" },
-  "s3-hill-front": { src: null, space: S, cx: 50, cy: 0, w: 100, ar: 3.33, depth: 1, z: 3, fill: { edge: "bottom", h: 34 }, ph: { kind: "hill", tint: "#5DBB8F" }, note: "앞 언덕" },
-  "s3-path": { src: null, space: A, cx: 50, cy: 50, w: 100, ar: 1, depth: 1, z: 2, ph: { kind: "path" }, note: "구불구불 길(정사각형 캔버스, 아래 route와 같은 모양)" },
-  "s3-house": { src: null, space: A, cx: 76, cy: 25, w: 30, ar: 1, depth: 1, z: 3, maxPx: 260, ph: { kind: "house", tint: "#FF8F6B", tint2: "#FFF3E2" }, note: "집" },
-  "s3-tree-1": { src: null, space: A, cx: 12, cy: 52, w: 14, ar: 0.8, depth: 1, z: 3, idle: "bob", idleSec: 5, maxPx: 110, ph: { kind: "tree", tint: "#3FA97A" }, note: "나무(왼쪽)" },
-  "s3-tree-2": { src: null, space: A, cx: 92, cy: 66, w: 12, ar: 0.8, depth: 1, z: 3, idle: "bob", idleSec: 5.6, idleDelay: -2, maxPx: 96, ph: { kind: "tree", tint: "#2F9468" }, note: "나무(오른쪽)" },
-  "s3-bush": { src: null, space: A, cx: 90, cy: 93, w: 12, ar: 1.4, depth: 1, z: 3, maxPx: 96, ph: { kind: "bush", tint: "#3FA97A" }, note: "덤불" },
-  "s3-album": { src: null, space: A, cx: 12, cy: 87, w: 22, ar: 1, depth: 1, z: 8, maxPx: 170, ph: { kind: "albumClosed", tint: "#7C6BFF", tint2: "#FFD84D" }, note: "길을 따라가는 완성된 앨범(닫힌 모양)" },
-  "s3-heart": { src: null, space: A, cx: 76, cy: 8, w: 8, ar: 1, depth: 1, z: 9, maxPx: 60, ph: { kind: "heart", tint: "#FF6F9B" }, note: "도착하면 톡 떠오르는 하트" },
+  // ───────── 장면 3 · 집에 도착 (은하수 배송 길) ─────────
+  "s3-moon": { art: "moon-crescent", space: S, cx: 90, cy: 12, w: 15, depth: 1, z: 2, idle: "bob", idleSec: 7, maxPx: 120, opacity: 0.95, note: "초승달" },
+  "s3-milky": { art: "milky-way", space: S, cx: 62, cy: 60, w: 62, land: { cx: 70, cy: 27, w: 32 }, depth: 1, z: 2, rot: -5, idle: "drift", idleSec: 20, maxPx: 520, opacity: 0.95, note: "은하수 별궤적" },
+  "s3-star-cream": { art: "star-cream", space: S, cx: 7, cy: 20, w: 7, land: { cx: 52, cy: 12 }, depth: 1, z: 2, rot: -12, idle: "twinkle", idleSec: 3.4, maxPx: 46, note: "크림 별" },
+  "s3-spark-1": { art: "sparkle-cream", space: S, cx: 16, cy: 8, land: { cx: 56, cy: 30 }, w: 5, depth: 1, z: 2, idle: "twinkle", idleSec: 2.7, maxPx: 30, opacity: 0.85, note: "반짝이" },
+  "s3-spark-2": { art: "sparkle-cream", space: S, cx: 95, cy: 40, w: 4.5, depth: 1, z: 2, idle: "twinkle", idleSec: 3.1, idleDelay: -1, maxPx: 28, opacity: 0.85, note: "반짝이" },
+  "s3-box": { art: "box-parcel", space: A, cx: 0, cy: 0, w: 17, depth: 1, z: 5, maxPx: 240, label: "택배 상자에 담긴 포토북", note: "길을 따라가는 택배 상자(위치는 ROUTE가 정해요)" },
+  "s3-house": { art: "house", space: A, cx: 71.2, cy: 63, w: 11, depth: 1, z: 3, maxPx: 200, label: "작은 집", note: "도착할 집(길 끝)" },
+  "s3-girl": { art: "girl-photobook", space: A, cx: 77.5, cy: 66.5, w: 5.2, depth: 1, z: 4, maxPx: 80, note: "도착하면 나타나는 소녀" },
+  "s3-heart": { art: "heart-pink", space: A, cx: 71.2, cy: 48, w: 5.5, depth: 1, z: 7, maxPx: 56, note: "도착하면 톡 떠오르는 하트" },
 } as const satisfies Record<string, LayerSpec>;
 
 export type LayerId = keyof typeof LAYERS;
 
 /**
- * 장면 3에서 앨범이 따라가는 길(SVG path). 가로·세로 0~100 정사각형 좌표예요.
- * s3-path 그림을 직접 그려서 바꾼다면, 앨범이 지나갈 길의 "한 줄 선"(가운데 선)을
- * 같은 모양으로 아래 d에 맞춰 주세요(README의 '길 그림 바꾸기' 참고).
+ * 장면 3에서 택배 상자가 따라가는 길(SVG path).
+ * 좌표 단위: 길 배경 그림 전체를 가로 150 × 세로 100으로 본 값이에요(그림 3:2 비율 그대로).
+ * 측정 방법: 배경 그림에서 크림색 길을 찾아 가운데 선을 따라 점을 찍고, 그 위에 이 선을 겹쳐 그려
+ *           어긋나지 않는지 눈으로 확인했어요(README '길 선 맞추기' 참고).
+ * 시작(왼쪽 아래 끝) → 오른쪽으로 굽이쳐 가서 → 안쪽으로 돌아 길 끝(집 자리)에 닿아요.
  */
 export const ROUTE = {
-  d: "M 12 87 C 40 90, 80 86, 72 76 C 64 65, 22 74, 26 62 C 30 51, 84 59, 72 50 C 64 43, 40 52, 56 42 C 64 38, 70 40, 74 37",
+  d: "M 17 98 C 22 91, 36 86, 60 82 S 108 78, 120 75 C 131 72.5, 129 69.5, 121 68 C 113 66.5, 108 66, 105.7 64.5",
+  viewBox: "0 0 150 100",
   /** 처음 크기 → 도착했을 때 크기(멀어지는 느낌) */
   scaleFrom: 1,
-  scaleTo: 0.46,
+  scaleTo: 0.4,
 } as const;
 
-/** 코드에서 레이어 설명을 읽을 때 쓰는 도우미(모든 칸을 같은 모양으로 읽을 수 있게 해줘요). */
 export const layerSpec = (id: LayerId): LayerSpec => LAYERS[id];

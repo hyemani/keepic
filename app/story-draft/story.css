@@ -1,10 +1,13 @@
-/* 키픽 스토리 시안 전용 스타일 — 모든 이름이 st- 로 시작해서 다른 화면에는 영향이 없어요. */
+/* 키픽 스토리 시안 전용 스타일 — 모든 이름이 st- 로 시작해서 다른 화면에는 영향이 없어요.
+   컨셉: "추억이 모여 나만의 우주가 되는 곳" — 파랑·보라 우주, 크림색 글자, 분홍 강조 */
 
 .st-root {
-  --st-ink: #2b2b5e;
+  --st-cream: #fff4dc;   /* 글자 기본색(밝은 크림) */
+  --st-pink: #ff9ad3;    /* 강조 낱말 */
+  --st-ink: #0b0a4a;     /* 글자 테두리·어두운 글자 */
   --st-hdr: 64px; /* 위쪽 흰 메뉴줄 높이(첫 화면이 메뉴줄 아래에서 딱 맞게 시작하도록) */
   --st-title-font: var(--font-story-title), "Jua", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  color: var(--st-ink);
+  color: var(--st-cream);
 }
 
 /* ───────── 장면 공통 틀 ───────── */
@@ -21,7 +24,7 @@
   overflow: hidden;
   isolation: isolate;
   padding: clamp(20px, 4svh, 40px) 16px max(10px, var(--sa-b, 0px));
-  background: var(--st-bg);
+  background: var(--st-bg); /* 그림이 오기 전·그림 위쪽이 비는 곳에 보이는 우주색 */
 }
 
 /* 스크롤하는 동안 화면에 고정되는 장면(2, 3): 바깥 상자(track)가 길고, 안쪽 무대(stage)가 붙어 있어요 */
@@ -32,9 +35,14 @@
 .st-hero .st-stage { height: calc(100vh - var(--st-hdr)); height: calc(100svh - var(--st-hdr)); }
 @media (max-aspect-ratio: 5/4) { .st-hero .st-stage { min-height: 560px; } }
 
-.st-hero { --st-bg: linear-gradient(180deg, #3f2fc4 0%, #6b5bf0 36%, #a895ff 62%, #ffc9e3 92%); --ttl-fill: #fff; --ttl-ink: #3b2fb0; color: #fff; --cta-bg: #ffe45e; --cta-fg: #2b2b5e; --cta-sh: #c79a00; --focus: #fff; }
-.st-s2 { --st-bg: linear-gradient(180deg, #cdefd6 0%, #fff3e2 36%, #fff3e2 100%); --st-bg-end: #fff3e2; --ttl-fill: #ff7aa2; --ttl-ink: #2b2b5e; --cta-bg: #ffe45e; --cta-fg: #2b2b5e; --cta-sh: #c79a00; --focus: #2b2b5e; }
-.st-s3 { --st-bg: linear-gradient(180deg, #fff3e2 0%, #ffd8c2 40%, #ffc4d6 66%, #8dd7a9 100%); --st-bg-end: #5dbb8f; --ttl-fill: #ffc83d; --ttl-ink: #7a3e1d; --cta-bg: linear-gradient(135deg, #6d28d9, #2f54eb); --cta-fg: #fff; --cta-sh: #2a1d8f; --focus: #2b2b5e; }
+/* 장면별 색: 그림(WebP)이 오기 전·그림 바깥에 보이는 바탕. 그림의 위쪽 색과 이어지도록 맞췄어요 */
+.st-hero { --st-bg: linear-gradient(180deg, #070a52 0%, #0a1ba8 45%, #1230d6 70%, #4a2fc0 100%); --ttl-fill: var(--st-cream); --ttl-acc: var(--st-pink); --ttl-ink: #0b0a4a; --cta-bg: #ff8fcf; --cta-fg: #14105c; --cta-sh: #a3185f; --focus: #fff4dc; }
+.st-s2 { --st-bg: linear-gradient(180deg, #12085a 0%, #2a1590 55%, #4a2cc0 100%); --st-bg-end: #4a2cc0; --ttl-fill: var(--st-cream); --ttl-acc: var(--st-pink); --ttl-ink: #120a58; --cta-bg: #ff8fcf; --cta-fg: #14105c; --cta-sh: #a3185f; --focus: #fff4dc; }
+.st-s3 { --st-bg: linear-gradient(180deg, #060a58 0%, #0a1494 40%, #0d2399 62%, #6e55dc 100%); --st-bg-end: #6e55dc; --ttl-fill: var(--st-cream); --ttl-acc: var(--st-pink); --ttl-ink: #070a52; --cta-bg: #ff8fcf; --cta-fg: #14105c; --cta-sh: #a3185f; --focus: #fff4dc; }
+
+/* ───────── 배경 그림 ───────── */
+.st-bg { position: absolute; inset: 0; z-index: 0; background-size: cover; background-position: center; pointer-events: none; }
+.st-bg .st-img { object-fit: cover; object-position: 50% 100%; }
 
 /* ───────── 글자 ───────── */
 .st-text {
@@ -47,18 +55,33 @@
   text-align: center;
   max-width: 720px;
 }
+/* 글자 뒤의 은은한 어둠(scrim): 배경의 작은 별·질감이 글자를 덜 방해하게 하고, 어떤 배경에서도 대비를 지켜 줘요 */
+.st-text::before {
+  content: "";
+  position: absolute;
+  inset: -16% -24%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(8, 10, 86, 0.66) 0%, rgba(8, 10, 86, 0.4) 58%, rgba(8, 10, 86, 0) 100%);
+}
 .st-eyebrow {
   margin: 0 0 12px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 32px;
-  padding: 0 14px;
+  max-width: 100%;
+  padding: 4px 14px;
   border-radius: 999px;
-  border: 2px solid currentColor;
+  border: 2px solid rgba(255, 244, 220, 0.85);
   font-size: 0.9rem;
   font-weight: 800;
+  line-height: 1.3;
   letter-spacing: 0.02em;
-  background: rgba(255, 255, 255, 0.18);
+  color: var(--st-cream);
+  background: rgba(255, 244, 220, 0.12);
+  word-break: keep-all;
+  text-wrap: balance;
 }
 .st-title {
   margin: 0;
@@ -73,19 +96,22 @@
 .st-word { display: inline-block; white-space: nowrap; }
 .st-char {
   display: inline-block;
-  /* 글자 둘레 테두리(8방향) + 아래로 떨어지는 그림자: 스티커처럼 도톰하게 */
+  /* 글자 둘레 진한 남색 테두리(8방향) + 아래로 떨어지는 그림자: 스티커처럼 도톰하게. 마지막 줄은 부드러운 번짐 */
   text-shadow:
     -0.045em -0.045em 0 var(--ttl-ink), 0.045em -0.045em 0 var(--ttl-ink), -0.045em 0.045em 0 var(--ttl-ink), 0.045em 0.045em 0 var(--ttl-ink),
     0 -0.065em 0 var(--ttl-ink), 0 0.065em 0 var(--ttl-ink), -0.065em 0 0 var(--ttl-ink), 0.065em 0 0 var(--ttl-ink),
-    0 0.12em 0 var(--ttl-ink);
+    0 0.12em 0 var(--ttl-ink), 0 0.16em 0.3em rgba(4, 4, 50, 0.55);
   animation: st-pop 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   animation-delay: calc(var(--i) * 75ms + 140ms);
 }
+.st-acc { color: var(--ttl-acc); }
 .st-sub {
   margin: 14px 0 0;
   font-size: clamp(1rem, 0.9rem + 0.5vw, 1.35rem);
   font-weight: 700;
   line-height: 1.5;
+  color: var(--st-cream);
+  text-shadow: 0 1px 2px rgba(6, 6, 60, 0.9), 0 0 14px rgba(6, 6, 60, 0.7);
   word-break: keep-all;
   text-wrap: balance;
 }
@@ -96,13 +122,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
+  padding: 0 14px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--st-cream);
+  color: var(--st-ink);
   border: 2px solid var(--st-ink);
   font-size: 0.95rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .st-actions { margin-top: clamp(14px, 3svh, 26px); }
 
@@ -129,12 +157,12 @@
   text-decoration: none;
   background: var(--cta-bg);
   color: var(--cta-fg);
-  box-shadow: 0 5px 0 var(--cta-sh), 0 14px 22px -10px rgba(30, 20, 100, 0.5);
+  box-shadow: 0 5px 0 var(--cta-sh), 0 14px 22px -10px rgba(4, 4, 60, 0.7);
   transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-.st-cta:active { transform: translate3d(0, 4px, 0) scale(0.98); box-shadow: 0 1px 0 var(--cta-sh), 0 4px 10px -6px rgba(30, 20, 100, 0.5); }
+.st-cta:active { transform: translate3d(0, 4px, 0) scale(0.98); box-shadow: 0 1px 0 var(--cta-sh), 0 4px 10px -6px rgba(4, 4, 60, 0.7); }
 @media (hover: hover) { .st-cta:hover { transform: translate3d(0, -2px, 0); } }
 .st-cta:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
 .st-s3[data-arrived="1"] .st-cta { animation: st-breathe 1.8s ease-in-out infinite; }
@@ -152,7 +180,7 @@
   container-type: size;
 }
 .st-hero .st-art { place-items: end center; padding-top: clamp(6px, 1.6svh, 18px); }
-/* 세로 화면(폰·태블릿)의 장면 2·3: 글자와 그림을 한 덩어리로 묶어 화면 세로 가운데에 놓아요(사이가 멀어지지 않게) */
+/* 세로 화면(폰·태블릿)의 장면 2: 글자와 그림을 한 덩어리로 묶어 화면 세로 가운데에 놓아요(사이가 멀어지지 않게) */
 @media (max-aspect-ratio: 5/4) {
   .st-track .st-stage { justify-content: center; gap: clamp(8px, 2.4svh, 28px); }
   .st-track .st-art { flex: 0 1 auto; aspect-ratio: 1 / 1; }
@@ -164,39 +192,43 @@
 
 .st-layer { position: absolute; will-change: auto; pointer-events: none; }
 .st-layer-free { transform: translate3d(0, calc(var(--sy, 0px) * var(--k, 0)), 0) translate(-50%, -50%) rotate(var(--rot, 0deg)); }
-.st-layer-fill { transform: translate3d(0, calc(var(--sy, 0px) * var(--k, 0)), 0); }
 .st-hero[data-live="1"] .st-layer { will-change: transform; }
 .st-fit, .st-idle { width: 100%; height: 100%; }
-.st-svg, .st-img { display: block; width: 100%; height: 100%; overflow: visible; }
-.st-img { object-fit: contain; }
-.st-layer-fill .st-img { object-fit: cover; object-position: bottom; }
+.st-img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
 
-/* 직접 움직이는 조각(날아가는 카드·앨범 등): 위치는 자바스크립트가 transform으로 정해요 */
+/* 직접 움직이는 조각(날아가는 사진·앨범·상자 등): 위치는 자바스크립트가 transform으로 정해요 */
 .st-part { position: absolute; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)); pointer-events: none; backface-visibility: hidden; }
 .st-s2[data-live="1"] .st-part, .st-s3[data-live="1"] .st-part { will-change: transform; }
-.st-cover { transform-origin: 0 50%; }
-.st-face, .st-shade { position: absolute; inset: 0; }
-.st-face-back { transform: scaleX(-1); } /* 표지가 뒤집혀 왼쪽에 놓이면 글자·그림이 거울처럼 뒤집히니까 한 번 더 뒤집어 바로잡아요 */
-.st-shade { border-radius: 6px; background: linear-gradient(90deg, rgba(43, 43, 94, 0.5), rgba(43, 43, 94, 0)); }
 .st-card[data-flying="1"] > .st-idle { animation: none; }
+.st-shadow { left: 50%; top: 93%; width: 78%; aspect-ratio: 7 / 1; background: radial-gradient(closest-side, rgba(6, 4, 52, 0.6), rgba(6, 4, 52, 0)); z-index: 1; }
+
+/* 별빛 궤도(장면 2) */
+.st-ringwrap { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.st-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+.st-ring-line { stroke: rgba(255, 244, 220, 0.9); stroke-width: 0.85; stroke-linecap: round; stroke-dasharray: 0.01 2.3; }
+.st-spark { position: absolute; width: 4.6%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: 2; pointer-events: none; animation: st-twinkle var(--dur, 3s) ease-in-out var(--dly, 0s) infinite alternate; }
+
+/* 장면 3: 길 그림 상자(3:2) — 그림과 그 위의 조각(상자·집·하트)이 같은 크기로 함께 움직여요 */
+.st-roadbox { position: absolute; z-index: 1; left: 0; bottom: 0; width: max(100%, 150svh); } /* 가로 위치는 장면 3 코드가 상자를 따라가며 밀어 줘요 */
+.st-roadbox .st-bg-road { position: absolute; inset: 0; }
+.st-roadbox .st-img { object-fit: fill; }
 .st-route { position: absolute; inset: 0; width: 100%; height: 100%; visibility: hidden; pointer-events: none; }
+@media (max-aspect-ratio: 5/4) {
+  /* 세로 화면: 가로로 긴 그림이라 화면 높이의 약 58% 크기로 아래쪽에 깔고(폭은 화면보다 넓어서 옆으로 밀며 따라가요), 위쪽은 우주색 바탕으로 부드럽게 이어요 */
+  .st-roadbox { width: max(110%, 87svh); }
+  .st-roadbox .st-bg-road { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24%); mask-image: linear-gradient(to bottom, transparent 0, #000 24%); }
+  .st-s3 .st-stage { padding-bottom: 22svh; } /* 글자가 아래 언덕(길 그림)과 겹치지 않게 위쪽 영역의 가운데에 놓아요 */
+}
 
 /* ───────── 가만히 있을 때의 움직임 ───────── */
 .st-idle-drift { animation: st-drift var(--dur, 20s) ease-in-out var(--dly, 0s) infinite alternate; }
 .st-idle-bob { animation: st-bob var(--dur, 4s) ease-in-out var(--dly, 0s) infinite alternate; }
 .st-idle-twinkle { animation: st-twinkle var(--dur, 3s) ease-in-out var(--dly, 0s) infinite alternate; }
-.st-idle-hop { animation: st-hop var(--dur, 2.6s) ease-in-out var(--dly, 0s) infinite; }
 @keyframes st-drift { from { transform: translate3d(-9%, 0, 0); } to { transform: translate3d(9%, 0, 0); } }
 @keyframes st-bob { from { transform: translate3d(0, -3%, 0) rotate(-2deg); } to { transform: translate3d(0, 3%, 0) rotate(2deg); } }
 @keyframes st-twinkle { from { opacity: 0.45; transform: scale(0.8); } to { opacity: 1; transform: scale(1.1); } }
-@keyframes st-hop {
-  0%, 62%, 100% { transform: translate3d(0, 0, 0) scale(1, 1); }
-  72% { transform: translate3d(0, 0, 0) scale(1.07, 0.92); }
-  84% { transform: translate3d(0, -14%, 0) scale(0.96, 1.06); }
-  94% { transform: translate3d(0, 0, 0) scale(1.05, 0.95); }
-}
 /* 화면 밖에 있는 장면은 움직임을 멈춰서 배터리·발열을 아껴요 */
-.st-scene:not([data-live="1"]) .st-idle, .st-scene:not([data-live="1"]) .st-char { animation-play-state: paused; }
+.st-scene:not([data-live="1"]) .st-idle, .st-scene:not([data-live="1"]) .st-char, .st-scene:not([data-live="1"]) .st-spark { animation-play-state: paused; }
 
 /* ───────── 가로로 넓은 화면(PC·태블릿 가로·폰 가로): 왼쪽 글자 / 오른쪽 그림 ───────── */
 @media (min-aspect-ratio: 5/4) {
@@ -211,6 +243,10 @@
   .st-art { height: 100%; align-self: stretch; }
   .st-eyebrow { margin-bottom: clamp(6px, 1.6svh, 12px); }
   .st-sub { margin-top: clamp(6px, 1.6svh, 14px); }
+  /* 장면 3: 아래쪽 언덕과 겹치지 않게 글자를 위쪽에 */
+  /* 장면 안 장식 중 글자 자리를 가리는 것은 landscape용 위치(land)로 옮겨요 */
+  .st-has-land { left: var(--lx) !important; top: var(--ly) !important; width: var(--lw) !important; }
+  .st-s3 .st-text { align-self: start; margin-top: clamp(6px, 9svh, 110px); }
 }
 @media (max-height: 520px) and (min-aspect-ratio: 5/4) {
   .st-stage { padding-block: 10px; }
@@ -219,9 +255,14 @@
   .st-count { min-height: 1.7em; }
 }
 
+/* 태블릿 세로: 제목이 화면 폭 가까이 넓어져서, 위쪽 모서리 장식(행성·슈팅스타)이 글자를 가리지 않게 숨겨요 */
+@media (min-width: 600px) and (max-aspect-ratio: 5/4) {
+  .st-s2 [data-layer="s2-planet"], .st-s2 [data-layer="s2-shooting"] { visibility: hidden; }
+}
+
 /* ───────── 동작 줄이기: 움직임 없이, 완성된 모습으로 ───────── */
 @media (prefers-reduced-motion: reduce) {
-  .st-idle, .st-char, .st-cta { animation: none !important; }
+  .st-idle, .st-char, .st-cta, .st-spark { animation: none !important; }
   .st-char { opacity: 1 !important; }
   .st-track { height: auto; }
   .st-track .st-stage { position: relative; }
