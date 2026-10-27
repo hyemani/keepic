@@ -1,0 +1,229 @@
+/* 키픽 스토리 시안 전용 스타일 — 모든 이름이 st- 로 시작해서 다른 화면에는 영향이 없어요. */
+
+.st-root {
+  --st-ink: #2b2b5e;
+  --st-hdr: 64px; /* 위쪽 흰 메뉴줄 높이(첫 화면이 메뉴줄 아래에서 딱 맞게 시작하도록) */
+  --st-title-font: var(--font-story-title), "Jua", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  color: var(--st-ink);
+}
+
+/* ───────── 장면 공통 틀 ───────── */
+.st-scene { --sy: 0px; position: relative; }
+.st-stage {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100vh;
+  height: 100svh; /* 아이폰 주소창이 접혀도 높이가 출렁이지 않는 단위(svh). 못 읽는 브라우저는 위의 vh를 써요 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  padding: clamp(20px, 4svh, 40px) 16px max(10px, var(--sa-b, 0px));
+  background: var(--st-bg);
+}
+
+/* 스크롤하는 동안 화면에 고정되는 장면(2, 3): 바깥 상자(track)가 길고, 안쪽 무대(stage)가 붙어 있어요 */
+.st-track { height: 300vh; height: max(300svh, 1500px); background: var(--st-bg-end); }
+.st-track .st-stage { position: sticky; top: 0; }
+
+/* 장면 1은 메뉴줄 아래에서 시작해서 한 화면을 꽉 채워요 */
+.st-hero .st-stage { height: calc(100vh - var(--st-hdr)); height: calc(100svh - var(--st-hdr)); }
+@media (max-aspect-ratio: 5/4) { .st-hero .st-stage { min-height: 560px; } }
+
+.st-hero { --st-bg: linear-gradient(180deg, #3f2fc4 0%, #6b5bf0 36%, #a895ff 62%, #ffc9e3 92%); --ttl-fill: #fff; --ttl-ink: #3b2fb0; color: #fff; --cta-bg: #ffe45e; --cta-fg: #2b2b5e; --cta-sh: #c79a00; --focus: #fff; }
+.st-s2 { --st-bg: linear-gradient(180deg, #cdefd6 0%, #fff3e2 36%, #fff3e2 100%); --st-bg-end: #fff3e2; --ttl-fill: #ff7aa2; --ttl-ink: #2b2b5e; --cta-bg: #ffe45e; --cta-fg: #2b2b5e; --cta-sh: #c79a00; --focus: #2b2b5e; }
+.st-s3 { --st-bg: linear-gradient(180deg, #fff3e2 0%, #ffd8c2 40%, #ffc4d6 66%, #8dd7a9 100%); --st-bg-end: #5dbb8f; --ttl-fill: #ffc83d; --ttl-ink: #7a3e1d; --cta-bg: linear-gradient(135deg, #6d28d9, #2f54eb); --cta-fg: #fff; --cta-sh: #2a1d8f; --focus: #2b2b5e; }
+
+/* ───────── 글자 ───────── */
+.st-text {
+  position: relative;
+  z-index: 20;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 720px;
+}
+.st-eyebrow {
+  margin: 0 0 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.18);
+}
+.st-title {
+  margin: 0;
+  font-family: var(--st-title-font);
+  font-weight: 400;
+  font-size: clamp(2.25rem, min(11vw, 12svh), 5.75rem);
+  line-height: 1.14;
+  color: var(--ttl-fill);
+  word-break: keep-all;
+  text-wrap: balance;
+}
+.st-word { display: inline-block; white-space: nowrap; }
+.st-char {
+  display: inline-block;
+  /* 글자 둘레 테두리(8방향) + 아래로 떨어지는 그림자: 스티커처럼 도톰하게 */
+  text-shadow:
+    -0.045em -0.045em 0 var(--ttl-ink), 0.045em -0.045em 0 var(--ttl-ink), -0.045em 0.045em 0 var(--ttl-ink), 0.045em 0.045em 0 var(--ttl-ink),
+    0 -0.065em 0 var(--ttl-ink), 0 0.065em 0 var(--ttl-ink), -0.065em 0 0 var(--ttl-ink), 0.065em 0 0 var(--ttl-ink),
+    0 0.12em 0 var(--ttl-ink);
+  animation: st-pop 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation-delay: calc(var(--i) * 75ms + 140ms);
+}
+.st-sub {
+  margin: 14px 0 0;
+  font-size: clamp(1rem, 0.9rem + 0.5vw, 1.35rem);
+  font-weight: 700;
+  line-height: 1.5;
+  word-break: keep-all;
+  text-wrap: balance;
+}
+.st-count {
+  margin: 10px 0 0;
+  min-width: 5.5em;
+  min-height: 2em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 2px solid var(--st-ink);
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.st-actions { margin-top: clamp(14px, 3svh, 26px); }
+
+@keyframes st-pop {
+  from { opacity: 0; transform: translate3d(0, 0.7em, 0) scale(0.35) rotate(-14deg); }
+  60% { opacity: 1; }
+}
+/* 장면 2·3 제목은 장면에 들어올 때 한 번 튀어나와요. (자바스크립트가 준비되기 전·동작 줄이기에서는 그냥 보여요) */
+.st-scene[data-arm="1"]:not([data-in="1"]) .st-char { animation: none; opacity: 0; }
+
+/* ───────── 버튼 ───────── */
+.st-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55em;
+  min-height: 56px;
+  padding: 0 1.9rem;
+  border-radius: 999px;
+  font-family: var(--st-title-font);
+  font-size: 1.5rem;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  background: var(--cta-bg);
+  color: var(--cta-fg);
+  box-shadow: 0 5px 0 var(--cta-sh), 0 14px 22px -10px rgba(30, 20, 100, 0.5);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.st-cta:active { transform: translate3d(0, 4px, 0) scale(0.98); box-shadow: 0 1px 0 var(--cta-sh), 0 4px 10px -6px rgba(30, 20, 100, 0.5); }
+@media (hover: hover) { .st-cta:hover { transform: translate3d(0, -2px, 0); } }
+.st-cta:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
+.st-s3[data-arrived="1"] .st-cta { animation: st-breathe 1.8s ease-in-out infinite; }
+@keyframes st-breathe { 50% { transform: scale(1.045); } }
+
+/* ───────── 그림 영역(정사각형) ───────── */
+.st-art {
+  position: relative;
+  z-index: 10;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+.st-hero .st-art { place-items: end center; padding-top: clamp(6px, 1.6svh, 18px); }
+/* 세로 화면(폰·태블릿)의 장면 2·3: 글자와 그림을 한 덩어리로 묶어 화면 세로 가운데에 놓아요(사이가 멀어지지 않게) */
+@media (max-aspect-ratio: 5/4) {
+  .st-track .st-stage { justify-content: center; gap: clamp(8px, 2.4svh, 28px); }
+  .st-track .st-art { flex: 0 1 auto; aspect-ratio: 1 / 1; }
+}
+.st-artbox { position: relative; width: min(100cqw, 100cqh); aspect-ratio: 1 / 1; }
+@supports not (width: 1cqw) {
+  .st-artbox { width: min(100%, 60vh); }
+}
+
+.st-layer { position: absolute; will-change: auto; pointer-events: none; }
+.st-layer-free { transform: translate3d(0, calc(var(--sy, 0px) * var(--k, 0)), 0) translate(-50%, -50%) rotate(var(--rot, 0deg)); }
+.st-layer-fill { transform: translate3d(0, calc(var(--sy, 0px) * var(--k, 0)), 0); }
+.st-hero[data-live="1"] .st-layer { will-change: transform; }
+.st-fit, .st-idle { width: 100%; height: 100%; }
+.st-svg, .st-img { display: block; width: 100%; height: 100%; overflow: visible; }
+.st-img { object-fit: contain; }
+.st-layer-fill .st-img { object-fit: cover; object-position: bottom; }
+
+/* 직접 움직이는 조각(날아가는 카드·앨범 등): 위치는 자바스크립트가 transform으로 정해요 */
+.st-part { position: absolute; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)); pointer-events: none; backface-visibility: hidden; }
+.st-s2[data-live="1"] .st-part, .st-s3[data-live="1"] .st-part { will-change: transform; }
+.st-cover { transform-origin: 0 50%; }
+.st-face, .st-shade { position: absolute; inset: 0; }
+.st-face-back { transform: scaleX(-1); } /* 표지가 뒤집혀 왼쪽에 놓이면 글자·그림이 거울처럼 뒤집히니까 한 번 더 뒤집어 바로잡아요 */
+.st-shade { border-radius: 6px; background: linear-gradient(90deg, rgba(43, 43, 94, 0.5), rgba(43, 43, 94, 0)); }
+.st-card[data-flying="1"] > .st-idle { animation: none; }
+.st-route { position: absolute; inset: 0; width: 100%; height: 100%; visibility: hidden; pointer-events: none; }
+
+/* ───────── 가만히 있을 때의 움직임 ───────── */
+.st-idle-drift { animation: st-drift var(--dur, 20s) ease-in-out var(--dly, 0s) infinite alternate; }
+.st-idle-bob { animation: st-bob var(--dur, 4s) ease-in-out var(--dly, 0s) infinite alternate; }
+.st-idle-twinkle { animation: st-twinkle var(--dur, 3s) ease-in-out var(--dly, 0s) infinite alternate; }
+.st-idle-hop { animation: st-hop var(--dur, 2.6s) ease-in-out var(--dly, 0s) infinite; }
+@keyframes st-drift { from { transform: translate3d(-9%, 0, 0); } to { transform: translate3d(9%, 0, 0); } }
+@keyframes st-bob { from { transform: translate3d(0, -3%, 0) rotate(-2deg); } to { transform: translate3d(0, 3%, 0) rotate(2deg); } }
+@keyframes st-twinkle { from { opacity: 0.45; transform: scale(0.8); } to { opacity: 1; transform: scale(1.1); } }
+@keyframes st-hop {
+  0%, 62%, 100% { transform: translate3d(0, 0, 0) scale(1, 1); }
+  72% { transform: translate3d(0, 0, 0) scale(1.07, 0.92); }
+  84% { transform: translate3d(0, -14%, 0) scale(0.96, 1.06); }
+  94% { transform: translate3d(0, 0, 0) scale(1.05, 0.95); }
+}
+/* 화면 밖에 있는 장면은 움직임을 멈춰서 배터리·발열을 아껴요 */
+.st-scene:not([data-live="1"]) .st-idle, .st-scene:not([data-live="1"]) .st-char { animation-play-state: paused; }
+
+/* ───────── 가로로 넓은 화면(PC·태블릿 가로·폰 가로): 왼쪽 글자 / 오른쪽 그림 ───────── */
+@media (min-aspect-ratio: 5/4) {
+  .st-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: center;
+    column-gap: clamp(8px, 3vw, 48px);
+    padding-inline: clamp(16px, 5vw, 72px);
+  }
+  .st-text { align-items: flex-start; text-align: left; justify-self: start; }
+  .st-art { height: 100%; align-self: stretch; }
+  .st-eyebrow { margin-bottom: clamp(6px, 1.6svh, 12px); }
+  .st-sub { margin-top: clamp(6px, 1.6svh, 14px); }
+}
+@media (max-height: 520px) and (min-aspect-ratio: 5/4) {
+  .st-stage { padding-block: 10px; }
+  .st-cta { min-height: 48px; font-size: 1.25rem; padding: 0 1.4rem; }
+  .st-eyebrow { min-height: 26px; font-size: 0.78rem; }
+  .st-count { min-height: 1.7em; }
+}
+
+/* ───────── 동작 줄이기: 움직임 없이, 완성된 모습으로 ───────── */
+@media (prefers-reduced-motion: reduce) {
+  .st-idle, .st-char, .st-cta { animation: none !important; }
+  .st-char { opacity: 1 !important; }
+  .st-track { height: auto; }
+  .st-track .st-stage { position: relative; }
+  .st-layer, .st-part, .st-cta { will-change: auto !important; transition: none; }
+}
