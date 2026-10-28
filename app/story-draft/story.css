@@ -98,15 +98,7 @@
   text-align: center;
   max-width: 720px;
 }
-/* 글자 뒤의 은은한 어둠(scrim): 글자 "효과"가 아니라 배경 쪽 옅은 색 번짐이에요. 배경의 작은 별·질감이 글자를 덜 방해하게 해 줘요 */
-.st-text::before {
-  content: "";
-  position: absolute;
-  inset: -14% -22%;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(closest-side, rgba(8, 10, 86, 0.5) 0%, rgba(8, 10, 86, 0.28) 58%, rgba(8, 10, 86, 0) 100%);
-}
+/* 글자 뒤에는 아무것도 깔지 않아요(어두운 번짐·그림자 없음). 읽기 쉬운 정도는 배경 그림의 밝은 파랑과 크림색 글자의 대비로 정해져요. */
 /* 작은 소개 글(테두리·배경 없는 일반 글씨) — 장면 1은 한 줄 소개, 장면 2·3은 단계 이름 */
 .st-eyebrow {
   margin: 0 0 10px;
