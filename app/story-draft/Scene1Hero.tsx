@@ -10,7 +10,7 @@ import { prefersReducedMotion, subscribe } from "./scrollBus";
 
 const STAGE: LayerId[] = [
   "s1-moon", "s1-planet-ringed", "s1-planet-pink", "s1-star-pink", "s1-star-cream",
-  "s1-spark-1", "s1-spark-2", "s1-spark-3", "s1-cloud-1", "s1-cloud-2",
+  "s1-spark-1", "s1-spark-2", "s1-spark-3",
 ];
 const ART: LayerId[] = ["s1-photo-friends", "s1-photo-puppy", "s1-photo-sea", "s1-camera", "s1-star-small"];
 

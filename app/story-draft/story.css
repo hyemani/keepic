@@ -1,12 +1,53 @@
 /* 키픽 스토리 시안 전용 스타일 — 모든 이름이 st- 로 시작해서 다른 화면에는 영향이 없어요.
    컨셉: "추억이 모여 나만의 우주가 되는 곳" — 파랑·보라 우주, 크림색 글자, 분홍 강조 */
 
+/* ───────── 글꼴 ─────────
+   제목(큰 글씨)만 "차이 활짝체"(ChaiHwaljjak) — 선언은 app/globals.css 에 있고(400·500·700·900), 시안에서는 굵기 700(Bold)만 써요.
+   그 밖의 글(설명·버튼·작은 글씨·안내)은 Pretendard 400·700. 시안 전용으로 자주 쓰는 한글 2350자 + 영문·숫자만 담은 가벼운 파일(약 170KB)을 따로 받아요.
+   빠진 글자는 다음 후보(사이트 공통 Pretendard → 기기 기본 한글 글꼴)가 대신 그려요. */
+@font-face {
+  font-family: "StoryPretendard";
+  src: url("/fonts/story/Pretendard-Regular-ksx1001.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "StoryPretendard";
+  src: url("/fonts/story/Pretendard-Bold-ksx1001.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+/* 글꼴이 오기 전에 잠깐 보이는 기기 기본 글꼴의 글자 폭을 "받은 뒤 글꼴" 폭에 맞춰요(size-adjust) → 글자가 바뀔 때 줄바꿈·높이가 덜 출렁여요.
+   한글 한 글자 폭 비율: 차이 활짝체 ≈ 0.95em / Pretendard ≈ 0.86em (기본 한글 글꼴은 1em 기준으로 계산한 근삿값이에요) */
+@font-face {
+  font-family: "StoryChaiFallback";
+  src: local("Apple SD Gothic Neo Bold"), local("AppleSDGothicNeo-Bold"), local("Malgun Gothic Bold"), local("Noto Sans CJK KR Bold"), local("Noto Sans KR Bold");
+  font-weight: 700;
+  size-adjust: 95%;
+}
+@font-face {
+  font-family: "StoryPretendardFallback";
+  src: local("Apple SD Gothic Neo"), local("AppleSDGothicNeo-Regular"), local("Malgun Gothic"), local("Noto Sans CJK KR"), local("Noto Sans KR");
+  font-weight: 400;
+  size-adjust: 92%;
+}
+@font-face {
+  font-family: "StoryPretendardFallback";
+  src: local("Apple SD Gothic Neo Bold"), local("AppleSDGothicNeo-Bold"), local("Malgun Gothic Bold"), local("Noto Sans CJK KR Bold"), local("Noto Sans KR Bold");
+  font-weight: 700;
+  size-adjust: 92%;
+}
+
 .st-root {
-  --st-cream: #fff4dc;   /* 글자 기본색(밝은 크림) */
-  --st-pink: #ff9ad3;    /* 강조 낱말 */
-  --st-ink: #0b0a4a;     /* 글자 테두리·어두운 글자 */
+  --st-cream: #fff4dc;   /* 제목 기본색(밝은 크림) */
+  --st-pink: #ff9ad3;    /* 제목의 강조 낱말 */
+  --st-navy: #14105c;    /* 분홍 버튼 위의 진한 남색 글자 */
   --st-hdr: 64px; /* 위쪽 흰 메뉴줄 높이(첫 화면이 메뉴줄 아래에서 딱 맞게 시작하도록) */
-  --st-title-font: var(--font-story-title), "Jua", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --st-title-font: "ChaiHwaljjak", "StoryChaiFallback", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --st-body-font: "StoryPretendard", "Pretendard", "StoryPretendardFallback", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: var(--st-body-font);
   color: var(--st-cream);
 }
 
@@ -30,15 +71,17 @@
 /* 스크롤하는 동안 화면에 고정되는 장면(2, 3): 바깥 상자(track)가 길고, 안쪽 무대(stage)가 붙어 있어요 */
 .st-track { height: 300vh; height: max(300svh, 1500px); background: var(--st-bg-end); }
 .st-track .st-stage { position: sticky; top: 0; }
+/* 장면 2는 "앨범 → 액자 → 굿즈"가 하나씩 나오는 구간이 있어서 스크롤 길이를 조금 더 줘요 */
+.st-s2.st-track { height: 340vh; height: max(340svh, 1700px); }
 
 /* 장면 1은 메뉴줄 아래에서 시작해서 한 화면을 꽉 채워요 */
 .st-hero .st-stage { height: calc(100vh - var(--st-hdr)); height: calc(100svh - var(--st-hdr)); }
 @media (max-aspect-ratio: 5/4) { .st-hero .st-stage { min-height: 560px; } }
 
 /* 장면별 색: 그림(WebP)이 오기 전·그림 바깥에 보이는 바탕. 그림의 위쪽 색과 이어지도록 맞췄어요 */
-.st-hero { --st-bg: linear-gradient(180deg, #070a52 0%, #0a1ba8 45%, #1230d6 70%, #4a2fc0 100%); --ttl-fill: var(--st-cream); --ttl-acc: var(--st-pink); --ttl-ink: #0b0a4a; --cta-bg: #ff8fcf; --cta-fg: #14105c; --cta-sh: #a3185f; --focus: #fff4dc; }
-.st-s2 { --st-bg: linear-gradient(180deg, #12085a 0%, #2a1590 55%, #4a2cc0 100%); --st-bg-end: #4a2cc0; --ttl-fill: var(--st-cream); --ttl-acc: var(--st-pink); --ttl-ink: #120a58; --cta-bg: #ff8fcf; --cta-fg: #14105c; --cta-sh: #a3185f; --focus: #fff4dc; }
-.st-s3 { --st-bg: linear-gradient(180deg, #060a58 0%, #0a1494 40%, #0d2399 62%, #6e55dc 100%); --st-bg-end: #6e55dc; --ttl-fill: var(--st-cream); --ttl-acc: var(--st-pink); --ttl-ink: #070a52; --cta-bg: #ff8fcf; --cta-fg: #14105c; --cta-sh: #a3185f; --focus: #fff4dc; }
+.st-hero { --st-bg: linear-gradient(180deg, #070a52 0%, #0a1ba8 45%, #1230d6 70%, #4a2fc0 100%); }
+.st-s2 { --st-bg: linear-gradient(180deg, #12085a 0%, #2a1590 55%, #4a2cc0 100%); --st-bg-end: #4a2cc0; }
+.st-s3 { --st-bg: linear-gradient(180deg, #060a58 0%, #0a1494 40%, #0d2399 62%, #6e55dc 100%); --st-bg-end: #6e55dc; }
 
 /* ───────── 배경 그림 ───────── */
 .st-bg { position: absolute; inset: 0; z-index: 0; background-size: cover; background-position: center; pointer-events: none; }
@@ -55,84 +98,71 @@
   text-align: center;
   max-width: 720px;
 }
-/* 글자 뒤의 은은한 어둠(scrim): 배경의 작은 별·질감이 글자를 덜 방해하게 하고, 어떤 배경에서도 대비를 지켜 줘요 */
+/* 글자 뒤의 은은한 어둠(scrim): 글자 "효과"가 아니라 배경 쪽 옅은 색 번짐이에요. 배경의 작은 별·질감이 글자를 덜 방해하게 해 줘요 */
 .st-text::before {
   content: "";
   position: absolute;
-  inset: -16% -24%;
+  inset: -14% -22%;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(closest-side, rgba(8, 10, 86, 0.66) 0%, rgba(8, 10, 86, 0.4) 58%, rgba(8, 10, 86, 0) 100%);
+  background: radial-gradient(closest-side, rgba(8, 10, 86, 0.5) 0%, rgba(8, 10, 86, 0.28) 58%, rgba(8, 10, 86, 0) 100%);
 }
+/* 작은 소개 글(테두리·배경 없는 일반 글씨) — 장면 1은 한 줄 소개, 장면 2·3은 단계 이름 */
 .st-eyebrow {
-  margin: 0 0 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 32px;
-  max-width: 100%;
-  padding: 4px 14px;
-  border-radius: 999px;
-  border: 2px solid rgba(255, 244, 220, 0.85);
-  font-size: 0.9rem;
-  font-weight: 800;
-  line-height: 1.3;
-  letter-spacing: 0.02em;
-  color: var(--st-cream);
-  background: rgba(255, 244, 220, 0.12);
+  margin: 0 0 10px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: rgba(255, 244, 220, 0.88);
   word-break: keep-all;
   text-wrap: balance;
 }
+/* 제목: 차이 활짝체, 크림색 단색. 테두리·그림자·겹친 글자 없이 글꼴 모양 그대로 보여요 */
 .st-title {
   margin: 0;
   font-family: var(--st-title-font);
-  font-weight: 400;
+  font-weight: 700;
+  font-synthesis: none; /* 없는 굵기를 억지로 만들지 않아요 */
   font-size: clamp(2.25rem, min(11vw, 12svh), 5.75rem);
-  line-height: 1.14;
-  color: var(--ttl-fill);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--st-cream);
   word-break: keep-all;
   text-wrap: balance;
 }
 .st-word { display: inline-block; white-space: nowrap; }
 .st-char {
   display: inline-block;
-  /* 글자 둘레 진한 남색 테두리(8방향) + 아래로 떨어지는 그림자: 스티커처럼 도톰하게. 마지막 줄은 부드러운 번짐 */
-  text-shadow:
-    -0.045em -0.045em 0 var(--ttl-ink), 0.045em -0.045em 0 var(--ttl-ink), -0.045em 0.045em 0 var(--ttl-ink), 0.045em 0.045em 0 var(--ttl-ink),
-    0 -0.065em 0 var(--ttl-ink), 0 0.065em 0 var(--ttl-ink), -0.065em 0 0 var(--ttl-ink), 0.065em 0 0 var(--ttl-ink),
-    0 0.12em 0 var(--ttl-ink), 0 0.16em 0.3em rgba(4, 4, 50, 0.55);
   animation: st-pop 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   animation-delay: calc(var(--i) * 75ms + 140ms);
 }
-.st-acc { color: var(--ttl-acc); }
+.st-acc { color: var(--st-pink); }
+/* 설명: Pretendard 보통(400) 굵기·작은 크기·살짝 투명한 크림 — 제목과 확실히 구분돼요 */
 .st-sub {
-  margin: 14px 0 0;
-  font-size: clamp(1rem, 0.9rem + 0.5vw, 1.35rem);
-  font-weight: 700;
-  line-height: 1.5;
-  color: var(--st-cream);
-  text-shadow: 0 1px 2px rgba(6, 6, 60, 0.9), 0 0 14px rgba(6, 6, 60, 0.7);
+  margin: 12px 0 0;
+  max-width: 26em;
+  font-size: clamp(0.9375rem, 0.88rem + 0.4vw, 1.2rem);
+  font-weight: 400;
+  line-height: 1.6;
+  color: rgba(255, 244, 220, 0.9);
   word-break: keep-all;
   text-wrap: balance;
 }
-.st-count {
+/* 장면 2 진행 안내: 버튼이 아니라 조용한 한 줄 글씨(사진 n / 3 → 앨범 → 액자 → 굿즈) */
+.st-note {
   margin: 10px 0 0;
-  min-width: 5.5em;
-  min-height: 2em;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--st-cream);
-  color: var(--st-ink);
-  border: 2px solid var(--st-ink);
-  font-size: 0.95rem;
-  font-weight: 800;
+  min-height: 1.5em;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: rgba(255, 244, 220, 0.82);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  word-break: keep-all;
+  text-wrap: balance;
 }
-.st-actions { margin-top: clamp(14px, 3svh, 26px); }
+@media (max-width: 359px) { .st-note { min-height: 3em; } }
+.st-actions { margin-top: clamp(16px, 3svh, 28px); }
 
 @keyframes st-pop {
   from { opacity: 0; transform: translate3d(0, 0.7em, 0) scale(0.35) rotate(-14deg); }
@@ -141,32 +171,38 @@
 /* 장면 2·3 제목은 장면에 들어올 때 한 번 튀어나와요. (자바스크립트가 준비되기 전·동작 줄이기에서는 그냥 보여요) */
 .st-scene[data-arm="1"]:not([data-in="1"]) .st-char { animation: none; opacity: 0; }
 
-/* ───────── 버튼 ───────── */
+/* ───────── 버튼(진짜 눌러야 하는 것은 이것뿐) ─────────
+   납작한 분홍 바탕 + 진한 남색 글자. 두꺼운 아래 테두리·그림자·떠오름·커짐 없음. 호버는 색만 아주 살짝, 키보드 포커스 링은 크림색 3px */
 .st-cta {
+  --st-cta-bg: #ff8fcf;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.55em;
-  min-height: 56px;
-  padding: 0 1.9rem;
-  border-radius: 999px;
-  font-family: var(--st-title-font);
-  font-size: 1.5rem;
+  gap: 0.5em;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 0 1.35rem 0 1.55rem;
+  border: 0;
+  border-radius: 14px;
+  font-family: var(--st-body-font);
+  font-size: 1.0625rem;
+  font-weight: 700;
   line-height: 1;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   text-decoration: none;
-  background: var(--cta-bg);
-  color: var(--cta-fg);
-  box-shadow: 0 5px 0 var(--cta-sh), 0 14px 22px -10px rgba(4, 4, 60, 0.7);
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: var(--st-cta-bg);
+  color: var(--st-navy);
+  transition: background-color 0.16s ease-out;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-.st-cta:active { transform: translate3d(0, 4px, 0) scale(0.98); box-shadow: 0 1px 0 var(--cta-sh), 0 4px 10px -6px rgba(4, 4, 60, 0.7); }
-@media (hover: hover) { .st-cta:hover { transform: translate3d(0, -2px, 0); } }
-.st-cta:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
-.st-s3[data-arrived="1"] .st-cta { animation: st-breathe 1.8s ease-in-out infinite; }
-@keyframes st-breathe { 50% { transform: scale(1.045); } }
+.st-cta svg { flex: none; display: block; width: 1.05em; height: 1.05em; }
+@media (hover: hover) { .st-cta:hover { background: #ffa9de; } }
+.st-cta:active { background: #f67fc6; }
+.st-cta:focus-visible { outline: 3px solid var(--st-cream); outline-offset: 3px; }
+@media (min-width: 1024px) { .st-cta { min-height: 52px; font-size: 1.125rem; } }
+@media (max-width: 339px) { .st-cta { width: 100%; } }
 
 /* ───────── 그림 영역(정사각형) ───────── */
 .st-art {
@@ -180,6 +216,13 @@
   container-type: size;
 }
 .st-hero .st-art { place-items: end center; padding-top: clamp(6px, 1.6svh, 18px); }
+/* 세로 화면(폰·태블릿)의 장면 1: 글자 → 사진 그림이 틈 없이 이어지게, 글자+그림을 한 덩어리로 묶고 남는 세로 공간은 위 0.6 : 아래 1.7로 나눠요.
+   (예전에는 그림 영역이 flex:1 로 늘어나 바닥에 붙어 있어서, 버튼과 사진 사이가 크게 비었어요) */
+@media (max-aspect-ratio: 5/4) {
+  .st-hero .st-stage::before, .st-hero .st-stage::after { content: ""; flex: 0.6 1 0; min-height: 0; }
+  .st-hero .st-stage::after { flex-grow: 1.7; }
+  .st-hero .st-art { flex: 0 1 auto; aspect-ratio: 1 / 1; max-width: 640px; place-items: center; padding-top: 0; margin-top: clamp(4px, 1.2svh, 14px); }
+}
 /* 세로 화면(폰·태블릿)의 장면 2: 글자와 그림을 한 덩어리로 묶어 화면 세로 가운데에 놓아요(사이가 멀어지지 않게) */
 @media (max-aspect-ratio: 5/4) {
   .st-track .st-stage { justify-content: center; gap: clamp(8px, 2.4svh, 28px); }
@@ -192,6 +235,10 @@
 
 .st-layer { position: absolute; will-change: auto; pointer-events: none; }
 .st-layer-free { transform: translate3d(0, calc(var(--sy, 0px) * var(--k, 0)), 0) translate(-50%, -50%) rotate(var(--rot, 0deg)); }
+/* 세로 화면: 가까운 조각(사진·카메라)이 글자·버튼 쪽으로 더 빨리 올라와 겹치지 않게, 시차는 "천천히 따라오는 쪽(k>0)"만 써요 */
+@media (max-aspect-ratio: 5/4) {
+  .st-layer-free { transform: translate3d(0, calc(var(--sy, 0px) * max(var(--k, 0), 0)), 0) translate(-50%, -50%) rotate(var(--rot, 0deg)); }
+}
 .st-hero[data-live="1"] .st-layer { will-change: transform; }
 .st-fit, .st-idle { width: 100%; height: 100%; }
 .st-img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
@@ -200,7 +247,6 @@
 .st-part { position: absolute; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)); pointer-events: none; backface-visibility: hidden; }
 .st-s2[data-live="1"] .st-part, .st-s3[data-live="1"] .st-part { will-change: transform; }
 .st-card[data-flying="1"] > .st-idle { animation: none; }
-.st-shadow { left: 50%; top: 93%; width: 78%; aspect-ratio: 7 / 1; background: radial-gradient(closest-side, rgba(6, 4, 52, 0.6), rgba(6, 4, 52, 0)); z-index: 1; }
 
 /* 별빛 궤도(장면 2) */
 .st-ringwrap { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
@@ -230,6 +276,26 @@
 /* 화면 밖에 있는 장면은 움직임을 멈춰서 배터리·발열을 아껴요 */
 .st-scene:not([data-live="1"]) .st-idle, .st-scene:not([data-live="1"]) .st-char, .st-scene:not([data-live="1"]) .st-spark { animation-play-state: paused; }
 
+/* ───────── 장면과 장면 사이: 구름 가장자리 ─────────
+   위 장면의 아래 색이 둥근 구름 모양으로 다음 장면 안으로 내려와서, 파랑↔보라가 일직선으로 끊기지 않아요.
+   장면 위쪽 끝(top:-26px)에 얹어서 위 장면과 26px 겹치고(투명→불투명으로 번져 들어가요), 구름 모양은 다음 장면 쪽으로 30px 내려와요. */
+.st-edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -26px;
+  height: 56px;
+  z-index: 40;
+  pointer-events: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='56' viewBox='0 0 240 56'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23fff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='240' height='27' fill='url(%23g)'/%3E%3Cpath d='M240 26 A27 20 0 0 1 188 26 A34 30 0 0 1 120 26 A22 16 0 0 1 76 26 A38 28 0 0 1 0 26 Z'/%3E%3C/svg%3E") repeat-x 0 0 / 240px 56px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='56' viewBox='0 0 240 56'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23fff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='240' height='27' fill='url(%23g)'/%3E%3Cpath d='M240 26 A27 20 0 0 1 188 26 A34 30 0 0 1 120 26 A22 16 0 0 1 76 26 A38 28 0 0 1 0 26 Z'/%3E%3C/svg%3E") repeat-x 0 0 / 240px 56px;
+}
+.st-edge-a { background: linear-gradient(90deg, #3f13cf 0%, #5922e4 28%, #8c5ffa 48%, #8055f8 60%, #4519df 82%, #3f13cf 100%); } /* 장면 1 아래 구름색 */
+.st-edge-b { background: linear-gradient(90deg, #4a2aec 0%, #753ff8 30%, #864bf6 45%, #6e41f9 66%, #4d2dee 100%); } /* 장면 2 아래 구름색 */
+@media (max-width: 599px) {
+  .st-edge { top: -20px; height: 42px; -webkit-mask-size: 180px 42px; mask-size: 180px 42px; }
+}
+
 /* ───────── 가로로 넓은 화면(PC·태블릿 가로·폰 가로): 왼쪽 글자 / 오른쪽 그림 ───────── */
 @media (min-aspect-ratio: 5/4) {
   .st-stage {
@@ -241,18 +307,34 @@
   }
   .st-text { align-items: flex-start; text-align: left; justify-self: start; }
   .st-art { height: 100%; align-self: stretch; }
-  .st-eyebrow { margin-bottom: clamp(6px, 1.6svh, 12px); }
-  .st-sub { margin-top: clamp(6px, 1.6svh, 14px); }
-  /* 장면 3: 아래쪽 언덕과 겹치지 않게 글자를 위쪽에 */
+  .st-eyebrow { margin-bottom: clamp(6px, 1.6svh, 10px); }
+  .st-sub { margin-top: clamp(6px, 1.6svh, 12px); }
   /* 장면 안 장식 중 글자 자리를 가리는 것은 landscape용 위치(land)로 옮겨요 */
   .st-has-land { left: var(--lx) !important; top: var(--ly) !important; width: var(--lw) !important; }
-  .st-s3 .st-text { align-self: start; margin-top: clamp(6px, 9svh, 110px); }
+  /* 왼쪽은 글자·버튼 자리라 비워 두고, 오른쪽은 사진·상품 그림이 주인공이에요: 장면 1의 행성 2개는 가로 화면에서 숨겨요 */
+  .st-hero [data-layer="s1-planet-ringed"], .st-hero [data-layer="s1-planet-pink"] { display: none; }
+  /* 장면 1·3: 글자는 위쪽 맑은 하늘 자리에 놓아요(아래쪽은 배경의 구름·언덕이라 글자가 거기 걸치면 읽기 어려워요) */
+  .st-hero .st-text, .st-s3 .st-text { align-self: start; margin-top: clamp(6px, 9svh, 110px); }
 }
 @media (max-height: 520px) and (min-aspect-ratio: 5/4) {
   .st-stage { padding-block: 10px; }
-  .st-cta { min-height: 48px; font-size: 1.25rem; padding: 0 1.4rem; }
-  .st-eyebrow { min-height: 26px; font-size: 0.78rem; }
-  .st-count { min-height: 1.7em; }
+  .st-cta { min-height: 48px; font-size: 1rem; padding: 0 1.2rem 0 1.35rem; }
+}
+
+/* 세로 화면(폰·태블릿): 글자·버튼은 위쪽에 모여 있어서, 작은 장식(달·별)은 그림 영역 옆 가장자리로 내리고 일부는 숨겨요(데코 줄이기) */
+@media (max-aspect-ratio: 5/4) {
+  .st-hero [data-layer="s1-moon"] { left: 89% !important; top: 41% !important; }
+  .st-hero [data-layer="s1-star-cream"], .st-hero [data-layer="s1-spark-1"], .st-hero [data-layer="s1-spark-3"] { display: none; }
+  .st-s3 [data-layer="s3-milky"] { top: 65% !important; } /* 은하수 별 길이 버튼 아래에서 시작해 집(하트) 쪽으로 이어지게 */
+}
+@media (max-aspect-ratio: 5/4) and (max-height: 700px) {
+  .st-s3 [data-layer="s3-milky"] { top: 74% !important; } /* 낮은 폰 화면: 글자·버튼이 더 아래까지 내려와서 별 길도 더 아래에서 시작해요 */
+}
+@media (min-width: 600px) and (max-aspect-ratio: 5/4) {
+  .st-s3 [data-layer="s3-milky"] { top: 77% !important; } /* 태블릿 세로: 글자가 커서 별 길을 더 아래로 */
+}
+@media (max-aspect-ratio: 5/4) and (max-height: 700px), (min-aspect-ratio: 5/4) and (max-height: 520px) {
+  .st-s2 [data-layer="s2-shooting"] { display: none; } /* 화면이 낮으면 글자와 겹쳐서 숨겨요 */
 }
 
 /* 태블릿 세로: 제목이 화면 폭 가까이 넓어져서, 위쪽 모서리 장식(행성·슈팅스타)이 글자를 가리지 않게 숨겨요 */
@@ -262,9 +344,10 @@
 
 /* ───────── 동작 줄이기: 움직임 없이, 완성된 모습으로 ───────── */
 @media (prefers-reduced-motion: reduce) {
-  .st-idle, .st-char, .st-cta, .st-spark { animation: none !important; }
+  .st-idle, .st-char, .st-spark { animation: none !important; }
   .st-char { opacity: 1 !important; }
-  .st-track { height: auto; }
+  .st-track, .st-s2.st-track { height: auto; }
   .st-track .st-stage { position: relative; }
-  .st-layer, .st-part, .st-cta { will-change: auto !important; transition: none; }
+  .st-layer, .st-part { will-change: auto !important; }
+  .st-cta { transition: none; }
 }

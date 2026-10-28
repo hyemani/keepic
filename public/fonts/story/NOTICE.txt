@@ -1,0 +1,4 @@
+Pretendard-Regular/Bold-ksx1001.woff2
+Original: Pretendard by Kil Hyung-jin (https://github.com/orioncactus/pretendard)
+Copyright (c) 2023 Kil Hyung-jin. Licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
+These files are a subset (Basic Latin + KS X 1001 Hangul + common punctuation) of the original TTFs in ../ , converted to WOFF2.
