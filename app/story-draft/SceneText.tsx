@@ -1,41 +1,24 @@
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 /** 진짜 시작 화면(상품 옵션 선택)으로 가는 길. 메인 페이지 배너가 쓰는 것과 같은 곳이에요. */
 export const START_HREF = "/options?product=포토북";
 
 /**
- * 글자가 하나씩 톡톡 튀어나오는 제목. 화면 낭독기에는 통째로 한 번만 읽히게 aria-label을 달고
- * 글자 조각은 aria-hidden으로 숨겨요. 단어 단위로 묶어서 줄바꿈이 단어 사이에서만 일어나요(keep-all).
+ * 제목: 항상 완성된 한 문장이에요. 글자별 효과 없이 통째로 보여요(들어올 때 제목 전체가 한 번 살짝 떠오르는 효과는 CSS가 맡아요).
+ * 줄바꿈은 낱말 사이에서만(keep-all) 균형 있게 일어나요. 강조할 낱말(accent)만 분홍색이에요.
  */
-export function PopTitle({ text, as: Tag = "h2", id, accent }: { text: string; as?: "h1" | "h2"; id?: string; accent?: string }) {
-  const words = text.split(" ");
-  // 강조할 낱말(accent)이 있으면 그 글자들만 분홍색으로 칠해요.
+export function StoryTitle({ text, as: Tag = "h2", id, accent }: { text: string; as?: "h1" | "h2"; id?: string; accent?: string }) {
   const a0 = accent ? text.indexOf(accent) : -1;
-  const a1 = a0 >= 0 ? a0 + accent!.length : -1;
-  let n = 0;
   return (
-    <Tag className="st-title" id={id} aria-label={text}>
-      {words.map((w, wi) => {
-        const start = words.slice(0, wi).reduce((sum, x) => sum + x.length + 1, 0); // 이 낱말이 문장에서 시작하는 위치
-        return (
-        <span key={wi}>
-          {wi > 0 ? " " : null}
-          <span className="st-word" aria-hidden="true">
-            {Array.from(w).map((ch, ci) => {
-              const i = n++;
-              const pos = start + ci;
-              const hot = pos >= a0 && pos < a1;
-              return (
-                <span key={ci} className={hot ? "st-char st-acc" : "st-char"} style={{ "--i": i } as CSSProperties}>
-                  {ch}
-                </span>
-              );
-            })}
-          </span>
-        </span>
-        );
-      })}
+    <Tag className="st-title" id={id}>
+      {a0 < 0 ? text : (
+        <>
+          {text.slice(0, a0)}
+          <span className="st-acc">{accent}</span>
+          {text.slice(a0 + accent!.length)}
+        </>
+      )}
     </Tag>
   );
 }
@@ -54,14 +37,22 @@ export function SceneText({
   titleId: string;
   h1?: boolean;
   accent?: string;
-  sub: string;
+  /** 설명 글: 뜻이 끊기는 곳마다 한 줄씩 배열로 주면 그 자리에서 줄을 바꿔요 */
+  sub: string | string[];
   children?: ReactNode;
 }) {
   return (
     <div className="st-text">
       <p className="st-eyebrow">{eyebrow}</p>
-      <PopTitle text={title} as={h1 ? "h1" : "h2"} id={titleId} accent={accent} />
-      <p className="st-sub">{sub}</p>
+      <StoryTitle text={title} as={h1 ? "h1" : "h2"} id={titleId} accent={accent} />
+      <p className="st-sub">
+        {(Array.isArray(sub) ? sub : [sub]).map((line, i) => (
+          <span key={i} className="st-subline">
+            {i > 0 ? <br className="st-br" /> : null}
+            {line}
+          </span>
+        ))}
+      </p>
       {children}
     </div>
   );

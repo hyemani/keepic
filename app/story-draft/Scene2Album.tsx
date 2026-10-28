@@ -146,13 +146,13 @@ export default function Scene2Album() {
     ro.observe(bx);
     el.dataset.ready = "1";
 
-    // 제목 글자가 장면에 들어올 때 톡톡 튀어나오게(처음 한 번만). 동작 줄이기 모드에서는 쓰지 않아요.
+    // 제목 전체가 장면에 들어올 때 한 번 살짝 떠오르게(처음 한 번만, 스크롤 진행도와 무관). 동작 줄이기 모드에서는 쓰지 않아요.
     let io: IntersectionObserver | null = null;
     if (!reduced) {
       el.dataset.arm = "1";
       io = new IntersectionObserver((es) => {
         if (es.some((e) => e.isIntersecting)) { el.dataset.in = "1"; io?.disconnect(); }
-      }, { threshold: 0.45 });
+      }, { threshold: 0.25 });
       io.observe(el.firstElementChild as Element);
     }
 

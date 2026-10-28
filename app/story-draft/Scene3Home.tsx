@@ -87,7 +87,7 @@ export default function Scene3Home() {
       el.dataset.arm = "1";
       io = new IntersectionObserver((es) => {
         if (es.some((e) => e.isIntersecting)) { el.dataset.in = "1"; io?.disconnect(); }
-      }, { threshold: 0.45 });
+      }, { threshold: 0.25 });
       io.observe(el.firstElementChild as Element);
     }
 

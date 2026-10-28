@@ -123,12 +123,6 @@
   word-break: keep-all;
   text-wrap: balance;
 }
-.st-word { display: inline-block; white-space: nowrap; }
-.st-char {
-  display: inline-block;
-  animation: st-pop 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-  animation-delay: calc(var(--i) * 75ms + 140ms);
-}
 .st-acc { color: var(--st-pink); }
 /* 설명: Pretendard 보통(400) 굵기·작은 크기·살짝 투명한 크림 — 제목과 확실히 구분돼요 */
 .st-sub {
@@ -156,12 +150,14 @@
 @media (max-width: 359px) { .st-note { min-height: 3em; } }
 .st-actions { margin-top: clamp(16px, 3svh, 28px); }
 
-@keyframes st-pop {
-  from { opacity: 0; transform: translate3d(0, 0.7em, 0) scale(0.35) rotate(-14deg); }
-  60% { opacity: 1; }
+/* 제목이 장면에 들어올 때: 제목 "전체"가 12~16px 떠오르며 나타나요(0.42초, 한 번만). 글자별 효과·스크롤 연동은 없어요.
+   (자바스크립트가 준비되기 전·동작 줄이기에서는 그냥 완성된 모습으로 보여요) */
+@keyframes st-rise {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
 }
-/* 장면 2·3 제목은 장면에 들어올 때 한 번 튀어나와요. (자바스크립트가 준비되기 전·동작 줄이기에서는 그냥 보여요) */
-.st-scene[data-arm="1"]:not([data-in="1"]) .st-char { animation: none; opacity: 0; }
+.st-hero .st-title { animation: st-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards; }
+.st-scene[data-arm="1"] .st-title { transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1), transform 0.42s cubic-bezier(0.22, 1, 0.36, 1); }
+.st-scene[data-arm="1"]:not([data-in="1"]) .st-title { opacity: 0; transform: translate3d(0, 14px, 0); }
 
 /* ───────── 버튼(진짜 눌러야 하는 것은 이것뿐) ─────────
    납작한 분홍 바탕 + 진한 남색 글자. 두꺼운 아래 테두리·그림자·떠오름·커짐 없음. 호버는 색만 아주 살짝, 키보드 포커스 링은 크림색 3px */
@@ -266,7 +262,7 @@
 @keyframes st-bob { from { transform: translate3d(0, -3%, 0) rotate(-2deg); } to { transform: translate3d(0, 3%, 0) rotate(2deg); } }
 @keyframes st-twinkle { from { opacity: 0.45; transform: scale(0.8); } to { opacity: 1; transform: scale(1.1); } }
 /* 화면 밖에 있는 장면은 움직임을 멈춰서 배터리·발열을 아껴요 */
-.st-scene:not([data-live="1"]) .st-idle, .st-scene:not([data-live="1"]) .st-char, .st-scene:not([data-live="1"]) .st-spark { animation-play-state: paused; }
+.st-scene:not([data-live="1"]) .st-idle, .st-scene:not([data-live="1"]) .st-spark { animation-play-state: paused; }
 
 /* ───────── 장면과 장면 사이: 구름 가장자리 ─────────
    위 장면의 아래 색이 둥근 구름 모양으로 다음 장면 안으로 내려와서, 파랑↔보라가 일직선으로 끊기지 않아요.
@@ -336,8 +332,8 @@
 
 /* ───────── 동작 줄이기: 움직임 없이, 완성된 모습으로 ───────── */
 @media (prefers-reduced-motion: reduce) {
-  .st-idle, .st-char, .st-spark { animation: none !important; }
-  .st-char { opacity: 1 !important; }
+  .st-idle, .st-spark, .st-title { animation: none !important; transition: none !important; }
+  .st-title { opacity: 1 !important; transform: none !important; }
   .st-track, .st-s2.st-track { height: auto; }
   .st-track .st-stage { position: relative; }
   .st-layer, .st-part { will-change: auto !important; }
