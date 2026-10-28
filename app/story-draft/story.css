@@ -328,7 +328,7 @@
 /* 세로 화면(폰·태블릿): 글자·버튼은 위쪽에 모여 있어서, 작은 장식(달·별)은 그림 영역 옆 가장자리로 내리고 일부는 숨겨요(데코 줄이기) */
 @media (max-aspect-ratio: 5/4) {
   .st-hero [data-layer="s1-moon"] { left: 89% !important; top: 41% !important; }
-  .st-hero [data-layer="s1-star-cream"], .st-hero [data-layer="s1-spark-1"], .st-hero [data-layer="s1-spark-3"] { display: none; }
+  .st-hero [data-layer="s1-star-cream"], .st-hero [data-layer="s1-spark-1"], .st-hero [data-layer="s1-spark-3"], .st-hero [data-layer="s1-planet-pink"] { display: none; } /* 보조 장식 일부는 폰에서 숨겨요(분홍 행성은 사진과 겹쳐서) */
   .st-s3 [data-layer="s3-milky"] { top: 65% !important; } /* 은하수 별 길이 버튼 아래에서 시작해 집(하트) 쪽으로 이어지게 */
 }
 @media (max-aspect-ratio: 5/4) and (max-height: 700px) {

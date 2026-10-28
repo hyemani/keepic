@@ -60,11 +60,11 @@ export const LAYERS = {
   "s1-spark-1": { art: "sparkle-cream", space: S, cx: 12, cy: 9, land: { cx: 54, cy: 8 }, w: 5, wide: { cx: 7, cy: 12 }, depth: 0.25, z: 2, idle: "twinkle", idleSec: 2.6, maxPx: 30, opacity: 0.8, note: "반짝이" },
   "s1-spark-2": { art: "sparkle-cream", space: S, cx: 5, cy: 28, land: { cx: 4, cy: 88 }, w: 4.5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 3.1, idleDelay: -1.1, maxPx: 28, opacity: 0.8, note: "반짝이" },
   "s1-spark-3": { art: "sparkle-cream", space: S, cx: 93, cy: 12, w: 4.5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 2.9, idleDelay: -0.5, maxPx: 28, opacity: 0.8, note: "반짝이" },
-  "s1-photo-friends": { art: "photo-friends", space: A, cx: 21, cy: 48, w: 29, depth: 1.12, z: 4, rot: -9, idle: "bob", idleSec: 3.8, maxPx: 190, note: "떠 있는 사진 1(두 친구)" },
-  "s1-photo-puppy": { art: "photo-puppy", space: A, cx: 50, cy: 17, w: 30, depth: 1.22, z: 4, rot: 3, idle: "bob", idleSec: 4.4, idleDelay: -1.3, maxPx: 200, note: "떠 있는 사진 2(강아지)" },
-  "s1-photo-sea": { art: "photo-sea", space: A, cx: 79, cy: 46, w: 28, depth: 1.1, z: 4, rot: 9, idle: "bob", idleSec: 4.1, idleDelay: -2.2, maxPx: 185, note: "떠 있는 사진 3(바다)" },
-  "s1-camera": { art: "camera", space: A, cx: 49, cy: 76, w: 27, depth: 1.28, z: 5, rot: -5, idle: "bob", idleSec: 3.4, idleDelay: -0.8, maxPx: 180, note: "카메라" },
-  "s1-star-small": { art: "star-pink", space: A, cx: 71, cy: 4, w: 6, depth: 1.3, z: 5, rot: 10, idle: "twinkle", idleSec: 2.8, idleDelay: -0.6, maxPx: 40, note: "사진 옆 작은 별" },
+  "s1-photo-friends": { art: "photo-friends", space: A, cx: 27, cy: 52, w: 33, wide: { cx: 29, cy: 54, w: 24 }, depth: 1.12, z: 4, rot: -9, idle: "bob", idleSec: 3.8, maxPx: 300, note: "사진 덩어리 · 왼쪽(두 친구)" },
+  "s1-photo-puppy": { art: "photo-puppy", space: A, cx: 50, cy: 24, w: 32, wide: { cx: 50, cy: 34, w: 24 }, depth: 1.22, z: 5, rot: 3, idle: "bob", idleSec: 4.4, idleDelay: -1.3, maxPx: 300, note: "사진 덩어리 · 위 가운데(강아지)" },
+  "s1-photo-sea": { art: "photo-sea", space: A, cx: 73, cy: 55, w: 31, wide: { cx: 71, cy: 54, w: 24 }, depth: 1.1, z: 4, rot: 9, idle: "bob", idleSec: 4.1, idleDelay: -2.2, maxPx: 300, note: "사진 덩어리 · 오른쪽(바다)" },
+  "s1-camera": { art: "camera", space: A, cx: 48, cy: 82, w: 28, wide: { cx: 50, cy: 82, w: 20 }, depth: 1.28, z: 6, rot: -5, idle: "bob", idleSec: 3.4, idleDelay: -0.8, maxPx: 230, note: "사진 덩어리 · 아래 가운데(카메라, 사진 바로 곁)" },
+  "s1-star-small": { art: "star-pink", space: A, cx: 71, cy: 4, w: 6, wide: { cx: 66, cy: 8 }, depth: 1.3, z: 5, rot: 10, idle: "twinkle", idleSec: 2.8, idleDelay: -0.6, maxPx: 40, note: "사진 옆 작은 별" },
 
   // ───────── 장면 2 · 앨범으로 만들어져요 (보랏빛 우주) ─────────
   "s2-planet": { art: "planet-pink", space: S, cx: 91, cy: 9, w: 17, depth: 1, z: 2, idle: "bob", idleSec: 8, maxPx: 110, note: "분홍 행성" },
