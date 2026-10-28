@@ -171,14 +171,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5em;
-  min-height: 48px;
+  gap: 0.55em;
+  min-height: 50px;
   max-width: 100%;
-  padding: 0 1.35rem 0 1.55rem;
+  padding: 0 1.5rem 0 1.7rem;
   border: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   font-family: var(--st-body-font);
-  font-size: 1.0625rem;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -190,11 +190,12 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-.st-cta svg { flex: none; display: block; width: 1.05em; height: 1.05em; }
+.st-cta svg { flex: none; display: block; width: 1.2em; height: 1.2em; } /* 화살표 그려진 높이 ≈ 글자 크기의 0.6배(글자 높이와 비슷) */
 @media (hover: hover) { .st-cta:hover { background: #ffa9de; } }
 .st-cta:active { background: #f67fc6; }
 .st-cta:focus-visible { outline: 3px solid var(--st-cream); outline-offset: 3px; }
-@media (min-width: 1024px) { .st-cta { min-height: 52px; font-size: 1.125rem; } }
+@media (min-aspect-ratio: 5/4) and (min-height: 521px) { .st-cta { min-height: 54px; font-size: 17px; } } /* PC: 높이 54px · 글자 17px */
+@media (min-aspect-ratio: 5/4) and (max-height: 520px) { .st-cta { min-height: 48px; font-size: 16px; } }
 @media (max-width: 339px) { .st-cta { width: 100%; } }
 
 /* ───────── 그림 영역(정사각형) ───────── */
