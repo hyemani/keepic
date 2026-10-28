@@ -137,7 +137,7 @@ export default function Scene3Home() {
         <Layer id="s3-star-cream" />
         <Layer id="s3-spark-1" />
         <Layer id="s3-spark-2" />
-        <SceneText eyebrow="3단계 · 도착" title="집에 도착!" titleId="st-h3" accent="도착!" sub="내 손에서 완성되는 나만의 추억 굿즈">
+        <SceneText eyebrow="3단계 · 도착" title="집에 도착!" titleId="st-h3" accent="도착!" sub={["내 손에서 완성되는", "나만의 추억 굿즈"]}>
           <div className="st-actions">
             <StartButton label="지금 시작하기" />
           </div>

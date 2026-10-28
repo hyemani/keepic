@@ -41,6 +41,8 @@ export type LayerSpec = {
   opacity?: number;
   /** 가로로 넓은 화면(PC·폰 가로)에서만 쓰는 다른 위치·크기. 글자가 왼쪽에 놓이는 화면에서 장식이 글자를 가리지 않게 옮길 때 써요. */
   land?: { cx: number; cy: number; w?: number };
+  /** PC·태블릿 가로 화면(글자가 가운데에 모이는 배치)에서만 쓰는 위치·크기. 글자와 겹치지 않게 장식을 가장자리로 옮길 때 써요. */
+  wide?: { cx: number; cy: number; w?: number };
   label?: string;
   note: string;
 };
@@ -53,9 +55,9 @@ export const LAYERS = {
   "s1-moon": { art: "moon-crescent", space: S, cx: 89, cy: 29, w: 15, depth: 0.2, z: 2, idle: "bob", idleSec: 7, maxPx: 130, note: "초승달" },
   "s1-planet-ringed": { art: "planet-ringed", space: S, cx: 9, cy: 46, w: 24, land: { cx: 5, cy: 66, w: 14 }, depth: 0.35, z: 2, idle: "bob", idleSec: 6, idleDelay: -2, maxPx: 170, note: "고리 행성(왼쪽)" },
   "s1-planet-pink": { art: "planet-pink", space: S, cx: 93, cy: 52, w: 15, depth: 0.5, z: 2, idle: "bob", idleSec: 8, idleDelay: -4, maxPx: 110, note: "분홍 행성(오른쪽)" },
-  "s1-star-pink": { art: "star-pink", space: S, cx: 7, cy: 24, w: 7, land: { cx: 48, cy: 10 }, depth: 0.25, z: 2, rot: -12, idle: "twinkle", idleSec: 3.2, maxPx: 56, note: "핑크 별" },
-  "s1-star-cream": { art: "star-cream", space: S, cx: 72, cy: 38, w: 5, depth: 0.25, z: 2, rot: 14, idle: "twinkle", idleSec: 3.6, idleDelay: -1, maxPx: 42, note: "크림 별" },
-  "s1-spark-1": { art: "sparkle-cream", space: S, cx: 12, cy: 9, land: { cx: 54, cy: 8 }, w: 5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 2.6, maxPx: 30, opacity: 0.8, note: "반짝이" },
+  "s1-star-pink": { art: "star-pink", space: S, cx: 7, cy: 24, w: 7, land: { cx: 48, cy: 10 }, wide: { cx: 11, cy: 30 }, depth: 0.25, z: 2, rot: -12, idle: "twinkle", idleSec: 3.2, maxPx: 56, note: "핑크 별" },
+  "s1-star-cream": { art: "star-cream", space: S, cx: 72, cy: 38, w: 5, wide: { cx: 95, cy: 50 }, depth: 0.25, z: 2, rot: 14, idle: "twinkle", idleSec: 3.6, idleDelay: -1, maxPx: 42, note: "크림 별" },
+  "s1-spark-1": { art: "sparkle-cream", space: S, cx: 12, cy: 9, land: { cx: 54, cy: 8 }, w: 5, wide: { cx: 7, cy: 12 }, depth: 0.25, z: 2, idle: "twinkle", idleSec: 2.6, maxPx: 30, opacity: 0.8, note: "반짝이" },
   "s1-spark-2": { art: "sparkle-cream", space: S, cx: 5, cy: 28, land: { cx: 4, cy: 88 }, w: 4.5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 3.1, idleDelay: -1.1, maxPx: 28, opacity: 0.8, note: "반짝이" },
   "s1-spark-3": { art: "sparkle-cream", space: S, cx: 93, cy: 12, w: 4.5, depth: 0.25, z: 2, idle: "twinkle", idleSec: 2.9, idleDelay: -0.5, maxPx: 28, opacity: 0.8, note: "반짝이" },
   "s1-photo-friends": { art: "photo-friends", space: A, cx: 21, cy: 48, w: 29, depth: 1.12, z: 4, rot: -9, idle: "bob", idleSec: 3.8, maxPx: 190, note: "떠 있는 사진 1(두 친구)" },
@@ -66,7 +68,7 @@ export const LAYERS = {
 
   // ───────── 장면 2 · 앨범으로 만들어져요 (보랏빛 우주) ─────────
   "s2-planet": { art: "planet-pink", space: S, cx: 91, cy: 9, w: 17, depth: 1, z: 2, idle: "bob", idleSec: 8, maxPx: 110, note: "분홍 행성" },
-  "s2-shooting": { art: "shooting-star", space: S, cx: 14, cy: 8, w: 30, depth: 1, z: 2, rot: -8, idle: "drift", idleSec: 16, maxPx: 240, opacity: 0.9, note: "슈팅스타" },
+  "s2-shooting": { art: "shooting-star", space: S, cx: 14, cy: 8, w: 30, wide: { cx: 11, cy: 7, w: 22 }, depth: 1, z: 2, rot: -8, idle: "drift", idleSec: 16, maxPx: 240, opacity: 0.9, note: "슈팅스타" },
   "s2-star-pink": { art: "star-pink", space: S, cx: 8, cy: 92, w: 8, depth: 1, z: 2, rot: -10, idle: "twinkle", idleSec: 3.2, maxPx: 54, note: "핑크 별" },
   "s2-star-cream": { art: "star-cream", space: S, cx: 93, cy: 90, w: 7, depth: 1, z: 2, rot: 12, idle: "twinkle", idleSec: 3.6, idleDelay: -1, maxPx: 46, note: "크림 별" },
   "s2-photo-friends": { art: "photo-friends", space: A, cx: 10.7, cy: 31.6, w: 18, depth: 1, z: 7, rot: -8, idle: "bob", idleSec: 3.6, maxPx: 150, note: "날아가는 사진 1(두 친구) — 시작 자리는 별빛 궤도 위 왼쪽" },
@@ -82,9 +84,9 @@ export const LAYERS = {
 
   // ───────── 장면 3 · 집에 도착 (은하수 배송 길) ─────────
   "s3-moon": { art: "moon-crescent", space: S, cx: 90, cy: 12, w: 15, depth: 1, z: 2, idle: "bob", idleSec: 7, maxPx: 120, opacity: 0.95, note: "초승달" },
-  "s3-milky": { art: "milky-way", space: S, cx: 62, cy: 60, w: 62, land: { cx: 70, cy: 27, w: 32 }, depth: 1, z: 2, rot: -5, idle: "drift", idleSec: 20, maxPx: 520, opacity: 0.95, note: "은하수 별궤적" },
-  "s3-star-cream": { art: "star-cream", space: S, cx: 7, cy: 20, w: 7, land: { cx: 52, cy: 12 }, depth: 1, z: 2, rot: -12, idle: "twinkle", idleSec: 3.4, maxPx: 46, note: "크림 별" },
-  "s3-spark-1": { art: "sparkle-cream", space: S, cx: 16, cy: 8, land: { cx: 56, cy: 30 }, w: 5, depth: 1, z: 2, idle: "twinkle", idleSec: 2.7, maxPx: 30, opacity: 0.85, note: "반짝이" },
+  "s3-milky": { art: "milky-way", space: S, cx: 62, cy: 60, w: 62, land: { cx: 70, cy: 27, w: 32 }, wide: { cx: 80, cy: 30, w: 30 }, depth: 1, z: 2, rot: -5, idle: "drift", idleSec: 20, maxPx: 520, opacity: 0.95, note: "은하수 별궤적" },
+  "s3-star-cream": { art: "star-cream", space: S, cx: 7, cy: 20, w: 7, land: { cx: 52, cy: 12 }, wide: { cx: 12, cy: 24 }, depth: 1, z: 2, rot: -12, idle: "twinkle", idleSec: 3.4, maxPx: 46, note: "크림 별" },
+  "s3-spark-1": { art: "sparkle-cream", space: S, cx: 16, cy: 8, land: { cx: 56, cy: 30 }, w: 5, wide: { cx: 90, cy: 44 }, depth: 1, z: 2, idle: "twinkle", idleSec: 2.7, maxPx: 30, opacity: 0.85, note: "반짝이" },
   "s3-spark-2": { art: "sparkle-cream", space: S, cx: 95, cy: 40, w: 4.5, depth: 1, z: 2, idle: "twinkle", idleSec: 3.1, idleDelay: -1, maxPx: 28, opacity: 0.85, note: "반짝이" },
   "s3-box": { art: "box-parcel", space: A, cx: 0, cy: 0, w: 17, depth: 1, z: 5, maxPx: 240, label: "나만의 추억이 담긴 택배 상자", note: "길을 따라가는 택배 상자(위치는 ROUTE가 정해요)" },
   "s3-house": { art: "house", space: A, cx: 71.2, cy: 63, w: 11, depth: 1, z: 3, maxPx: 200, label: "작은 집", note: "도착할 집(길 끝)" },

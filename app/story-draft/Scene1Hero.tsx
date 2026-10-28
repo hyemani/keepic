@@ -39,7 +39,7 @@ export default function Scene1Hero() {
         {STAGE.map((id) => (
           <Layer key={id} id={id} eager />
         ))}
-        <SceneText eyebrow="추억이 모여 나만의 우주가 되는 곳" title="사진을 고르면" titleId="st-h1" h1 accent="사진" sub="소중한 순간들이 별처럼 하나둘 떠올라요">
+        <SceneText eyebrow="추억이 모여 나만의 우주가 되는 곳" title="사진을 고르면" titleId="st-h1" h1 accent="사진" sub={["소중한 순간들이", "별처럼 하나둘 떠올라요"]}>
           <div className="st-actions">
             <StartButton label="사진 고르기" />
           </div>

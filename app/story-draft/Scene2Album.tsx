@@ -177,7 +177,7 @@ export default function Scene2Album() {
         <Layer id="s2-shooting" />
         <Layer id="s2-star-pink" />
         <Layer id="s2-star-cream" />
-        <SceneText eyebrow="2단계 · 만들기" title="사진이 우리 물건이 돼요" titleId="st-h2" accent="물건" sub="앨범부터 액자, 굿즈까지 한 장씩 자리를 찾아가요">
+        <SceneText eyebrow="2단계 · 만들기" title="사진이 우리 물건이 돼요" titleId="st-h2" accent="물건" sub={["앨범부터 액자, 굿즈까지", "한 장씩 자리를 찾아가요"]}>
           <p className="st-note" data-count aria-live="off">사진 0 / 3</p>
         </SceneText>
         <div className="st-art">

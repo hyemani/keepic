@@ -74,13 +74,18 @@ export function Layer({ id, eager = false }: { id: LayerId; eager?: boolean }) {
     style["--ly"] = `${s.land.cy}%`;
     style["--lw"] = `${s.land.w ?? s.w}%`;
   }
+  if (s.wide) {
+    style["--wx"] = `${s.wide.cx}%`;
+    style["--wy"] = `${s.wide.cy}%`;
+    style["--ww"] = `${s.wide.w ?? s.w}%`;
+  }
   const innerStyle: Record<string, string | number> = {};
   if (idle) {
     innerStyle["--dur"] = `${s.idleSec ?? 4}s`;
     innerStyle["--dly"] = `${s.idleDelay ?? 0}s`;
   }
   return (
-    <div className={s.land ? "st-layer st-layer-free st-has-land" : "st-layer st-layer-free"} data-layer={id} style={style as CSSProperties} aria-hidden={s.label ? undefined : true}>
+    <div className={`st-layer st-layer-free${s.land ? " st-has-land" : ""}${s.wide ? " st-has-wide" : ""}`} data-layer={id} style={style as CSSProperties} aria-hidden={s.label ? undefined : true}>
       <div className={idle ? `st-idle st-idle-${idle}` : "st-fit"} style={innerStyle as CSSProperties}>
         <LayerArt id={id} eager={eager} />
       </div>
