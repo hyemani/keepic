@@ -52,7 +52,7 @@
 }
 
 /* ───────── 장면 공통 틀 ───────── */
-.st-scene { --sy: 0px; position: relative; }
+.st-scene { --sy: 0px; position: relative; overflow-x: clip; }
 .st-stage {
   position: relative;
   box-sizing: border-box;
@@ -276,8 +276,8 @@
    장면 위쪽 끝에서 34px 위(위 장면과 겹침, 위로 갈수록 투명)부터 34px 아래까지 걸쳐요. */
 .st-edge {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: -20%;
+  right: -20%; /* 화면보다 넓게 깔아서 곡선이 화면 양끝에서도 끊기지 않고 완만하게 이어져요 */
   top: -34px;
   height: 68px;
   z-index: 40;
