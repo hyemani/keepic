@@ -146,7 +146,7 @@
   font-size: 0.875rem;
   font-weight: 400;
   line-height: 1.5;
-  color: rgba(255, 244, 220, 0.82);
+  color: rgba(255, 244, 220, 0.95);
   font-variant-numeric: tabular-nums;
   word-break: keep-all;
   text-wrap: balance;
@@ -229,7 +229,7 @@
 
 .st-layer { position: absolute; will-change: auto; pointer-events: none; }
 .st-layer-free { transform: translate3d(0, calc(var(--sy, 0px) * var(--k, 0)), 0) translate(-50%, -50%) rotate(var(--rot, 0deg)); }
-/* 세로 화면: 가까운 조각(사진·카메라)이 글자·버튼 쪽으로 더 빨리 올라와 겹치지 않게, 시차는 "천천히 따라오는 쪽(k>0)"만 써요 */
+/* 세로 화면과 가운데 정렬 가로 화면: 가까운 조각(사진·카메라)이 글자·버튼 쪽으로 더 빨리 올라와 겹치지 않게, 시차는 "천천히 따라오는 쪽(k>0)"만 써요 */
 @media (max-aspect-ratio: 5/4) {
   .st-layer-free { transform: translate3d(0, calc(var(--sy, 0px) * max(var(--k, 0), 0)), 0) translate(-50%, -50%) rotate(var(--rot, 0deg)); }
 }
