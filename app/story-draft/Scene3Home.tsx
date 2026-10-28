@@ -5,7 +5,7 @@
 //   진행도 p (0 → 1)
 //   0.03 ~ 0.88  택배 상자가 길(ROUTE)을 따라 이동. 멀어질수록 작아지고, 걸을 때처럼 살짝 흔들려요
 //   0.88 ~ 0.96  도착! 하트가 톡 떠오르고, 집이 살짝 부풀고, 포토북을 든 소녀가 나타나요
-//   0.90 ~ 1     "앨범 만들기 시작하기" 버튼이 통통 숨 쉬어요
+//   0.90 ~ 1     "지금 시작하기" 버튼(장면 1과 같은 납작한 분홍 버튼)
 // 상자의 위치는 SVG 길에서 getPointAtLength로 읽어요(스크롤을 멈추면 그 자리에 멈춰요, 되감기도 돼요).
 // 길 배경 그림(3:2)과 같은 크기의 상자(.st-roadbox) 안에 모든 조각을 놓아서, 화면 비율이 달라도 길과 정확히 겹쳐요.
 import { useEffect, useRef } from "react";
@@ -137,12 +137,14 @@ export default function Scene3Home() {
         <Layer id="s3-star-cream" />
         <Layer id="s3-spark-1" />
         <Layer id="s3-spark-2" />
-        <SceneText eyebrow="셋 · 도착" title="집에 도착!" titleId="st-h3" accent="도착!" sub="내 손에서 완성되는 나만의 포토북">
+        <SceneText eyebrow="3단계 · 도착" title="집에 도착!" titleId="st-h3" accent="도착!" sub="내 손에서 완성되는 나만의 추억 굿즈">
           <div className="st-actions">
-            <StartButton label="앨범 만들기 시작하기" />
+            <StartButton label="지금 시작하기" />
           </div>
         </SceneText>
       </div>
+      {/* 장면 2 → 3 사이를 부드럽게 잇는 구름 가장자리 */}
+      <div className="st-edge st-edge-b" aria-hidden="true" />
     </section>
   );
 }

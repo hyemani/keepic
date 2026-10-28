@@ -1,13 +1,14 @@
 "use client";
 
-// 장면 2 · 앨범으로 만들어져요 — 스크롤하는 만큼만 진행되는 장면이에요(되감기도 돼요, 멈추면 그 자리에 멈춰요).
+// 장면 2 · 사진이 우리 물건이 돼요 — 스크롤하는 만큼만 진행되는 장면이에요(되감기도 돼요, 멈추면 그 자리에 멈춰요).
 //
 //   진행도 p (0 → 1)
 //   0.00 ~ 0.12  닫혀 있던 앨범이 펼쳐져요(닫힌 그림 → 펼친 그림으로 스르륵 바뀌어요)
 //   0.10 ~ 0.72  사진 3장이 하나씩 "별빛 궤도"를 따라 돌다가 앨범 속지 자리로 내려앉아요(0.2 간격, 각 0.22 동안)
-//   0.76 ~ 0.86  앨범이 다시 닫혀요(사진도 함께 접혀 들어가요)
-//   0.86 ~ 0.90  살짝 폴짝 — 완성!
-//   0.86 ~ 0.99  앨범에서 굿즈(머그컵·에코백·캘린더·액자)가 하나씩 튀어나와요 → "굿즈도 만들 수 있어요"
+//   0.74 ~ 0.82  앨범이 다시 닫혀요(사진도 함께 접혀 들어가요)
+//   0.82 ~ 0.86  살짝 폴짝 — 앨범 완성!
+//   0.83 ~ 1.00  앨범에서 액자 → 머그컵 → 에코백 → 캘린더가 "하나씩" 차례로 나와서 자리를 잡아요(이미 나온 것은 그대로 남아요)
+//               앨범이 제일 크고, 액자가 그다음, 굿즈 셋은 작은 포인트예요.
 //
 // 모든 좌표는 정사각형 그림 영역을 0~100으로 본 값이에요(layers.ts와 같은 단위).
 import { useEffect, useRef } from "react";
@@ -34,10 +35,16 @@ const CARDS = [
   { id: "s2-photo-puppy", from: 350, turn: 100, slot: { x: 62.5, y: 66, r: 3, w: 22 } },
   { id: "s2-photo-sea", from: 270, turn: -180, slot: { x: 77.5, y: 74, r: -3, w: 20 } },
 ] as const satisfies readonly { id: LayerId; from: number; turn: number; slot: { x: number; y: number; r: number; w: number } }[];
-const GOODS = ["s2-goods-mug", "s2-goods-tote", "s2-goods-calendar", "s2-goods-frame"] as const satisfies readonly LayerId[];
+// 나오는 순서 = 배열 순서. start = 나오기 시작하는 진행도(0~1), 각자 goodsDur 동안 튀어나와요(겹치는 구간은 짧게)
+const GOODS = [
+  { id: "s2-goods-frame", name: "액자", start: 0.83 },
+  { id: "s2-goods-mug", name: "머그컵", start: 0.875 },
+  { id: "s2-goods-tote", name: "에코백", start: 0.91 },
+  { id: "s2-goods-calendar", name: "캘린더", start: 0.94 },
+] as const satisfies readonly { id: LayerId; name: string; start: number }[];
 const ALBUM = { x: 50, y: 71.5 }; // 앨범 가운데
-const T = { open: 0.12, cardStart: 0.1, cardGap: 0.2, cardDur: 0.22, closeStart: 0.76, closeEnd: 0.86, hop: 0.86, hopEnd: 0.9, goods: 0.86, goodsGap: 0.022, goodsDur: 0.06 };
-export const REDUCED_P = 0.74; // 동작 줄이기: 펼쳐진 채 사진이 다 앉은 모습으로 멈춰 보여줘요
+const T = { open: 0.12, cardStart: 0.1, cardGap: 0.2, cardDur: 0.22, closeStart: 0.74, closeEnd: 0.82, hop: 0.82, hopEnd: 0.86, goodsDur: 0.06 };
+export const REDUCED_P = 1; // 동작 줄이기: 완성된 모습(닫힌 앨범 + 액자·굿즈가 모두 나와 있는 모습)으로 멈춰 보여줘요
 const RING_SPLIT = 0.72; // 카드 움직임 중 앞부분(궤도 따라 돌기) 비율, 나머지는 속지로 내려앉기
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -53,7 +60,7 @@ export default function Scene2Album() {
     const bx = box.current;
     if (!el || !bx) return;
     const q = (n: string) => bx.querySelector<HTMLElement>(`[data-part="${n}"]`)!;
-    const closed = q("closed"), open = q("open"), shadow = q("shadow"), ring = q("ring");
+    const closed = q("closed"), open = q("open"), ring = q("ring");
     const cards = CARDS.map((_, i) => q(`card-${i}`));
     const goods = GOODS.map((_, i) => q(`goods-${i}`));
     const count = el.querySelector<HTMLElement>("[data-count]");
@@ -78,8 +85,6 @@ export default function Scene2Album() {
       closed.style.transform = tr(0, dy * u, 0, 1 - 0.06 * openAmt);
       open.style.opacity = String(ease.clamp01(openAmt * 1.8));
       open.style.transform = tr(0, dy * u, 0, 0.9 + 0.1 * openAmt);
-      shadow.style.opacity = String(0.5 + 0.3 * openAmt);
-      shadow.style.transform = tr(0, 0, 0, lerp(0.55, 1, openAmt));
       ring.style.opacity = String(0.95 * (1 - c));
 
       // 사진 카드: 궤도를 따라 돌다가 → 속지로 내려앉기. 닫힐 때는 앨범 안으로 작아지며 사라져요
@@ -110,19 +115,26 @@ export default function Scene2Album() {
         if (lastFly[i] !== flying) { lastFly[i] = flying; card.dataset.flying = flying ? "1" : "0"; }
       });
 
-      // 굿즈: 닫힌 앨범에서 하나씩 튀어나와요
+      // 상품: 닫힌 앨범에서 액자 → 머그컵 → 에코백 → 캘린더 순서로 하나씩 튀어나와요(나온 뒤에는 자리에 남아요)
       let gDone = 0;
       goods.forEach((g, i) => {
-        const spec = layerSpec(GOODS[i]);
-        const t = ease.out(ease.clamp01((p - T.goods - i * T.goodsGap) / T.goodsDur));
+        const spec = layerSpec(GOODS[i].id);
+        const t = ease.out(ease.clamp01((p - GOODS[i].start) / T.goodsDur));
         if (t >= 0.999) gDone++;
         const x = lerp(ALBUM.x, spec.cx, t);
         const y = lerp(ALBUM.y - 6, spec.cy, t) - Math.sin(t * Math.PI) * 6;
         g.style.opacity = String(ease.clamp01(t * 2));
-        g.style.transform = tr((x - spec.cx) * u, (y - spec.cy) * u, lerp(-18, 0, t), lerp(0.2, 1, t));
+        g.style.transform = tr((x - spec.cx) * u, (y - spec.cy) * u, lerp(-18, 0, t) + (spec.rot ?? 0), lerp(0.2, 1, t));
       });
 
-      const label = gDone >= GOODS.length ? "굿즈도 만들 수 있어요" : p >= T.hop ? "완성!" : `${landed} / ${cards.length}`;
+      // 조용한 안내 글: 사진 n / 3 → 앨범 완성! → 앨범 → 액자 → 머그컵 · 에코백 · 캘린더 (나온 상품이 늘어나는 만큼 이어 붙어요)
+      let label: string;
+      if (gDone > 0 || p >= GOODS[0].start) {
+        const shown = GOODS.filter((_, i) => ease.clamp01((p - GOODS[i].start) / T.goodsDur) > 0.5).map((x) => x.name);
+        label = shown.length === 0 ? "앨범 완성!" : shown.length === 1 ? `앨범 → ${shown[0]}` : `앨범 → ${shown[0]} → ${shown.slice(1).join(" · ")}`;
+      } else {
+        label = p >= T.hop ? "앨범 완성!" : `사진 ${landed} / ${cards.length}`;
+      }
       if (count && label !== lastCount) { lastCount = label; count.textContent = label; }
       lastP = p;
     };
@@ -165,9 +177,8 @@ export default function Scene2Album() {
         <Layer id="s2-shooting" />
         <Layer id="s2-star-pink" />
         <Layer id="s2-star-cream" />
-        <Layer id="s2-cloud" />
-        <SceneText eyebrow="둘 · 만들기" title="앨범으로 만들어져요" titleId="st-h2" accent="앨범" sub="별빛 궤도를 따라 한 장씩 자리를 찾아가요">
-          <p className="st-count" data-count aria-live="off">0 / 3</p>
+        <SceneText eyebrow="2단계 · 만들기" title="사진이 우리 물건이 돼요" titleId="st-h2" accent="물건" sub="앨범부터 액자, 굿즈까지 한 장씩 자리를 찾아가요">
+          <p className="st-note" data-count aria-live="off">사진 0 / 3</p>
         </SceneText>
         <div className="st-art">
           <div ref={box} className="st-artbox">
@@ -185,7 +196,6 @@ export default function Scene2Album() {
                 );
               })}
             </div>
-            <div data-part="shadow" className="st-part st-shadow" aria-hidden="true" />
             <div data-part="open" className="st-part" aria-hidden="true" style={{ ...posStyle("s2-album-open"), zIndex: 3, opacity: 0 }}>
               <LayerArt id="s2-album-open" />
             </div>
@@ -206,7 +216,7 @@ export default function Scene2Album() {
                 </div>
               </div>
             ))}
-            {GOODS.map((id, i) => (
+            {GOODS.map(({ id }, i) => (
               <div key={id} data-part={`goods-${i}`} className="st-part st-goods" aria-hidden="true" style={{ ...posStyle(id), zIndex: 8, opacity: 0, transform: "translate(-50%,-50%) scale(0.2)" }}>
                 <div className="st-idle st-idle-bob" style={{ ["--dur" as string]: `${layerSpec(id).idleSec ?? 4}s`, ["--dly" as string]: `${layerSpec(id).idleDelay ?? 0}s` }}>
                   <LayerArt id={id} />
@@ -216,6 +226,8 @@ export default function Scene2Album() {
           </div>
         </div>
       </div>
+      {/* 장면 1 → 2 사이를 부드럽게 잇는 구름 가장자리(위 장면 아래색이 이 장면 안으로 내려와요) */}
+      <div className="st-edge st-edge-a" aria-hidden="true" />
     </section>
   );
 }
