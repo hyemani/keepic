@@ -269,24 +269,26 @@
 /* 화면 밖에 있는 장면은 움직임을 멈춰서 배터리·발열을 아껴요 */
 .st-scene:not([data-live="1"]) .st-idle, .st-scene:not([data-live="1"]) .st-spark { animation-play-state: paused; }
 
-/* ───────── 장면과 장면 사이: 구름 가장자리 ─────────
-   위 장면의 아래 색이 둥근 구름 모양으로 다음 장면 안으로 내려와서, 파랑↔보라가 일직선으로 끊기지 않아요.
-   장면 위쪽 끝(top:-26px)에 얹어서 위 장면과 26px 겹치고(투명→불투명으로 번져 들어가요), 구름 모양은 다음 장면 쪽으로 30px 내려와요. */
+/* ───────── 장면과 장면 사이 ─────────
+   위 장면의 아래색이 "크고 완만한 곡선 하나"로 다음 장면 안으로 살짝 내려와서, 파랑↔보라가 일직선으로 끊기지 않아요.
+   작은 반원·물결을 되풀이하지 않고(질감 있는 구름 그림과 부딪히지 않게), 번짐·블러·그림자도 쓰지 않아요.
+   장면 위쪽 끝에서 34px 위(위 장면과 겹침, 위로 갈수록 투명)부터 34px 아래까지 걸쳐요. */
 .st-edge {
   position: absolute;
   left: 0;
   right: 0;
-  top: -26px;
-  height: 56px;
+  top: -34px;
+  height: 68px;
   z-index: 40;
   pointer-events: none;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='56' viewBox='0 0 240 56'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23fff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='240' height='27' fill='url(%23g)'/%3E%3Cpath d='M240 26 A27 20 0 0 1 188 26 A34 30 0 0 1 120 26 A22 16 0 0 1 76 26 A38 28 0 0 1 0 26 Z'/%3E%3C/svg%3E") repeat-x 0 0 / 240px 56px;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='56' viewBox='0 0 240 56'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23fff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='240' height='27' fill='url(%23g)'/%3E%3Cpath d='M240 26 A27 20 0 0 1 188 26 A34 30 0 0 1 120 26 A22 16 0 0 1 76 26 A38 28 0 0 1 0 26 Z'/%3E%3C/svg%3E") repeat-x 0 0 / 240px 56px;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 50%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 50%);
 }
 .st-edge-a { background: linear-gradient(90deg, #3f13cf 0%, #5922e4 28%, #8c5ffa 48%, #8055f8 60%, #4519df 82%, #3f13cf 100%); } /* 장면 1 아래 구름색 */
 .st-edge-b { background: linear-gradient(90deg, #4a2aec 0%, #753ff8 30%, #864bf6 45%, #6e41f9 66%, #4d2dee 100%); } /* 장면 2 아래 구름색 */
 @media (max-width: 599px) {
-  .st-edge { top: -20px; height: 42px; -webkit-mask-size: 180px 42px; mask-size: 180px 42px; }
+  .st-edge { top: -24px; height: 48px; }
 }
 
 /* ───────── 가로로 넓은 화면 ─────────
